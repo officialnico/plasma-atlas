@@ -1,0 +1,916 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vlasov maxwell explorer</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Comprehensive Vlasov-Maxwell explorer
+// Click any term in the equations -> get explanations + visualization
+// Levels: layperson, undergrad, advanced
+
+function VlasovMaxwellExplorer() {
+  const [selected, setSelected] = useState("dfdt");
+  const [level, setLevel] = useState("intuitive"); // "intuitive" | "undergrad" | "advanced"
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#08080d",
+      color: "#e8e8ee",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+      padding: "32px 24px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: inherit; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 18px; }
+        .term {
+          display: inline-block;
+          padding: 6px 10px;
+          margin: 2px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-family: 'Fraunces', serif;
+          font-style: italic;
+          transition: all 0.15s ease;
+          border: 1px solid transparent;
+          font-size: 24px;
+        }
+        .term:hover {
+          background: #1f1f2c;
+          border-color: #ff5c3a;
+        }
+        .term.active {
+          background: #ff5c3a;
+          color: #0a0a0f;
+          border-color: #ff5c3a;
+        }
+        .term.dim { color: #555; font-size: 24px; padding: 6px 4px; }
+        .level-btn {
+          padding: 5px 10px; font-size: 10px;
+        }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; margin-top: -7px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #08080d;
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%;
+          cursor: grab; border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>
+            VLASOV–MAXWELL · CLICKABLE EXPLORER
+          </div>
+          <h1 className="display" style={{ fontSize: 36, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            Click any term
+          </h1>
+          <p style={{ fontSize: 13, color: "#b0b0bc", marginTop: 12, lineHeight: 1.6, maxWidth: 750 }}>
+            The full Vlasov–Maxwell system. Tap any colored term to learn what it does, see its inputs and outputs, and play with a live visualization. Switch the explanation level depending on how deep you want to go.
+          </p>
+        </div>
+
+        {/* LEVEL SWITCHER */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          <button className={`control-btn level-btn ${level === "intuitive" ? "active" : ""}`} onClick={() => setLevel("intuitive")}>1 · Intuitive</button>
+          <button className={`control-btn level-btn ${level === "undergrad" ? "active" : ""}`} onClick={() => setLevel("undergrad")}>2 · Undergrad</button>
+          <button className={`control-btn level-btn ${level === "advanced" ? "active" : ""}`} onClick={() => setLevel("advanced")}>3 · Advanced</button>
+        </div>
+
+        {/* VLASOV EQUATION */}
+        <div className="viz-card" style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 14 }}>
+            VLASOV EQUATION (per species s)
+          </div>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+            <Term id="dfdt" label="∂f_s/∂t" sel={selected} setSel={setSelected} color="#ff5c3a" />
+            <span className="term dim">+</span>
+            <Term id="streaming" label="v · ∇_x f_s" sel={selected} setSel={setSelected} color="#5b8def" />
+            <span className="term dim">+</span>
+            <Term id="qm" label="q_s/m_s" sel={selected} setSel={setSelected} color="#ffd166" />
+            <span className="term dim">(</span>
+            <Term id="E" label="E" sel={selected} setSel={setSelected} color="#7af0a8" />
+            <span className="term dim">+</span>
+            <Term id="vxB" label="v × B" sel={selected} setSel={setSelected} color="#9d8df1" />
+            <span className="term dim">) ·</span>
+            <Term id="dfdv" label="∇_v f_s" sel={selected} setSel={setSelected} color="#3ec6c2" />
+            <span className="term dim">= 0</span>
+          </div>
+        </div>
+
+        {/* SPECIES NOTE */}
+        <div className="viz-card" style={{ marginBottom: 12, background: "#0d0d18", padding: "12px 16px" }}>
+          <div style={{ fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>
+            <span style={{ color: "#ff5c3a", fontWeight: 600 }}>"per species s"</span> — a plasma usually contains multiple particle types (electrons, ions, sometimes more). You write this same equation <em>once for each type</em>. Electrons and ions have different masses and charges (different q/m), so they obey different versions. They share the same E and B fields though — that's how they couple together.
+          </div>
+        </div>
+
+        {/* MAXWELL'S EQUATIONS */}
+        <div className="viz-card" style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 14 }}>
+            MAXWELL'S EQUATIONS · how E and B are computed
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+              <Term id="gauss" label="∇ · E = ρ/ε₀" sel={selected} setSel={setSelected} color="#7af0a8" />
+              <span style={{ fontSize: 11, color: "#666", marginLeft: 12 }}>(Gauss — charges make E)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+              <Term id="nomonopoles" label="∇ · B = 0" sel={selected} setSel={setSelected} color="#9d8def" />
+              <span style={{ fontSize: 11, color: "#666", marginLeft: 12 }}>(no magnetic monopoles)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+              <Term id="faraday" label="∇ × E = −∂B/∂t" sel={selected} setSel={setSelected} color="#7af0a8" />
+              <span style={{ fontSize: 11, color: "#666", marginLeft: 12 }}>(Faraday — changing B makes E)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+              <Term id="ampere" label="∇ × B = μ₀J + μ₀ε₀ ∂E/∂t" sel={selected} setSel={setSelected} color="#9d8def" />
+              <span style={{ fontSize: 11, color: "#666", marginLeft: 12 }}>(Ampère–Maxwell — currents and changing E make B)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* COUPLING */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 14 }}>
+            COUPLING · how species feed Maxwell
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+              <Term id="rho" label="ρ = Σ_s q_s ∫f_s d³v" sel={selected} setSel={setSelected} color="#ff7a7a" />
+              <span style={{ fontSize: 11, color: "#666", marginLeft: 12 }}>(charge density from all species)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 4 }}>
+              <Term id="J" label="J = Σ_s q_s ∫v f_s d³v" sel={selected} setSel={setSelected} color="#ffd166" />
+              <span style={{ fontSize: 11, color: "#666", marginLeft: 12 }}>(current density from all species)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* DETAIL PANEL */}
+        <TermDetail termId={selected} level={level} />
+
+        {/* THE LOOP */}
+        <div className="viz-card" style={{ background: "#0d0d18", marginTop: 14 }}>
+          <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 10 }}>
+            How the whole loop fits together
+          </div>
+          <div style={{ display: "grid", gap: 10, fontSize: 13, color: "#b0b0bc", lineHeight: 1.55 }}>
+            <div>1. Each species has its own f_s (electrons, ions, ...).</div>
+            <div>2. Sum charges and currents across species → ρ and J.</div>
+            <div>3. Plug ρ and J into Maxwell → get E and B everywhere.</div>
+            <div>4. Plug E and B back into each species' Vlasov equation → get how each f_s evolves.</div>
+            <div>5. Step forward in time. Repeat.</div>
+            <div style={{ marginTop: 6, color: "#ffd166" }}>It's a self-consistent loop — the fields shape the particles, the particles shape the fields, both update together.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Term({ id, label, sel, setSel, color }) {
+  const isActive = sel === id;
+  return (
+    <span
+      className={`term ${isActive ? "active" : ""}`}
+      onClick={() => setSel(id)}
+      style={{
+        color: isActive ? "#0a0a0f" : color,
+        background: isActive ? color : "transparent",
+        borderColor: isActive ? color : "transparent",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// =================== DETAIL PANELS ===================
+function TermDetail({ termId, level }) {
+  const detail = DETAILS[termId];
+  if (!detail) return null;
+  const Viz = detail.viz;
+  return (
+    <div className="viz-card" style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        TERM · {detail.label}
+      </div>
+      <div className="display" style={{ fontSize: 26, fontStyle: "italic", color: detail.color, marginBottom: 14 }}>
+        {detail.symbol}
+      </div>
+      <div style={{ fontSize: 13, color: "#e8e8ee", lineHeight: 1.65, marginBottom: 16 }}>
+        {detail[level]}
+      </div>
+      <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
+        <div style={{ background: "#0d0d18", padding: "10px 14px", borderLeft: "2px solid #7af0a8" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#7af0a8", marginBottom: 4 }}>INPUTS</div>
+          <div style={{ fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>{detail.inputs}</div>
+        </div>
+        <div style={{ background: "#0d0d18", padding: "10px 14px", borderLeft: "2px solid #ff5c3a" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#ff5c3a", marginBottom: 4 }}>OUTPUT</div>
+          <div style={{ fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>{detail.outputs}</div>
+        </div>
+      </div>
+      {Viz && <div style={{ marginTop: 6 }}><Viz /></div>}
+    </div>
+  );
+}
+
+// =================== VIZ COMPONENTS ===================
+function StreamingViz() {
+  const [v, setV] = useState(1.0);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setT(prev => (prev + dt * v) % 8);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [v]);
+
+  const W = 480, H = 120;
+  const f = (x) => Math.exp(-Math.pow((x - 2 - t) % 8 - 2, 2) / 0.6);
+  let path = "";
+  for (let i = 0; i <= 200; i++) {
+    const x = (i / 200) * 8;
+    const px = (x / 8) * W;
+    const py = H - 20 - f(x) * 70;
+    path += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+  }
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        f(x, t) STREAMING TO THE RIGHT AT v = {v.toFixed(2)}
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        <line x1="0" y1={H - 20} x2={W} y2={H - 20} stroke="#1f1f2c" />
+        <path d={path} fill="none" stroke="#5b8def" strokeWidth="2.5" />
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", margin: "6px 0 4px" }}>
+        <span>v</span><span style={{ color: "#fff" }}>{v.toFixed(2)}</span>
+      </div>
+      <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={v} onChange={e => setV(parseFloat(e.target.value))} />
+    </div>
+  );
+}
+
+function ForceViz() {
+  // animated v vs E push
+  const [E, setE] = useState(0.5);
+  const [vTrack, setVTrack] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      setVTrack(prev => {
+        let nv = prev + E * dt;
+        if (Math.abs(nv) > 3) nv = -Math.sign(nv) * 3;
+        return nv;
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [E]);
+
+  const W = 480, H = 100;
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        PARTICLE VELOCITY DRIFTS UP/DOWN AS E PUSHES IT
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        <line x1="20" y1={H/2} x2={W - 20} y2={H/2} stroke="#1f1f2c" strokeDasharray="2,3" />
+        <text x="10" y={H/2 + 3} fontSize="9" fill="#666" textAnchor="end">v=0</text>
+        {/* particle */}
+        <circle
+          cx={W/2}
+          cy={H/2 - vTrack * 14}
+          r="8"
+          fill="#7af0a8"
+        />
+        {/* arrow showing velocity */}
+        <line
+          x1={W/2 + 14} y1={H/2 - vTrack * 14}
+          x2={W/2 + 14 + vTrack * 14} y2={H/2 - vTrack * 14}
+          stroke="#7af0a8" strokeWidth="2"
+        />
+        <text x={W/2 - 30} y={20} fontSize="11" fill="#7af0a8" fontStyle="italic">
+          current v = {vTrack.toFixed(2)}
+        </text>
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", margin: "6px 0 4px" }}>
+        <span>E (force, normalized)</span><span style={{ color: "#fff" }}>{E.toFixed(2)}</span>
+      </div>
+      <input className="smooth-slider" type="range" min="-1.5" max="1.5" step="0.01" value={E} onChange={e => setE(parseFloat(e.target.value))} />
+    </div>
+  );
+}
+
+function QMViz() {
+  const W = 480, H = 120;
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        ELECTRON vs PROTON RESPONSE TO SAME FORCE
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        <line x1="20" y1={H - 30} x2={W - 20} y2={H - 30} stroke="#1f1f2c" />
+        {/* electron */}
+        <circle cx="80" cy={H - 30} r="5" fill="#5b8def" />
+        <text x="80" y={H - 40} fontSize="10" fill="#5b8def" textAnchor="middle">e⁻</text>
+        <line x1="86" y1={H - 30} x2={W - 30} y2={H - 30} stroke="#5b8def" strokeWidth="2" markerEnd="url(#ar1)" />
+        <text x={W/2} y={H - 38} fontSize="9" fill="#5b8def" textAnchor="middle">huge acceleration · q/m ≈ −1.76×10¹¹</text>
+
+        {/* proton */}
+        <circle cx="80" cy={30} r="7" fill="#ff7a7a" />
+        <text x="80" y={20} fontSize="10" fill="#ff7a7a" textAnchor="middle">p⁺</text>
+        <line x1="87" y1={30} x2={120} y2={30} stroke="#ff7a7a" strokeWidth="2" markerEnd="url(#ar2)" />
+        <text x={W/2} y={22} fontSize="9" fill="#ff7a7a" textAnchor="middle">tiny acceleration · q/m ≈ +9.6×10⁷</text>
+
+        <defs>
+          <marker id="ar1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#5b8def" />
+          </marker>
+          <marker id="ar2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff7a7a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+        Same E field, vastly different responses. Electrons are ~1836× lighter, so they respond ~1836× more strongly.
+        This is why electrons do most of the "work" in plasma — shielding, waves, instabilities all happen on electron timescales.
+      </div>
+    </div>
+  );
+}
+
+function VxBViz() {
+  const [B, setB] = useState(1);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setT(prev => prev + dt * B);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [B]);
+
+  const W = 480, H = 200;
+  const cx = W / 2, cy = H / 2;
+  const r = 50;
+  const px = cx + r * Math.cos(t * 2);
+  const py = cy + r * Math.sin(t * 2);
+  // velocity tangent
+  const vx = -Math.sin(t * 2);
+  const vy = Math.cos(t * 2);
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        v × B FORCES PARTICLES INTO CIRCULAR ORBITS · gyromotion
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        {/* B field indicator: dots in plane (out of page) */}
+        {[0.2, 0.4, 0.6, 0.8].map((fy, j) => (
+          [0.1, 0.25, 0.4, 0.55, 0.7, 0.85].map((fx, i) => (
+            <circle key={`${i}-${j}`} cx={W * fx} cy={H * fy} r="1.5" fill="#9d8df1" opacity="0.4" />
+          ))
+        ))}
+        <text x={20} y={20} fontSize="10" fill="#9d8df1" fontStyle="italic">B out of page</text>
+
+        {/* orbit */}
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#9d8df1" strokeOpacity="0.3" strokeDasharray="3,3" />
+        {/* particle */}
+        <circle cx={px} cy={py} r="8" fill="#ffd166" />
+        {/* velocity arrow */}
+        <line x1={px} y1={py} x2={px + vx * 30} y2={py + vy * 30} stroke="#7af0a8" strokeWidth="2.5" markerEnd="url(#avhead)" />
+        <text x={px + vx * 35} y={py + vy * 35} fontSize="10" fill="#7af0a8" fontStyle="italic">v</text>
+        {/* force arrow (centripetal) */}
+        <line x1={px} y1={py} x2={cx + (px - cx) * 0.4} y2={cy + (py - cy) * 0.4} stroke="#ff5c3a" strokeWidth="2.5" markerEnd="url(#fhead)" />
+        <text x={cx + (px - cx) * 0.3} y={cy + (py - cy) * 0.3 - 4} fontSize="10" fill="#ff5c3a" fontStyle="italic">qv×B</text>
+
+        <defs>
+          <marker id="avhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+          <marker id="fhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", margin: "6px 0 4px" }}>
+        <span>|B|</span><span style={{ color: "#fff" }}>{B.toFixed(2)}</span>
+      </div>
+      <input className="smooth-slider" type="range" min="0.1" max="3" step="0.01" value={B} onChange={e => setB(parseFloat(e.target.value))} />
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8 }}>
+        Stronger B → faster gyration → tighter orbits. The force is always perpendicular to v, so it bends the path but never speeds the particle up or slows it down.
+      </div>
+    </div>
+  );
+}
+
+function GaussViz() {
+  const [Q, setQ] = useState(1);
+  const W = 480, H = 200;
+  const cx = W/2, cy = H/2;
+  // E field arrows pointing radially outward
+  const arrows = [];
+  for (let a = 0; a < 16; a++) {
+    const ang = (a / 16) * Math.PI * 2;
+    const x1 = cx + Math.cos(ang) * 25;
+    const y1 = cy + Math.sin(ang) * 25;
+    const len = Math.abs(Q) * 35 + 8;
+    const x2 = cx + Math.cos(ang) * (25 + len);
+    const y2 = cy + Math.sin(ang) * (25 + len);
+    arrows.push({ x1, y1, x2, y2, ang, sign: Q > 0 ? 1 : -1 });
+  }
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CHARGES MAKE E · Gauss says ∇·E = ρ/ε₀
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        {arrows.map((a, i) => {
+          const x1 = a.sign > 0 ? a.x1 : a.x2;
+          const x2 = a.sign > 0 ? a.x2 : a.x1;
+          const y1 = a.sign > 0 ? a.y1 : a.y2;
+          const y2 = a.sign > 0 ? a.y2 : a.y1;
+          return (
+            <g key={i}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#7af0a8" strokeWidth="1.5" markerEnd="url(#earrow)" />
+            </g>
+          );
+        })}
+        <circle cx={cx} cy={cy} r="20" fill={Q > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={cx} y={cy + 5} fontSize="18" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{Q > 0 ? "+" : "−"}</text>
+        <defs>
+          <marker id="earrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", margin: "6px 0 4px" }}>
+        <span>charge Q</span><span style={{ color: "#fff" }}>{Q >= 0 ? "+" : ""}{Q.toFixed(2)}</span>
+      </div>
+      <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Q} onChange={e => setQ(parseFloat(e.target.value))} />
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8 }}>
+        Positive charge → E points outward. Negative → inward. The strength scales with the charge.
+      </div>
+    </div>
+  );
+}
+
+function FaradayViz() {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 480, H = 200;
+  // changing B (size oscillates), induced E circulates around it
+  const Bsize = 30 + 25 * Math.sin(t * 1.5);
+  const dBdt = 25 * 1.5 * Math.cos(t * 1.5);
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CHANGING B MAKES E · Faraday's law
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        {/* B region (purple, growing/shrinking) */}
+        <circle cx={W/2} cy={H/2} r={Bsize} fill="#9d8df1" fillOpacity="0.3" stroke="#9d8df1" strokeWidth="2" />
+        <text x={W/2} y={H/2 + 5} fontSize="14" fill="#fff" textAnchor="middle" fontStyle="italic" fontFamily="Fraunces">
+          B(t)
+        </text>
+        {/* induced E loops around */}
+        {[80, 100, 120].map((r, i) => {
+          const arrowAngle = t * 0.5 + i * 0.3;
+          const ax = W/2 + r * Math.cos(arrowAngle);
+          const ay = H/2 + r * Math.sin(arrowAngle);
+          const ax2 = W/2 + r * Math.cos(arrowAngle + 0.3);
+          const ay2 = H/2 + r * Math.sin(arrowAngle + 0.3);
+          return (
+            <g key={i}>
+              <circle cx={W/2} cy={H/2} r={r} fill="none" stroke="#7af0a8" strokeOpacity={0.4 - i * 0.1} strokeDasharray="3,3" />
+              <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#farrow)" />
+            </g>
+          );
+        })}
+        <text x="20" y="25" fontSize="11" fill="#7af0a8" fontStyle="italic">induced E circulates</text>
+
+        <defs>
+          <marker id="farrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+        The purple B region is pulsing (changing in time). Faraday's law says: a changing B field induces a circulating E field around it.
+        This is how electric generators work — spin a magnet, get electricity.
+      </div>
+    </div>
+  );
+}
+
+function AmpereViz() {
+  const W = 480, H = 200;
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // current flowing through center, B circulates around it
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CURRENT MAKES B · Ampère's law
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        {/* current arrow up */}
+        <line x1={W/2} y1={H - 20} x2={W/2} y2={20} stroke="#ffd166" strokeWidth="6" markerEnd="url(#jarrow)" />
+        <text x={W/2 + 10} y={40} fontSize="14" fill="#ffd166" fontStyle="italic" fontFamily="Fraunces">J</text>
+
+        {/* B loops around current */}
+        {[60, 90, 120].map((r, i) => {
+          const arrowAngle = t * 0.6 + i * 0.4;
+          const ax = W/2 + r * Math.cos(arrowAngle);
+          const ay = H/2 + r * Math.sin(arrowAngle) * 0.4;
+          const ax2 = W/2 + r * Math.cos(arrowAngle + 0.3);
+          const ay2 = H/2 + r * Math.sin(arrowAngle + 0.3) * 0.4;
+          return (
+            <g key={i}>
+              <ellipse cx={W/2} cy={H/2} rx={r} ry={r * 0.4} fill="none" stroke="#9d8df1" strokeOpacity={0.4 - i * 0.1} strokeDasharray="3,3" />
+              <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#9d8df1" strokeWidth="2" markerEnd="url(#barrow)" />
+            </g>
+          );
+        })}
+        <text x="20" y="25" fontSize="11" fill="#9d8df1" fontStyle="italic">B circulates around J</text>
+
+        <defs>
+          <marker id="jarrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0, 8 4, 0 8" fill="#ffd166" />
+          </marker>
+          <marker id="barrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#9d8df1" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+        Current flowing up the wire creates B circulating around it (right-hand rule). This is how electromagnets work —
+        current through coils creates a B field. Same physics as a transformer, motor, or MRI machine.
+      </div>
+    </div>
+  );
+}
+
+function NoMonopolesViz() {
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        B FIELD LINES ALWAYS FORM CLOSED LOOPS · no isolated north or south
+      </div>
+      <svg width="100%" viewBox="0 0 480 200">
+        {/* bar magnet */}
+        <rect x="180" y="80" width="120" height="40" fill="#1a1a26" stroke="#666" />
+        <rect x="180" y="80" width="60" height="40" fill="#5b8def" opacity="0.6" />
+        <rect x="240" y="80" width="60" height="40" fill="#ff7a7a" opacity="0.6" />
+        <text x="210" y="105" fontSize="14" fill="#fff" textAnchor="middle">N</text>
+        <text x="270" y="105" fontSize="14" fill="#fff" textAnchor="middle">S</text>
+
+        {/* field lines as ellipses */}
+        {[0, 1, 2, 3].map(i => {
+          const off = (i + 1) * 18;
+          return (
+            <ellipse key={i} cx="240" cy="100" rx={60 + off} ry={off + 10}
+              fill="none" stroke="#9d8df1" strokeOpacity={0.6 - i * 0.1} strokeWidth="1.5" />
+          );
+        })}
+        <text x="20" y="25" fontSize="11" fill="#9d8df1" fontStyle="italic">field lines loop continuously from N to S, externally and through the magnet</text>
+      </svg>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+        Cut a magnet in half — you don't get isolated N and S poles, you get two smaller magnets each with their own N and S.
+        Magnetic monopoles have never been found (despite searches). ∇·B = 0 says this mathematically: no point in space is a "source" of B.
+      </div>
+    </div>
+  );
+}
+
+function RhoViz() {
+  const W = 480, H = 200;
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CHARGE DENSITY ρ · what each species contributes
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        {/* electron contribution */}
+        <text x={20} y={30} fontSize="11" fill="#5b8def" fontStyle="italic">electrons (q = −e)</text>
+        <rect x={120} y={20} width={150} height={20} fill="#5b8def" opacity="0.7" />
+        <text x={285} y={34} fontSize="10" fill="#5b8def">−e · n_e</text>
+
+        <text x={20} y={70} fontSize="11" fill="#ff7a7a" fontStyle="italic">ions (q = +e)</text>
+        <rect x={120} y={60} width={155} height={20} fill="#ff7a7a" opacity="0.7" />
+        <text x={285} y={74} fontSize="10" fill="#ff7a7a">+e · n_i</text>
+
+        <line x1={20} y1={100} x2={W - 20} y2={100} stroke="#1f1f2c" />
+
+        <text x={20} y={130} fontSize="11" fill="#fff" fontStyle="italic">total ρ</text>
+        <rect x={120} y={120} width={5} height={20} fill="#ffd166" />
+        <text x={140} y={134} fontSize="10" fill="#ffd166">≈ 0 (quasineutral!)</text>
+
+        <text x={20} y={170} fontSize="10" fill="#888">In quasi-neutral plasma, electron and ion charge densities almost cancel.</text>
+        <text x={20} y={185} fontSize="10" fill="#888">Tiny departures from neutrality drive huge fields — that's the heart of plasma physics.</text>
+      </svg>
+    </div>
+  );
+}
+
+function JViz() {
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CURRENT DENSITY J · how f weighted by velocity gives net flow
+      </div>
+      <svg width="100%" viewBox="0 0 480 200">
+        <line x1="20" y1="100" x2="460" y2="100" stroke="#1f1f2c" strokeDasharray="2,3" />
+        <text x="10" y="103" fontSize="9" fill="#666" textAnchor="end">v=0</text>
+
+        {/* particles drifting right */}
+        {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map((p, i) => (
+          <g key={i}>
+            <circle cx={p * 480} cy={70 + (i % 3) * 8} r="3" fill="#5b8def" />
+            <line x1={p * 480 + 4} y1={70 + (i % 3) * 8} x2={p * 480 + 16} y2={70 + (i % 3) * 8}
+              stroke="#5b8def" strokeWidth="1.5" markerEnd="url(#jvar)" />
+          </g>
+        ))}
+
+        <text x="20" y="40" fontSize="11" fill="#5b8def" fontStyle="italic">particles with net rightward velocity</text>
+        <text x="20" y="155" fontSize="11" fill="#ffd166" fontStyle="italic">→ creates current J pointing right</text>
+
+        <line x1="40" y1="170" x2="200" y2="170" stroke="#ffd166" strokeWidth="3" markerEnd="url(#jvar2)" />
+        <text x="120" y="190" fontSize="11" fill="#ffd166" fontStyle="italic" textAnchor="middle">J = q · n · ⟨v⟩</text>
+
+        <defs>
+          <marker id="jvar" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <polygon points="0 0, 5 2.5, 0 5" fill="#5b8def" />
+          </marker>
+          <marker id="jvar2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ffd166" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+        J is the integral of v·f over velocity space, summed across species. Symmetric distributions (equal flow left and right) give J = 0.
+        Drift distributions give J ≠ 0.
+      </div>
+    </div>
+  );
+}
+
+function DfdtViz() {
+  const W = 480, H = 140;
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // a "value at fixed point" oscillates over time
+  const fAtPoint = 0.5 + 0.3 * Math.sin(t * 1.5);
+  return (
+    <div style={{ background: "#0d0d18", padding: 14, borderRadius: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        f AT A FIXED POINT, CHANGING WITH TIME
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+        <line x1="40" y1={H - 20} x2={W - 20} y2={H - 20} stroke="#1f1f2c" />
+        <text x="30" y={H - 17} fontSize="9" fill="#666" textAnchor="end">t</text>
+        {/* trace */}
+        {(() => {
+          let d = "";
+          for (let i = 0; i <= 100; i++) {
+            const tt = t - 5 + i * 0.05;
+            const v = 0.5 + 0.3 * Math.sin(tt * 1.5);
+            const px = 40 + (i / 100) * (W - 60);
+            const py = H - 20 - v * 80;
+            d += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+          }
+          return <path d={d} fill="none" stroke="#ff5c3a" strokeWidth="2" />;
+        })()}
+        <circle cx={W - 20} cy={H - 20 - fAtPoint * 80} r="5" fill="#ff5c3a" />
+        <text x="50" y="20" fontSize="11" fill="#ff5c3a" fontStyle="italic">f at (x₀, v₀) over time · f = {fAtPoint.toFixed(2)}</text>
+      </svg>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+        Pick any fixed point in phase space and just watch f at that point. The Vlasov equation predicts how it changes second-by-second.
+      </div>
+    </div>
+  );
+}
+
+// =================== DETAILS DICTIONARY ===================
+const DETAILS = {
+  dfdt: {
+    label: "RATE OF CHANGE",
+    symbol: "∂f_s/∂t",
+    color: "#ff5c3a",
+    intuitive: "How fast the distribution f at one fixed point in phase space is changing per second. This is the answer the equation gives you. Pick a point (x, v) in phase space, watch the value of f there, and ∂f/∂t tells you the slope of that timeline.",
+    undergrad: "The partial time derivative of the distribution function, evaluated at fixed (x, v). Distinct from df/dt (which is along a particle trajectory and equals zero by Liouville). The Vlasov equation rearranges to give ∂f/∂t = − v·∇_x f − (q/m)(E + v×B)·∇_v f, expressing the local time evolution as a sum of advection terms.",
+    advanced: "The Eulerian time derivative of the kinetic distribution. The Vlasov equation is a Liouville equation in 6+1D phase space; ∂f/∂t is the part of the total derivative left over after subtracting the convective contributions in x and v. Written as a hyperbolic transport equation, ∂f/∂t is the time eigenvalue along which the equation evolves; spectral analysis of the Vlasov operator (Case-van Kampen modes, Penrose criterion) is built on diagonalizing this term against the streaming and force operators.",
+    inputs: "Implicit — this term is what you're solving for. It depends on the entire current state of f and the fields E, B.",
+    outputs: "A scalar at every (x, v): rate of change of the distribution per unit time at that point.",
+    viz: DfdtViz
+  },
+  streaming: {
+    label: "STREAMING",
+    symbol: "v · ∇_x f_s",
+    color: "#5b8def",
+    intuitive: "Particles slide horizontally through space at velocity v. As they slide, they carry the distribution past any fixed observation point. This term measures how fast f changes at that fixed point because of that sliding.",
+    undergrad: "The convective term in position space. v·∇_x f = v_x ∂f/∂x + v_y ∂f/∂y + v_z ∂f/∂z. It's the spatial advection of f at velocity v. In 1D, just v ∂f/∂x. Encodes the fact that particles with velocity v move through space at rate v, so the distribution at that v gets translated.",
+    advanced: "The streaming operator v·∇_x is the generator of free-streaming translations on phase space. Its action gives rise to phase mixing (filamentation in v at scales 1/(kt)) and is the origin of Landau damping when combined with the self-consistent E. The continuous spectrum of this operator on real-valued v is the foundation of the Case-van Kampen mode decomposition. Numerically, it sets the CFL constraint Δt < Δx/v_max — typically the dominant cost in Eulerian Vlasov solvers.",
+    inputs: "v (the velocity coordinate of the point you're at), and the spatial gradient of f at that point.",
+    outputs: "A scalar at every (x, v): the rate at which f is being advected past this point by spatial motion.",
+    viz: StreamingViz
+  },
+  qm: {
+    label: "CHARGE-TO-MASS RATIO",
+    symbol: "q_s / m_s",
+    color: "#ffd166",
+    intuitive: "How strongly a particle responds to electric and magnetic forces, given its mass. Light particles (electrons) accelerate huge amounts from a small force. Heavy particles (ions) barely move under the same force. This ratio is what makes electrons fast and ions slow.",
+    undergrad: "By Newton's second law, a = F/m. For charged particles, F = q(E + v×B), so a = (q/m)(E + v×B). The factor q/m is therefore the acceleration produced per unit field. Electrons: q/m ≈ −1.76 × 10¹¹ C/kg. Protons: q/m ≈ +9.6 × 10⁷ C/kg. The ratio is ~1836:1 in magnitude, which is why electrons are the dynamic species in most plasma phenomena.",
+    advanced: "The species charge-to-mass ratio sets the cyclotron frequency Ω_c = qB/m and therefore the basic timescale of magnetized motion. Mass ratio considerations dominate kinetic plasma physics: electron Debye shielding fast (ω_pe ∝ √(n_e e²/m_e ε₀)), ion sound waves slow, ambipolar diffusion controlled by the ratio. Most kinetic codes treat species separately because their characteristic timescales differ by order m_i/m_e ~ 10³.",
+    inputs: "Species identity — type of particle (electron, proton, He⁺, etc.). Once species is known, q and m are constants.",
+    outputs: "A constant scalar (per species): how strongly that species responds to electromagnetic forces.",
+    viz: QMViz
+  },
+  E: {
+    label: "ELECTRIC FIELD",
+    symbol: "E",
+    color: "#7af0a8",
+    intuitive: "A force per unit charge that exists at every point in space. Push a positive charge into an E field and it accelerates in the direction of E. E is created by other charges (Gauss's law) and by changing B fields (Faraday's law).",
+    undergrad: "A vector field E(x, t) with three components. Force on a particle with charge q is F = qE. Created by charge densities via Gauss's law (∇·E = ρ/ε₀) and by time-varying magnetic fields via Faraday's law. Units: V/m or N/C. In Vlasov-Poisson, E comes purely from charges. In full Vlasov-Maxwell, also from changing B.",
+    advanced: "A 4-vector component of the electromagnetic field tensor F^μν, transforming as the time-space components under Lorentz transformations. In plasma kinetics, the self-consistent E is obtained from Poisson (electrostatic limit) or full Maxwell (electromagnetic limit). The linearized response of E to plasma perturbations gives the dielectric function ε(k, ω), whose roots determine plasma waves and instabilities.",
+    inputs: "Charge density ρ at every point in space (via Gauss). Time-varying B (via Faraday).",
+    outputs: "A vector at every point in space: the local electric field that pushes charges around.",
+    viz: GaussViz
+  },
+  vxB: {
+    label: "MAGNETIC FORCE TERM",
+    symbol: "v × B",
+    color: "#9d8df1",
+    intuitive: "The magnetic part of the Lorentz force. A charge moving with velocity v in a magnetic field B feels a force perpendicular to both. Result: charged particles in B fields move in circles or helices instead of straight lines.",
+    undergrad: "The vector cross product. (v × B)_x = v_y B_z − v_z B_y, etc. Always perpendicular to both v and B. Magnitude |v||B|sin(θ). Force is qv×B, perpendicular to v, so does no work. Causes circular motion at the cyclotron frequency Ω_c = qB/m with Larmor radius ρ = mv⊥/(qB).",
+    advanced: "The magnetic component of the Lorentz force, responsible for gyrotropic structure of magnetized kinetic theory. In the gyrokinetic limit, one averages over fast cyclotron motion, eliminating one velocity dimension and replacing the v×B term with drift terms (E×B drift, ∇B drift, curvature drift). The conserved magnetic moment μ = mv⊥²/(2B) is the adiabatic invariant of the fast gyromotion, used as a coordinate in 5D gyrokinetic phase space.",
+    inputs: "Particle velocity v and magnetic field B at the particle's location.",
+    outputs: "A vector representing the magnetic force per unit charge — always perpendicular to v.",
+    viz: VxBViz
+  },
+  dfdv: {
+    label: "VELOCITY GRADIENT",
+    symbol: "∇_v f_s",
+    color: "#3ec6c2",
+    intuitive: "The slope of f along the velocity axes. Tells you whether more particles are being added at this velocity or fewer, as you scan up and down the velocity axis. Combined with the force, it tells you how f changes due to particles being accelerated through this velocity slice.",
+    undergrad: "The gradient of f with respect to velocity coordinates: ∇_v f = (∂f/∂v_x, ∂f/∂v_y, ∂f/∂v_z). Like ∇_x f but in velocity space. Dotted with the force, it gives the rate at which f changes at fixed (x, v) due to particles being kicked between velocity slices.",
+    advanced: "The velocity gradient defines the slope of the distribution along the v axes. Sign of v·∇_v f at the wave phase velocity determines whether a wave damps (Landau damping, ∂f/∂v < 0) or grows (bump-on-tail instability, ∂f/∂v > 0). The Penrose criterion and Nyquist analysis of plasma stability are built on the structure of ∇_v f.",
+    inputs: "The function f near the velocity coordinate of the point.",
+    outputs: "A vector at every (x, v): the velocity-space slopes of f.",
+    viz: () => null
+  },
+  gauss: {
+    label: "GAUSS'S LAW",
+    symbol: "∇ · E = ρ/ε₀",
+    color: "#7af0a8",
+    intuitive: "Charges create electric fields. Specifically: the 'amount' of E pointing outward from a small region is proportional to the charge in that region. Positive charge → field points outward. Negative → inward. Net zero charge in a region → field flowing in matches field flowing out.",
+    undergrad: "One of Maxwell's equations. ∇·E (the divergence) measures the net outflow of E from each point. Equals ρ/ε₀, where ρ is charge density and ε₀ is the permittivity of vacuum. Integral form: total flux of E through any closed surface = total charge enclosed / ε₀. The way charges 'create' E.",
+    advanced: "The temporal component of the inhomogeneous Maxwell equation ∂_μ F^μν = μ₀ J^ν. In the electrostatic limit, combined with E = −∇φ, gives Poisson: −∇²φ = ρ/ε₀. In Vlasov-Poisson plasma, ρ comes from integrating f over v and summing over species, closing the loop self-consistently with the kinetic equation. Linearization gives the longitudinal dielectric response.",
+    inputs: "Charge density ρ at every point in space.",
+    outputs: "Constraint that the electric field E must satisfy: its divergence equals ρ/ε₀ everywhere.",
+    viz: GaussViz
+  },
+  nomonopoles: {
+    label: "NO MAGNETIC MONOPOLES",
+    symbol: "∇ · B = 0",
+    color: "#9d8def",
+    intuitive: "Magnetic field lines never start or end — they always form closed loops. There's no such thing as an isolated 'north pole' or 'south pole' the way there are isolated positive and negative charges. Cut a magnet in half, you get two smaller magnets, not a separated N and S.",
+    undergrad: "Maxwell's equation stating no magnetic charges exist. Divergence of B is zero everywhere — B has no sources or sinks. Field lines must close on themselves. Implies the existence of a vector potential A such that B = ∇×A, used heavily in calculations.",
+    advanced: "The Bianchi identity for the dual electromagnetic field tensor: ∂_μ *F^μν = 0. Allows formulation in terms of the 4-potential A^μ. Searches for magnetic monopoles (Dirac monopoles, 't Hooft-Polyakov monopoles) have come up empty experimentally. In pure classical electromagnetism, no monopoles exist by axiom; in some grand unified theories they're predicted but heavy.",
+    inputs: "None — this is a pure constraint on B.",
+    outputs: "Constraint: B must have zero divergence everywhere.",
+    viz: NoMonopolesViz
+  },
+  faraday: {
+    label: "FARADAY'S LAW",
+    symbol: "∇ × E = −∂B/∂t",
+    color: "#7af0a8",
+    intuitive: "Changing magnetic fields create circulating electric fields. If B grows, E loops around the change in a way that opposes it (Lenz's law). This is how electric generators work: spin a magnet, get electricity in a coil. Also how transformers work.",
+    undergrad: "Maxwell's equation relating curl of E to time derivative of B. The minus sign is Lenz's law — induced E opposes the change in B. Integral form: EMF around a loop = −dΦ_B/dt where Φ_B is magnetic flux through the loop. Foundational to electromagnetic induction, generators, and AC circuits.",
+    advanced: "Spatial component of the homogeneous Maxwell equations: ∂_μ *F^μν = 0 split into ∇·B = 0 and ∇×E + ∂_t B = 0. Combined with Ampère's law and continuity, gives wave equation in vacuum (electromagnetic waves). In plasma, dressed by the dielectric response of the medium.",
+    inputs: "The time-derivative of B.",
+    outputs: "Constraint: curl of E = −∂B/∂t. Tells you what E must look like as B changes.",
+    viz: FaradayViz
+  },
+  ampere: {
+    label: "AMPÈRE–MAXWELL LAW",
+    symbol: "∇ × B = μ₀J + μ₀ε₀ ∂E/∂t",
+    color: "#9d8def",
+    intuitive: "Currents create circulating magnetic fields (think electromagnet). Also, changing E fields create circulating B fields (Maxwell's addition, which made electromagnetic waves possible). This is why a current through a wire makes a magnetic field around the wire.",
+    undergrad: "Maxwell's equation with two source terms for B: J (current density) and ∂E/∂t (displacement current — Maxwell's addition). Without the displacement current, electromagnetism wouldn't be self-consistent and EM waves wouldn't exist. Originally just Ampère's law (∇×B = μ₀J) for steady currents.",
+    advanced: "The spatial component of the inhomogeneous Maxwell equation. Maxwell's displacement current ε₀∂E/∂t closes the consistency of the equations under Lorentz transformations and current conservation (∂_μ J^μ = 0). In plasma, J includes both current from plasma flow and displacement current; the dielectric response merges them in dispersion analysis.",
+    inputs: "Current density J and time-derivative of E.",
+    outputs: "Constraint: curl of B = μ₀J + μ₀ε₀∂E/∂t. Determines how B evolves given currents and changing E.",
+    viz: AmpereViz
+  },
+  rho: {
+    label: "CHARGE DENSITY",
+    symbol: "ρ = Σ_s q_s ∫ f_s d³v",
+    color: "#ff7a7a",
+    intuitive: "How much net charge is in any tiny volume of space. To compute it: for each species, count how many particles are there (integrate f over all velocities), multiply by their charge, then add across species. In a plasma, the electron and ion contributions almost cancel (quasi-neutrality), but the small leftover drives the field.",
+    undergrad: "Charge density ρ(x, t) is computed by summing over species, taking the velocity integral of each species' distribution times its charge. Quasi-neutrality requires ρ ≈ 0 on scales > λ_D, but small departures drive Coulomb fields. This is what closes the loop with Gauss's law.",
+    advanced: "The 0th moment of f weighted by q. ρ = Σ_s q_s n_s where n_s = ∫f_s d³v is species density. Quasi-neutrality is the leading-order constraint in expansions of plasma equations. Departure from quasi-neutrality is order (λ_D/L)² and drives Langmuir waves at frequency ω_pe.",
+    inputs: "All species' distribution functions at this position.",
+    outputs: "A scalar at every position: net charge per unit volume.",
+    viz: RhoViz
+  },
+  J: {
+    label: "CURRENT DENSITY",
+    symbol: "J = Σ_s q_s ∫ v f_s d³v",
+    color: "#ffd166",
+    intuitive: "Net flow of charge per unit area. To compute it: for each species, take the average velocity times the density times the charge. If electrons drift one way and ions another, they both contribute to the current. The currents then create magnetic fields via Ampère's law.",
+    undergrad: "Current density J(x, t) is the first velocity moment of f weighted by q, summed over species. J = Σ_s q_s n_s u_s where u_s is the species mean velocity. In a plasma at rest, J = 0 even though particles have huge thermal velocities — only the bulk flow matters.",
+    advanced: "The spatial components of the 4-current J^μ = (cρ, J). Along with ρ, satisfies the continuity equation ∂ρ/∂t + ∇·J = 0 from charge conservation. In magnetized plasma, the perpendicular current includes diamagnetic, polarization, and grad-B drift contributions. Closes the loop with Ampère-Maxwell.",
+    inputs: "All species' distribution functions, weighted by their velocity.",
+    outputs: "A vector at every position: net charge flow per unit area per unit time.",
+    viz: JViz
+  }
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(VlasovMaxwellExplorer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

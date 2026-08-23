@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fueling a Star — How We Make Deuterium &amp; Tritium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spline+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a14;
+    --bg2:#0b1020;
+    --panel:rgba(18,24,44,0.55);
+    --ink:#eaf0ff;
+    --muted:#8b97b8;
+    --line:rgba(140,160,210,0.16);
+
+    --proton:#ff7a5c;     /* protons – warm */
+    --neutron:#9fb3d1;    /* neutrons – cool grey-blue */
+    --deut:#34e0d0;       /* deuterium – cyan */
+    --trit:#ff5d8f;       /* tritium – radioactive pink */
+    --lith:#ffc94d;       /* lithium – gold */
+    --helium:#7cf5c0;     /* helium – mint */
+    --energy:#fff0a6;     /* released energy – hot gold-white */
+
+    --display:'Fraunces',Georgia,serif;
+    --body:'Spline Sans',system-ui,sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(52,224,208,0.08), transparent 60%),
+      radial-gradient(900px 600px at 10% 110%, rgba(255,93,143,0.07), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--body);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* starfield + grain */
+  #stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode:overlay}
+
+  /* layout */
+  .stage{position:relative;z-index:2;height:100vh;width:100vw;display:flex;flex-direction:column}
+  .slides{flex:1;position:relative;overflow:hidden}
+  .slide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:64px 40px 110px;opacity:0;visibility:hidden;transform:translateY(24px) scale(0.99);
+    transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1),visibility .7s;overflow-y:auto}
+  .slide.active{opacity:1;visibility:visible;transform:none}
+  .inner{width:100%;max-width:1080px;margin:auto}
+
+  /* typography */
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+  .kicker .dot{width:7px;height:7px;border-radius:50%;background:var(--accent,#34e0d0);
+    box-shadow:0 0 14px var(--accent,#34e0d0)}
+  h1{font-family:var(--display);font-weight:600;line-height:1.02;letter-spacing:-.02em;
+    font-size:clamp(38px,6.4vw,82px)}
+  h1 em{font-style:italic;color:var(--accent,#34e0d0)}
+  h2{font-family:var(--display);font-weight:600;line-height:1.05;letter-spacing:-.015em;
+    font-size:clamp(30px,4.6vw,54px);margin-bottom:8px}
+  h2 em{font-style:italic;color:var(--accent)}
+  p.lead{font-size:clamp(16px,1.7vw,19px);color:#c4cde8;line-height:1.6;max-width:62ch}
+  p.note{color:var(--muted);font-size:14.5px;line-height:1.6;max-width:60ch}
+  .accent{color:var(--accent)}
+  .pink{color:var(--trit)} .cyan{color:var(--deut)} .gold{color:var(--lith)} .mint{color:var(--helium)}
+
+  /* equation chip */
+  .eq{font-family:var(--mono);font-size:clamp(14px,1.7vw,19px);display:inline-flex;flex-wrap:wrap;
+    align-items:center;gap:10px;background:rgba(255,255,255,.03);border:1px solid var(--line);
+    padding:12px 18px;border-radius:14px;line-height:1.4}
+  .eq sup{font-size:.62em;vertical-align:.55em}
+  .eq .op{color:var(--muted)}
+  .eq .out{color:var(--energy)}
+
+  /* nucleus svg helper */
+  .nucleus{filter:drop-shadow(0 0 10px rgba(255,255,255,.12))}
+  .jiggle{animation:jig 3.6s ease-in-out infinite}
+  @keyframes jig{0%,100%{transform:translate(0,0) rotate(0)}33%{transform:translate(1.2px,-1.4px) rotate(2deg)}66%{transform:translate(-1.1px,1px) rotate(-2deg)}}
+
+  /* SECTION 1 — fusion stage */
+  #fusionStage{position:relative;width:100%;height:min(46vh,380px);margin:8px 0 26px}
+  #fusionStage svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .flash{position:absolute;left:50%;top:50%;width:14px;height:14px;border-radius:50%;
+    transform:translate(-50%,-50%) scale(0);background:radial-gradient(circle,#fff,var(--energy) 35%,rgba(255,200,80,0) 70%);
+    opacity:0;pointer-events:none}
+  .firing .flash{animation:flash 1.05s ease-out .92s both}
+  @keyframes flash{0%{transform:translate(-50%,-50%) scale(0);opacity:0}
+    18%{opacity:1}40%{transform:translate(-50%,-50%) scale(34);opacity:.95}
+    100%{transform:translate(-50%,-50%) scale(60);opacity:0}}
+
+  .mover{transition:none}
+  /* D and T glide to centre, then products fly apart */
+  .firing #gD{animation:dIn 1s cubic-bezier(.55,0,.85,.5) both}
+  .firing #gT{animation:tIn 1s cubic-bezier(.55,0,.85,.5) both}
+  @keyframes dIn{from{transform:translate(0,0)}to{transform:translate(var(--dx),0)}}
+  @keyframes tIn{from{transform:translate(0,0)}to{transform:translate(var(--tx),0)}}
+  #gHe,#gN,#gE1,#gE2,#gE3{opacity:0}
+  .firing #gHe{animation:heOut 1.4s cubic-bezier(.2,.7,.3,1) 1s both}
+  .firing #gN{animation:nOut 1.5s cubic-bezier(.2,.7,.3,1) 1s both}
+  @keyframes heOut{0%{opacity:0;transform:translate(0,0)}12%{opacity:1}100%{opacity:1;transform:translate(calc(var(--dx)*-2.1),26px)}}
+  @keyframes nOut{0%{opacity:0;transform:translate(0,0)}12%{opacity:1}100%{opacity:1;transform:translate(calc(var(--tx)*2.4),-30px)}}
+  .firing #gE1{animation:eburst 1.3s ease-out 1s both}
+  .firing #gE2{animation:eburst 1.3s ease-out 1.06s both}
+  .firing #gE3{animation:eburst 1.3s ease-out 1.12s both}
+  @keyframes eburst{0%{opacity:0;transform:translate(0,0) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(var(--ex),var(--ey)) scale(1.1)}}
+
+  /* buttons */
+  .btn{font-family:var(--body);font-weight:500;font-size:14px;cursor:pointer;border:1px solid var(--line);
+    background:rgba(255,255,255,.04);color:var(--ink);padding:11px 20px;border-radius:999px;
+    transition:.25s;display:inline-flex;align-items:center;gap:9px}
+  .btn:hover{background:var(--accent);color:#06101a;border-color:transparent;box-shadow:0 0 26px -6px var(--accent)}
+  .btn.ghost:hover{background:rgba(255,255,255,.1);color:var(--ink);box-shadow:none}
+
+  /* SECTION 2 — isotope explorer */
+  .iso-wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
+  .iso-tabs{display:flex;gap:10px;margin:22px 0 18px;flex-wrap:wrap}
+  .iso-tab{flex:1;min-width:120px;cursor:pointer;border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;background:rgba(255,255,255,.02);transition:.25s;text-align:left}
+  .iso-tab .lab{font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .iso-tab .nm{font-family:var(--display);font-size:21px;margin-top:2px}
+  .iso-tab.on{border-color:var(--tabc);background:color-mix(in srgb,var(--tabc) 14%,transparent);
+    box-shadow:0 0 30px -12px var(--tabc)}
+  .iso-tab.on .nm{color:var(--tabc)}
+  .iso-art{position:relative;height:min(44vh,360px);display:flex;align-items:center;justify-content:center}
+  .iso-art svg{overflow:visible;width:100%;height:100%}
+  .orbit{fill:none;stroke:rgba(160,180,230,.18);stroke-width:1}
+  .electron{fill:#bcd2ff;filter:drop-shadow(0 0 6px #6f9bff)}
+  .spin{transform-origin:center;animation:spin 7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+  .stat{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;backdrop-filter:blur(8px)}
+  .stat .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .stat .v{font-size:17px;margin-top:5px;font-weight:500}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:999px;margin-top:8px}
+  .pill.ok{background:rgba(124,245,192,.14);color:var(--helium)}
+  .pill.bad{background:rgba(255,93,143,.16);color:var(--trit)}
+
+  /* generic flow / pipeline */
+  .flow{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;
+    backdrop-filter:blur(10px);position:relative;overflow:hidden}
+  .card h3{font-family:var(--display);font-weight:600;font-size:20px;margin-bottom:8px}
+  .card .step{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.2em}
+  .arrow{position:absolute;color:var(--muted)}
+
+  /* SECTION 3 — water tank + enrichment */
+  .deu-grid{display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:center}
+  #tank{width:100%;height:min(38vh,300px);border-radius:18px;border:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(52,224,208,.05),rgba(52,224,208,.12));position:relative;overflow:hidden}
+  .conc-wrap{margin-top:18px}
+  .conc-bar{height:18px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--line)}
+  .conc-fill{height:100%;width:2%;background:linear-gradient(90deg,var(--deut),#7cf5c0);transition:width .25s ease;
+    box-shadow:0 0 18px var(--deut)}
+  .conc-num{font-family:var(--mono);font-size:clamp(26px,4vw,40px);color:var(--deut);margin-top:10px}
+  input[type=range]{width:100%;accent-color:var(--deut);margin-top:14px;cursor:pointer}
+  .stage-label{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:8px;letter-spacing:.1em}
+
+  /* SECTION 4 — decay grid */
+  .trit-grid{display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:center}
+  .nm-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-top:22px}
+  .nm-btn{font-size:13px;padding:9px 16px}
+  .nm-btn[data-on="1"].on{background:#8ea2ff;color:#06101a;border-color:transparent;box-shadow:0 0 22px -6px #8ea2ff}
+  .nm-btn.off{opacity:.55}
+  .lead-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;margin-top:22px}
+  .pbnuc{width:118px;height:118px;border-radius:50%;margin:14px auto 0;display:grid;place-items:center;text-align:center;
+    background:radial-gradient(circle at 35% 30%,#eef2fa,#8b97b8);color:#0a0e1a;transition:box-shadow .4s}
+  .pbnuc .iso{font-family:var(--display);font-size:23px;font-weight:600;line-height:1}
+  .pbnuc .sub{font-family:var(--mono);font-size:10px;margin-top:4px}
+  .ladder{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+  .rung{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);
+    background:rgba(255,255,255,.02);transition:.3s;opacity:.5}
+  .rung.on{opacity:1;border-color:#aebdd6;background:rgba(174,189,214,.12);box-shadow:0 0 22px -10px #aebdd6}
+  .rung .iso{font-family:var(--mono);font-weight:700;min-width:58px}
+  .rung .tag{font-family:var(--mono);font-size:11px;margin-left:auto;padding:2px 9px;border-radius:999px}
+  .tag.ok{background:rgba(124,245,192,.14);color:var(--helium)}
+  .tag.mid{background:rgba(255,201,77,.16);color:var(--lith)}
+  .tag.bad{background:rgba(255,93,143,.18);color:var(--trit)}
+  .compbar{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .compbar .lab{font-family:var(--mono);font-size:12px;min-width:54px;color:#cdd7ea}
+  .compbar .track{flex:1;height:14px;border-radius:999px;background:rgba(255,255,255,.05);overflow:hidden}
+  .compbar .f{height:100%;background:linear-gradient(90deg,#8b97b8,#eef2fa)}
+  .compbar .pct{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:42px;text-align:right}
+  .fbar{display:flex;align-items:center;gap:12px;margin:9px 0}
+  .fbar .flab{font-family:var(--mono);font-weight:700;font-size:13px;min-width:52px}
+  .fbar .ftrack{flex:1;height:20px;border-radius:999px;background:rgba(255,255,255,.05);overflow:hidden}
+  .fbar .ffill{display:block;height:100%;border-radius:999px;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  .fbar .fval{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:88px;text-align:right}
+  .fmetric{font-size:13px;padding:9px 15px}
+  .fuel-cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
+  .procon{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+  .players{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:6px}
+  .pcard{padding:16px}
+  .fchip{font-family:var(--mono);font-size:10px;padding:2px 9px;border-radius:999px;margin-left:auto;font-weight:600}
+  .sbadge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+  #cycle{width:100%;height:min(46vh,380px)}
+  #cycle svg{width:100%;height:100%;overflow:visible}
+  .pfilters{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 8px}
+  .pchip{font-family:var(--mono);font-size:12px;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);cursor:pointer;transition:.25s;color:var(--ink)}
+  .pchip:hover{border-color:var(--c)}
+  .pchip.on{background:var(--c);border-color:transparent;color:#06101a;font-weight:600}
+  #decayBox{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;margin-top:8px}
+  .tatom{aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff9cc0,var(--trit));
+    box-shadow:0 0 8px rgba(255,93,143,.6);transition:.6s;transform:scale(1)}
+  .tatom.gone{background:rgba(255,255,255,.05);box-shadow:none;transform:scale(.4);opacity:.25}
+  .decay-meta{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:14px;display:flex;
+    justify-content:space-between}
+  .decay-meta b{color:var(--trit)}
+
+  /* SECTION 5 — reactor */
+  #reactor{width:100%;height:min(56vh,460px);position:relative}
+  #reactor svg{width:100%;height:100%;overflow:visible}
+  .loopinfo{display:flex;gap:14px;flex-wrap:wrap;margin-top:20px}
+  .loopinfo .stat{min-width:150px}
+
+  /* nav */
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;justify-content:center;
+    gap:22px;padding:18px 24px;background:linear-gradient(0deg,rgba(7,10,20,.92),transparent)}
+  .dots{display:flex;gap:14px}
+  .dotnav{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;opacity:.5;transition:.3s}
+  .dotnav:hover{opacity:.85}
+  .dotnav.on{opacity:1}
+  .dotnav i{width:9px;height:9px;border-radius:50%;background:var(--muted);display:block;transition:.3s}
+  .dotnav.on i{background:var(--c);box-shadow:0 0 12px var(--c);transform:scale(1.25)}
+  .dotnav span{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .dotnav.on span{color:var(--ink)}
+  .navbtn{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);
+    color:var(--ink);font-size:18px;cursor:pointer;transition:.25s;display:grid;place-items:center}
+  .navbtn:hover{background:rgba(255,255,255,.12)}
+  .navbtn:disabled{opacity:.25;cursor:not-allowed}
+  .progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--deut),var(--trit),var(--lith));
+    z-index:6;transition:width .6s ease;box-shadow:0 0 12px rgba(255,255,255,.3)}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .legend i{width:11px;height:11px;border-radius:50%;display:inline-block}
+
+  @media(max-width:840px){
+    .iso-wrap,.deu-grid,.trit-grid,.nm-grid,.lead-grid,.fuel-cards,.procon{grid-template-columns:1fr;gap:24px}
+    .flow,.players{grid-template-columns:1fr}
+    .slide{padding:54px 22px 120px}
+    .dotnav span{display:none}
+    #decayBox{grid-template-columns:repeat(10,1fr)}
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="grain"></div>
+<div class="progress" id="prog"></div>
+
+<div class="stage">
+  <div class="slides" id="slides">
+
+    <!-- ================= SLIDE 1 : THE GOAL ================= -->
+    <section class="slide active" data-accent="#fff0a6">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>The goal · star-power on Earth</div>
+        <h1>To run a fusion reactor,<br>you need to feed it<br><em>two rare cousins of hydrogen.</em></h1>
+        <div id="fusionStage">
+          <div class="flash"></div>
+          <svg viewBox="0 0 800 380" id="fusionSVG"></svg>
+        </div>
+        <p class="lead">Smash a <span class="cyan">deuterium</span> nucleus into a <span class="pink">tritium</span> nucleus hard enough and they fuse — making helium, firing out a high-speed neutron, and releasing a huge burst of energy. This single reaction is what powers the Sun and what we're trying to bottle on Earth.</p>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:20px">
+          <button class="btn" id="fireBtn">⚡ Fire the reaction</button>
+          <span class="eq"><span class="cyan">²H</span><span class="op">+</span><span class="pink">³H</span><span class="op">→</span><span class="mint">⁴He</span><span class="op">+</span><span style="color:var(--neutron)">n</span><span class="op">+</span><span class="out">17.6 MeV ⚡</span></span>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--proton)"></i>proton</span>
+          <span><i style="background:var(--neutron)"></i>neutron</span>
+          <span><i style="background:var(--deut)"></i>deuterium</span>
+          <span><i style="background:var(--trit)"></i>tritium</span>
+          <span><i style="background:var(--helium)"></i>helium</span>
+        </div>
+        <p class="note" style="margin-top:18px">The catch: one of these fuels is everywhere, and the other barely exists. The next four steps show how we get each one — and the clever trick that lets a reactor brew its own fuel.</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 2 : ISOTOPES ================= -->
+    <section class="slide" data-accent="#bcd2ff">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 1 · meet the isotopes</div>
+        <h2>Same element, <em>different weight</em></h2>
+        <p class="lead" style="margin-top:6px">All three are hydrogen — one lonely proton, one electron. The only difference is how many <b>neutrons</b> ride along in the nucleus. More neutrons = heavier, and sometimes unstable. Tap to compare.</p>
+        <div class="iso-wrap">
+          <div>
+            <div class="iso-tabs">
+              <div class="iso-tab on" data-iso="0" style="--tabc:#bcd2ff"><div class="lab">¹H · protium</div><div class="nm">Hydrogen</div></div>
+              <div class="iso-tab" data-iso="1" style="--tabc:#34e0d0"><div class="lab">²H · D</div><div class="nm">Deuterium</div></div>
+              <div class="iso-tab" data-iso="2" style="--tabc:#ff5d8f"><div class="lab">³H · T</div><div class="nm">Tritium</div></div>
+            </div>
+            <div class="stat-row" id="isoStats"></div>
+          </div>
+          <div class="iso-art"><svg viewBox="0 0 360 360" id="isoSVG"></svg></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 3 : DEUTERIUM ================= -->
+    <section class="slide" data-accent="#34e0d0">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 2 · the easy one</div>
+        <h2 style="--accent:var(--deut)">Deuterium: <em>filtered out of water</em></h2>
+        <p class="lead" style="margin-top:6px">You don't really "make" deuterium — it's already floating in every glass of water, about <b class="cyan">1 atom in every 6,400</b> hydrogens. The job is to concentrate those rare heavy ones until you have nearly pure <b class="cyan">heavy water (D₂O)</b>, then split it into deuterium gas.</p>
+
+        <div class="deu-grid">
+          <div>
+            <div id="tank"></div>
+            <p class="stage-label" id="tankLabel">Ordinary water — heavy-water molecules glow cyan</p>
+          </div>
+          <div>
+            <div class="conc-wrap">
+              <div class="stage-label" style="margin-bottom:8px">Drag to run the enrichment cascade →</div>
+              <div class="conc-bar"><div class="conc-fill" id="concFill"></div></div>
+              <div class="conc-num" id="concNum">0.0156%</div>
+              <input type="range" id="concSlider" min="0" max="100" value="0">
+              <p class="note" id="concDesc" style="margin-top:6px">Raw water: deuterium is a tiny trace impurity.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow">
+          <div class="card"><div class="step">METHOD A</div><h3 class="cyan">Girdler sulfide</h3><p class="note">Water and H₂S gas trade places between hot &amp; cold towers. Deuterium prefers the cold water, so stage after stage it piles up. The industrial workhorse.</p></div>
+          <div class="card"><div class="step">METHOD B</div><h3 class="cyan">Electrolysis</h3><p class="note">Run electricity through water: light hydrogen bubbles off faster, leaving deuterium behind in the liquid. Energy-hungry, so used as a final polish.</p></div>
+          <div class="card"><div class="step">METHOD C</div><h3 class="cyan">Distillation</h3><p class="note">Heavy water boils at a slightly higher temperature, so careful boiling slowly separates it. Small differences, repeated thousands of times.</p></div>
+        </div>
+        <p class="note" style="margin-top:18px">Final step: pass current through the purified <b class="cyan">D₂O</b> and collect <b class="cyan">D₂ gas</b>. Deuterium is stable, cheap, and harmless — the easy half of the fuel. ✅</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 4 : TRITIUM ================= -->
+    <section class="slide" data-accent="#ff5d8f">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 3 · the hard one</div>
+        <h2 style="--accent:var(--trit)">Tritium: <em>it has to be built</em></h2>
+        <p class="lead" style="margin-top:6px">Tritium is radioactive. Half of any batch decays away every <b class="pink">12.3 years</b>, so almost none survives in nature — it must be manufactured. The recipe: fire a <b style="color:var(--neutron)">neutron</b> at <b class="gold">lithium-6</b>.</p>
+
+        <div class="trit-grid">
+          <div>
+            <div class="stage-label" style="margin-bottom:10px">Watch a batch of tritium decay (drag the years) ↓</div>
+            <div id="decayBox"></div>
+            <input type="range" id="yearSlider" min="0" max="60" value="0">
+            <div class="decay-meta"><span>Year: <b id="yearNum">0</b></span><span>Remaining: <b id="remainNum">100%</b></span></div>
+            <p class="note" style="margin-top:8px" id="decayDesc">Brand-new tritium — full batch intact.</p>
+          </div>
+          <div>
+            <div class="card" style="--accent:var(--trit)">
+              <div class="step gold">THE BREEDING REACTION</div>
+              <h3 class="pink" style="margin-top:6px">Neutron + Lithium-6</h3>
+              <div style="height:170px;position:relative;margin:6px 0 10px"><svg viewBox="0 0 360 200" id="litSVG" style="width:100%;height:100%;overflow:visible"></svg></div>
+              <span class="eq" style="font-size:14px"><span class="gold">⁶Li</span><span class="op">+</span><span style="color:var(--neutron)">n</span><span class="op">→</span><span class="mint">⁴He</span><span class="op">+</span><span class="pink">³H</span></span>
+              <p class="note" style="margin-top:12px">A neutron splits lithium-6 into helium and a fresh tritium nucleus. This is done inside <b>nuclear reactors</b>, which provide the flood of neutrons. Some reactor types (like heavy-water CANDUs) also collect tritium as a byproduct.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 5 : THE REACTOR ================= -->
+    <section class="slide" data-accent="#ffc94d">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 4 · the payoff</div>
+        <h2 style="--accent:var(--lith)">The reactor <em>brews its own fuel</em></h2>
+        <p class="lead" style="margin-top:6px">Here's the elegant part. Fusion fires out fast <b style="color:var(--neutron)">neutrons</b> — exactly what's needed to breed tritium. So we wrap the plasma in a <b class="gold">lithium blanket</b>. Stray neutrons hit the lithium, make new <b class="pink">tritium</b>, and we feed it straight back as fuel.</p>
+
+        <div id="reactor"><svg viewBox="0 0 800 460" id="reactorSVG"></svg></div>
+
+        <div class="loopinfo">
+          <div class="stat"><div class="k">Inside the plasma</div><div class="v"><span class="cyan">D</span> + <span class="pink">T</span> fuse → <span class="mint">He</span> + neutron</div></div>
+          <div class="stat"><div class="k">In the blanket</div><div class="v">neutron + <span class="gold">⁶Li</span> → fresh <span class="pink">T</span></div></div>
+          <div class="stat"><div class="k">The target (TBR)</div><div class="v">make <b class="gold">&gt; 1</b> tritium per one burned</div></div>
+        </div>
+        <p class="note" style="margin-top:18px">Hitting that <b>breeding ratio above 1</b> — slightly more tritium out than in — is one of the key things <b>ITER</b> and future reactors are built to prove. Crack it, and the only fuels you ever truly buy are water and lithium. 🌊⚛️</p>
+        <p class="note" style="margin-top:10px;color:var(--muted)">Why D-T at all? It ignites at a lower temperature than any other fusion fuel — so even though tritium is a headache to source, it's the realistic starting point for first-generation reactors. <b style="color:var(--lith)">But how much more than 1 does the breeding ratio really need to be? →</b></p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 6 : BREEDING RATIO ================= -->
+    <section class="slide" data-accent="#5fe3a1">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 5 · the make-or-break number</div>
+        <h2 style="--accent:#5fe3a1">The <em>breeding ratio</em>, on a graph</h2>
+        <p class="lead" style="margin-top:6px">The <b style="color:#5fe3a1">Tritium Breeding Ratio (TBR)</b> = how many new tritium nuclei the blanket makes for every one the plasma burns. Drag it below and watch the reactor's fuel stockpile thrive or starve. The surprise: <b>just over 1.0 isn't enough.</b></p>
+
+        <div style="margin:18px 0 6px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+          <div class="conc-num" id="tbrNum" style="color:#5fe3a1">TBR = 1.15</div>
+          <div id="tbrSlope" style="font-family:var(--mono);font-size:14px;color:var(--muted)"></div>
+        </div>
+        <input type="range" id="tbrSlider" min="80" max="140" value="115" style="accent-color:#5fe3a1">
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px">
+          <span>0.80 — starving</span><span>1.06 — self-sufficient</span><span>1.40 — fast growth</span>
+        </div>
+
+        <div class="deu-grid" style="margin-top:22px;align-items:start">
+          <div>
+            <div class="stage-label" style="margin-bottom:8px">Tritium stockpile over time</div>
+            <svg viewBox="0 0 520 300" id="tbrChart" style="width:100%;height:auto;overflow:visible"></svg>
+          </div>
+          <div>
+            <div class="stage-label" style="margin-bottom:8px">Where each year's bred tritium must go</div>
+            <svg viewBox="0 0 520 160" id="tbrBudget" style="width:100%;height:auto;overflow:visible"></svg>
+            <div class="card" id="tbrVerdict" style="margin-top:14px;--accent:#5fe3a1"></div>
+          </div>
+        </div>
+
+        <div class="legend" style="margin-top:14px">
+          <span><i style="background:#ff5d6c"></i>TBR &lt; 1.0 · reactor starves</span>
+          <span><i style="background:#ffc94d"></i>1.0–1.06 · decay still wins</span>
+          <span><i style="background:#5fe3a1"></i>&gt; 1.06 · self-sufficient &amp; growing</span>
+        </div>
+        <p class="note" style="margin-top:16px">To push TBR up, engineers <b class="gold">enrich the blanket in lithium-6</b> and add <b>neutron multipliers</b> (beryllium or lead) that turn one neutron into two — so a single fusion neutron can breed more than one tritium. Real designs aim for roughly <b style="color:#5fe3a1">1.05–1.15</b>.</p>
+        <p class="note" style="margin-top:8px;color:var(--muted)">This is a simplified teaching model: burn rate is held steady and losses lumped into one rate. The shape of the curves — not the exact units — is the point.</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 7 : NEUTRON MULTIPLIER ================= -->
+    <section class="slide" data-accent="#8ea2ff">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 6 · turning 1 neutron into 2</div>
+        <h2 style="--accent:#8ea2ff">Neutron <em>multipliers</em></h2>
+        <p class="lead" style="margin-top:6px">Each D-T fusion makes <b>only one</b> neutron. But that neutron must breed at least one tritium — and some neutrons always get lost in the walls. With just one per fusion, the breeding ratio <b>can't</b> stay above 1. The fix: a material that throws back <b style="color:#8ea2ff">two</b> neutrons for every one that hits it.</p>
+
+        <div class="nm-grid">
+          <div class="card" style="--accent:#8ea2ff">
+            <div class="step" style="color:#8ea2ff">THE (n, 2n) REACTION · how it works</div>
+            <h3 style="margin-top:6px">A fast neutron hits beryllium-9</h3>
+            <div class="nm-stage nmgo" style="height:230px;position:relative;margin:8px 0 10px">
+              <svg viewBox="0 0 420 240" id="nmSVG" style="width:100%;height:100%;overflow:visible"></svg>
+            </div>
+            <span class="eq" style="font-size:14px"><span style="color:var(--neutron)">n</span><span class="op">+</span><span style="color:#8ea2ff">⁹Be</span><span class="op">→</span><span style="color:var(--neutron)">2n</span><span class="op">+</span><span class="mint">2 × ⁴He</span></span>
+            <p class="note" style="margin-top:12px">Beryllium-9's last neutron is barely attached, so a fast neutron knocks it loose and the nucleus crumbles into two helium (alpha) particles. <b>Reading the symbols:</b> "2 × ⁴He" means <i>two</i> helium-4 nuclei — the small 4 is the mass number (2 protons + 2 neutrons each), not a count. So the products are <b class="mint">2 helium nuclei</b> (the 4-dot clumps) <b>plus</b> <b style="color:var(--neutron)">2 free neutrons</b> (the lone dots). You can't split a neutron — but you <b>can</b> use its energy to shake extra neutrons out of a nucleus. And notice there's <b>no beryllium left</b>: its 4 protons end up inside those two helium nuclei. The beryllium didn't vanish — it <i>became</i> the helium. That's the "one-and-done" burnup that slowly consumes a beryllium blanket (lead, by contrast, just shuffles to a lighter lead isotope and keeps working).</p>
+          </div>
+
+          <div>
+            <div class="card" style="--accent:#8ea2ff">
+              <div class="step" style="color:#8ea2ff">WHY IT MATTERS · the payoff</div>
+              <h3 style="margin-top:6px">Flip the multiplier on</h3>
+              <div style="display:flex;gap:10px;margin:12px 0">
+                <button class="btn ghost nm-btn" data-on="0">Multiplier OFF</button>
+                <button class="btn nm-btn" data-on="1">Multiplier ON (Be)</button>
+              </div>
+              <svg viewBox="0 0 440 200" id="nmLedger" style="width:100%;height:auto;overflow:visible"></svg>
+              <div id="nmVerdict" style="margin-top:6px"></div>
+            </div>
+
+            <div class="flow" style="grid-template-columns:1fr 1fr;margin-top:16px">
+              <div class="card"><div class="step" style="color:#8ea2ff">OPTION A</div><h3 style="font-size:18px">Beryllium-9</h3><p class="note">Last neutron held by only ~1.7 MeV, so even mildly fast neutrons free it. Light, reflects neutrons well — but rare and gets brittle.</p></div>
+              <div class="card"><div class="step" style="color:#8ea2ff">OPTION B</div><h3 style="font-size:18px">Lead</h3><p class="note">Needs the fresh ~14 MeV fusion neutrons to fire its (n,2n). Cheap and plentiful, often run as a liquid lead-lithium mix that breeds <i>and</i> multiplies.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <p class="note" style="margin-top:18px">Bonus: the (n,2n) reaction <b>slows the neutrons down</b> a little — which is fine, because slower neutrons are actually <i>better</i> at being captured by lithium-6 to make tritium. So one trick helps twice.</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 8 : LEAD IN DEPTH ================= -->
+    <section class="slide" data-accent="#aebdd6">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 7 · the lead route, up close</div>
+        <h2 style="--accent:#aebdd6">Do you need <em>special</em> lead?</h2>
+        <p class="lead" style="margin-top:6px"><b>No.</b> You don't enrich lead at all. <b>Natural</b> lead — a mix of four stable isotopes — <i>all</i> does the (n,2n) trick. ²⁰⁸Pb is just the most common (and the famous "heaviest stable nucleus"), but ²⁰⁷, ²⁰⁶ and ²⁰⁴ multiply neutrons too. The thing you <i>do</i> enrich in a lead-lithium blanket is the <b class="cyan">lithium</b> (up to ~90% lithium-6) — never the lead.</p>
+
+        <div class="lead-grid">
+          <div class="card" style="--accent:#aebdd6">
+            <div class="step" style="color:#aebdd6">WALK THE ISOTOPE LADDER</div>
+            <h3 style="margin-top:6px">One lead atom, many lives</h3>
+            <div class="pbnuc" id="pbnuc"><div><div class="iso" id="pbiso">²⁰⁸Pb</div><div class="sub" id="pbsub">82 p · 126 n</div></div></div>
+            <div style="display:flex;gap:10px;justify-content:center;margin:16px 0 4px;flex-wrap:wrap">
+              <button class="btn" id="pbfire">⚛ Fire a neutron (n,2n)</button>
+              <button class="btn ghost" id="pbreset">Reset</button>
+            </div>
+            <div class="ladder" id="ladder"></div>
+            <p class="note" id="pbstatus" style="margin-top:12px"></p>
+          </div>
+
+          <div>
+            <div class="card" style="--accent:#aebdd6">
+              <div class="step" style="color:#aebdd6">NATURAL LEAD · no enrichment</div>
+              <h3 style="margin-top:6px">What's in ordinary lead</h3>
+              <div style="margin-top:12px">
+                <div class="compbar"><span class="lab">²⁰⁸Pb</span><span class="track"><span class="f" style="width:52%"></span></span><span class="pct">52%</span></div>
+                <div class="compbar"><span class="lab">²⁰⁶Pb</span><span class="track"><span class="f" style="width:24%"></span></span><span class="pct">24%</span></div>
+                <div class="compbar"><span class="lab">²⁰⁷Pb</span><span class="track"><span class="f" style="width:22%"></span></span><span class="pct">22%</span></div>
+                <div class="compbar"><span class="lab">²⁰⁴Pb</span><span class="track"><span class="f" style="width:2%"></span></span><span class="pct">1.4%</span></div>
+              </div>
+              <p class="note" style="margin-top:10px">All four are <b class="mint">stable</b>, and all four multiply neutrons — so you just use lead as-is.</p>
+            </div>
+
+            <div class="flow" style="grid-template-columns:1fr 1fr;margin-top:16px">
+              <div class="card"><div class="step pink">BERYLLIUM</div><h3 style="font-size:17px">Consumable</h3><p class="note">One isotope, ⁹Be. Reacts → <b>destroyed</b> into helium, which swells and embrittles the metal. Blanket must be <b>replaced</b>.</p></div>
+              <div class="card"><div class="step" style="color:#aebdd6">LEAD</div><h3 style="font-size:17px">Long-lived</h3><p class="note">Reacts → just a lighter <b>still-stable</b> lead. Walks its ladder over many rare hits and <b>stays in service</b>.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:18px;--accent:#aebdd6">
+          <div class="step" style="color:#aebdd6">LEAD'S FULL SCORECARD · why it isn't just the obvious winner</div>
+          <div class="procon">
+            <div>
+              <div style="font-family:var(--mono);font-size:12px;color:var(--helium);margin-bottom:8px">✓ WHY LEAD IS TEMPTING</div>
+              <p class="note" style="line-height:1.9"><b>Recyclable</b> — transmutes to lighter, still-stable lead instead of burning up like beryllium.<br><b>Cheap, abundant & low-toxicity</b> next to rare, poisonous beryllium.<br><b>No enrichment</b> — natural lead works as-is.<br><b>All-in-one fluid</b> — liquid lead-lithium is coolant, breeder carrier <i>and</i> multiplier at once.</p>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:12px;color:var(--trit);margin-bottom:8px">✗ WHY IT'S NOT THE DEFAULT</div>
+              <p class="note" style="line-height:1.9"><b>Weaker multiplier</b> — its 7.4 MeV threshold means fewer (n,2n) hits, so beryllium boosts neutrons (and energy) more.<br><b>MHD drag</b> — pumping a conductive liquid metal through strong magnetic fields causes huge pressure drops.<br><b>Tritium barely dissolves</b> in lead-lithium → hard to extract, and it permeates out as a leak risk.<br><b>Corrodes steel</b> at high temperature, and activates into nasty isotopes (e.g. polonium from trace bismuth).<br><b>Low lithium density</b> → needs thicker blankets or heavy Li-6 enrichment.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:18px;--accent:#8ea2ff">
+          <div class="step" style="color:#8ea2ff">SO WHAT IS ITER ACTUALLY USING? · 2024 baseline</div>
+          <p class="note" style="margin-top:8px">ITER recently switched its plasma-facing <b>first wall from beryllium to tungsten</b> — beryllium is toxic, erodes badly, and traps tritium, and every future reactor plans on tungsten anyway. But tungsten is <b>not</b> a multiplier: ITER's main blanket only <b>shields</b>, it doesn't breed. ITER buys its tritium from outside suppliers.</p>
+          <p class="note" style="margin-top:8px">Real breeding is <b>tested</b> in small <b>Test Blanket Modules</b>, which trial <b>both</b> routes from these slides: the <b class="pink">HCPB</b> module uses <b>beryllium pebbles</b> as the multiplier, while the <b style="color:#aebdd6">WCLL / HCLL</b> modules use liquid <b>lead-lithium</b> — lead as the multiplier, with Li-6-enriched lithium as the breeder. ITER is the proving ground for both.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 9 : FUEL COMPARISON ================= -->
+    <section class="slide" data-accent="#ffa45c">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 8 · the fuel menu</div>
+        <h2 style="--accent:#ffa45c">Why deuterium–tritium <em>first?</em></h2>
+        <p class="lead" style="margin-top:6px">D-T isn't the <i>best</i> fusion fuel — it's the <b>easiest to start</b>. Every alternative either needs a wildly higher temperature, or a fuel you can barely get hold of. Here's the whole menu — switch the yardstick:</p>
+
+        <div style="display:flex;gap:10px;margin:18px 0 6px;flex-wrap:wrap">
+          <button class="btn fmetric" data-m="temp">🌡 Temperature needed</button>
+          <button class="btn ghost fmetric" data-m="energy">⚡ Energy released</button>
+          <button class="btn ghost fmetric" data-m="neutron">☢ Neutron mess</button>
+        </div>
+        <div id="fbetter" class="stage-label" style="margin-bottom:10px"></div>
+        <div id="fbars"></div>
+
+        <div class="fuel-cards" id="fcards"></div>
+
+        <p class="note" style="margin-top:20px">So the logic of this whole deck: <b class="gold">D-T wins on ignitability</b> — it lights at the lowest temperature by a mile — which is why first-generation reactors burn it <i>despite</i> the radioactive, hard-to-source tritium and the messy 14 MeV neutrons. And those very neutrons are what we turn around and use to breed more tritium and multiply in the blanket. The cleaner fuels (D-³He, p-¹¹B) are the long game, once we can reach far higher temperatures.</p>
+        <p class="note" style="margin-top:8px;color:var(--muted)">Figures are approximate and rounded for comparison; exact values depend on plasma conditions.</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 10 : WHO USES WHAT ================= -->
+    <section class="slide" data-accent="#74e0ff">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 9 · who's burning what</div>
+        <h2 style="--accent:#74e0ff">The real-world <em>fuel bets</em></h2>
+        <p class="lead" style="margin-top:6px">Almost everyone starts with D-T — it's the only fuel we can ignite today. The big national machines run plain deuterium as a stepping stone, and two well-funded outsiders are gambling on the hard, clean fuels. Tap a fuel to filter:</p>
+        <div class="pfilters" id="pfilters">
+          <span class="pchip on" data-f="all" style="--c:#dfe7f5">All</span>
+          <span class="pchip" data-f="DT" style="--c:#ffc94d">D-T</span>
+          <span class="pchip" data-f="DD" style="--c:#34e0d0">D-D</span>
+          <span class="pchip" data-f="DHe3" style="--c:#b794f6">D-³He</span>
+          <span class="pchip" data-f="pB11" style="--c:#7cf5c0">p-¹¹B</span>
+        </div>
+        <div class="players" id="players"></div>
+        <p class="note" style="margin-top:20px"><b style="color:#b794f6">Why Helion picks D-³He:</b> its products are charged particles, so the energy can be grabbed straight back as electricity (no steam turbine), in a smaller, cheaper machine — and it dodges most of the neutron damage that plagues D-T. The price: ³He barely exists on Earth, so Helion breeds its own from D-D side reactions.</p>
+        <p class="note" style="margin-top:8px"><b style="color:#7cf5c0">Why TAE picks p-¹¹B:</b> hydrogen and boron are cheap and everywhere, and the reaction makes only helium — zero neutrons, no radioactivity. The price: ~1 billion °C, the hardest ignition of all.</p>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 11 : THE FUEL CYCLE ================= -->
+    <section class="slide" data-accent="#5fe3a1">
+      <div class="inner">
+        <div class="kicker"><span class="dot"></span>Step 10 · making the fuel</div>
+        <h2 style="--accent:#5fe3a1">How a plant <em>makes its own fuel</em></h2>
+        <p class="lead" style="margin-top:6px">This is the self-sustaining trick the breeding and multiplier steps were building toward. A D-T power plant is fed only <b class="cyan">water</b> and <b class="gold">lithium</b> — the tritium is bred and burned <i>inside</i> the loop, so it never has to be mined or bought. Out comes harmless <b class="mint">helium</b> and electricity.</p>
+
+        <div id="cycle"><svg viewBox="0 0 820 360" id="cycleSVG"></svg></div>
+
+        <div class="flow" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="card"><div class="step" style="color:#ffc94d">THE BOOTSTRAP CATCH (today)</div><p class="note" style="margin-top:8px">Breeding only works once a plant is <i>running</i> — but you need a few kg of tritium to start it. Today that's borrowed from <b>CANDU</b> fission reactors (~2 kg/yr, Canada). The entire civilian stockpile is just <b>~25–30 kg</b>, decaying 5%/yr, and one plant may need up to <b>~10 kg</b> to start. Closing the loop is the only long-term fix.</p></div>
+          <div class="card"><div class="step" style="color:#b794f6">HELION'S DIFFERENT LOOP</div><p class="note" style="margin-top:8px">Helion doesn't breed tritium — it breeds <b>helium-3</b>. Its D-D side reactions make ³He (and tritium that decays into more ³He), which it captures and feeds back. The only thing going in is <b class="cyan">deuterium</b> from water.</p></div>
+          <div class="card"><div class="step" style="color:#7cf5c0">NO BREEDING NEEDED</div><p class="note" style="margin-top:8px">The abundant fuels skip all of this. <b>D-D</b> machines just use deuterium from water; <b>p-¹¹B</b> (TAE) just buys hydrogen and boron. Nothing radioactive to make — the trade-off is much higher temperatures.</p></div>
+        </div>
+
+        <div class="card" style="margin-top:18px;--accent:#5fe3a1">
+          <div class="step" style="color:#5fe3a1">BREED OR BUY? · where the field actually stands</div>
+          <p class="note" style="margin-top:8px">There is <b>no real "just buy it" option</b> for D-T. The whole civilian world holds only <b>~25–30 kg</b> of tritium, topped up ~2 kg/yr by Canada's CANDU reactors and decaying 5%/yr — and a single commercial plant needs more than that entire stock. With <b>~28 of 43</b> fusion companies planning D-T, and ITER + DEMO already claiming most of the supply, there isn't enough to go around.</p>
+          <p class="note" style="margin-top:8px">So the field isn't drifting toward a purchase market — it's racing toward <b class="mint">self-sufficiency</b>. The plan is sequential: <b>borrow</b> ~1–2 kg of startup tritium to bootstrap the first plant, then <b>breed</b> everything after. Breeding blankets are the central thrust of DEMO programs and ITER's test modules. The newer worry is that even <i>startup</i> may need breeding almost immediately — which is exactly why <b style="color:#b794f6">Helion</b> and <b style="color:#7cf5c0">TAE</b> picked fuels that dodge tritium entirely.</p>
+        </div>
+
+        <div class="card" style="margin-top:18px;--accent:#5fe3a1">
+          <div class="step" style="color:#5fe3a1">WHO SELLS IT? · today's supply chain</div>
+          <p class="note" style="margin-top:8px"><b class="pink">Tritium →</b> almost all of it comes from <b>Ontario Power Generation</b> (Canada), pulled from CANDU heavy-water reactors at the <b>Darlington</b> Tritium Removal Facility — the world's largest — and sold through OPG's arm <b>Laurentis Energy Partners</b> (only ~100–300 g/yr). Korea (Wolsong) and a planned Romanian plant (Cernavodă) are the only other civilian sources. The big US supply is reserved for weapons. In 2025 OPG signed to supply the UK's UKAEA.</p>
+          <p class="note" style="margin-top:8px"><b style="color:#b794f6">Helium-3 (Helion) →</b> the very same vault: Laurentis harvests it from <i>decaying</i> tritium at Darlington and sells it via <b>Air Liquide</b> — the world's first non-military He-3. The US DOE stockpile is the only other source. Both are tiny, hence Helion's plan to breed its own.</p>
+          <p class="note" style="margin-top:8px"><b class="cyan">Deuterium →</b> a cheap commodity from ordinary heavy-water / isotope suppliers. Nobody worries about this one.</p>
+          <p class="note" style="margin-top:10px;color:var(--muted)">The punchline: nearly every D-T effort on Earth ultimately buys its tritium from <b>one Canadian utility's reactors</b> — and Helion's helium-3 traces back to the same place.</p>
+        </div>
+        <p class="note" style="margin-top:18px">So "self-sustaining" means different things per fuel: D-T plants <b class="mint">breed tritium</b> in a lithium blanket, Helion <b style="color:#b794f6">breeds helium-3</b>, and the abundant fuels simply <b class="cyan">don't need to</b>. Only D-T forces you to build the whole breeding-and-multiplying machinery from the earlier steps.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- NAV -->
+  <div class="nav">
+    <button class="navbtn" id="prev">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="navbtn" id="next">›</button>
+  </div>
+</div>
+
+<script>
+/* ---------- starfield ---------- */
+const cv=document.getElementById('stars'),cx=cv.getContext('2d');
+let stars=[];
+function sizeStars(){cv.width=innerWidth;cv.height=innerHeight;
+  stars=Array.from({length:140},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,
+    r:Math.random()*1.4+.2,a:Math.random(),s:Math.random()*.02+.003}));}
+sizeStars();addEventListener('resize',sizeStars);
+(function twinkle(){cx.clearRect(0,0,cv.width,cv.height);
+  for(const s of stars){s.a+=s.s;const o=.3+Math.abs(Math.sin(s.a))*.7;
+    cx.beginPath();cx.arc(s.x,s.y,s.r,0,7);cx.fillStyle=`rgba(200,215,255,${o})`;cx.fill();}
+  requestAnimationFrame(twinkle);})();
+
+/* ---------- nucleus builder ---------- */
+function packs(n){
+  const P={1:[[0,0]],2:[[-9,0],[9,0]],3:[[0,-10],[-10,8],[10,8]],
+    4:[[-9,-9],[9,-9],[-9,9],[9,9]],5:[[0,-12],[-12,-2],[12,-2],[-8,12],[8,12]],
+    6:[[-10,-10],[10,-10],[-16,4],[16,4],[-6,12],[8,14]],
+    9:[[0,0],[12,0],[6,10.4],[-6,10.4],[-12,0],[-6,-10.4],[6,-10.4],[0,-21],[0,21]]};
+  return P[n]||[[0,0]];
+}
+// type pattern e.g. ['p','n'] meaning proton then neutron; returns <g> inner
+function nucleus(protons,neutrons,r=9){
+  const total=protons+neutrons,pos=packs(total);let s='';let pi=0;
+  // interleave so colors mix visually
+  const seq=[];for(let i=0;i<Math.max(protons,neutrons);i++){if(i<protons)seq.push('p');if(i<neutrons)seq.push('n');}
+  pos.forEach((p,i)=>{const t=seq[i]||'p';const c=t==='p'?'var(--proton)':'var(--neutron)';
+    s+=`<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${c}"/>`
+      +`<circle cx="${p[0]-r*.3}" cy="${p[1]-r*.3}" r="${r*.32}" fill="rgba(255,255,255,.5)"/>`;});
+  return s;
+}
+
+/* ============ SLIDE 1 : fusion ============ */
+const fSVG=document.getElementById('fusionSVG');
+function drawFusion(){
+  const g=(id,x,y,inner,extra='')=>`<g id="${id}" class="mover" transform="translate(${x},${y})" ${extra}><g class="jiggle">${inner}</g></g>`;
+  let s='';
+  // deuterium left, tritium right (start positions) ; --dx/--tx move them to centre (400)
+  s+=g('gD',230,190,nucleus(1,1),'style="--dx:160px"');
+  s+=g('gT',570,190,nucleus(1,2),'style="--tx:-160px"');
+  s+=g('gHe',400,190,nucleus(2,2));
+  s+=`<g id="gN" transform="translate(400,190)"><circle r="8" fill="var(--neutron)"/><circle cx="-2.5" cy="-2.5" r="3" fill="rgba(255,255,255,.6)"/></g>`;
+  // energy sparks
+  const sp=(id,ex,ey)=>`<g id="${id}" transform="translate(400,190)" style="--ex:${ex}px;--ey:${ey}px"><path d="M0,-9 L3,-1 L11,0 L3,2 L0,10 L-3,2 L-11,0 L-3,-1 Z" fill="var(--energy)"/></g>`;
+  s+=sp('gE1',-120,-90)+sp('gE2',130,90)+sp('gE3',60,-130);
+  // labels
+  s+=`<text x="230" y="245" text-anchor="middle" font-family="var(--mono)" font-size="13" fill="var(--deut)">²H deuterium</text>`;
+  s+=`<text x="570" y="245" text-anchor="middle" font-family="var(--mono)" font-size="13" fill="var(--trit)">³H tritium</text>`;
+  fSVG.innerHTML=s;
+}
+drawFusion();
+const stage=document.getElementById('fusionStage'),fireBtn=document.getElementById('fireBtn');
+function fire(){stage.classList.remove('firing');void stage.offsetWidth;stage.classList.add('firing');}
+fireBtn.addEventListener('click',fire);
+
+/* ============ SLIDE 2 : isotopes ============ */
+const isoData=[
+  {n:0,name:'Hydrogen (¹H)',col:'#bcd2ff',neutrons:0,mass:'1',stable:true,
+   found:'~99.98% of all hydrogen',use:'Ordinary water, stars, everywhere',orbit:1},
+  {n:1,name:'Deuterium (²H)',col:'#34e0d0',neutrons:1,mass:'2',stable:true,
+   found:'1 in ~6,400 H atoms',use:'Heavy water → fusion fuel (easy half)',orbit:1},
+  {n:2,name:'Tritium (³H)',col:'#ff5d8f',neutrons:2,mass:'3',stable:false,
+   found:'Essentially none (decays away)',use:'Must be bred in reactors',orbit:1},
+];
+const isoSVG=document.getElementById('isoSVG'),isoStats=document.getElementById('isoStats');
+function drawIso(d){
+  const cxc=180,cyc=180;
+  let s=`<circle class="orbit" cx="${cxc}" cy="${cyc}" r="115"/>`;
+  s+=`<g class="spin" style="transform-origin:${cxc}px ${cyc}px"><circle class="electron" cx="${cxc+115}" cy="${cyc}" r="7"/></g>`;
+  s+=`<g transform="translate(${cxc},${cyc})"><g class="jiggle" style="transform:scale(1.7)">${nucleus(1,d.neutrons,9)}</g></g>`;
+  s+=`<text x="${cxc}" y="${cyc+155}" text-anchor="middle" font-family="var(--mono)" font-size="13" fill="${d.col}">1 proton + ${d.neutrons} neutron${d.neutrons===1?'':'s'}</text>`;
+  isoSVG.innerHTML=s;
+  isoStats.innerHTML=`
+    <div class="stat"><div class="k">Protons</div><div class="v">1</div></div>
+    <div class="stat"><div class="k">Neutrons</div><div class="v" style="color:${d.col}">${d.neutrons}</div></div>
+    <div class="stat"><div class="k">Mass number</div><div class="v">${d.mass}</div></div>
+    <div class="stat" style="flex-basis:100%"><div class="k">Stability</div>
+      <div class="v">${d.stable?'Stable — sticks around':'Radioactive — half gone every 12.3 yr'}</div>
+      <span class="pill ${d.stable?'ok':'bad'}">${d.stable?'STABLE':'UNSTABLE'}</span></div>
+    <div class="stat" style="flex-basis:100%"><div class="k">How common</div><div class="v">${d.found}</div></div>
+    <div class="stat" style="flex-basis:100%"><div class="k">Role in fusion</div><div class="v">${d.use}</div></div>`;
+}
+drawIso(isoData[0]);
+document.querySelectorAll('.iso-tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.iso-tab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');drawIso(isoData[+t.dataset.iso]);
+}));
+
+/* ============ SLIDE 3 : water tank + enrichment ============ */
+const tank=document.getElementById('tank');
+(function fillTank(){
+  let html='';
+  for(let i=0;i<70;i++){
+    const heavy=i%24===0; // ~1 in 24 highlighted for visibility
+    const x=Math.random()*94,y=Math.random()*86;
+    const sz=heavy?13:9;
+    html+=`<div class="wmol" style="position:absolute;left:${x}%;top:${y}%;width:${sz}px;height:${sz}px;border-radius:50%;
+      background:${heavy?'radial-gradient(circle at 35% 30%,#bafff4,var(--deut))':'rgba(160,185,230,.32)'};
+      ${heavy?'box-shadow:0 0 12px var(--deut);':''}
+      animation:bob ${3+Math.random()*3}s ease-in-out ${Math.random()*2}s infinite"></div>`;
+  }
+  tank.innerHTML=html;
+})();
+const sty=document.createElement('style');
+sty.textContent='@keyframes bob{0%,100%{transform:translate(0,0)}50%{transform:translate(0,-8px)}}';
+document.head.appendChild(sty);
+
+const slider=document.getElementById('concSlider'),fill=document.getElementById('concFill'),
+  num=document.getElementById('concNum'),desc=document.getElementById('concDesc'),tankLabel=document.getElementById('tankLabel');
+function updateConc(v){
+  // map 0..100 slider to 0.0156% .. 99.8% on a curved scale
+  const conc=0.0156*Math.pow(99.8/0.0156,v/100);
+  fill.style.width=Math.max(2,v*0.98+2)+'%';
+  num.textContent=(conc<1?conc.toFixed(conc<0.1?4:2):conc.toFixed(1))+'%';
+  let d,l;
+  if(v<5){d='Raw water: deuterium is a tiny trace impurity.';l='Ordinary water — heavy-water molecules glow cyan';}
+  else if(v<55){d='Cascade running — each stage nudges deuterium higher. Slow but steady.';l='Enriching… heavy water concentrating';}
+  else if(v<92){d='Getting rich in D₂O — close to reactor-grade heavy water.';l='Nearly heavy water (D₂O)';}
+  else{d='Pure heavy water! Electrolyze it to release D₂ gas — fuel ready. ✅';l='Pure D₂O → split into D₂ gas';}
+  desc.textContent=d;tankLabel.textContent=l;
+}
+slider.addEventListener('input',e=>updateConc(+e.target.value));
+updateConc(0);
+
+/* lithium reaction mini-anim (slide 4) */
+const litSVG=document.getElementById('litSVG');
+function drawLit(){
+  let s='';
+  s+=`<g transform="translate(150,100)"><g class="jiggle">${nucleus(3,3,8)}</g>
+      <text y="42" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--lith)">⁶Li</text></g>`;
+  // incoming neutron
+  s+=`<g id="litN"><circle cx="20" cy="100" r="7" fill="var(--neutron)"/></g>`;
+  // products (hidden then revealed via CSS animation)
+  s+=`<g id="litHe" opacity="0" transform="translate(150,100)"><g>${nucleus(2,2,7)}</g></g>`;
+  s+=`<g id="litT" opacity="0" transform="translate(150,100)"><g>${nucleus(1,2,7)}</g></g>`;
+  litSVG.innerHTML=s;
+}
+drawLit();
+const litStyle=document.createElement('style');
+litStyle.textContent=`
+  @keyframes litn{0%{transform:translate(0,0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translate(110px,0);opacity:0}}
+  @keyframes lithe{0%,40%{opacity:0;transform:translate(150px,100px)}55%{opacity:1}100%{opacity:1;transform:translate(95px,135px)}}
+  @keyframes litt{0%,40%{opacity:0;transform:translate(150px,100px)}55%{opacity:1}100%{opacity:1;transform:translate(250px,55px)}}
+  .litgo #litN{animation:litn 1.6s ease-in infinite}
+  .litgo #litHe{animation:lithe 1.6s ease-out infinite}
+  .litgo #litT{animation:litt 1.6s ease-out infinite}`;
+document.head.appendChild(litStyle);
+
+/* ============ SLIDE 4 : decay grid ============ */
+const HALF=12.3;
+const decayBox=document.getElementById('decayBox'),yearSlider=document.getElementById('yearSlider'),
+  yearNum=document.getElementById('yearNum'),remainNum=document.getElementById('remainNum'),decayDesc=document.getElementById('decayDesc');
+const N=120;
+for(let i=0;i<N;i++){const a=document.createElement('div');a.className='tatom';decayBox.appendChild(a);}
+const atoms=[...decayBox.children];
+// assign each atom a stable random "decay order" so it looks like random decay
+const order=atoms.map((_,i)=>i).sort(()=>Math.random()-.5);
+function updateDecay(years){
+  const frac=Math.pow(0.5,years/HALF);
+  const alive=Math.round(frac*N);
+  order.forEach((idx,rank)=>{atoms[idx].classList.toggle('gone',rank>=alive);});
+  yearNum.textContent=years;
+  remainNum.textContent=(frac*100).toFixed(frac<0.1?1:0)+'%';
+  let d;
+  if(years===0)d='Brand-new tritium — full batch intact.';
+  else if(years<HALF)d='Already fading — radioactive decay never stops.';
+  else if(years<HALF*2)d=`Past one half-life: about half is gone. This is why nature has none left.`;
+  else d='Mostly decayed. You can\'t stockpile tritium — you must keep breeding it.';
+  decayDesc.textContent=d;
+}
+yearSlider.addEventListener('input',e=>updateDecay(+e.target.value));
+updateDecay(0);
+
+/* ============ SLIDE 5 : reactor loop ============ */
+const rSVG=document.getElementById('reactorSVG');
+function drawReactor(){
+  const cxc=400,cyc=215;
+  let s='';
+  // blanket ring (lithium)
+  s+=`<circle cx="${cxc}" cy="${cyc}" r="185" fill="none" stroke="var(--lith)" stroke-width="34" stroke-opacity="0.16"/>`;
+  s+=`<circle cx="${cxc}" cy="${cyc}" r="185" fill="none" stroke="var(--lith)" stroke-width="2" stroke-opacity="0.5" stroke-dasharray="3 9"/>`;
+  // lithium tokens around ring
+  for(let i=0;i<10;i++){const a=i/10*Math.PI*2;const x=cxc+Math.cos(a)*185,y=cyc+Math.sin(a)*185;
+    s+=`<circle cx="${x}" cy="${y}" r="6" fill="var(--lith)" opacity="0.85"/>`;}
+  // plasma core
+  s+=`<circle cx="${cxc}" cy="${cyc}" r="120" fill="url(#pg)" opacity="0.9"/>`;
+  s+=`<circle cx="${cxc}" cy="${cyc}" r="120" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1"/>`;
+  // defs gradient + glow
+  s+=`<defs><radialGradient id="pg"><stop offset="0%" stop-color="rgba(255,200,120,.55)"/>
+      <stop offset="55%" stop-color="rgba(255,93,143,.28)"/><stop offset="100%" stop-color="rgba(52,224,208,.10)"/></radialGradient></defs>`;
+  // D and T fuel dots swirling in core
+  for(let i=0;i<5;i++){const a=Math.random()*6.28,r=Math.random()*90;
+    s+=`<circle cx="${cxc+Math.cos(a)*r}" cy="${cyc+Math.sin(a)*r}" r="5" fill="${i%2?'var(--deut)':'var(--trit)'}">
+        <animate attributeName="opacity" values="0.4;1;0.4" dur="${2+Math.random()*2}s" repeatCount="indefinite"/></circle>`;}
+  // labels
+  s+=`<text x="${cxc}" y="${cyc-4}" text-anchor="middle" font-family="var(--display)" font-size="20" fill="#fff" opacity=".9">PLASMA</text>`;
+  s+=`<text x="${cxc}" y="${cyc+18}" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="rgba(255,255,255,.6)">D + T fusing</text>`;
+  s+=`<text x="${cxc}" y="${cyc+185+44}" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--lith)">LITHIUM BLANKET</text>`;
+
+  // animated neutrons flying out (core -> blanket) and tritium coming back
+  const neutron=(delay,ang)=>{
+    const x1=cxc,y1=cyc,x2=cxc+Math.cos(ang)*180,y2=cyc+Math.sin(ang)*180;
+    return `<circle r="5" fill="var(--neutron)"><animate attributeName="cx" values="${x1};${x2}" dur="1.4s" begin="${delay}s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="${y1};${y2}" dur="1.4s" begin="${delay}s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;1;0" dur="1.4s" begin="${delay}s" repeatCount="indefinite"/></circle>`;};
+  const trit=(delay,ang)=>{
+    const x2=cxc+Math.cos(ang)*180,y2=cyc+Math.sin(ang)*180;
+    return `<circle r="5" fill="var(--trit)"><animate attributeName="cx" values="${x2};${cxc}" dur="1.6s" begin="${delay}s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="${y2};${cyc}" dur="1.6s" begin="${delay}s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0" dur="1.6s" begin="${delay}s" repeatCount="indefinite"/></circle>`;};
+  const angles=[-0.6,0.5,1.7,2.6,3.5,4.3,5.2];
+  angles.forEach((a,i)=>{s+=neutron(i*0.2,a);s+=trit(i*0.2+0.9,a);});
+
+  rSVG.innerHTML=s;
+}
+drawReactor();
+
+/* ============ SLIDE 6 : breeding ratio graphs ============ */
+const tbrChart=document.getElementById('tbrChart'),
+      tbrBudget=document.getElementById('tbrBudget'),
+      tbrSlider=document.getElementById('tbrSlider'),
+      tbrNum=document.getElementById('tbrNum'),
+      tbrSlope=document.getElementById('tbrSlope'),
+      tbrVerdict=document.getElementById('tbrVerdict');
+
+// model constants
+const LOSS=0.06;        // decay + processing losses per year (in "burn" units)
+const S0=4;             // starting stockpile (units)
+const YMAX=40, SMAX=12; // chart axes
+const RED='#ff5d6c', AMBER='#ffc94d', GREEN='#5fe3a1';
+
+function regimeColor(tbr){
+  if(tbr<1.0) return RED;
+  if(tbr<1.0+LOSS) return AMBER;
+  return GREEN;
+}
+
+function drawTBRchart(tbr){
+  const slope=tbr-1-LOSS;          // net stockpile change per year
+  const PL=46,PR=14,PT=14,PB=38;   // padding
+  const W=520,H=300, pw=W-PL-PR, ph=H-PT-PB;
+  const xp=y=>PL+(y/YMAX)*pw;
+  const yp=s=>PT+(1-Math.min(s,SMAX)/SMAX)*ph;
+  const col=regimeColor(tbr);
+  let s='';
+
+  // grid + axes
+  for(let g=0;g<=SMAX;g+=2){const yy=yp(g);
+    s+=`<line x1="${PL}" y1="${yy}" x2="${W-PR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`;
+    s+=`<text x="${PL-8}" y="${yy+4}" text-anchor="end" font-family="var(--mono)" font-size="10" fill="var(--muted)">${g}</text>`;}
+  for(let g=0;g<=YMAX;g+=10){const xx=xp(g);
+    s+=`<text x="${xx}" y="${H-PB+18}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">${g}</text>`;}
+  s+=`<text x="${PL-30}" y="${PT+ph/2}" transform="rotate(-90 ${PL-30} ${PT+ph/2})" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">stockpile (units)</text>`;
+  s+=`<text x="${PL+pw/2}" y="${H-4}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">years of operation</text>`;
+
+  // curve points (stockpile can't go below 0 — reactor stops)
+  let pts=[], deadYear=null;
+  for(let t=0;t<=YMAX;t++){
+    let val=S0+slope*t;
+    if(val<=0 && deadYear===null){deadYear=(-S0/slope);}
+    pts.push([t,Math.max(0,val)]);
+  }
+  const line=pts.map(p=>`${xp(p[0]).toFixed(1)},${yp(p[1]).toFixed(1)}`).join(' ');
+  // soft fill under curve
+  const fill=`${xp(0)},${yp(0)} ${line} ${xp(YMAX)},${yp(0)}`;
+  s+=`<polygon points="${fill}" fill="${col}" opacity="0.12"/>`;
+  s+=`<polyline points="${line}" fill="none" stroke="${col}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 8px ${col})"/>`;
+
+  // start dot
+  s+=`<circle cx="${xp(0)}" cy="${yp(S0)}" r="4.5" fill="${col}"/>`;
+
+  // annotation
+  if(deadYear!==null && deadYear<=YMAX){
+    const xd=xp(deadYear);
+    s+=`<line x1="${xd}" y1="${PT}" x2="${xd}" y2="${yp(0)}" stroke="${RED}" stroke-width="1" stroke-dasharray="3 4"/>`;
+    s+=`<circle cx="${xd}" cy="${yp(0)}" r="5" fill="${RED}"/>`;
+    s+=`<text x="${xd+6}" y="${yp(0)-8}" font-family="var(--mono)" font-size="11" fill="${RED}">⛔ runs dry, year ${deadYear.toFixed(0)}</text>`;
+  } else if(slope>0.001){
+    const last=pts[pts.length-1];
+    s+=`<text x="${xp(last[0])-4}" y="${yp(Math.min(last[1],SMAX))-10}" text-anchor="end" font-family="var(--mono)" font-size="11" fill="${GREEN}">▲ surplus building</text>`;
+  } else {
+    s+=`<text x="${xp(YMAX)-4}" y="${yp(pts[pts.length-1][1])-10}" text-anchor="end" font-family="var(--mono)" font-size="11" fill="${AMBER}">slowly draining</text>`;
+  }
+  tbrChart.innerHTML=s;
+}
+
+function drawTBRbudget(tbr){
+  const W=520,H=160,PL=16,PR=16,barW=W-PL-PR,barY=58,barH=34;
+  const FULL=1.5;                         // bar represents 0 .. 1.5
+  const xb=u=>PL+(Math.min(u,FULL)/FULL)*barW;
+  let s='';
+  const burnEnd=Math.min(tbr,1.0);
+  const lossEnd=Math.min(tbr,1.0+LOSS);
+
+  // gradient for the "burned" fuel segment (D + T)
+  s+=`<defs><linearGradient id="burnG" x1="0" x2="1"><stop offset="0%" stop-color="var(--deut)"/><stop offset="100%" stop-color="var(--trit)"/></linearGradient>
+      <pattern id="hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="${RED}" stroke-width="3"/></pattern></defs>`;
+
+  // track
+  s+=`<rect x="${PL}" y="${barY}" width="${barW}" height="${barH}" rx="8" fill="rgba(255,255,255,.04)" stroke="var(--line)"/>`;
+  // burned (0..1)
+  s+=`<rect x="${xb(0)}" y="${barY}" width="${xb(burnEnd)-xb(0)}" height="${barH}" rx="8" fill="url(#burnG)"/>`;
+  // decay+losses (1..1.06)
+  if(tbr>1.0) s+=`<rect x="${xb(1.0)}" y="${barY}" width="${xb(lossEnd)-xb(1.0)}" height="${barH}" fill="${AMBER}"/>`;
+  // surplus (1.06..tbr)
+  if(tbr>1.0+LOSS) s+=`<rect x="${xb(1.0+LOSS)}" y="${barY}" width="${xb(tbr)-xb(1.0+LOSS)}" height="${barH}" rx="8" fill="${GREEN}"/>`;
+  // shortfall (tbr..1.06) hatched red
+  if(tbr<1.0+LOSS) s+=`<rect x="${xb(tbr)}" y="${barY}" width="${xb(1.0+LOSS)-xb(tbr)}" height="${barH}" fill="url(#hatch)" opacity="0.5"/>`;
+
+  // requirement tick lines
+  const tick=(u,label,c)=>`<line x1="${xb(u)}" y1="${barY-10}" x2="${xb(u)}" y2="${barY+barH+10}" stroke="${c}" stroke-width="1.5" stroke-dasharray="3 3"/>
+     <text x="${xb(u)}" y="${barY+barH+26}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${c}">${label}</text>`;
+  s+=tick(1.0,'burn = 1.0','#c4cde8');
+  s+=tick(1.0+LOSS,'break-even ≈ 1.06',AMBER);
+
+  // TBR marker arrow above bar
+  s+=`<path d="M${xb(tbr)},${barY-12} l-6,-9 l12,0 z" fill="${regimeColor(tbr)}"/>`;
+  s+=`<text x="${xb(tbr)}" y="${barY-26}" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="${regimeColor(tbr)}">bred = ${tbr.toFixed(2)}</text>`;
+
+  tbrBudget.innerHTML=s;
+}
+
+function drawTBR(tbr){
+  const slope=tbr-1-LOSS;
+  tbrNum.textContent='TBR = '+tbr.toFixed(2);
+  tbrNum.style.color=regimeColor(tbr);
+  tbrSlope.textContent='net stockpile: '+(slope>=0?'+':'')+slope.toFixed(2)+' units/yr';
+  drawTBRchart(tbr); drawTBRbudget(tbr);
+  let title,body;
+  if(tbr<1.0){title='❌ Starving';body='You burn more tritium than you breed. The stockpile falls and the reactor shuts down for lack of fuel.';}
+  else if(tbr<1.0+LOSS){title='⚠️ Not quite enough';body='You replace what you burn — but radioactive decay and leaks keep nibbling the stockpile. This is why break-even sits a little <b>above</b> 1.';}
+  else if(tbr<1.15){title='✅ Self-sufficient';body='Breeding now covers burning <b>plus</b> losses. The reactor keeps itself fuelled indefinitely.';}
+  else{title='✅ Self-sufficient + growing';body='A real surplus piles up — enough spare tritium to fuel-start brand-new reactors. This is the fleet-building target.';}
+  tbrVerdict.innerHTML=`<div class="step" style="color:${regimeColor(tbr)}">VERDICT</div><h3 style="margin-top:4px;color:${regimeColor(tbr)}">${title}</h3><p class="note" style="margin-top:6px">${body}</p>`;
+}
+tbrSlider.addEventListener('input',e=>drawTBR(+e.target.value/100));
+drawTBR(1.15);
+
+/* ============ SLIDE 7 : neutron multiplier ============ */
+const nmSVG=document.getElementById('nmSVG');
+function fastNeutron(extra=''){return `<g ${extra}><circle r="8" fill="var(--neutron)"/><circle cx="-2.5" cy="-2.5" r="3" fill="rgba(255,255,255,.6)"/>
+  <path d="M-10,0 H-26 M-8,-6 H-20 M-8,6 H-20" stroke="var(--neutron)" stroke-width="2" opacity=".6"/></g>`;}
+function drawNM(){
+  let s='';
+  // beryllium-9 nucleus, centre
+  s+=`<g transform="translate(210,120)"><g class="jiggle">${nucleus(4,5,7)}</g>
+      <text y="40" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="#8ea2ff">⁹Be</text></g>`;
+  // impact flash
+  s+=`<circle id="nmFlash" cx="210" cy="120" r="14" fill="url(#flashG)"/>`;
+  s+=`<defs><radialGradient id="flashG"><stop offset="0%" stop-color="#fff"/><stop offset="45%" stop-color="#8ea2ff"/><stop offset="100%" stop-color="rgba(142,162,255,0)"/></radialGradient></defs>`;
+  // incoming fast neutron
+  s+=`<g id="nmIn">${fastNeutron()}</g>`;
+  s+=`<text id="nmInLbl" x="60" y="150" font-family="var(--mono)" font-size="11" fill="var(--neutron)">1 fast neutron</text>`;
+  // outgoing: 2 neutrons + 2 helium
+  s+=`<g id="nmO1"><circle r="7" fill="var(--neutron)"/><circle cx="-2" cy="-2" r="2.6" fill="rgba(255,255,255,.6)"/></g>`;
+  s+=`<g id="nmO2"><circle r="7" fill="var(--neutron)"/><circle cx="-2" cy="-2" r="2.6" fill="rgba(255,255,255,.6)"/></g>`;
+  s+=`<g id="nmHe1"><g style="transform:scale(.8)">${nucleus(2,2,7)}</g><text y="27" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--helium)">⁴He</text></g>`;
+  s+=`<g id="nmHe2"><g style="transform:scale(.8)">${nucleus(2,2,7)}</g><text y="27" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--helium)">⁴He</text></g>`;
+  s+=`<text id="nmHeLbl" x="62" y="124" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--helium)" opacity="0">2 ⁴He = the old ⁹Be</text>`;
+  s+=`<text id="nmOutLbl" x="360" y="40" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="#8ea2ff" opacity="0">2 neutrons out!</text>`;
+  nmSVG.innerHTML=s;
+}
+drawNM();
+const nmStyle=document.createElement('style');
+nmStyle.textContent=`
+  #nmFlash{transform-box:fill-box;transform-origin:center}
+  @keyframes nmin{0%{transform:translate(34px,118px);opacity:0}10%{opacity:1}42%{transform:translate(196px,118px);opacity:1}48%{transform:translate(206px,120px);opacity:0}100%{opacity:0}}
+  @keyframes nmflash{0%,44%{transform:scale(0);opacity:0}50%{transform:scale(1);opacity:.95}72%{transform:scale(2.6);opacity:0}100%{opacity:0}}
+  @keyframes nmo1{0%,47%{opacity:0;transform:translate(210px,120px)}55%{opacity:1}100%{opacity:1;transform:translate(404px,52px)}}
+  @keyframes nmo2{0%,47%{opacity:0;transform:translate(210px,120px)}55%{opacity:1}100%{opacity:1;transform:translate(404px,190px)}}
+  @keyframes nmhe1{0%,49%{opacity:0;transform:translate(210px,120px)}60%{opacity:.95}100%{opacity:.8;transform:translate(118px,46px)}}
+  @keyframes nmhe2{0%,49%{opacity:0;transform:translate(210px,120px)}60%{opacity:.95}100%{opacity:.8;transform:translate(118px,196px)}}
+  @keyframes nmlbl{0%,52%{opacity:0}64%{opacity:1}92%{opacity:1}100%{opacity:0}}
+  @keyframes nminlbl{0%{opacity:0}12%{opacity:1}42%{opacity:1}50%{opacity:0}100%{opacity:0}}
+  .nmgo #nmIn{animation:nmin 2.7s ease-in infinite}
+  .nmgo #nmFlash{animation:nmflash 2.7s ease-out infinite}
+  .nmgo #nmO1{animation:nmo1 2.7s cubic-bezier(.2,.7,.3,1) infinite}
+  .nmgo #nmO2{animation:nmo2 2.7s cubic-bezier(.2,.7,.3,1) infinite}
+  .nmgo #nmHe1{animation:nmhe1 2.7s ease-out infinite}
+  .nmgo #nmHe2{animation:nmhe2 2.7s ease-out infinite}
+  .nmgo #nmOutLbl,.nmgo #nmHeLbl{animation:nmlbl 2.7s ease-out infinite}
+  .nmgo #nmInLbl{animation:nminlbl 2.7s ease-out infinite}`;
+document.head.appendChild(nmStyle);
+
+// ----- interactive ledger -----
+const nmLedger=document.getElementById('nmLedger'),nmVerdict=document.getElementById('nmVerdict');
+function travel(x1,y1,x2,y2,color,dur,begin,r=6){
+  return `<circle r="${r}" fill="${color}" opacity="0"><animate attributeName="cx" values="${x1};${x2}" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>
+    <animate attributeName="cy" values="${y1};${y2}" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;1;0" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/></circle>`;}
+function node(x,y,col,label){
+  return `<circle cx="${x}" cy="${y}" r="13" fill="${col}" opacity=".22"/><circle cx="${x}" cy="${y}" r="13" fill="none" stroke="${col}" stroke-width="1.5"/>
+    <text x="${x}" y="${y+4}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${col}">${label}</text>`;}
+function drawNMledger(on){
+  const NB='var(--neutron)',LI='var(--lith)',T='var(--trit)',IND='#8ea2ff';
+  const srcX=40,mX=175,liX=300,triX=412;
+  let s='';
+  // rails / labels
+  s+=`<text x="${srcX}" y="24" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">fusion</text>`;
+  s+=`<text x="${mX}" y="24" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${on?IND:'var(--muted)'}">${on?'⁹Be':'no multiplier'}</text>`;
+  s+=`<text x="${liX}" y="24" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${LI}">⁶Li</text>`;
+  s+=`<text x="${triX}" y="24" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${T}">tritium</text>`;
+  // fusion source
+  s+=`<path d="M${srcX},85 l4,12 l13,2 l-10,9 l3,13 l-10,-7 l-10,7 l3,-13 l-10,-9 l13,-2 z" fill="var(--energy)" opacity=".9"/>`;
+  // multiplier box
+  s+=`<rect x="${mX-26}" y="78" width="52" height="54" rx="9" fill="${on?'rgba(142,162,255,.14)':'rgba(255,255,255,.03)'}" stroke="${on?IND:'var(--line)'}" stroke-width="1.5" ${on?'':'stroke-dasharray="4 4"'}/>`;
+  if(on) s+=`<text x="${mX}" y="113" text-anchor="middle" font-family="var(--mono)" font-size="14" fill="${IND}">×2</text>`;
+
+  if(on){
+    // 1 neutron in -> 2 out -> 2 Li -> 2 tritium
+    s+=node(liX,72,LI,'Li'); s+=node(liX,138,LI,'Li');
+    s+=node(triX,72,T,'T');  s+=node(triX,138,T,'T');
+    s+=travel(srcX+12,105,mX-26,105,NB,1.4,0);              // fusion -> mult
+    s+=travel(mX+26,105,liX-13,72,NB,1.4,0.7);              // mult -> Li top
+    s+=travel(mX+26,105,liX-13,138,NB,1.4,0.95);            // mult -> Li bottom
+    s+=travel(liX+13,72,triX-13,72,T,1.4,1.6,5);            // Li -> T top
+    s+=travel(liX+13,138,triX-13,138,T,1.4,1.85,5);         // Li -> T bottom
+    s+=`<text x="${mX}" y="150" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="${IND}">1 in → 2 out</text>`;
+  } else {
+    // 1 neutron in -> 1 out, one lost -> <1 tritium
+    s+=node(liX,105,LI,'Li'); s+=node(triX,105,T,'T');
+    s+=travel(srcX+12,105,mX-26,105,NB,1.6,0);
+    s+=travel(mX+26,105,liX-13,105,NB,1.6,0.7);
+    s+=travel(liX+13,105,triX-13,105,T,1.6,1.5,5);
+    // a lost neutron peeling away
+    s+=`<circle r="5" fill="${NB}" opacity="0"><animate attributeName="cx" values="${mX};${mX+70}" dur="1.6s" begin="0.7s" repeatCount="indefinite"/>
+        <animate attributeName="cy" values="105;30" dur="1.6s" begin="0.7s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0;.7;0" dur="1.6s" begin="0.7s" repeatCount="indefinite"/></circle>`;
+    s+=`<text x="${mX+78}" y="40" font-family="var(--mono)" font-size="10" fill="${T}">leaks away</text>`;
+  }
+  nmLedger.innerHTML=s;
+}
+function updateNM(on){
+  drawNMledger(on);
+  document.querySelectorAll('.nm-btn').forEach(b=>{
+    const isOn=b.dataset.on==='1';
+    b.classList.toggle('on',isOn===on);
+    b.classList.toggle('off',isOn!==on);
+  });
+  if(on){
+    nmVerdict.innerHTML=`<div class="step" style="color:#5fe3a1">RESULT</div><h3 style="margin-top:2px;color:#5fe3a1">TBR ≈ 1.4 ✅</h3>
+      <p class="note" style="margin-top:4px">One fusion neutron becomes two, so even after losses there's plenty to breed more than one tritium. The breeding ratio clears 1 — the reactor sustains itself.</p>`;
+  } else {
+    nmVerdict.innerHTML=`<div class="step" style="color:#ff5d6c">RESULT</div><h3 style="margin-top:2px;color:#ff5d6c">TBR ≈ 0.9 ❌</h3>
+      <p class="note" style="margin-top:4px">One neutron per fusion, minus the ones that leak into the walls — not enough to replace the tritium you burn. The stockpile slowly starves.</p>`;
+  }
+}
+document.querySelectorAll('.nm-btn').forEach(b=>b.addEventListener('click',()=>updateNM(b.dataset.on==='1')));
+updateNM(true);
+
+/* ============ SLIDE 8 : lead isotope ladder ============ */
+const PbLadder=[
+  {m:'²⁰⁸',n:126,tag:'stable',cls:'ok'},
+  {m:'²⁰⁷',n:125,tag:'stable',cls:'ok'},
+  {m:'²⁰⁶',n:124,tag:'stable',cls:'ok'},
+  {m:'²⁰⁵',n:123,tag:'~17 My (≈ stable)',cls:'mid'},
+  {m:'²⁰⁴',n:122,tag:'stable',cls:'ok'},
+  {m:'²⁰³',n:121,tag:'~2 days ☢',cls:'bad'},
+];
+const ladderEl=document.getElementById('ladder');
+ladderEl.innerHTML=PbLadder.map((r,i)=>`<div class="rung" data-i="${i}"><span class="iso">${r.m}Pb</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.n} neutrons</span><span class="tag ${r.cls}">${r.tag}</span></div>`).join('');
+const pbRungs=[...ladderEl.children];
+const pbFire=document.getElementById('pbfire'),pbReset=document.getElementById('pbreset'),
+      pbIso=document.getElementById('pbiso'),pbSub=document.getElementById('pbsub'),
+      pbStatus=document.getElementById('pbstatus'),pbNuc=document.getElementById('pbnuc');
+let lstep=0;
+function renderPb(){
+  const r=PbLadder[lstep];
+  pbIso.textContent=r.m+'Pb';
+  pbSub.textContent='82 p · '+r.n+' n';
+  pbRungs.forEach((el,i)=>el.classList.toggle('on',i===lstep));
+  pbNuc.style.boxShadow = r.cls==='bad' ? '0 0 34px -4px var(--trit)' : '0 0 30px -6px #aebdd6';
+  let msg;
+  if(lstep===0) msg='Donated 0 neutrons. Each (n,2n) drops the mass number by one — but it stays lead, still a working multiplier.';
+  else if(r.cls!=='bad') msg='Donated '+lstep+' neutron'+(lstep>1?'s':'')+'. Still stable lead — it just keeps multiplying.';
+  else msg='Donated '+lstep+' neutrons. NOW it has landed on radioactive ²⁰³Pb and finally decays — the atom is "used up." But reaching here took '+lstep+' separate, rare (n,2n) hits, so in practice almost no lead ever gets this far.';
+  pbStatus.innerHTML=msg;
+  pbFire.disabled=lstep>=PbLadder.length-1;
+  pbFire.style.opacity=pbFire.disabled?0.4:1;
+}
+pbFire.addEventListener('click',()=>{if(lstep<PbLadder.length-1){lstep++;renderPb();}});
+pbReset.addEventListener('click',()=>{lstep=0;renderPb();});
+renderPb();
+
+/* ============ SLIDE 9 : fusion fuel comparison ============ */
+const fuels=[
+  {key:'D-T', name:'Deuterium–Tritium', col:'#ffc94d',
+   rx:'²H + ³H → ⁴He + n', temp:100, energy:17.6, neutron:80,
+   fuel:'D is easy; T is radioactive & must be bred',
+   usedBy:'ITER, NIF, JET, MIT/SPARC & most labs',
+   verdict:'Easiest to ignite — today\'s default. But 80% of its energy rides off in neutrons, and you must breed the tritium.'},
+  {key:'D-D', name:'Deuterium–Deuterium', col:'#34e0d0',
+   rx:'²H + ²H → ³He + n  /  ³H + p', temp:400, energy:3.6, neutron:60,
+   fuel:'Just deuterium — abundant & cheap',
+   usedBy:'EAST, KSTAR, W7-X (as a stepping stone)',
+   verdict:'No tritium needed, but it runs ~4× hotter and releases far less energy per reaction.'},
+  {key:'D-³He', name:'Deuterium–Helium-3', col:'#b794f6',
+   rx:'²H + ³He → ⁴He + p', temp:600, energy:18.3, neutron:5,
+   fuel:'³He is extremely scarce on Earth',
+   usedBy:'Helion (breeds its own ³He)',
+   verdict:'High energy and nearly neutron-free — but ³He barely exists here, and it runs very hot.'},
+  {key:'p-¹¹B', name:'Proton–Boron-11', col:'#7cf5c0',
+   rx:'¹H + ¹¹B → 3 ⁴He', temp:1500, energy:8.7, neutron:1,
+   fuel:'Hydrogen + boron — cheap & everywhere',
+   usedBy:'TAE Technologies',
+   verdict:'The dream: clean and abundant, zero neutrons. The catch: it needs well over a billion °C.'},
+];
+const metrics={
+  temp:{better:'lower',key:'temp'},
+  energy:{better:'higher',key:'energy'},
+  neutron:{better:'lower',key:'neutron'},
+};
+const fbars=document.getElementById('fbars'),fcards=document.getElementById('fcards'),fbetter=document.getElementById('fbetter');
+let fFills=[],fVals=[];
+function buildFuelBars(){
+  fbars.innerHTML=fuels.map((f,i)=>`<div class="fbar"><span class="flab" style="color:${f.col}">${f.key}</span><span class="ftrack"><span class="ffill" id="ffill${i}" style="width:0%;background:linear-gradient(90deg,${f.col},${f.col}aa)"></span></span><span class="fval" id="fval${i}"></span></div>`).join('');
+  fFills=fuels.map((_,i)=>document.getElementById('ffill'+i));
+  fVals=fuels.map((_,i)=>document.getElementById('fval'+i));
+}
+function updateFuelBars(m){
+  const meta=metrics[m],max=Math.max(...fuels.map(f=>f[meta.key]));
+  fbetter.textContent = m==='temp' ? '↓ lower is better — easier to ignite'
+    : m==='neutron' ? '↓ lower is better — cleaner, fewer neutrons damaging the reactor'
+    : '↑ higher is better — more energy per reaction';
+  fuels.forEach((f,i)=>{
+    fFills[i].style.width=Math.max(3,f[meta.key]/max*100)+'%';
+    fVals[i].textContent = m==='temp' ? '~'+f.temp+' M°C' : m==='energy' ? f.energy+' MeV' : '~'+f.neutron+'%';
+  });
+}
+function renderFuelCards(){
+  fcards.innerHTML=fuels.map(f=>`<div class="card"><div class="step" style="color:${f.col}">${f.name}</div>
+    <span class="eq" style="font-size:13px;margin:9px 0;display:inline-flex">${f.rx}</span>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;line-height:1.95">⚡ ${f.energy} MeV &nbsp;·&nbsp; 🌡 ~${f.temp} M°C &nbsp;·&nbsp; ☢ ~${f.neutron}% neutrons<br>⛽ ${f.fuel}<br>🏢 ${f.usedBy}</div>
+    <p class="note" style="margin-top:9px">${f.verdict}</p></div>`).join('');
+}
+document.querySelectorAll('.fmetric').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.fmetric').forEach(x=>{x.classList.add('ghost');x.classList.remove('on');});
+  b.classList.remove('ghost');
+  updateFuelBars(b.dataset.m);
+}));
+buildFuelBars();renderFuelCards();
+setTimeout(()=>updateFuelBars('temp'),80);
+
+/* ============ SLIDE 10 : who uses what ============ */
+const fuelMeta={DT:{label:'D-T',col:'#ffc94d'},DD:{label:'D-D',col:'#34e0d0'},DHe3:{label:'D-³He',col:'#b794f6'},pB11:{label:'p-¹¹B',col:'#7cf5c0'}};
+const srcMeta={breed:{t:'♻ breeds its own',c:'#5fe3a1'},buy:{t:'🛒 borrows tritium',c:'#ffc94d'},abundant:{t:'∞ abundant fuel',c:'#34e0d0'}};
+const players=[
+  {name:'ITER',sector:'Gov',country:'35 nations',fuel:'DT',machine:'Tokamak',note:'The flagship — the world\'s largest tokamak. Switched its wall to tungsten; first D-T plasma late this decade.',src:{cat:'buy',text:'Buys tritium (CANDU); tests breeding in its Test Blanket Modules'}},
+  {name:'NIF',sector:'Gov',country:'USA · LLNL',fuel:'DT',machine:'Laser / inertial',note:'First to reach fusion ignition (2022, Q≈1.5). 192 lasers crush a peppercorn-sized D-T pellet; record 8.6 MJ.',src:{cat:'buy',text:'Burns stockpiled tritium; no breeding'}},
+  {name:'JET',sector:'Gov',country:'UK · EUROfusion',fuel:'DT',machine:'Tokamak',note:'Held the energy record (69 MJ, 2024) on D-T, then retired after proving ITER\'s recipe.',src:{cat:'buy',text:'Bought tritium for its D-T campaigns'}},
+  {name:'EAST',sector:'Gov',country:'China',fuel:'DD',machine:'Tokamak',note:'The "artificial sun" — long-pulse champion. Runs deuterium plasmas; no tritium yet.',src:{cat:'abundant',text:'Deuterium from water — nothing to breed'}},
+  {name:'KSTAR',sector:'Gov',country:'S. Korea',fuel:'DD',machine:'Tokamak',note:'Holds high-temperature long-pulse records on deuterium plasmas.',src:{cat:'abundant',text:'Deuterium from water — abundant'}},
+  {name:'Wendelstein 7-X',sector:'Gov',country:'Germany',fuel:'DD',machine:'Stellarator',note:'The leading stellarator — twisty coils for steady-state. Runs hydrogen/deuterium.',src:{cat:'abundant',text:'Hydrogen/deuterium — abundant'}},
+  {name:'SPARC',sector:'Private',country:'USA · CFS + MIT',fuel:'DT',machine:'High-field tokamak',note:'MIT spinout\'s compact 12.2-tesla, HTS-magnet tokamak. First plasma 2026, aiming Q>1 — then the ARC power plant in Virginia.',src:{cat:'breed',text:'SPARC buys tritium; ARC will breed its own in a FLiBe (Li+Be) blanket'}},
+  {name:'Helion',sector:'Private',country:'USA',fuel:'DHe3',machine:'FRC / magneto-inertial',note:'Bets on D-³He for direct electricity (no turbine); breeds its own helium-3 from D-D. Polaris hit 150 M°C.',src:{cat:'breed',text:'Breeds its own helium-3 from D-D — only needs deuterium'}},
+  {name:'TAE Technologies',sector:'Private',country:'USA',fuel:'pB11',machine:'Beam-driven FRC',note:'Chasing clean, abundant hydrogen-boron at ~1 billion °C. Backed by Google & Chevron.',src:{cat:'abundant',text:'Buys hydrogen + boron — cheap and everywhere'}},
+  {name:'Tokamak Energy',sector:'Private',country:'UK',fuel:'DT',machine:'Spherical tokamak',note:'A compact "cored-apple" tokamak with high-temperature superconducting magnets.',src:{cat:'breed',text:'Plans a lithium breeding blanket for self-sufficiency'}},
+  {name:'General Fusion',sector:'Private',country:'Canada',fuel:'DT',machine:'Magnetized target',note:'Pistons slam a spinning liquid-metal wall inward to compress the plasma.',src:{cat:'breed',text:'Its spinning liquid-lithium wall doubles as the tritium breeder'}},
+  {name:'Zap Energy',sector:'Private',country:'USA',fuel:'DT',machine:'Sheared-flow Z-pinch',note:'No giant magnets or lasers — an electric current pinches the plasma itself.',src:{cat:'breed',text:'Plans a flowing lithium blanket to breed tritium'}},
+];
+const playersEl=document.getElementById('players');
+function renderPlayers(){
+  playersEl.innerHTML=players.map(p=>{const fm=fuelMeta[p.fuel],sm=srcMeta[p.src.cat];
+    return `<div class="card pcard" data-fuel="${p.fuel}" data-src="${p.src.cat}" style="border-top:2px solid ${fm.col}">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:var(--display);font-size:17px;font-weight:600">${p.name}</span>
+      <span class="fchip" style="background:${fm.col}26;color:${fm.col}">${fm.label}</span></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px">${p.sector} · ${p.country} · ${p.machine}</div>
+      <p class="note" style="margin-top:8px">${p.note}</p>
+      <div style="margin-top:10px"><span class="sbadge" style="background:${sm.c}1f;color:${sm.c}">${sm.t}</span>
+      <span style="font-family:var(--mono);font-size:10.5px;color:var(--muted)"> ${p.src.text}</span></div></div>`;}).join('');
+}
+document.querySelectorAll('.pchip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.pchip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');
+  const f=c.dataset.f;
+  [...playersEl.children].forEach(card=>{card.style.display=(f==='all'||card.dataset.fuel===f)?'':'none';});
+}));
+renderPlayers();
+
+/* ============ SLIDE 11 : the fuel cycle ============ */
+const cycleSVG=document.getElementById('cycleSVG');
+function drawCycle(){
+  const flow=(x1,y1,x2,y2,color,begin,dur=2)=>`<circle r="5" fill="${color}"><animate attributeName="cx" values="${x1};${x2}" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/><animate attributeName="cy" values="${y1};${y2}" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/></circle>`;
+  const nodeBox=(x,y,w,h,stroke,label,sub)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="14" fill="rgba(255,255,255,.03)" stroke="${stroke}" stroke-width="1.5"/><text x="${x+w/2}" y="${y+h/2+ (sub?-4:5)}" text-anchor="middle" font-family="var(--display)" font-weight="600" font-size="17" fill="#eaf0ff">${label}</text>${sub?`<text x="${x+w/2}" y="${y+h/2+15}" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">${sub}</text>`:''}`;
+  const arrow=(x1,y1,x2,y2,col)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="1.5" opacity=".4" marker-end="url(#ah)"/>`;
+  let s=`<defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="rgba(180,200,240,.6)"/></marker></defs>`;
+
+  // input nodes (left)
+  s+=nodeBox(20,40,150,64,'#34e0d0','💧 Seawater','→ deuterium');
+  s+=nodeBox(20,256,150,64,'#ffc94d','⛏ Lithium','→ the blanket');
+  // reactor (centre)
+  s+=`<rect x="300" y="96" width="240" height="168" rx="18" fill="rgba(95,227,161,.06)" stroke="#5fe3a1" stroke-width="2"/>`;
+  s+=`<text x="420" y="128" text-anchor="middle" font-family="var(--display)" font-weight="600" font-size="19" fill="#eaf0ff">FUSION REACTOR</text>`;
+  s+=`<text x="420" y="150" text-anchor="middle" font-family="var(--mono)" font-size="10.5" fill="var(--muted)">D + T fuse → ⁴He + neutron</text>`;
+  s+=`<text x="420" y="166" text-anchor="middle" font-family="var(--mono)" font-size="10.5" fill="var(--muted)">neutron + ⁶Li → fresh tritium</text>`;
+  // internal tritium recycle loop
+  s+=`<ellipse cx="420" cy="212" rx="70" ry="30" fill="none" stroke="var(--trit)" stroke-width="1.3" stroke-dasharray="4 5" opacity=".7"/>`;
+  s+=`<text x="420" y="216" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--trit)">tritium recycles ♻</text>`;
+  s+=`<circle r="5" fill="var(--trit)"><animateMotion dur="3s" repeatCount="indefinite" path="M420,182 a70,30 0 1,1 -0.1,0 Z"/></circle>`;
+  // output nodes (right)
+  s+=nodeBox(650,40,150,64,'#7cf5c0','⁴He out','harmless gas');
+  s+=nodeBox(650,256,150,64,'#fff0a6','⚡ Electricity','from the heat');
+
+  // arrows
+  s+=arrow(170,72,300,130,'#34e0d0');
+  s+=arrow(170,288,300,230,'#ffc94d');
+  s+=arrow(540,130,650,72,'#7cf5c0');
+  s+=arrow(540,230,650,288,'#fff0a6');
+  // arrow labels
+  s+=`<text x="235" y="92" font-family="var(--mono)" font-size="10" fill="#34e0d0">Deuterium</text>`;
+  s+=`<text x="235" y="276" font-family="var(--mono)" font-size="10" fill="#ffc94d">Lithium</text>`;
+  s+=`<text x="556" y="92" font-family="var(--mono)" font-size="10" fill="#7cf5c0">Helium</text>`;
+  s+=`<text x="556" y="276" font-family="var(--mono)" font-size="10" fill="#fff0a6">Heat → power</text>`;
+
+  // animated tokens
+  s+=flow(170,72,300,130,'#34e0d0',0)+flow(170,72,300,130,'#34e0d0',1);
+  s+=flow(170,288,300,230,'#ffc94d',0.5)+flow(170,288,300,230,'#ffc94d',1.5);
+  s+=flow(540,130,650,72,'#7cf5c0',0.4)+flow(540,130,650,72,'#7cf5c0',1.4);
+  s+=flow(540,230,650,288,'#fff0a6',0.8)+flow(540,230,650,288,'#fff0a6',1.8);
+
+  // bottom banner
+  s+=`<text x="420" y="332" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="#5fe3a1">IN: just water + lithium   ·   OUT: helium + power   ·   tritium never leaves the loop</text>`;
+  cycleSVG.innerHTML=s;
+}
+drawCycle();
+
+/* ============ NAVIGATION ============ */
+const slides=[...document.querySelectorAll('.slide')];
+const dots=document.getElementById('dots');
+const labels=['Goal','Isotopes','Deuterium','Tritium','Reactor','Breeding','Multiplier','Lead','Fuels','Players','Cycle'];
+const colors=['#fff0a6','#bcd2ff','#34e0d0','#ff5d8f','#ffc94d','#5fe3a1','#8ea2ff','#aebdd6','#ffa45c','#74e0ff','#5fe3a1'];
+let cur=0;
+slides.forEach((sl,i)=>{
+  sl.style.setProperty('--accent',sl.dataset.accent);
+  const d=document.createElement('div');d.className='dotnav'+(i===0?' on':'');d.style.setProperty('--c',colors[i]);
+  d.innerHTML=`<i></i><span>${labels[i]}</span>`;d.addEventListener('click',()=>go(i));dots.appendChild(d);
+});
+const dotEls=[...dots.children];
+const prog=document.getElementById('prog'),prevB=document.getElementById('prev'),nextB=document.getElementById('next');
+function go(i){
+  i=Math.max(0,Math.min(slides.length-1,i));
+  slides[cur].classList.remove('active');dotEls[cur].classList.remove('on');
+  cur=i;
+  slides[cur].classList.add('active');dotEls[cur].classList.add('on');
+  prog.style.width=((cur)/(slides.length-1))*100+'%';
+  prevB.disabled=cur===0;nextB.disabled=cur===slides.length-1;
+  document.documentElement.style.setProperty('--accent',colors[cur]);
+  // toggle continuous animations only on their slide
+  document.getElementById('fusionStage').classList.toggle('firing',false);
+  if(cur===0)fire();
+  document.getElementById('litSVG').parentElement.parentElement.classList.toggle('litgo',cur===3);
+}
+// lithium anim wrapper toggling
+function setLit(on){document.querySelector('.trit-grid')?.classList.toggle('litgo',on);}
+prevB.addEventListener('click',()=>go(cur-1));
+nextB.addEventListener('click',()=>go(cur+1));
+addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(cur+1);if(e.key==='ArrowLeft')go(cur-1);});
+prevB.disabled=true;
+prog.style.width='0%';
+// kick off lithium animation when on slide 4
+const trigObserver=()=>{document.querySelector('.trit-grid').classList.add('litgo');};
+// always animate lithium (cheap); simpler:
+document.querySelector('.trit-grid').classList.add('litgo');
+setTimeout(fire,400);
+</script>
+</body>
+</html>

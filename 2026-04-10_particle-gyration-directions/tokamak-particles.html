@@ -1,0 +1,590 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tokamak particles</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const TAU = Math.PI * 2;
+
+// Tokamak geometry
+const TORUS_R = 200; // major radius
+const TORUS_r = 70;  // minor radius
+
+// Particle factory
+function createParticle(type, id) {
+  const isElectron = type === "electron";
+  // Random position on the flux surface (poloidal angle)
+  const poloidalAngle = Math.random() * TAU;
+  // Random toroidal position
+  const toroidalAngle = Math.random() * TAU;
+
+  // Parallel velocity: Maxwell-Boltzmann => Gaussian centered at 0
+  // Box-Muller transform
+  const u1 = Math.random();
+  const u2 = Math.random();
+  const gaussian = Math.sqrt(-2 * Math.log(u1)) * Math.cos(TAU * u2);
+
+  // Electrons ~4x faster (sqrt of mass ratio simplification for viz)
+  const thermalSpeed = isElectron ? 0.018 : 0.005;
+  const vParallel = gaussian * thermalSpeed; // can be + or -
+
+  // Gyroradius: electrons much smaller
+  const gyroRadius = isElectron ? 2.5 : 12;
+  // Gyro frequency: electrons faster, opposite direction
+  const gyroFreq = isElectron ? 0.15 : 0.03;
+  // Charge sign determines gyration direction
+  const gyroSign = isElectron ? -1 : 1;
+
+  // Minor radius offset from center of flux tube
+  const fluxOffset = 15 + Math.random() * 40;
+
+  return {
+    id,
+    type,
+    poloidalAngle,
+    toroidalAngle,
+    vParallel,
+    gyroRadius,
+    gyroFreq,
+    gyroSign,
+    gyroPhase: Math.random() * TAU,
+    fluxOffset,
+    trail: [],
+    color: isElectron
+      ? `hsl(${195 + Math.random() * 20}, 95%, ${60 + Math.random() * 20}%)`
+      : `hsl(${10 + Math.random() * 25}, 95%, ${55 + Math.random() * 20}%)`,
+  };
+}
+
+// 3D torus point to 2D projection
+function torusTo2D(toroidalAngle, poloidalAngle, r_offset, viewAngle) {
+  const R = TORUS_R;
+  const x3d = (R + r_offset * Math.cos(poloidalAngle)) * Math.cos(toroidalAngle);
+  const y3d = (R + r_offset * Math.cos(poloidalAngle)) * Math.sin(toroidalAngle);
+  const z3d = r_offset * Math.sin(poloidalAngle);
+
+  // Rotate around Y axis for view
+  const cosV = Math.cos(viewAngle);
+  const sinV = Math.sin(viewAngle);
+  const xr = x3d * cosV - y3d * sinV;
+  const yr = x3d * sinV + y3d * cosV;
+
+  // Simple perspective
+  const perspective = 800;
+  const scale = perspective / (perspective + yr);
+  return {
+    x: xr * scale,
+    y: z3d * scale,
+    scale,
+    depth: yr,
+  };
+}
+
+function Visualization() {
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+  const [viewAngle, setViewAngle] = useState(0.45);
+  const [showElectrons, setShowElectrons] = useState(true);
+  const [showIons, setShowIons] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  const [showTrails, setShowTrails] = useState(true);
+  const [particleCount, setParticleCount] = useState(20);
+  const [showFieldLines, setShowFieldLines] = useState(true);
+  const [hoveredParticle, setHoveredParticle] = useState(null);
+  const dragRef = useRef({ dragging: false, lastX: 0 });
+
+  // Initialize particles
+  useEffect(() => {
+    const particles = [];
+    const half = Math.floor(particleCount / 2);
+    for (let i = 0; i < half; i++) {
+      particles.push(createParticle("ion", `ion-${i}`));
+    }
+    for (let i = 0; i < half; i++) {
+      particles.push(createParticle("electron", `elec-${i}`));
+    }
+    particlesRef.current = particles;
+  }, [particleCount]);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.6);
+    bgGrad.addColorStop(0, "#0a0f1e");
+    bgGrad.addColorStop(0.5, "#060b18");
+    bgGrad.addColorStop(1, "#020408");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    const dt = speed;
+    timeRef.current += dt;
+
+    // Draw torus wireframe (back half)
+    if (showFieldLines) {
+      drawTorusWireframe(ctx, cx, cy, viewAngle, "back");
+    }
+
+    // Update and collect particles for depth sorting
+    const drawList = [];
+
+    particlesRef.current.forEach((p) => {
+      if (p.type === "electron" && !showElectrons) return;
+      if (p.type === "ion" && !showIons) return;
+
+      // Advance along field line (toroidal direction = parallel to B)
+      p.toroidalAngle += p.vParallel * dt;
+      // Safety factor q ~ 1.5: poloidal advance tied to toroidal
+      p.poloidalAngle += (p.vParallel * dt) / 1.5;
+      // Gyro phase advance
+      p.gyroPhase += p.gyroSign * p.gyroFreq * dt;
+
+      // Wrap angles
+      if (p.toroidalAngle > TAU) p.toroidalAngle -= TAU;
+      if (p.toroidalAngle < 0) p.toroidalAngle += TAU;
+      if (p.poloidalAngle > TAU) p.poloidalAngle -= TAU;
+      if (p.poloidalAngle < 0) p.poloidalAngle += TAU;
+
+      // Guiding center position (on flux surface)
+      const gcR = p.fluxOffset;
+      // Add gyration offset
+      const gyroX = p.gyroRadius * Math.cos(p.gyroPhase);
+      const gyroY = p.gyroRadius * Math.sin(p.gyroPhase);
+
+      // Effective poloidal offset with gyration
+      const effectiveR = gcR + gyroX;
+      const effectivePoloidal = p.poloidalAngle + gyroY / gcR;
+
+      const pos = torusTo2D(p.toroidalAngle, effectivePoloidal, effectiveR, viewAngle);
+
+      // Trail
+      if (showTrails) {
+        p.trail.push({ x: pos.x + cx, y: pos.y + cy, scale: pos.scale, depth: pos.depth });
+        if (p.trail.length > 40) p.trail.shift();
+      } else {
+        p.trail = [];
+      }
+
+      drawList.push({ particle: p, pos, sx: pos.x + cx, sy: pos.y + cy });
+    });
+
+    // Sort by depth
+    drawList.sort((a, b) => a.pos.depth - b.pos.depth);
+
+    // Draw trails then particles
+    drawList.forEach(({ particle: p, pos, sx, sy }) => {
+      const alpha = Math.max(0.15, Math.min(1, (pos.depth + 300) / 600));
+
+      // Trail
+      if (showTrails && p.trail.length > 2) {
+        ctx.beginPath();
+        ctx.moveTo(p.trail[0].x, p.trail[0].y);
+        for (let i = 1; i < p.trail.length; i++) {
+          ctx.lineTo(p.trail[i].x, p.trail[i].y);
+        }
+        ctx.strokeStyle =
+          p.type === "electron"
+            ? `rgba(80, 200, 255, ${alpha * 0.35})`
+            : `rgba(255, 120, 60, ${alpha * 0.35})`;
+        ctx.lineWidth = pos.scale * (p.type === "electron" ? 1 : 1.8);
+        ctx.stroke();
+      }
+
+      // Particle glow
+      const glowR = pos.scale * (p.type === "electron" ? 8 : 14);
+      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+      if (p.type === "electron") {
+        glow.addColorStop(0, `rgba(100, 210, 255, ${alpha * 0.6})`);
+        glow.addColorStop(0.5, `rgba(50, 150, 255, ${alpha * 0.15})`);
+        glow.addColorStop(1, "rgba(50, 150, 255, 0)");
+      } else {
+        glow.addColorStop(0, `rgba(255, 140, 60, ${alpha * 0.6})`);
+        glow.addColorStop(0.5, `rgba(255, 80, 30, ${alpha * 0.15})`);
+        glow.addColorStop(1, "rgba(255, 80, 30, 0)");
+      }
+      ctx.fillStyle = glow;
+      ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+
+      // Particle dot
+      const r = pos.scale * (p.type === "electron" ? 2.2 : 4);
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, TAU);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = alpha;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Direction arrow on particle (shows parallel velocity direction)
+      if (r > 1.5) {
+        const arrowDir = p.vParallel > 0 ? 1 : -1;
+        const arrowAngle = p.toroidalAngle + viewAngle + (arrowDir > 0 ? 0 : Math.PI);
+        const aLen = r * 2.5;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(arrowAngle) * aLen, sy - Math.sin(arrowAngle) * aLen * 0.3);
+        ctx.strokeStyle = p.color;
+        ctx.globalAlpha = alpha * 0.7;
+        ctx.lineWidth = r * 0.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // Draw torus wireframe (front half)
+    if (showFieldLines) {
+      drawTorusWireframe(ctx, cx, cy, viewAngle, "front");
+    }
+
+    // Draw velocity distribution inset
+    drawVelocityInset(ctx, W, H);
+
+    // Legend
+    drawLegend(ctx, W, H);
+
+    animRef.current = requestAnimationFrame(draw);
+  }, [viewAngle, showElectrons, showIons, speed, showTrails, showFieldLines]);
+
+  function drawTorusWireframe(ctx, cx, cy, va, half) {
+    // Toroidal field lines
+    const nLines = 12;
+    for (let i = 0; i < nLines; i++) {
+      const polAngle = (i / nLines) * TAU;
+      const rOff = TORUS_r * 0.85;
+      ctx.beginPath();
+      let started = false;
+      for (let t = 0; t <= 200; t++) {
+        const tor = (t / 200) * TAU;
+        const pos = torusTo2D(tor, polAngle, rOff, va);
+        const isFront = pos.depth > 0;
+        if ((half === "front" && !isFront) || (half === "back" && isFront)) {
+          if (started) {
+            ctx.stroke();
+            ctx.beginPath();
+            started = false;
+          }
+          continue;
+        }
+        if (!started) {
+          ctx.moveTo(pos.x + cx, pos.y + cy);
+          started = true;
+        } else {
+          ctx.lineTo(pos.x + cx, pos.y + cy);
+        }
+      }
+      ctx.strokeStyle =
+        half === "front" ? "rgba(40, 80, 140, 0.18)" : "rgba(40, 80, 140, 0.07)";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // Toroidal cross-section rings
+    const nRings = 24;
+    for (let i = 0; i < nRings; i++) {
+      const torAngle = (i / nRings) * TAU;
+      ctx.beginPath();
+      let started = false;
+      for (let p = 0; p <= 60; p++) {
+        const pol = (p / 60) * TAU;
+        const pos = torusTo2D(torAngle, pol, TORUS_r * 0.85, va);
+        const isFront = pos.depth > 0;
+        if ((half === "front" && !isFront) || (half === "back" && isFront)) {
+          if (started) {
+            ctx.stroke();
+            ctx.beginPath();
+            started = false;
+          }
+          continue;
+        }
+        if (!started) {
+          ctx.moveTo(pos.x + cx, pos.y + cy);
+          started = true;
+        } else {
+          ctx.lineTo(pos.x + cx, pos.y + cy);
+        }
+      }
+      ctx.strokeStyle =
+        half === "front" ? "rgba(40, 80, 140, 0.12)" : "rgba(40, 80, 140, 0.04)";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+
+  function drawVelocityInset(ctx, W, H) {
+    const insetW = 140;
+    const insetH = 80;
+    const ix = W - insetW - 12;
+    const iy = 12;
+
+    ctx.fillStyle = "rgba(5, 10, 25, 0.85)";
+    ctx.strokeStyle = "rgba(60, 100, 160, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(ix, iy, insetW, insetH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(180, 200, 230, 0.7)";
+    ctx.font = "9px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("v∥ Distribution", ix + insetW / 2, iy + 13);
+
+    // Histogram of parallel velocities
+    const bins = new Array(20).fill(0);
+    const binMin = -0.06;
+    const binMax = 0.06;
+    const binW = (binMax - binMin) / 20;
+
+    particlesRef.current.forEach((p) => {
+      const bi = Math.floor((p.vParallel - binMin) / binW);
+      if (bi >= 0 && bi < 20) bins[bi]++;
+    });
+
+    const maxBin = Math.max(...bins, 1);
+    const barW = (insetW - 20) / 20;
+    const barMaxH = 40;
+
+    for (let i = 0; i < 20; i++) {
+      const h = (bins[i] / maxBin) * barMaxH;
+      const x = ix + 10 + i * barW;
+      const y = iy + insetH - 14 - h;
+      const midBin = binMin + (i + 0.5) * binW;
+      const hue = midBin > 0 ? 200 : 20;
+      ctx.fillStyle = `hsla(${hue}, 70%, 60%, 0.7)`;
+      ctx.fillRect(x, y, barW - 1, h);
+    }
+
+    // Axis labels
+    ctx.fillStyle = "rgba(140, 160, 190, 0.6)";
+    ctx.font = "7px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("−v∥", ix + 8, iy + insetH - 3);
+    ctx.textAlign = "right";
+    ctx.fillText("+v∥", ix + insetW - 8, iy + insetH - 3);
+    ctx.textAlign = "center";
+    ctx.fillText("0", ix + insetW / 2, iy + insetH - 3);
+  }
+
+  function drawLegend(ctx, W, H) {
+    const lx = 12;
+    const ly = H - 70;
+
+    ctx.fillStyle = "rgba(5, 10, 25, 0.8)";
+    ctx.strokeStyle = "rgba(60, 100, 160, 0.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(lx, ly, 150, 58, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "10px 'JetBrains Mono', monospace";
+
+    // Ion
+    ctx.fillStyle = "rgb(255, 130, 60)";
+    ctx.beginPath();
+    ctx.arc(lx + 14, ly + 16, 4, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = "rgba(200, 210, 230, 0.8)";
+    ctx.textAlign = "left";
+    ctx.fillText("Ion (large gyro)", lx + 24, ly + 19);
+
+    // Electron
+    ctx.fillStyle = "rgb(80, 200, 255)";
+    ctx.beginPath();
+    ctx.arc(lx + 14, ly + 34, 2.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = "rgba(200, 210, 230, 0.8)";
+    ctx.fillText("Electron (small gyro)", lx + 24, ly + 37);
+
+    ctx.fillStyle = "rgba(140, 160, 190, 0.5)";
+    ctx.font = "8px monospace";
+    ctx.fillText("← → shows v∥ direction", lx + 10, ly + 52);
+  }
+
+  useEffect(() => {
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [draw]);
+
+  // Mouse drag to rotate view
+  const handlePointerDown = (e) => {
+    dragRef.current = { dragging: true, lastX: e.clientX };
+  };
+  const handlePointerMove = (e) => {
+    if (!dragRef.current.dragging) return;
+    const dx = e.clientX - dragRef.current.lastX;
+    dragRef.current.lastX = e.clientX;
+    setViewAngle((a) => a + dx * 0.005);
+  };
+  const handlePointerUp = () => {
+    dragRef.current.dragging = false;
+  };
+
+  return (
+    <div
+      style={{
+        background: "#020408",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', monospace",
+        color: "#c8d8e8",
+        padding: "12px",
+        userSelect: "none",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: "15px",
+          fontWeight: 600,
+          letterSpacing: "2px",
+          textTransform: "uppercase",
+          color: "rgba(180, 210, 255, 0.85)",
+          margin: "8px 0 2px",
+          textAlign: "center",
+        }}
+      >
+        Tokamak Particle Gyration
+      </h1>
+      <p
+        style={{
+          fontSize: "10px",
+          color: "rgba(130, 160, 200, 0.5)",
+          margin: "0 0 10px",
+          letterSpacing: "1px",
+        }}
+      >
+        drag to rotate · v∥ is thermally random (±)
+      </p>
+
+      <canvas
+        ref={canvasRef}
+        width={700}
+        height={480}
+        style={{
+          width: "100%",
+          maxWidth: 700,
+          borderRadius: 8,
+          border: "1px solid rgba(60, 100, 160, 0.2)",
+          cursor: "grab",
+          touchAction: "none",
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px",
+          marginTop: 12,
+          justifyContent: "center",
+          maxWidth: 700,
+        }}
+      >
+        {[
+          { label: "Ions", active: showIons, toggle: () => setShowIons((v) => !v), color: "#ff8040" },
+          { label: "Electrons", active: showElectrons, toggle: () => setShowElectrons((v) => !v), color: "#50c8ff" },
+          { label: "Trails", active: showTrails, toggle: () => setShowTrails((v) => !v), color: "#6688bb" },
+          { label: "Field Lines", active: showFieldLines, toggle: () => setShowFieldLines((v) => !v), color: "#4466aa" },
+        ].map((btn) => (
+          <button
+            key={btn.label}
+            onClick={btn.toggle}
+            style={{
+              background: btn.active ? `${btn.color}22` : "rgba(20,30,50,0.6)",
+              border: `1px solid ${btn.active ? btn.color + "66" : "rgba(60,80,120,0.3)"}`,
+              color: btn.active ? btn.color : "rgba(130,150,180,0.5)",
+              padding: "6px 14px",
+              borderRadius: 4,
+              fontSize: 11,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.2s",
+            }}
+          >
+            {btn.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: 8,
+          fontSize: 11,
+        }}
+      >
+        <span style={{ color: "rgba(130,160,200,0.6)" }}>Speed</span>
+        <input
+          type="range"
+          min={0.1}
+          max={3}
+          step={0.1}
+          value={speed}
+          onChange={(e) => setSpeed(parseFloat(e.target.value))}
+          style={{ width: 120, accentColor: "#4488cc" }}
+        />
+        <span style={{ color: "rgba(130,160,200,0.6)" }}>Particles</span>
+        <input
+          type="range"
+          min={6}
+          max={60}
+          step={2}
+          value={particleCount}
+          onChange={(e) => setParticleCount(parseInt(e.target.value))}
+          style={{ width: 100, accentColor: "#4488cc" }}
+        />
+      </div>
+
+      <div
+        style={{
+          maxWidth: 680,
+          marginTop: 16,
+          padding: "14px 18px",
+          background: "rgba(10, 20, 40, 0.7)",
+          border: "1px solid rgba(60, 100, 160, 0.15)",
+          borderRadius: 8,
+          fontSize: 11,
+          lineHeight: 1.7,
+          color: "rgba(170, 190, 220, 0.8)",
+        }}
+      >
+        <strong style={{ color: "rgba(200, 220, 250, 0.9)" }}>What you're seeing:</strong>{" "}
+        Each particle spirals (gyrates) around a magnetic field line while drifting along it.
+        The <span style={{ color: "#ff8040" }}>ions</span> have large gyro-orbits;{" "}
+        <span style={{ color: "#50c8ff" }}>electrons</span> have tiny ones and move faster.
+        Crucially, particles travel in <em>both directions</em> along the field — the inset histogram
+        shows their parallel velocity (v∥) follows a symmetric distribution centered at zero.
+        The direction is set by each particle's thermal velocity at its last collision — it's statistically random.
+      </div>
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Visualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

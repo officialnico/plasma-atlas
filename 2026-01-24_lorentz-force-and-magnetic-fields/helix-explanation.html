@@ -1,0 +1,457 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>helix explanation</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const FieldVectorAddition = () => {
+  const [stage, setStage] = useState(0);
+  const [time, setTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [showParticle, setShowParticle] = useState(true);
+  const canvasRef = useRef(null);
+  const animationRef = useRef(null);
+
+  const stages = [
+    {
+      name: "Toroidal Field Only",
+      description: "Field lines go in circles around the donut. Particle follows... in circles.",
+      showToroidal: true,
+      showPoloidal: false,
+      showTotal: false
+    },
+    {
+      name: "Poloidal Field Only", 
+      description: "Field wraps around the tube (cross-section). This is created by the plasma current.",
+      showToroidal: false,
+      showPoloidal: true,
+      showTotal: false
+    },
+    {
+      name: "Both Fields Exist",
+      description: "At every point, BOTH fields exist. What does the particle feel?",
+      showToroidal: true,
+      showPoloidal: true,
+      showTotal: false
+    },
+    {
+      name: "Vector Addition → Helix!",
+      description: "B_total = B_toroidal + B_poloidal. The sum points DIAGONALLY. Field lines become helical. Particle just follows.",
+      showToroidal: true,
+      showPoloidal: true,
+      showTotal: true
+    }
+  ];
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    
+    const animate = () => {
+      setTime(t => t + 0.016);
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    animationRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, width, height);
+    
+    const currentStage = stages[stage];
+    
+    // Draw a "tube" section (3D-ish cylinder representing part of the torus)
+    const tubeX = 300;
+    const tubeY = 250;
+    const tubeRadius = 80;
+    const tubeLength = 350;
+    
+    // Draw tube outline
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 2;
+    
+    // Top line
+    ctx.beginPath();
+    ctx.moveTo(tubeX - tubeLength/2, tubeY - tubeRadius);
+    ctx.lineTo(tubeX + tubeLength/2, tubeY - tubeRadius);
+    ctx.stroke();
+    
+    // Bottom line
+    ctx.beginPath();
+    ctx.moveTo(tubeX - tubeLength/2, tubeY + tubeRadius);
+    ctx.lineTo(tubeX + tubeLength/2, tubeY + tubeRadius);
+    ctx.stroke();
+    
+    // Left ellipse (entry)
+    ctx.beginPath();
+    ctx.ellipse(tubeX - tubeLength/2, tubeY, 20, tubeRadius, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Right ellipse (exit)
+    ctx.beginPath();
+    ctx.ellipse(tubeX + tubeLength/2, tubeY, 20, tubeRadius, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Fill with slight gradient
+    ctx.fillStyle = 'rgba(100, 50, 150, 0.1)';
+    ctx.fillRect(tubeX - tubeLength/2, tubeY - tubeRadius, tubeLength, tubeRadius * 2);
+    
+    // Label the tube
+    ctx.fillStyle = '#666';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('← This is a section of the torus tube →', tubeX, tubeY + tubeRadius + 25);
+    ctx.fillText('(imagine bending this into a donut)', tubeX, tubeY + tubeRadius + 40);
+    
+    // TOROIDAL FIELD - arrows going along the tube (left to right)
+    if (currentStage.showToroidal) {
+      ctx.strokeStyle = '#aa55ff';
+      ctx.fillStyle = '#aa55ff';
+      ctx.lineWidth = 3;
+      
+      const numArrows = 5;
+      for (let i = 0; i < numArrows; i++) {
+        const x = tubeX - tubeLength/2 + 50 + i * (tubeLength - 100) / (numArrows - 1);
+        const y = tubeY;
+        
+        // Arrow pointing right (toroidal direction)
+        const arrowLen = 40;
+        ctx.beginPath();
+        ctx.moveTo(x - arrowLen/2, y);
+        ctx.lineTo(x + arrowLen/2, y);
+        ctx.stroke();
+        
+        // Arrowhead
+        ctx.beginPath();
+        ctx.moveTo(x + arrowLen/2, y);
+        ctx.lineTo(x + arrowLen/2 - 10, y - 6);
+        ctx.lineTo(x + arrowLen/2 - 10, y + 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText('B_toroidal (around donut)', tubeX, tubeY - tubeRadius - 40);
+      ctx.fillText('→ → → → →', tubeX, tubeY - tubeRadius - 20);
+    }
+    
+    // POLOIDAL FIELD - arrows wrapping around the tube cross-section
+    if (currentStage.showPoloidal) {
+      ctx.strokeStyle = '#55aaff';
+      ctx.fillStyle = '#55aaff';
+      ctx.lineWidth = 3;
+      
+      // Draw at two positions along tube
+      const positions = [tubeX - 80, tubeX + 80];
+      
+      positions.forEach(px => {
+        // Draw circular arrows around the tube
+        const angles = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
+        const r = tubeRadius * 0.7;
+        
+        angles.forEach(angle => {
+          const ax = px;
+          const ay = tubeY + r * Math.sin(angle);
+          const scale = 0.3 + 0.7 * Math.abs(Math.cos(angle)); // Perspective
+          
+          // Tangent direction (perpendicular to radius, going around)
+          const tangentAngle = angle + Math.PI/2;
+          const arrowLen = 25 * scale;
+          
+          const endX = ax;
+          const endY = ay + arrowLen * Math.sin(tangentAngle);
+          
+          // Only draw if visible (front half)
+          if (Math.cos(angle) > -0.3) {
+            ctx.globalAlpha = 0.5 + 0.5 * Math.cos(angle);
+            ctx.beginPath();
+            ctx.moveTo(ax, ay - arrowLen * Math.cos(tangentAngle) * 0.3);
+            ctx.lineTo(ax, ay + arrowLen * Math.cos(tangentAngle) * 0.3);
+            ctx.stroke();
+            
+            // Arrowhead
+            const headDir = Math.sign(Math.cos(tangentAngle));
+            ctx.beginPath();
+            ctx.arc(ax, ay + headDir * arrowLen * 0.3, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+        });
+        
+        // Draw a cleaner circular arrow indicator
+        ctx.beginPath();
+        ctx.arc(px, tubeY, r, -Math.PI * 0.8, Math.PI * 0.8);
+        ctx.stroke();
+        
+        // Arrowhead on the circle
+        const tipAngle = Math.PI * 0.8;
+        const tipX = px + r * Math.cos(tipAngle) * 0.15;
+        const tipY = tubeY + r * Math.sin(tipAngle);
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX - 8, tipY - 8);
+        ctx.lineTo(tipX + 4, tipY - 6);
+        ctx.closePath();
+        ctx.fill();
+      });
+      
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('B_poloidal', 20, 50);
+      ctx.fillText('(wraps around tube)', 20, 68);
+      ctx.font = '12px Arial';
+      ctx.fillText('Created by plasma', 20, 88);
+      ctx.fillText('current flowing →', 20, 104);
+    }
+    
+    // TOTAL FIELD - show vector addition and resulting helix
+    if (currentStage.showTotal) {
+      // Draw vector addition diagram
+      const vx = 520;
+      const vy = 100;
+      
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Vector Addition:', vx, vy - 30);
+      
+      // Toroidal vector (horizontal)
+      ctx.strokeStyle = '#aa55ff';
+      ctx.fillStyle = '#aa55ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(vx - 40, vy);
+      ctx.lineTo(vx + 20, vy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(vx + 20, vy);
+      ctx.lineTo(vx + 10, vy - 6);
+      ctx.lineTo(vx + 10, vy + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = '12px Arial';
+      ctx.fillText('B_tor', vx - 10, vy - 10);
+      
+      // Poloidal vector (vertical)
+      ctx.strokeStyle = '#55aaff';
+      ctx.fillStyle = '#55aaff';
+      ctx.beginPath();
+      ctx.moveTo(vx + 20, vy);
+      ctx.lineTo(vx + 20, vy + 40);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(vx + 20, vy + 40);
+      ctx.lineTo(vx + 14, vy + 30);
+      ctx.lineTo(vx + 26, vy + 30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillText('B_pol', vx + 35, vy + 25);
+      
+      // Total vector (diagonal)
+      ctx.strokeStyle = '#55ff55';
+      ctx.fillStyle = '#55ff55';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(vx - 40, vy);
+      ctx.lineTo(vx + 20, vy + 40);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(vx + 20, vy + 40);
+      ctx.lineTo(vx + 8, vy + 32);
+      ctx.lineTo(vx + 16, vy + 24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText('B_total', vx + 5, vy + 60);
+      ctx.font = '12px Arial';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText('(DIAGONAL!)', vx + 5, vy + 75);
+      
+      // Draw helical field line in the tube
+      ctx.strokeStyle = '#55ff55';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      
+      for (let t = 0; t <= Math.PI * 6; t += 0.05) {
+        const x = tubeX - tubeLength/2 + 30 + t * (tubeLength - 60) / (Math.PI * 6);
+        const angle = t * 1.5;
+        const r = tubeRadius * 0.5;
+        const y = tubeY + r * Math.sin(angle);
+        const z = r * Math.cos(angle);
+        
+        // Simple depth shading
+        ctx.globalAlpha = 0.4 + 0.6 * (z / r + 1) / 2;
+        
+        if (t === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.globalAlpha = 1;
+      ctx.stroke();
+      
+      ctx.fillStyle = '#55ff55';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑ Helical field line!', tubeX, tubeY + tubeRadius + 70);
+      ctx.font = '11px Arial';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText('(it corkscrews because B_total is always diagonal)', tubeX, tubeY + tubeRadius + 85);
+    }
+    
+    // Draw particle following the field
+    if (showParticle && stage >= 0) {
+      let px, py;
+      const t = time * 2;
+      
+      if (stage === 0) {
+        // Just moves along tube (toroidal only)
+        px = tubeX - tubeLength/2 + 50 + ((t * 30) % (tubeLength - 100));
+        py = tubeY;
+      } else if (stage === 1) {
+        // Circles around tube (poloidal only) - stays in place
+        const angle = t * 2;
+        px = tubeX;
+        py = tubeY + tubeRadius * 0.5 * Math.sin(angle);
+      } else if (stage === 2) {
+        // Show both motions superimposed awkwardly
+        const toroidalPos = ((t * 30) % (tubeLength - 100));
+        const angle = t * 2;
+        px = tubeX - tubeLength/2 + 50 + toroidalPos;
+        py = tubeY + tubeRadius * 0.4 * Math.sin(angle);
+      } else {
+        // Helix!
+        const progress = (t * 0.5) % (Math.PI * 6);
+        px = tubeX - tubeLength/2 + 30 + progress * (tubeLength - 60) / (Math.PI * 6);
+        const angle = progress * 1.5;
+        py = tubeY + tubeRadius * 0.5 * Math.sin(angle);
+      }
+      
+      // Glow
+      const gradient = ctx.createRadialGradient(px, py, 0, px, py, 20);
+      gradient.addColorStop(0, 'rgba(255, 100, 100, 0.8)');
+      gradient.addColorStop(1, 'rgba(255, 100, 100, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(px, py, 20, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Particle
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(px, py, 8, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('+', px, py);
+    }
+    
+    // Stage title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`Stage ${stage + 1}: ${currentStage.name}`, 300, 15);
+    
+  }, [time, stage, showParticle]);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold text-center mb-2">
+        How Two Fields Make a Helix
+      </h1>
+      <p className="text-center text-gray-400 mb-4">
+        It's just vector addition. The particle follows wherever B_total points.
+      </p>
+      
+      <div className="flex flex-col lg:flex-row gap-4 max-w-5xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={650}
+            height={450}
+            className="bg-gray-800 rounded-lg w-full"
+          />
+          
+          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+            <p className="text-sm text-gray-300">{stages[stage].description}</p>
+          </div>
+        </div>
+        
+        <div className="w-full lg:w-56 space-y-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Stages</h3>
+            <div className="space-y-2">
+              {stages.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => setStage(i)}
+                  className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                    stage === i 
+                      ? 'bg-white text-gray-900 font-semibold' 
+                      : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                >
+                  {i + 1}. {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Controls</h3>
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className={`w-full py-2 rounded mb-2 ${isPlaying ? 'bg-yellow-600' : 'bg-green-600'}`}
+            >
+              {isPlaying ? '⏸ Pause' : '▶ Play'}
+            </button>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showParticle}
+                onChange={e => setShowParticle(e.target.checked)}
+              />
+              Show particle
+            </label>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Legend</h3>
+            <div className="space-y-1">
+              <p><span className="text-purple-400">Purple →</span> Toroidal B</p>
+              <p><span className="text-blue-400">Blue ↻</span> Poloidal B</p>
+              <p><span className="text-green-400">Green ↗</span> Total B</p>
+            </div>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">The Key Insight</h3>
+            <p className="text-gray-400">
+              There's no "helical force." The field lines themselves are helices (because vectors add). The particle just follows the field line.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FieldVectorAddition));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

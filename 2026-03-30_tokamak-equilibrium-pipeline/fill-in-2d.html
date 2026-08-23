@@ -1,0 +1,494 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fill in 2d</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function FillIn2D() {
+  const [step, setStep] = useState(0);
+  const [selectedCell, setSelectedCell] = useState(null);
+
+  const R0 = 1.18, a = 0.35, kappa = 1.5;
+  const Rmin = 0.75, Rmax = 1.65, Zmin = -0.55, Zmax = 0.55;
+
+  // EFIT: 5x5 sparse grid
+  const efitN = 5;
+  const dR = (Rmax - Rmin) / (efitN - 1);
+  const dZ = (Zmax - Zmin) / (efitN - 1);
+
+  function psiExact(R, Z) {
+    return ((R - R0) / a) ** 2 + (Z / (a * kappa)) ** 2;
+  }
+  function dPsi_dR(R, Z) { return 2 * (R - R0) / (a * a); }
+  function dPsi_dZ(R, Z) { return 2 * Z / (a * a * kappa * kappa); }
+  function d2Psi_dRdZ(R, Z) { return 0; }
+
+  // EFIT points
+  const efitGrid = [];
+  for (let j = 0; j < efitN; j++) {
+    const row = [];
+    for (let i = 0; i < efitN; i++) {
+      const R = Rmin + i * dR;
+      const Z = Zmax - j * dZ;
+      row.push({
+        R, Z, i, j,
+        psi: psiExact(R, Z),
+        dR: dPsi_dR(R, Z),
+        dZ: dPsi_dZ(R, Z),
+        dRZ: d2Psi_dRdZ(R, Z),
+        isEfit: true,
+      });
+    }
+    efitGrid.push(row);
+  }
+
+  // Steps: subdivision levels
+  // Step 0: just 5x5 EFIT = 25 cells
+  // Step 1: 9x9 (1 fill between each) = 81
+  // Step 2: 17x17 (3 fill) = 289
+  // Step 3: 33x33 (7 fill) = 1089
+  const subdivisions = [1, 2, 4, 8];
+  const sub = subdivisions[Math.min(step, 3)];
+  const fineN = (efitN - 1) * sub + 1;
+
+  // 1D Hermite interpolation helper
+  function hermite1D(p0, m0, p1, m1, t) {
+    const h00 = 2*t*t*t - 3*t*t + 1;
+    const h10 = t*t*t - 2*t*t + t;
+    const h01 = -2*t*t*t + 3*t*t;
+    const h11 = t*t*t - t*t;
+    return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
+  }
+
+  // Build the fine grid using bicubic Hermite interpolation
+  const fineGrid = [];
+  for (let fj = 0; fj < fineN; fj++) {
+    const row = [];
+    for (let fi = 0; fi < fineN; fi++) {
+      const R = Rmin + (fi / (fineN - 1)) * (Rmax - Rmin);
+      const Z = Zmax - (fj / (fineN - 1)) * (Zmax - Zmin);
+
+      // Which EFIT cell are we in?
+      const efitI = Math.min(Math.floor(fi / sub), efitN - 2);
+      const efitJ = Math.min(Math.floor(fj / sub), efitN - 2);
+      const tR = (fi - efitI * sub) / sub;
+      const tZ = (fj - efitJ * sub) / sub;
+
+      const isEfitPoint = (fi % sub === 0) && (fj % sub === 0);
+
+      // Bicubic Hermite: interpolate in R for top and bottom rows, then in Z
+      const j0 = efitJ, j1 = Math.min(efitJ + 1, efitN - 1);
+      const i0 = efitI, i1 = Math.min(efitI + 1, efitN - 1);
+
+      // Interpolate psi along R at Z=j0 and Z=j1
+      const psi_R_j0 = hermite1D(
+        efitGrid[j0][i0].psi, efitGrid[j0][i0].dR * dR,
+        efitGrid[j0][i1].psi, efitGrid[j0][i1].dR * dR, tR
+      );
+      const psi_R_j1 = hermite1D(
+        efitGrid[j1][i0].psi, efitGrid[j1][i0].dR * dR,
+        efitGrid[j1][i1].psi, efitGrid[j1][i1].dR * dR, tR
+      );
+
+      // Z-derivatives interpolated along R
+      const dZ_R_j0 = hermite1D(
+        efitGrid[j0][i0].dZ * dZ, efitGrid[j0][i0].dRZ * dR * dZ,
+        efitGrid[j0][i1].dZ * dZ, efitGrid[j0][i1].dRZ * dR * dZ, tR
+      );
+      const dZ_R_j1 = hermite1D(
+        efitGrid[j1][i0].dZ * dZ, efitGrid[j1][i0].dRZ * dR * dZ,
+        efitGrid[j1][i1].dZ * dZ, efitGrid[j1][i1].dRZ * dR * dZ, tR
+      );
+
+      // Now interpolate in Z
+      const psi = hermite1D(psi_R_j0, dZ_R_j0, psi_R_j1, dZ_R_j1, tZ);
+      const exact = psiExact(R, Z);
+
+      row.push({
+        R, Z, fi, fj, psi, exact, isEfitPoint,
+        efitI, efitJ, tR: tR.toFixed(3), tZ: tZ.toFixed(3),
+        error: Math.abs(psi - exact),
+      });
+    }
+    fineGrid.push(row);
+  }
+
+  // Rendering
+  const svgW = 400, svgH = 400;
+  const pad = { l: 5, r: 5, t: 5, b: 5 };
+  const gw = svgW - pad.l - pad.r;
+  const gh = svgH - pad.t - pad.b;
+  const cellW = gw / fineN;
+  const cellH = gh / fineN;
+
+  function psiColor(psi) {
+    const t = Math.min(psi / 2.5, 1);
+    return `rgb(${Math.round(10 + t * 20)},${Math.round(190 - t * 150)},${Math.round(190 - t * 70)})`;
+  }
+
+  const sc = selectedCell ? fineGrid[selectedCell.fj][selectedCell.fi] : null;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          2D GRID FILL-IN
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          SPARSE EFIT GRID → DENSE CHEASE GRID VIA HERMITE INTERPOLATION
+        </p>
+
+        {/* Step buttons */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 12 }}>
+          {[
+            { label: "5×5 EFIT only", n: 5, nums: 25 },
+            { label: "9×9 (1 fill)", n: 9, nums: 81 },
+            { label: "17×17 (3 fill)", n: 17, nums: 289 },
+            { label: "33×33 (7 fill)", n: 33, nums: 1089 },
+          ].map((s, i) => (
+            <button key={i} onClick={() => { setStep(i); setSelectedCell(null); }}
+              style={{
+                flex: 1, padding: "8px 6px", textAlign: "center",
+                background: step === i ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${step === i ? "#4ecdc4" : "#1e2630"}`,
+                borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <div style={{ fontSize: 10, color: step === i ? "#4ecdc4" : "#5c6a7a", fontWeight: 700 }}>{s.label}</div>
+              <div style={{ fontSize: 8, color: "#3a4a5a" }}>{s.nums} cells</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Grid */}
+          <div style={{
+            background: "#0d1117", borderRadius: 6,
+            border: "1px solid #1e2630", padding: 6, flexShrink: 0,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              {/* Cells */}
+              {fineGrid.map((row, fj) => row.map((cell, fi) => {
+                const x = pad.l + fi * cellW;
+                const y = pad.t + fj * cellH;
+                const isSelected = selectedCell && selectedCell.fi === fi && selectedCell.fj === fj;
+
+                return (
+                  <rect key={`${fi}-${fj}`}
+                    x={x} y={y}
+                    width={Math.ceil(cellW) + 0.5} height={Math.ceil(cellH) + 0.5}
+                    fill={psiColor(cell.psi)}
+                    stroke={isSelected ? "#ffffff" : cell.isEfitPoint ? "#ff6b6b55" : "none"}
+                    strokeWidth={isSelected ? 2 : cell.isEfitPoint && cellW > 5 ? 1 : 0}
+                    style={{ cursor: cellW > 3 ? "pointer" : "default" }}
+                    onClick={() => setSelectedCell({ fi, fj })}
+                  />
+                );
+              }))}
+
+              {/* EFIT point markers */}
+              {efitGrid.map((row, j) => row.map((p, i) => {
+                const x = pad.l + (i * sub) * cellW + cellW * sub / 2;
+                const y = pad.t + (j * sub) * cellH + cellH * sub / 2;
+                return (
+                  <g key={`efit${i}-${j}`}>
+                    <circle cx={x} cy={y} r={Math.max(3, cellW * sub / 6)}
+                      fill="none" stroke="#ff6b6b" strokeWidth={1.5} />
+                    {cellW * sub > 25 && (
+                      <text x={x} y={y + 3} textAnchor="middle" fill="#ff6b6b" fontSize={7}>
+                        {p.psi.toFixed(2)}
+                      </text>
+                    )}
+                  </g>
+                );
+              }))}
+            </svg>
+            <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 4, textAlign: "center" }}>
+              {fineN}×{fineN} = {fineN * fineN} cells · <span style={{ color: "#ff6b6b" }}>○</span> = original EFIT · filled = interpolated
+            </div>
+          </div>
+
+          {/* Detail panel */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            {sc ? (
+              <div style={{
+                padding: 12, background: "#12171f", borderRadius: 6,
+                border: "1px solid #1e2630",
+              }}>
+                <div style={{ fontSize: 10, color: "#4ecdc4", marginBottom: 8 }}>
+                  Cell [{sc.fi}, {sc.fj}] — R={sc.R.toFixed(3)}, Z={sc.Z.toFixed(3)}
+                </div>
+
+                {sc.isEfitPoint ? (
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #ff6b6b33",
+                  }}>
+                    <div style={{ fontSize: 11, color: "#ff6b6b", fontWeight: 700, marginBottom: 6 }}>
+                      Original EFIT point — not interpolated
+                    </div>
+                    <div style={{ fontSize: 11, color: "#e6ecf2" }}>ψ = {sc.psi.toFixed(6)}</div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 4 }}>
+                      This point was computed by EFIT's Grad-Shafranov solver. It came with the original 5×5 grid. CHEASE keeps it as-is.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{
+                      padding: 8, background: "#0a0e14", borderRadius: 4,
+                      border: "1px solid #4ecdc433", marginBottom: 8,
+                    }}>
+                      <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                        Interpolated by Hermite
+                      </div>
+                      <div style={{ fontSize: 11, color: "#e6ecf2" }}>ψ = {sc.psi.toFixed(6)}</div>
+                      <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 2 }}>
+                        exact = {sc.exact.toFixed(6)} · error = {sc.error.toExponential(1)}
+                      </div>
+                    </div>
+
+                    {/* Which EFIT cell */}
+                    <div style={{
+                      padding: 8, background: "#0a0e14", borderRadius: 4,
+                      marginBottom: 8, fontSize: 10, color: "#8a95a5", lineHeight: 1.8,
+                    }}>
+                      <div style={{ color: "#5c6a7a", fontSize: 9, marginBottom: 4 }}>Located inside EFIT cell [{sc.efitI},{sc.efitJ}]:</div>
+                      Position: t_R = {sc.tR}, t_Z = {sc.tZ}
+                      <br />
+                      <span style={{ fontSize: 9, color: "#5c6a7a" }}>(0,0) = top-left corner, (1,1) = bottom-right corner</span>
+                    </div>
+
+                    {/* The 4 EFIT corners used */}
+                    <div style={{
+                      padding: 8, background: "#0a0e14", borderRadius: 4,
+                      marginBottom: 8,
+                    }}>
+                      <div style={{ fontSize: 9, color: "#ff6b6b", fontWeight: 700, marginBottom: 6 }}>
+                        4 EFIT corners used (each with ψ + 3 derivatives):
+                      </div>
+                      {[
+                        { label: "Top-left", ei: sc.efitI, ej: sc.efitJ },
+                        { label: "Top-right", ei: Math.min(sc.efitI + 1, efitN - 1), ej: sc.efitJ },
+                        { label: "Bot-left", ei: sc.efitI, ej: Math.min(sc.efitJ + 1, efitN - 1) },
+                        { label: "Bot-right", ei: Math.min(sc.efitI + 1, efitN - 1), ej: Math.min(sc.efitJ + 1, efitN - 1) },
+                      ].map((corner, k) => {
+                        const ep = efitGrid[corner.ej][corner.ei];
+                        return (
+                          <div key={k} style={{
+                            display: "flex", gap: 6, fontSize: 9, color: "#8a95a5",
+                            padding: "2px 0", borderBottom: k < 3 ? "1px solid #1a2030" : "none",
+                          }}>
+                            <span style={{ color: "#ff6b6b", minWidth: 55 }}>{corner.label}</span>
+                            <span>ψ={ep.psi.toFixed(3)}</span>
+                            <span style={{ color: "#4ecdc4" }}>dR={ep.dR.toFixed(2)}</span>
+                            <span style={{ color: "#8ab4f8" }}>dZ={ep.dZ.toFixed(2)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Calculation steps — full arithmetic */}
+                    {(() => {
+                      const tR = parseFloat(sc.tR);
+                      const tZ = parseFloat(sc.tZ);
+                      const ei = sc.efitI;
+                      const ej = sc.efitJ;
+                      const i1 = Math.min(ei + 1, efitN - 1);
+                      const j1 = Math.min(ej + 1, efitN - 1);
+
+                      // Corners
+                      const TL = efitGrid[ej][ei];
+                      const TR = efitGrid[ej][i1];
+                      const BL = efitGrid[j1][ei];
+                      const BR = efitGrid[j1][i1];
+
+                      // Hermite basis at tR
+                      const h00_R = 2*tR*tR*tR - 3*tR*tR + 1;
+                      const h10_R = tR*tR*tR - 2*tR*tR + tR;
+                      const h01_R = -2*tR*tR*tR + 3*tR*tR;
+                      const h11_R = tR*tR*tR - tR*tR;
+
+                      // Pass 1: top edge
+                      const psi0 = TL.psi;
+                      const m0_top = TL.dR * dR;
+                      const psi1 = TR.psi;
+                      const m1_top = TR.dR * dR;
+                      const t1 = h00_R * psi0;
+                      const t2 = h10_R * m0_top;
+                      const t3 = h01_R * psi1;
+                      const t4 = h11_R * m1_top;
+                      const psiTop = t1 + t2 + t3 + t4;
+
+                      // Pass 1b: bottom edge
+                      const psi0b = BL.psi;
+                      const m0_bot = BL.dR * dR;
+                      const psi1b = BR.psi;
+                      const m1_bot = BR.dR * dR;
+                      const b1 = h00_R * psi0b;
+                      const b2 = h10_R * m0_bot;
+                      const b3 = h01_R * psi1b;
+                      const b4 = h11_R * m1_bot;
+                      const psiBot = b1 + b2 + b3 + b4;
+
+                      // Z derivatives interpolated along R at top and bottom
+                      const dZtop = hermite1D(TL.dZ * dZ, TL.dRZ * dR * dZ, TR.dZ * dZ, TR.dRZ * dR * dZ, tR);
+                      const dZbot = hermite1D(BL.dZ * dZ, BL.dRZ * dR * dZ, BR.dZ * dZ, BR.dRZ * dR * dZ, tR);
+
+                      // Pass 2: Z direction
+                      const h00_Z = 2*tZ*tZ*tZ - 3*tZ*tZ + 1;
+                      const h10_Z = tZ*tZ*tZ - 2*tZ*tZ + tZ;
+                      const h01_Z = -2*tZ*tZ*tZ + 3*tZ*tZ;
+                      const h11_Z = tZ*tZ*tZ - tZ*tZ;
+                      const z1 = h00_Z * psiTop;
+                      const z2 = h10_Z * dZtop;
+                      const z3 = h01_Z * psiBot;
+                      const z4 = h11_Z * dZbot;
+                      const psiFinal = z1 + z2 + z3 + z4;
+
+                      const S = { fontSize: 9, color: "#8a95a5", lineHeight: 2.0 };
+                      const V = { color: "#e6ecf2", fontWeight: 700 };
+                      const M = { color: "#c9b87c" };
+                      const H = { color: "#c9a3f5" };
+                      const R = { color: "#4ecdc4" };
+
+                      return (
+                        <div style={{ padding: 8, background: "#0a0e14", borderRadius: 4 }}>
+                          {/* PASS 1: Top edge in R */}
+                          <div style={{ ...S, marginBottom: 8 }}>
+                            <div style={{ color: "#4ecdc4", fontWeight: 700, fontSize: 10, marginBottom: 4 }}>
+                              PASS 1: Hermite in R along top edge (t = {tR.toFixed(3)})
+                            </div>
+                            <span style={H}>Basis functions at t={tR.toFixed(3)}:</span>
+                            <br />
+                            h₀₀ = 2({tR.toFixed(3)})³ − 3({tR.toFixed(3)})² + 1 = <span style={V}>{h00_R.toFixed(4)}</span>
+                            <br />
+                            h₁₀ = ({tR.toFixed(3)})³ − 2({tR.toFixed(3)})² + {tR.toFixed(3)} = <span style={V}>{h10_R.toFixed(4)}</span>
+                            <br />
+                            h₀₁ = −2({tR.toFixed(3)})³ + 3({tR.toFixed(3)})² = <span style={V}>{h01_R.toFixed(4)}</span>
+                            <br />
+                            h₁₁ = ({tR.toFixed(3)})³ − ({tR.toFixed(3)})² = <span style={V}>{h11_R.toFixed(4)}</span>
+                            <br /><br />
+                            <span style={H}>Inputs from top-left and top-right:</span>
+                            <br />
+                            ψ₀ = {psi0.toFixed(4)}, m₀ = {TL.dR.toFixed(3)} × {dR.toFixed(3)} = <span style={M}>{m0_top.toFixed(4)}</span>
+                            <br />
+                            ψ₁ = {psi1.toFixed(4)}, m₁ = {TR.dR.toFixed(3)} × {dR.toFixed(3)} = <span style={M}>{m1_top.toFixed(4)}</span>
+                            <br /><br />
+                            <span style={H}>Multiply:</span>
+                            <br />
+                            {h00_R.toFixed(4)} × {psi0.toFixed(4)} = {t1.toFixed(4)}
+                            <br />
+                            {h10_R.toFixed(4)} × {m0_top.toFixed(4)} = {t2.toFixed(4)}
+                            <br />
+                            {h01_R.toFixed(4)} × {psi1.toFixed(4)} = {t3.toFixed(4)}
+                            <br />
+                            {h11_R.toFixed(4)} × {m1_top.toFixed(4)} = {t4.toFixed(4)}
+                            <br /><br />
+                            <span style={H}>Sum:</span> {t1.toFixed(4)} + {t2.toFixed(4)} + {t3.toFixed(4)} + {t4.toFixed(4)} = <span style={V}>{psiTop.toFixed(6)}</span>
+                          </div>
+
+                          <div style={{ borderTop: "1px solid #1e2630", marginBottom: 8 }} />
+
+                          {/* PASS 1b: Bottom edge in R */}
+                          <div style={{ ...S, marginBottom: 8 }}>
+                            <div style={{ color: "#4ecdc4", fontWeight: 700, fontSize: 10, marginBottom: 4 }}>
+                              PASS 1b: Hermite in R along bottom edge (same t = {tR.toFixed(3)})
+                            </div>
+                            <span style={H}>Same basis functions. Different inputs:</span>
+                            <br />
+                            ψ₀ = {psi0b.toFixed(4)}, m₀ = {BL.dR.toFixed(3)} × {dR.toFixed(3)} = <span style={M}>{m0_bot.toFixed(4)}</span>
+                            <br />
+                            ψ₁ = {psi1b.toFixed(4)}, m₁ = {BR.dR.toFixed(3)} × {dR.toFixed(3)} = <span style={M}>{m1_bot.toFixed(4)}</span>
+                            <br /><br />
+                            {h00_R.toFixed(4)} × {psi0b.toFixed(4)} = {b1.toFixed(4)}
+                            <br />
+                            {h10_R.toFixed(4)} × {m0_bot.toFixed(4)} = {b2.toFixed(4)}
+                            <br />
+                            {h01_R.toFixed(4)} × {psi1b.toFixed(4)} = {b3.toFixed(4)}
+                            <br />
+                            {h11_R.toFixed(4)} × {m1_bot.toFixed(4)} = {b4.toFixed(4)}
+                            <br /><br />
+                            <span style={H}>Sum:</span> <span style={V}>{psiBot.toFixed(6)}</span>
+                          </div>
+
+                          <div style={{ borderTop: "1px solid #1e2630", marginBottom: 8 }} />
+
+                          {/* PASS 2: Z direction */}
+                          <div style={{ ...S }}>
+                            <div style={{ color: "#8ab4f8", fontWeight: 700, fontSize: 10, marginBottom: 4 }}>
+                              PASS 2: Hermite in Z between the two results (t = {tZ.toFixed(3)})
+                            </div>
+                            <span style={H}>Basis functions at t={tZ.toFixed(3)}:</span>
+                            <br />
+                            h₀₀ = <span style={V}>{h00_Z.toFixed(4)}</span>, h₁₀ = <span style={V}>{h10_Z.toFixed(4)}</span>, h₀₁ = <span style={V}>{h01_Z.toFixed(4)}</span>, h₁₁ = <span style={V}>{h11_Z.toFixed(4)}</span>
+                            <br /><br />
+                            <span style={H}>Inputs:</span>
+                            <br />
+                            ψ_top = {psiTop.toFixed(4)}, Z-slope at top = <span style={M}>{dZtop.toFixed(4)}</span>
+                            <br />
+                            ψ_bot = {psiBot.toFixed(4)}, Z-slope at bot = <span style={M}>{dZbot.toFixed(4)}</span>
+                            <br /><br />
+                            {h00_Z.toFixed(4)} × {psiTop.toFixed(4)} = {z1.toFixed(4)}
+                            <br />
+                            {h10_Z.toFixed(4)} × {dZtop.toFixed(4)} = {z2.toFixed(4)}
+                            <br />
+                            {h01_Z.toFixed(4)} × {psiBot.toFixed(4)} = {z3.toFixed(4)}
+                            <br />
+                            {h11_Z.toFixed(4)} × {dZbot.toFixed(4)} = {z4.toFixed(4)}
+                            <br /><br />
+                            <span style={H}>Sum:</span> {z1.toFixed(4)} + {z2.toFixed(4)} + {z3.toFixed(4)} + {z4.toFixed(4)}
+                            <br />
+                            <div style={{ fontSize: 14, color: "#e6ecf2", fontWeight: 700, marginTop: 6, padding: "4px 8px", background: "#4ecdc415", borderRadius: 4, display: "inline-block" }}>
+                              ψ = {psiFinal.toFixed(6)}
+                            </div>
+                            <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 4 }}>
+                              Exact: {sc.exact.toFixed(6)} · Error: {sc.error.toExponential(2)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                padding: 16, background: "#12171f", borderRadius: 6,
+                border: "1px solid #1e2630",
+                fontSize: 11, color: "#5c6a7a", lineHeight: 1.8,
+              }}>
+                Tap any cell in the grid to inspect it.
+                <br /><br />
+                <span style={{ color: "#ff6b6b" }}>Red circles</span> = original EFIT points (5×5 = 25).
+                <br />
+                Everything else = filled in by Hermite interpolation.
+                <br /><br />
+                Step through the buttons above to watch the grid fill in from 25 cells to 1,089 cells.
+                <br /><br />
+                Tap a filled cell to see exactly which 4 EFIT corners were used and how the bicubic Hermite formula computed the value in 2 passes — first interpolate in R, then in Z.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FillIn2D));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

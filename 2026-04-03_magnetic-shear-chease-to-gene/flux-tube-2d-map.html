@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flux Tube — 2D Map</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:900px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#f5c042;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:14px;line-height:1.5;max-width:560px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;position:relative;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:100px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;color:#f5c042;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#f5c042;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>Flux Tube <span>Unrolled</span></h1>
+<p class="sub">The tube cut open and laid flat. Each cell shows its real shape after metrics. Tap any cell. The mini ring shows where it sits on the tokamak.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Shear</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.1" value="1.5"><span class="cg-v" id="vShat">1.5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Layers</div>
+    <div class="cg-r"><input type="range" id="sLayers" min="2" max="8" step="1" value="5"><span class="cg-v" id="vLayers" style="color:#1fd6e8">5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">z-cells</div>
+    <div class="cg-r"><input type="range" id="sNz" min="8" max="32" step="2" value="16"><span class="cg-v" id="vNz" style="color:#9b7ff0">16</span></div>
+  </div>
+</div>
+
+<!-- Main: unrolled 2D map -->
+<div class="panel">
+  <div class="plbl"><span>UNROLLED FLUX TUBE — TAP ANY CELL</span><span id="tapHint" style="color:#f5c042">z along bottom, radial layers stacked</span></div>
+  <canvas id="cMap" style="height:360px;"></canvas>
+</div>
+
+<!-- Detail: side by side gene vs real + mini ring -->
+<div id="detailWrap" style="display:none;">
+  <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;margin-bottom:12px;">
+    <div class="panel" style="margin:0;">
+      <div class="plbl"><span>GENE SQUARE → REAL SHAPE</span><span id="cellPos" style="color:#9b7ff0"></span></div>
+      <canvas id="cDetail" style="height:220px;"></canvas>
+    </div>
+    <div class="panel" style="margin:0;">
+      <div class="plbl"><span>ON THE RING</span></div>
+      <canvas id="cMini" style="height:220px;"></canvas>
+    </div>
+  </div>
+  <div class="box" id="detailBox"><p id="detailText"></p></div>
+</div>
+
+<div class="box">
+  <p><b>Reading the map:</b> The horizontal axis is <b class="p">z</b> — position along the field line from outboard (center) through top, inboard, bottom, back to outboard. The vertical axis is the <b class="p">radial layers</b> — GENE's grid across the tube width.</p>
+  <p style="margin-top:6px;">Each cell is drawn as its <b>real shape after metrics</b>, not as a uniform square. In the center column (z≈0, outboard) the cells are upright. Moving toward the edges (z=±π, inboard) they tilt from shear. The cell color shows curvature: <span class="r">red = bad</span>, <span class="g">green = good</span>.</p>
+  <p style="margin-top:6px;">Set <b>shear to 0</b> — all cells become identical upright rectangles. Crank to <b>3</b> — the edges tilt dramatically. That's the whole story of what the metrics encode.</p>
+</div>
+
+</div>
+
+<script>
+let shat=1.5, nLayers=5, nZ=16;
+let selectedIz=-1, selectedIr=-1;
+let cellData=[];
+const selRho=0.6;
+
+function getMetrics(z){
+  return{
+    gxx:1+0.18*Math.cos(z),
+    gxy:shat*z,
+    gyy:1+0.5*shat*shat*z*z*0.15+0.08*Math.cos(z)
+  };
+}
+function kappa(z){return Math.cos(z)*0.5;}
+
+function getElong(rho){return 1.0+0.4*rho;}
+function getTri(rho){return 0.05+0.28*rho;}
+function surfPt(theta,rho,maxR){
+  const r=maxR*rho,e=getElong(rho),d=getTri(rho),sh=0.1*(1-rho)*maxR;
+  return{x:sh+r*Math.cos(theta+d*Math.sin(theta)),y:r*e*Math.sin(theta)};
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+// ===== MAIN MAP =====
+function drawMap(){
+  const s=setupCanvas('cMap');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const pad={l:36,r:12,t:14,b:36};
+  const pw=w-pad.l-pad.r;
+  const ph=h-pad.t-pad.b;
+  const cellW=pw/nZ;
+  const cellH=ph/nLayers;
+  const cellScale=Math.min(cellW,cellH)*0.42;
+
+  cellData=[];
+
+  for(let iz=0;iz<nZ;iz++){
+    // z goes from -π to +π
+    const z=((iz+0.5)/nZ-0.5)*2*Math.PI;
+    const m=getMetrics(z);
+    const k=kappa(z);
+
+    for(let ir=0;ir<nLayers;ir++){
+      const cellCx=pad.l+iz*cellW+cellW/2;
+      const cellCy=pad.t+ir*cellH+cellH/2;
+
+      const isSel=(iz===selectedIz&&ir===selectedIr);
+
+      // Transform unit square by metrics
+      const corners=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+      const pts=corners.map(([x,y])=>{
+        const rx=x*Math.sqrt(Math.abs(m.gxx))+y*m.gxy*0.12;
+        const ry=y*Math.sqrt(Math.abs(m.gyy));
+        return[cellCx+rx*cellScale, cellCy-ry*cellScale];
+      });
+
+      // Curvature color
+      const alpha=0.06+Math.abs(k)*0.12;
+      const fill=k>0?`rgba(239,100,97,${alpha})`:`rgba(62,232,134,${alpha})`;
+
+      ctx.beginPath();
+      pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+      ctx.closePath();
+
+      if(isSel){
+        ctx.fillStyle='rgba(245,192,66,0.2)';ctx.fill();
+        ctx.strokeStyle='rgba(245,192,66,0.9)';ctx.lineWidth=2;ctx.stroke();
+      } else {
+        ctx.fillStyle=fill;ctx.fill();
+        ctx.strokeStyle='rgba(155,127,240,0.2)';ctx.lineWidth=0.8;ctx.stroke();
+      }
+
+      // Also draw faint reference square
+      if(!isSel){
+        ctx.strokeStyle='rgba(62,232,134,0.04)';ctx.lineWidth=0.3;
+        ctx.strokeRect(cellCx-cellScale/2,cellCy-cellScale/2,cellScale,cellScale);
+      }
+
+      cellData.push({iz,ir,z,m,k,screenPts:pts,cx:cellCx,cy:cellCy});
+    }
+  }
+
+  // X axis labels
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='center';ctx.textBaseline='top';
+  const xLabels=[
+    {f:0,l:'outboard'},{f:0.125,l:'top'},{f:0.25,l:'inboard'},
+    {f:0.375,l:'bottom'},{f:0.5,l:'outboard'},{f:0.625,l:'top'},
+    {f:0.75,l:'inboard'},{f:0.875,l:'bottom'},{f:1,l:'outboard'}
+  ];
+  // Simpler: just mark the key positions
+  ['outboard','','top','','inboard','','bottom','','outboard'].forEach((l,i)=>{
+    if(!l)return;
+    const x=pad.l+(i/8)*pw;
+    ctx.fillText(l,x,h-pad.b+6);
+    // Tick
+    ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,h-pad.b);ctx.stroke();
+  });
+  ctx.font='9px monospace';ctx.fillText('z (along field line) →',pad.l+pw/2,h-8);
+
+  // Y axis
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';
+  ctx.fillText('outer',pad.l-4,pad.t+cellH/2);
+  ctx.fillText('center',pad.l-4,pad.t+ph/2);
+  ctx.fillText('inner',pad.l-4,pad.t+ph-cellH/2);
+
+  ctx.save();ctx.translate(8,pad.t+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillText('radial layers',0,0);
+  ctx.restore();
+
+  // Curvature bar at top
+  ctx.font='7px monospace';
+  for(let iz=0;iz<nZ;iz++){
+    const z=((iz+0.5)/nZ-0.5)*2*Math.PI;
+    const k=kappa(z);
+    const x=pad.l+iz*cellW;
+    ctx.fillStyle=k>0?`rgba(239,100,97,${0.15+Math.abs(k)*0.2})`:`rgba(62,232,134,${0.15+Math.abs(k)*0.2})`;
+    ctx.fillRect(x,pad.t-10,cellW,6);
+  }
+  ctx.fillStyle='rgba(239,100,97,0.3)';ctx.textAlign='right';ctx.fillText('κ',pad.l-2,pad.t-7);
+}
+
+// Hit test
+function pointInPoly(px,py,pts){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const[xi,yi]=pts[i],[xj,yj]=pts[j];
+    if((yi>py)!==(yj>py)&&px<(xj-xi)*(py-yi)/(yj-yi)+xi)inside=!inside;
+  }
+  return inside;
+}
+
+const cMap=document.getElementById('cMap');
+cMap.addEventListener('click',function(e){
+  const r=cMap.getBoundingClientRect();
+  const px=e.clientX-r.left,py=e.clientY-r.top;
+  for(let i=cellData.length-1;i>=0;i--){
+    if(pointInPoly(px,py,cellData[i].screenPts)){
+      selectedIz=cellData[i].iz;selectedIr=cellData[i].ir;
+      document.getElementById('detailWrap').style.display='block';
+      drawMap();drawDetail();drawMini();
+      return;
+    }
+  }
+});
+cMap.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  const r=cMap.getBoundingClientRect();
+  const px=e.touches[0].clientX-r.left,py=e.touches[0].clientY-r.top;
+  for(let i=cellData.length-1;i>=0;i--){
+    if(pointInPoly(px,py,cellData[i].screenPts)){
+      selectedIz=cellData[i].iz;selectedIr=cellData[i].ir;
+      document.getElementById('detailWrap').style.display='block';
+      drawMap();drawDetail();drawMini();
+      return;
+    }
+  }
+},{passive:false});
+
+// ===== DETAIL =====
+function drawDetail(){
+  if(selectedIz<0)return;
+  const cell=cellData.find(c=>c.iz===selectedIz&&c.ir===selectedIr);
+  if(!cell)return;
+  const s=setupCanvas('cDetail');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const m=cell.m;
+  const scale=Math.min(w*0.18,h*0.3);
+
+  // GENE's perfect square on left
+  const cx1=w*0.18,cy1=h*0.42;
+  const half=scale/2;
+  ctx.beginPath();ctx.rect(cx1-half,cy1-half,scale,scale);
+  ctx.fillStyle='rgba(62,232,134,0.08)';ctx.fill();
+  ctx.strokeStyle='rgba(62,232,134,0.5)';ctx.lineWidth=2;ctx.stroke();
+
+  // "1x1" markers
+  ctx.font='8px monospace';ctx.fillStyle='rgba(62,232,134,0.3)';ctx.textAlign='center';
+  ctx.fillText('1',cx1,cy1+half+10);
+  ctx.save();ctx.translate(cx1-half-8,cy1);ctx.rotate(-Math.PI/2);ctx.fillText('1',0,0);ctx.restore();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(62,232,134,0.5)';
+  ctx.fillText("GENE's cell",cx1,h*0.8);
+
+  // Arrow
+  ctx.strokeStyle='rgba(245,192,66,0.3)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(cx1+half+8,cy1);ctx.lineTo(w*0.42,cy1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w*0.42,cy1);ctx.lineTo(w*0.42-6,cy1-3);ctx.lineTo(w*0.42-6,cy1+3);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.3)';ctx.fill();
+
+  // Three metric steps
+  ctx.font='8px monospace';
+  const stepX=w*0.48;
+  const stepScale=scale*0.55;
+  [{lbl:'g^xx='+m.gxx.toFixed(2),desc:'radial stretch',m:{gxx:m.gxx,gxy:0,gyy:1},c:'rgba(167,139,250,'},
+   {lbl:'g^xy='+(m.gxy>=0?'+':'')+m.gxy.toFixed(2),desc:'shear tilt',m:{gxx:m.gxx,gxy:m.gxy,gyy:1},c:'rgba(196,168,255,'},
+   {lbl:'g^yy='+m.gyy.toFixed(2),desc:'binormal stretch',m:{gxx:m.gxx,gxy:m.gxy,gyy:m.gyy},c:'rgba(155,127,240,'}
+  ].forEach((step,si)=>{
+    const sy=cy1-stepScale*1.1+si*(stepScale*0.65+8);
+    const pts=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]].map(([x,y])=>{
+      const rx=x*Math.sqrt(Math.abs(step.m.gxx))+y*step.m.gxy*0.15;
+      const ry=y*Math.sqrt(Math.abs(step.m.gyy));
+      return[stepX+rx*stepScale,sy-ry*stepScale];
+    });
+    ctx.beginPath();pts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+    ctx.strokeStyle=step.c+'0.35)';ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle=step.c+'0.3)';ctx.textAlign='left';
+    ctx.fillText(step.desc,stepX+stepScale+6,sy-4);
+    ctx.fillStyle=step.c+'0.5)';
+    ctx.fillText(step.lbl,stepX+stepScale+6,sy+8);
+  });
+
+  // Arrow to final
+  ctx.strokeStyle='rgba(245,192,66,0.3)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(w*0.7,cy1);ctx.lineTo(w*0.76,cy1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w*0.76,cy1);ctx.lineTo(w*0.76-6,cy1-3);ctx.lineTo(w*0.76-6,cy1+3);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.3)';ctx.fill();
+
+  // Final real shape
+  const cx3=w*0.87;
+  const fScale=scale*0.9;
+  const fPts=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]].map(([x,y])=>{
+    const rx=x*Math.sqrt(Math.abs(m.gxx))+y*m.gxy*0.15;
+    const ry=y*Math.sqrt(Math.abs(m.gyy));
+    return[cx3+rx*fScale,cy1-ry*fScale];
+  });
+  ctx.beginPath();fPts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.fillStyle='rgba(155,127,240,0.12)';ctx.fill();
+  ctx.strokeStyle='rgba(155,127,240,0.7)';ctx.lineWidth=2;ctx.stroke();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(155,127,240,0.5)';ctx.textAlign='center';
+  ctx.fillText('real shape',cx3,h*0.8);
+
+  // Position label
+  let posName;
+  const zAbs=Math.abs(cell.z);
+  if(zAbs<0.5)posName='outboard';
+  else if(zAbs<1.2)posName=cell.z>0?'top':'bottom';
+  else if(zAbs<2.0)posName=cell.z>0?'top-inboard':'bottom-inboard';
+  else posName='inboard';
+  document.getElementById('cellPos').textContent=`${posName} | z=${cell.z.toFixed(2)} | layer ${cell.ir+1}/${nLayers}`;
+
+  // Explanation
+  const absGxy=Math.abs(m.gxy);
+  let txt;
+  if(absGxy<0.3) txt=`Near <b>outboard</b>. g^xy≈0 so the real shape closely matches GENE's square. Minimal metric distortion.`;
+  else if(absGxy<1.5) txt=`Moderate tilt from shear: g^xy=${m.gxy.toFixed(2)}. The cell is becoming a parallelogram.`;
+  else txt=`Heavy shear region: g^xy=${m.gxy.toFixed(2)}. The cell is strongly tilted. g^yy=${m.gyy.toFixed(2)} also stretches it. Very different from GENE's square.`;
+  txt+=` Curvature: κ=${cell.k>0?'+':''}${cell.k.toFixed(3)} (<span class="${cell.k>0?'r':'g'}">${cell.k>0?'bad':'good'}</span>).`;
+  document.getElementById('detailText').innerHTML=txt;
+}
+
+// ===== MINI RING =====
+function drawMini(){
+  if(selectedIz<0)return;
+  const cell=cellData.find(c=>c.iz===selectedIz&&c.ir===selectedIr);
+  if(!cell)return;
+  const s=setupCanvas('cMini');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#0b1222';ctx.fillRect(0,0,w,h);
+
+  const cx=w/2,cy=h/2,maxR=Math.min(w,h)*0.38;
+
+  // Surface
+  ctx.beginPath();
+  for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,selRho,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+  ctx.closePath();
+  // Color by curvature
+  const nSeg=48;
+  for(let i=0;i<nSeg;i++){
+    const th0=(i/nSeg)*Math.PI*2,th1=((i+1)/nSeg)*Math.PI*2;
+    const sp0=surfPt(th0,selRho,maxR),sp1=surfPt(th1,selRho,maxR);
+    const k=kappa((th0+th1)/2-Math.PI); // adjust so 0=outboard
+    ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);
+    ctx.strokeStyle=k>0?`rgba(239,100,97,${0.15+Math.abs(k)*0.3})`:`rgba(62,232,134,${0.15+Math.abs(k)*0.3})`;
+    ctx.lineWidth=1.5;ctx.stroke();
+  }
+
+  // Dot showing position
+  // z goes -π to π, θ on the ring goes 0 to 2π
+  // z=0 is outboard (θ=0 on our ring)
+  const dotTheta=cell.z+Math.PI; // shift so outboard is at right
+  // Actually: outboard is θ=0 which is right side
+  const dotTh=cell.z; // z=0 = outboard = θ=0
+  const dsp=surfPt(dotTh,selRho,maxR);
+  const dx=cx+dsp.x,dy=cy-dsp.y;
+
+  ctx.beginPath();ctx.arc(dx,dy,12,0,Math.PI*2);
+  const gr=ctx.createRadialGradient(dx,dy,0,dx,dy,12);
+  gr.addColorStop(0,'rgba(245,192,66,0.5)');gr.addColorStop(1,'rgba(245,192,66,0)');
+  ctx.fillStyle=gr;ctx.fill();
+  ctx.beginPath();ctx.arc(dx,dy,4,0,Math.PI*2);
+  ctx.fillStyle='#f5c042';ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1;ctx.stroke();
+
+  // Labels
+  ctx.font='7px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';
+  ctx.fillText('outboard',cx+maxR*selRho*0.5+10,cy+4);
+  ctx.fillText('inboard',cx-maxR*selRho*0.5-10,cy+4);
+}
+
+function drawAll(){drawMap();}
+
+document.getElementById('sShat').addEventListener('input',function(e){
+  shat=parseFloat(e.target.value);document.getElementById('vShat').textContent=shat.toFixed(1);
+  selectedIz=-1;selectedIr=-1;document.getElementById('detailWrap').style.display='none';drawAll();
+});
+document.getElementById('sLayers').addEventListener('input',function(e){
+  nLayers=parseInt(e.target.value);document.getElementById('vLayers').textContent=nLayers;
+  selectedIz=-1;selectedIr=-1;document.getElementById('detailWrap').style.display='none';drawAll();
+});
+document.getElementById('sNz').addEventListener('input',function(e){
+  nZ=parseInt(e.target.value);document.getElementById('vNz').textContent=nZ;
+  selectedIz=-1;selectedIr=-1;document.getElementById('detailWrap').style.display='none';drawAll();
+});
+
+window.addEventListener('load',function(){setTimeout(drawAll,150);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

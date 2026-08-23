@@ -1,0 +1,416 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease trace</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function CHEASETrace() {
+  const [outputCell, setOutputCell] = useState({ i: 4, j: 3 });
+
+  // Simplified CHEASE process with real numbers
+  // Output grid: 9x9 (representing 256x256)
+  const outN = 9;
+  // Internal Hermite grid: 5x5 in flux coords (representing ~64 radial × 64 poloidal)
+  const hermN = 5;
+
+  const R0 = 1.18, a = 0.40, kappa = 1.6, delta = 0.35;
+  const Rmin = 0.6, Rmax = 1.8, Zmin = -0.8, Zmax = 0.8;
+
+  // Exact psi function (what CHEASE's solver produces)
+  function psiExact(R, Z) {
+    const dRn = (R - R0) / a;
+    const dZn = Z / (a * kappa);
+    return dRn * dRn + dZn * dZn;
+  }
+  function dpsi_dR(R, Z) { return 2 * (R - R0) / (a * a); }
+  function dpsi_dZ(R, Z) { return 2 * Z / (a * a * kappa * kappa); }
+  function d2psi_dRdZ(R, Z) { return 0; }
+
+  // Hermite 1D
+  function hermite1D(p0, m0, p1, m1, t) {
+    const h00 = 2*t*t*t - 3*t*t + 1;
+    const h10 = t*t*t - 2*t*t + t;
+    const h01 = -2*t*t*t + 3*t*t;
+    const h11 = t*t*t - t*t;
+    return { val: h00*p0 + h10*m0 + h01*p1 + h11*m1, h00, h10, h01, h11 };
+  }
+
+  // Output grid point
+  const outR = Rmin + (outputCell.i / (outN - 1)) * (Rmax - Rmin);
+  const outZ = Zmax - (outputCell.j / (outN - 1)) * (Zmax - Zmin);
+  const outPsi = psiExact(outR, outZ);
+  const isInside = outPsi <= 1.2;
+
+  // Which Hermite cell does this output point fall in?
+  const hermDR = (Rmax - Rmin) / (hermN - 1);
+  const hermDZ = (Zmax - Zmin) / (hermN - 1);
+  const hi = Math.min(Math.max(Math.floor((outR - Rmin) / hermDR), 0), hermN - 2);
+  const hj = Math.min(Math.max(Math.floor((Zmax - outZ) / hermDZ), 0), hermN - 2);
+  const tR = (outR - (Rmin + hi * hermDR)) / hermDR;
+  const tZ = ((Zmax - outZ) - hj * hermDZ) / hermDZ;
+
+  // The 4 Hermite corner nodes
+  const corners = [
+    { label: "Top-left", ri: hi, zj: hj },
+    { label: "Top-right", ri: hi + 1, zj: hj },
+    { label: "Bot-left", ri: hi, zj: hj + 1 },
+    { label: "Bot-right", ri: hi + 1, zj: hj + 1 },
+  ].map(c => {
+    const R = Rmin + c.ri * hermDR;
+    const Z = Zmax - c.zj * hermDZ;
+    return {
+      ...c, R, Z,
+      psi: psiExact(R, Z),
+      dR: dpsi_dR(R, Z),
+      dZ: dpsi_dZ(R, Z),
+      dRZ: d2psi_dRdZ(R, Z),
+    };
+  });
+
+  const TL = corners[0], TR = corners[1], BL = corners[2], BR = corners[3];
+
+  // Pass 1: Hermite in R along top
+  const m0_top = TL.dR * hermDR;
+  const m1_top = TR.dR * hermDR;
+  const pass1 = hermite1D(TL.psi, m0_top, TR.psi, m1_top, tR);
+
+  // Pass 1b: Hermite in R along bottom
+  const m0_bot = BL.dR * hermDR;
+  const m1_bot = BR.dR * hermDR;
+  const pass1b = hermite1D(BL.psi, m0_bot, BR.psi, m1_bot, tR);
+
+  // Z slopes interpolated in R
+  const dZ_top = hermite1D(TL.dZ * hermDZ, TL.dRZ * hermDR * hermDZ, TR.dZ * hermDZ, TR.dRZ * hermDR * hermDZ, tR);
+  const dZ_bot = hermite1D(BL.dZ * hermDZ, BL.dRZ * hermDR * hermDZ, BR.dZ * hermDZ, BR.dRZ * hermDR * hermDZ, tR);
+
+  // Pass 2: Hermite in Z
+  const pass2 = hermite1D(pass1.val, dZ_top.val, pass1b.val, dZ_bot.val, tZ);
+
+  // SVG for output grid
+  const gW = 280, gH = 280;
+  const gPad = 25;
+  const cellW = (gW - 2 * gPad) / outN;
+  const cellH = (gH - 2 * gPad) / outN;
+
+  // SVG for Hermite grid overlay
+  const hermCellW = (gW - 2 * gPad) / (hermN - 1);
+  const hermCellH = (gH - 2 * gPad) / (hermN - 1);
+
+  const S = { fontSize: 10, color: "#8a95a5", lineHeight: 2.2 };
+  const V = { color: "#e6ecf2", fontWeight: 700 };
+  const M = { color: "#c9b87c" };
+  const H = { color: "#c9a3f5" };
+  const G = { color: "#4ecdc4" };
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          TRACE ONE OUTPUT CELL THROUGH CHEASE
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          TAP ANY CELL IN THE OUTPUT GRID — SEE EVERY CALCULATION THAT PRODUCED IT
+        </p>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Output grid */}
+          <div>
+            <div style={{ fontSize: 10, color: "#4ecdc4", marginBottom: 4 }}>Output 9×9 grid (represents 256×256)</div>
+            <div style={{
+              background: "#0d1117", borderRadius: 6,
+              border: "1px solid #1e2630", padding: 4,
+            }}>
+              <svg width={gW} height={gH} style={{ display: "block" }}>
+                <rect x={gPad} y={gPad} width={gW - 2 * gPad} height={gH - 2 * gPad} fill="#060a0e" stroke="#1e2630" />
+
+                {/* Hermite grid (coarser, purple) */}
+                {Array.from({ length: hermN }, (_, i) => {
+                  const x = gPad + i * hermCellW;
+                  const y = gPad + i * hermCellH;
+                  return (
+                    <g key={`h${i}`}>
+                      <line x1={x} y1={gPad} x2={x} y2={gH - gPad} stroke="#c9a3f522" strokeWidth={1} />
+                      <line x1={gPad} y1={y} x2={gW - gPad} y2={y} stroke="#c9a3f522" strokeWidth={1} />
+                    </g>
+                  );
+                })}
+
+                {/* Hermite nodes */}
+                {Array.from({ length: hermN * hermN }, (_, k) => {
+                  const ci = k % hermN, cj = Math.floor(k / hermN);
+                  const x = gPad + ci * hermCellW;
+                  const y = gPad + cj * hermCellH;
+                  const isCorner = (ci === hi || ci === hi + 1) && (cj === hj || cj === hj + 1);
+                  return (
+                    <circle key={`hn${k}`} cx={x} cy={y} r={isCorner ? 5 : 3}
+                      fill={isCorner ? "#c9a3f5" : "#0d1117"}
+                      stroke="#c9a3f5" strokeWidth={isCorner ? 2 : 1}
+                      opacity={isCorner ? 1 : 0.3}
+                    />
+                  );
+                })}
+
+                {/* Output grid cells */}
+                {Array.from({ length: outN * outN }, (_, k) => {
+                  const ci = k % outN, cj = Math.floor(k / outN);
+                  const x = gPad + (ci / (outN - 1)) * (gW - 2 * gPad);
+                  const y = gPad + (cj / (outN - 1)) * (gH - 2 * gPad);
+                  const isSelected = ci === outputCell.i && cj === outputCell.j;
+
+                  const R = Rmin + (ci / (outN - 1)) * (Rmax - Rmin);
+                  const Z = Zmax - (cj / (outN - 1)) * (Zmax - Zmin);
+                  const psi = psiExact(R, Z);
+                  const t = Math.min(psi / 2, 1);
+                  const cr = Math.round(10 + t * 20);
+                  const cg = Math.round(190 - t * 150);
+                  const cb = Math.round(190 - t * 70);
+
+                  return (
+                    <g key={`o${k}`} onClick={() => setOutputCell({ i: ci, j: cj })} style={{ cursor: "pointer" }}>
+                      <circle cx={x} cy={y} r={isSelected ? 8 : 5}
+                        fill={isSelected ? "#4ecdc4" : `rgb(${cr},${cg},${cb})`}
+                        stroke={isSelected ? "#ffffff" : "none"}
+                        strokeWidth={isSelected ? 2 : 0}
+                        opacity={isSelected ? 1 : 0.7}
+                      />
+                      {isSelected && (
+                        <text x={x} y={y - 12} textAnchor="middle" fill="#ffffff" fontSize={8} fontWeight={700}>
+                          ψ={psi.toFixed(3)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {/* Highlighted Hermite cell */}
+                <rect
+                  x={gPad + hi * hermCellW} y={gPad + hj * hermCellH}
+                  width={hermCellW} height={hermCellH}
+                  fill="none" stroke="#c9a3f5" strokeWidth={2} strokeDasharray="4,3"
+                />
+
+                {/* Labels */}
+                <text x={gW / 2} y={gPad - 8} textAnchor="middle" fill="#3a4a5a" fontSize={8}>
+                  <tspan fill="#4ecdc4">●</tspan> output points
+                  {"  "}
+                  <tspan fill="#c9a3f5">●</tspan> Hermite nodes
+                  {"  "}
+                  <tspan fill="#c9a3f5">┅</tspan> Hermite cell used
+                </text>
+              </svg>
+            </div>
+          </div>
+
+          {/* Trace panel */}
+          <div style={{ flex: 1, minWidth: 260 }}>
+            {/* Stage 1: Output point */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #4ecdc433", marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                STAGE 1: Output point
+              </div>
+              <div style={S}>
+                Grid position: [{outputCell.i}, {outputCell.j}]
+                <br />
+                Physical location: R = <span style={V}>{outR.toFixed(4)}</span>, Z = <span style={V}>{outZ.toFixed(4)}</span>
+                <br />
+                <span style={{ fontSize: 9, color: "#5c6a7a" }}>This is where we need to know ψ for the output EQDSK file.</span>
+              </div>
+            </div>
+
+            {/* Stage 2: Find which Hermite cell */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #c9a3f533", marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", fontWeight: 700, marginBottom: 4 }}>
+                STAGE 2: Which Hermite cell contains this point?
+              </div>
+              <div style={S}>
+                Hermite grid spacing: ΔR = {hermDR.toFixed(4)}, ΔZ = {hermDZ.toFixed(4)}
+                <br />
+                Cell index: i = floor(({outR.toFixed(4)} - {Rmin}) / {hermDR.toFixed(4)}) = <span style={V}>{hi}</span>
+                <br />
+                Cell index: j = floor(({Zmax} - {outZ.toFixed(4)}) / {hermDZ.toFixed(4)}) = <span style={V}>{hj}</span>
+                <br />
+                Local position: t_R = <span style={V}>{tR.toFixed(4)}</span>, t_Z = <span style={V}>{tZ.toFixed(4)}</span>
+                <br />
+                <span style={{ fontSize: 9, color: "#5c6a7a" }}>(0,0) = top-left corner of this Hermite cell, (1,1) = bottom-right</span>
+              </div>
+            </div>
+
+            {/* Stage 3: 4 corner nodes */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #c9a3f533", marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", fontWeight: 700, marginBottom: 6 }}>
+                STAGE 3: Read 4 Hermite corner nodes (from solver)
+              </div>
+              {corners.map((c, k) => (
+                <div key={k} style={{
+                  padding: "4px 6px", marginBottom: 3,
+                  background: "#0a0e14", borderRadius: 3,
+                  border: "1px solid #1e2630",
+                }}>
+                  <div style={{ fontSize: 9, color: "#c9a3f5", fontWeight: 700 }}>
+                    {c.label} — R={c.R.toFixed(3)}, Z={c.Z.toFixed(3)}
+                  </div>
+                  <div style={{ fontSize: 9, color: "#8a95a5", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span>ψ=<span style={V}>{c.psi.toFixed(4)}</span></span>
+                    <span>∂R=<span style={G}>{c.dR.toFixed(3)}</span></span>
+                    <span>∂Z=<span style={{ color: "#8ab4f8" }}>{c.dZ.toFixed(3)}</span></span>
+                    <span>∂RZ=<span style={H}>{c.dRZ.toFixed(3)}</span></span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize: 8, color: "#5c6a7a", marginTop: 4 }}>
+                These 4 × 4 = 16 numbers are everything needed. All came from CHEASE's GS solver.
+              </div>
+            </div>
+
+            {/* Stage 4: Pass 1 — Hermite in R along top */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #4ecdc433", marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                STAGE 4a: Hermite in R along top edge (t_R = {tR.toFixed(4)})
+              </div>
+              <div style={S}>
+                <span style={H}>Basis functions:</span>
+                <br />
+                h₀₀ = 2t³−3t²+1 = <span style={V}>{pass1.h00.toFixed(4)}</span>
+                <br />
+                h₁₀ = t³−2t²+t = <span style={V}>{pass1.h10.toFixed(4)}</span>
+                <br />
+                h₀₁ = −2t³+3t² = <span style={V}>{pass1.h01.toFixed(4)}</span>
+                <br />
+                h₁₁ = t³−t² = <span style={V}>{pass1.h11.toFixed(4)}</span>
+                <br /><br />
+                <span style={H}>Scaled slopes:</span>
+                <br />
+                m₀ = {TL.dR.toFixed(3)} × {hermDR.toFixed(4)} = <span style={M}>{m0_top.toFixed(4)}</span>
+                <br />
+                m₁ = {TR.dR.toFixed(3)} × {hermDR.toFixed(4)} = <span style={M}>{m1_top.toFixed(4)}</span>
+                <br /><br />
+                <span style={H}>Multiply and sum:</span>
+                <br />
+                {pass1.h00.toFixed(4)} × {TL.psi.toFixed(4)} = {(pass1.h00 * TL.psi).toFixed(4)}
+                <br />
+                {pass1.h10.toFixed(4)} × {m0_top.toFixed(4)} = {(pass1.h10 * m0_top).toFixed(4)}
+                <br />
+                {pass1.h01.toFixed(4)} × {TR.psi.toFixed(4)} = {(pass1.h01 * TR.psi).toFixed(4)}
+                <br />
+                {pass1.h11.toFixed(4)} × {m1_top.toFixed(4)} = {(pass1.h11 * m1_top).toFixed(4)}
+                <br />
+                <span style={H}>ψ_top = </span><span style={V}>{pass1.val.toFixed(6)}</span>
+              </div>
+            </div>
+
+            {/* Stage 4b: Pass 1b */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #4ecdc433", marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                STAGE 4b: Hermite in R along bottom edge (same t_R)
+              </div>
+              <div style={S}>
+                m₀ = {BL.dR.toFixed(3)} × {hermDR.toFixed(4)} = <span style={M}>{m0_bot.toFixed(4)}</span>
+                <br />
+                m₁ = {BR.dR.toFixed(3)} × {hermDR.toFixed(4)} = <span style={M}>{m1_bot.toFixed(4)}</span>
+                <br /><br />
+                {pass1.h00.toFixed(4)} × {BL.psi.toFixed(4)} = {(pass1.h00 * BL.psi).toFixed(4)}
+                <br />
+                {pass1.h10.toFixed(4)} × {m0_bot.toFixed(4)} = {(pass1.h10 * m0_bot).toFixed(4)}
+                <br />
+                {pass1.h01.toFixed(4)} × {BR.psi.toFixed(4)} = {(pass1.h01 * BR.psi).toFixed(4)}
+                <br />
+                {pass1.h11.toFixed(4)} × {m1_bot.toFixed(4)} = {(pass1.h11 * m1_bot).toFixed(4)}
+                <br />
+                <span style={H}>ψ_bot = </span><span style={V}>{pass1b.val.toFixed(6)}</span>
+              </div>
+            </div>
+
+            {/* Stage 5: Pass 2 — Z direction */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #8ab4f833", marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: "#8ab4f8", fontWeight: 700, marginBottom: 4 }}>
+                STAGE 5: Hermite in Z (t_Z = {tZ.toFixed(4)})
+              </div>
+              <div style={S}>
+                <span style={H}>Basis functions at t_Z:</span>
+                <br />
+                h₀₀ = <span style={V}>{pass2.h00.toFixed(4)}</span>,
+                h₁₀ = <span style={V}>{pass2.h10.toFixed(4)}</span>,
+                h₀₁ = <span style={V}>{pass2.h01.toFixed(4)}</span>,
+                h₁₁ = <span style={V}>{pass2.h11.toFixed(4)}</span>
+                <br /><br />
+                <span style={H}>Z-slopes (interpolated from corners):</span>
+                <br />
+                dZ_top = <span style={M}>{dZ_top.val.toFixed(4)}</span>
+                <br />
+                dZ_bot = <span style={M}>{dZ_bot.val.toFixed(4)}</span>
+                <br /><br />
+                <span style={H}>Multiply and sum:</span>
+                <br />
+                {pass2.h00.toFixed(4)} × {pass1.val.toFixed(4)} = {(pass2.h00 * pass1.val).toFixed(4)}
+                <br />
+                {pass2.h10.toFixed(4)} × {dZ_top.val.toFixed(4)} = {(pass2.h10 * dZ_top.val).toFixed(4)}
+                <br />
+                {pass2.h01.toFixed(4)} × {pass1b.val.toFixed(4)} = {(pass2.h01 * pass1b.val).toFixed(4)}
+                <br />
+                {pass2.h11.toFixed(4)} × {dZ_bot.val.toFixed(4)} = {(pass2.h11 * dZ_bot.val).toFixed(4)}
+              </div>
+            </div>
+
+            {/* Final result */}
+            <div style={{
+              padding: 12, background: "#1a2a3a", borderRadius: 6,
+              border: "1px solid #4ecdc4",
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>
+                RESULT: Written to output EQDSK
+              </div>
+              <div style={{ fontSize: 20, color: "#e6ecf2", fontWeight: 700 }}>
+                ψ = {pass2.val.toFixed(6)}
+              </div>
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4 }}>
+                Exact value: {outPsi.toFixed(6)}
+              </div>
+              <div style={{ fontSize: 10, color: Math.abs(pass2.val - outPsi) < 0.001 ? "#4ecdc4" : "#ff9f43", marginTop: 2 }}>
+                Error: {Math.abs(pass2.val - outPsi).toExponential(2)}
+              </div>
+              <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 6 }}>
+                This one number at grid position [{outputCell.i},{outputCell.j}] came from: 4 Hermite nodes × 4 values each = 16 input numbers → 2 passes of Hermite interpolation → 1 output value. Repeat for all 256×256 = 65,536 output points.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CHEASETrace));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plasma at Equilibrium · Click any particle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06080f;
+  --bg-2: #0e1220;
+  --paper: #f0eee4;
+  --ink-dim: #6a7390;
+  --ink-soft: #9aa4be;
+  --ion: #ff6b35;
+  --ion-neg: #4ab8d8;
+  --electron: #b3d9ff;
+  --result: #ffd54f;
+  --equil: #7fdb96;
+  --selected: #ffd54f;
+  --connection-pos: rgba(255, 107, 53, 0.5);
+  --connection-neg: rgba(74, 184, 216, 0.5);
+  --rule: rgba(240, 238, 228, 0.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--paper);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#sceneCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: pointer;
+  background:
+    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(74, 184, 216, 0.05), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 70% 70%, rgba(255, 107, 53, 0.05), transparent 70%),
+    var(--bg);
+}
+
+/* ---------- HEADER ---------- */
+.header {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 10;
+  pointer-events: none;
+  max-width: 420px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--result);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--result);
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(24px, 3.4vw, 36px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--result);
+}
+
+.sub {
+  margin-top: 11px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.65;
+  font-style: italic;
+}
+.sub strong { color: var(--paper); font-weight: 400; font-style: normal; }
+
+/* ---------- CALC PANEL ---------- */
+.calc-panel {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  bottom: 22px;
+  z-index: 10;
+  width: min(440px, 40vw);
+  background: rgba(248, 244, 234, 0.97);
+  color: #1a1410;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.calc-header {
+  padding: 14px 22px;
+  border-bottom: 1px solid rgba(26, 20, 16, 0.15);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8a7a66;
+}
+.calc-header .label {
+  color: var(--ion);
+  font-weight: 600;
+}
+
+.calc-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 22px;
+}
+
+.calc-body::-webkit-scrollbar { width: 6px; }
+.calc-body::-webkit-scrollbar-track { background: transparent; }
+.calc-body::-webkit-scrollbar-thumb { background: rgba(26, 20, 16, 0.2); border-radius: 3px; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8a7a66;
+}
+.empty-state .icon {
+  font-family: 'Fraunces', serif;
+  font-size: 36px;
+  font-style: italic;
+  margin-bottom: 12px;
+  color: var(--ion);
+}
+.empty-state .text {
+  font-size: 14px;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* Selected particle header */
+.selected-header {
+  padding: 16px;
+  margin-bottom: 18px;
+  background: rgba(26, 20, 16, 0.04);
+  border-left: 3px solid var(--ion);
+  border-radius: 2px;
+}
+.selected-header.pos { border-color: var(--ion); }
+.selected-header.neg { border-color: var(--ion-neg); }
+.selected-header.electron { border-color: #2e6f9c; }
+
+.selected-title {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 22px;
+  margin-bottom: 4px;
+  color: #1a1410;
+}
+.selected-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #8a7a66;
+  letter-spacing: 0.05em;
+}
+
+/* Step blocks */
+.step {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed rgba(26, 20, 16, 0.12);
+}
+.step:last-child { border-bottom: none; margin-bottom: 0; }
+
+.step-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8a7a66;
+  margin-bottom: 8px;
+}
+.step-label .nm {
+  display: inline-block;
+  width: 18px;
+  color: var(--ion);
+  font-weight: 600;
+}
+
+.formula {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: #1a1410;
+}
+.formula .num {
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+}
+.formula .pos { color: var(--ion); }
+.formula .neg { color: #2e6f9c; }
+.formula .equals { color: #8a7a66; padding: 0 6px; font-style: normal; }
+.formula .op { color: #8a7a66; padding: 0 3px; font-style: normal; }
+
+.note {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #4a3f33;
+  margin-top: 8px;
+  font-style: italic;
+}
+.note strong { font-style: normal; font-weight: 500; color: #1a1410; }
+
+/* Sum table */
+.sum-table {
+  margin-top: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  width: 100%;
+  border-collapse: collapse;
+}
+.sum-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(26, 20, 16, 0.15);
+  color: #8a7a66;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 9px;
+}
+.sum-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(26, 20, 16, 0.06);
+  color: #1a1410;
+  font-variant-numeric: tabular-nums;
+}
+.sum-table tr:last-child td { border-bottom: none; }
+.sum-table .charge-pos { color: var(--ion); font-weight: 600; }
+.sum-table .charge-neg { color: #2e6f9c; font-weight: 600; }
+.sum-table .contribution-pos { color: var(--ion); }
+.sum-table .contribution-neg { color: #2e6f9c; }
+.sum-table .total-row td {
+  border-top: 1px solid rgba(26, 20, 16, 0.4);
+  border-bottom: none;
+  padding-top: 8px;
+  font-weight: 600;
+}
+
+/* Final result */
+.result-block {
+  padding: 18px 22px;
+  background: #1a1410;
+  color: var(--paper);
+}
+.result-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--result);
+  margin-bottom: 6px;
+}
+.result-value {
+  font-family: 'Fraunces', serif;
+  font-size: 32px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.result-value .label-prefix {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #8a7a66;
+  margin-right: 8px;
+  letter-spacing: 0.1em;
+}
+.result-value .multiplier {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: var(--ink-dim);
+  margin-left: 10px;
+  letter-spacing: 0.05em;
+}
+.result-meaning {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  line-height: 1.6;
+  font-style: italic;
+}
+.result-meaning strong { color: var(--paper); font-weight: 400; font-style: normal; }
+.result-meaning em { color: var(--result); font-style: italic; }
+
+/* ---------- TOOLBAR ---------- */
+.toolbar {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(15, 19, 32, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 5px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  flex-wrap: wrap;
+  max-width: calc(100vw - 32px);
+  transition: all 0.25s ease;
+}
+
+.toolbar.minimized {
+  padding: 0;
+}
+.toolbar.minimized .toolbar-content {
+  display: none;
+}
+
+.toolbar-content {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+
+.minimize-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  margin-left: 4px;
+}
+.minimize-btn:hover {
+  background: rgba(240, 238, 228, 0.05);
+  color: var(--paper);
+}
+.toolbar.minimized .minimize-btn {
+  margin-left: 0;
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--paper);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  border-radius: 2px;
+}
+.tool:hover { background: rgba(240, 238, 228, 0.05); }
+
+.divider {
+  width: 1px;
+  height: 22px;
+  background: var(--rule);
+  margin: 0 3px;
+}
+
+.slider-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.slider-mini label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.slider-mini .v {
+  font-family: 'Fraunces', serif;
+  font-size: 13px;
+  color: var(--result);
+  min-width: 22px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+input[type="range"].mini {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 90px;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].mini::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  background: var(--result);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].mini::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  background: var(--result);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.preset-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 7px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+.preset-btn:hover {
+  background: rgba(255, 213, 79, 0.1);
+  color: var(--result);
+  border-color: var(--result);
+}
+
+/* ---------- HINT ---------- */
+.hint {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.hint.fade {
+  animation: fadeOut 10s ease forwards;
+}
+@keyframes fadeOut {
+  0%, 70% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 900px) {
+  .calc-panel {
+    top: auto; right: 12px; left: 12px; bottom: 90px;
+    width: auto;
+    max-height: 50vh;
+  }
+  .header { top: 12px; left: 12px; max-width: 70%; }
+  .header h1 { font-size: 18px; }
+  .header .sub { font-size: 11px; }
+  .toolbar { bottom: 12px; padding: 4px; }
+  .tool { padding: 7px 9px; font-size: 9px; }
+  .tool span:not(.swatch):not(.tool-icon) { display: none; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="sceneCanvas"></canvas>
+
+<div class="header">
+  <div class="eyebrow">plasma at equilibrium</div>
+  <h1>Click any particle.<br>See <em>where its density comes from</em>.</h1>
+  <div class="sub">
+    Each electron's density is determined by the sum of contributions from <strong>every other charge</strong> in the system.
+    Click one to see all those contributions traced out, with the math.
+  </div>
+</div>
+
+<!-- Calc panel always present, content swaps -->
+<div class="calc-panel">
+  <div class="calc-header">
+    <span class="label" id="panelLabel">live calculation</span>
+    &nbsp;·&nbsp; <span id="panelSubtitle">click a particle</span>
+  </div>
+  <div class="calc-body" id="calcBody">
+    <div class="empty-state">
+      <div class="icon">∑</div>
+      <div class="text">
+        Click any particle on the scene.<br>
+        I'll show you how the Boltzmann formula<br>
+        builds its density from every other charge.
+      </div>
+    </div>
+  </div>
+  <div class="result-block" id="resultBlock" style="display: none;">
+    <div class="result-label">→ density at this point</div>
+    <div class="result-value">
+      <span class="label-prefix">n / n₀ =</span>
+      <span id="finalDensity">—</span>
+      <span class="multiplier" id="finalMultiplier"></span>
+    </div>
+    <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(240, 238, 228, 0.15);">
+      <div class="result-label" style="color: var(--equil);">→ absolute electron density n<sub>e</sub></div>
+      <div class="result-value" style="font-size: 26px;">
+        <span id="finalNe">—</span>
+        <span class="multiplier" style="color: var(--ink-dim);">electrons/m³</span>
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-dim); margin-top: 4px; letter-spacing: 0.05em;">
+        = (n/n₀) × n₀ &nbsp;·&nbsp; using n₀ = <span id="n0Display">10¹⁸</span> /m³
+      </div>
+    </div>
+    <div class="result-meaning" id="finalMeaning"></div>
+  </div>
+</div>
+
+<div class="hint fade" id="hint">click an electron (small blue dot) to start</div>
+
+<div class="toolbar" id="toolbar">
+  <div class="toolbar-content">
+    <button class="preset-btn" data-preset="single">Single +</button>
+    <button class="preset-btn" data-preset="dipole">Dipole</button>
+    <button class="preset-btn" data-preset="row">Row of ions</button>
+    <button class="preset-btn" data-preset="lattice">Plasma lattice</button>
+    <button class="preset-btn" data-preset="random">Random mix</button>
+
+    <div class="divider"></div>
+
+    <div class="slider-mini">
+      <label>k<sub>B</sub>T</label>
+      <input type="range" class="mini" id="kbtSlider" min="0.5" max="10" step="0.1" value="3">
+      <span class="v" id="kbtVal">3.0</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="slider-mini">
+      <label>n₀ (10^x /m³)</label>
+      <input type="range" class="mini" id="n0Slider" min="14" max="22" step="1" value="18">
+      <span class="v" id="n0Val">10¹⁸</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="preset-btn" id="meanFieldToggle" style="border-color: #4a9c5e; color: #7fdb96;">show e⁻ contribs</button>
+
+    <div class="divider"></div>
+
+    <button class="tool" id="resetSelect">
+      <span>clear selection</span>
+    </button>
+  </div>
+
+  <button class="minimize-btn" id="minimizeBtn" title="Minimize controls">−</button>
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('sceneCanvas');
+const ctx = canvas.getContext('2d');
+let dim = { w: 0, h: 0 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  dim.w = window.innerWidth;
+  dim.h = window.innerHeight;
+  canvas.width = dim.w * dpr;
+  canvas.height = dim.h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+
+// ============ CONSTANTS ============
+const COULOMB_K = 12000; // tuned for screen units
+const PIXELS_PER_RU = 1;  // r in pixels for the formula
+
+// ============ STATE ============
+let kBT = 3.0; // in our reduced units
+let n0Exponent = 18; // n0 = 10^18 /m³
+let particles = []; // {id, x, y, q, type: 'ion+' | 'ion-' | 'electron', radius}
+let selectedId = null;
+let selectedPoint = null; // {x, y} - for clicking empty space
+let nextId = 1;
+let showElectronContribs = false;
+
+// ============ EQUILIBRIUM SETUP ============
+// We'll arrange particles in deliberate equilibrium configurations.
+// Electrons are placed according to their Boltzmann density (more near + ions).
+
+function clearScene() {
+  particles = [];
+  selectedId = null;
+  updatePanel();
+}
+
+function addIon(x, y, q) {
+  particles.push({
+    id: nextId++,
+    x, y, q,
+    type: q > 0 ? 'ion+' : 'ion-',
+    radius: 18
+  });
+}
+function addElectron(x, y) {
+  particles.push({
+    id: nextId++,
+    x, y,
+    q: -1,
+    type: 'electron',
+    radius: 5
+  });
+}
+
+// Build equilibrium electron distribution given current ions
+function placeElectronsAtEquilibrium(numElectrons = 80) {
+  const ions = particles.filter(p => p.type === 'ion+' || p.type === 'ion-');
+
+  // Compute φ on a coarse grid
+  const cellSize = 25;
+  const cols = Math.ceil(dim.w / cellSize);
+  const rows = Math.ceil(dim.h / cellSize);
+  const weights = [];
+
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const x = cx * cellSize + cellSize / 2;
+      const y = cy * cellSize + cellSize / 2;
+      const phi = potentialAt(x, y, ions);
+      // For electron: U = q*phi = -e*phi → exp(-U/kT) = exp(e*phi/kT)
+      // Use phi directly with sign convention
+      const expArg = phi / kBT;
+      const w = Math.exp(Math.min(8, Math.max(-8, expArg)));
+      weights.push({ x, y, w });
+    }
+  }
+
+  // Normalize
+  let totalW = 0;
+  for (const c of weights) totalW += c.w;
+
+  // Sample electrons proportionally to weights
+  for (let i = 0; i < numElectrons; i++) {
+    let r = Math.random() * totalW;
+    let cum = 0;
+    for (const c of weights) {
+      cum += c.w;
+      if (cum >= r) {
+        // Add electron with small jitter
+        const jx = (Math.random() - 0.5) * cellSize * 0.8;
+        const jy = (Math.random() - 0.5) * cellSize * 0.8;
+        addElectron(c.x + jx, c.y + jy);
+        break;
+      }
+    }
+  }
+}
+
+function potentialAt(x, y, ions) {
+  // φ in our units. For an ion of charge q at position (xi,yi):
+  // φ_i = COULOMB_K * q / r
+  let phi = 0;
+  for (const ion of ions) {
+    const dx = x - ion.x;
+    const dy = y - ion.y;
+    const r = Math.sqrt(dx * dx + dy * dy + 100); // softening
+    phi += COULOMB_K * ion.q / r;
+  }
+  return phi;
+}
+
+// ============ PRESETS ============
+const presets = {
+  single: () => {
+    clearScene();
+    addIon(dim.w / 2, dim.h / 2, +1);
+    placeElectronsAtEquilibrium(60);
+  },
+  dipole: () => {
+    clearScene();
+    addIon(dim.w / 2 - 130, dim.h / 2, +1);
+    addIon(dim.w / 2 + 130, dim.h / 2, -1);
+    placeElectronsAtEquilibrium(70);
+  },
+  row: () => {
+    clearScene();
+    const cy = dim.h / 2;
+    const spacing = 180;
+    const startX = dim.w / 2 - spacing * 1.5;
+    for (let i = 0; i < 4; i++) {
+      addIon(startX + i * spacing, cy, +1);
+    }
+    placeElectronsAtEquilibrium(80);
+  },
+  lattice: () => {
+    clearScene();
+    const cx = dim.w / 2, cy = dim.h / 2;
+    const spacing = 140;
+    const cols = 4, rows = 3;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = cx + (c - (cols - 1) / 2) * spacing;
+        const y = cy + (r - (rows - 1) / 2) * spacing;
+        // alternating signs (ionic-lattice-like)
+        const q = ((c + r) % 2 === 0) ? +1 : -1;
+        addIon(x, y, q);
+      }
+    }
+    placeElectronsAtEquilibrium(90);
+  },
+  random: () => {
+    clearScene();
+    const numIons = 8;
+    for (let i = 0; i < numIons; i++) {
+      const x = 100 + Math.random() * (dim.w - 200);
+      const y = 100 + Math.random() * (dim.h - 200);
+      const q = Math.random() > 0.5 ? +1 : -1;
+      addIon(x, y, q);
+    }
+    placeElectronsAtEquilibrium(80);
+  }
+};
+
+// ============ DRAWING ============
+function drawField() {
+  const ions = particles.filter(p => p.type === 'ion+' || p.type === 'ion-');
+  if (ions.length === 0) return;
+
+  const cellSize = 14;
+  const cols = Math.ceil(dim.w / cellSize);
+  const rows = Math.ceil(dim.h / cellSize);
+
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const x = cx * cellSize + cellSize / 2;
+      const y = cy * cellSize + cellSize / 2;
+      const phi = potentialAt(x, y, ions);
+      const intensity = Math.min(0.18, Math.abs(phi) / 80);
+      let color;
+      if (phi > 0) color = `rgba(255, 107, 53, ${intensity})`;
+      else color = `rgba(74, 184, 216, ${intensity})`;
+      ctx.fillStyle = color;
+      ctx.fillRect(cx * cellSize, cy * cellSize, cellSize, cellSize);
+    }
+  }
+}
+
+function drawConnections() {
+  // Determine the source point for connections
+  let sel = null;
+  if (selectedId !== null) {
+    sel = particles.find(p => p.id === selectedId);
+  } else if (selectedPoint !== null) {
+    sel = { x: selectedPoint.x, y: selectedPoint.y, type: 'virtual' };
+  }
+  if (!sel) return;
+
+  const ions = particles.filter(p => p.type === 'ion+' || p.type === 'ion-');
+
+  // OPTIONALLY: draw connections to other electrons too (mean-field demo)
+  if (showElectronContribs && (sel.type === 'electron' || sel.type === 'virtual')) {
+    const otherElectrons = particles.filter(p => p.type === 'electron' && p.id !== sel.id);
+    for (const other of otherElectrons) {
+      const dx = other.x - sel.x;
+      const dy = other.y - sel.y;
+      const r = Math.sqrt(dx * dx + dy * dy);
+      if (r < 30) continue;
+      const phi_contribution = COULOMB_K * (-1) / Math.max(r, 20);
+      const intensity = Math.min(0.5, Math.abs(phi_contribution) / 60);
+      ctx.strokeStyle = `rgba(150, 200, 255, ${intensity * 0.4})`;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(sel.x, sel.y);
+      ctx.lineTo(other.x, other.y);
+      ctx.stroke();
+    }
+  }
+
+  for (const ion of ions) {
+    const dx = ion.x - sel.x;
+    const dy = ion.y - sel.y;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const phi_contribution = COULOMB_K * ion.q / Math.max(r, 20);
+
+    const intensity = Math.min(0.9, Math.abs(phi_contribution) / 60);
+
+    if (ion.q > 0) {
+      ctx.strokeStyle = `rgba(255, 107, 53, ${intensity})`;
+    } else {
+      ctx.strokeStyle = `rgba(74, 184, 216, ${intensity})`;
+    }
+    ctx.lineWidth = 1 + intensity * 2;
+    ctx.beginPath();
+    ctx.moveTo(sel.x, sel.y);
+    ctx.lineTo(ion.x, ion.y);
+    ctx.stroke();
+
+    const midX = (sel.x + ion.x) / 2;
+    const midY = (sel.y + ion.y) / 2;
+    ctx.fillStyle = `rgba(240, 238, 228, ${0.4 + intensity * 0.5})`;
+    ctx.font = "bold 10px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`r=${r.toFixed(0)}`, midX, midY);
+  }
+
+  // Draw a marker at the selected point if it's empty space
+  if (selectedPoint !== null) {
+    ctx.strokeStyle = '#ffd54f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(sel.x, sel.y, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    // crosshair
+    ctx.beginPath();
+    ctx.moveTo(sel.x - 18, sel.y);
+    ctx.lineTo(sel.x - 6, sel.y);
+    ctx.moveTo(sel.x + 6, sel.y);
+    ctx.lineTo(sel.x + 18, sel.y);
+    ctx.moveTo(sel.x, sel.y - 18);
+    ctx.lineTo(sel.x, sel.y - 6);
+    ctx.moveTo(sel.x, sel.y + 6);
+    ctx.lineTo(sel.x, sel.y + 18);
+    ctx.stroke();
+  }
+}
+
+function drawParticles() {
+  // Sort: electrons first (drawn under), ions on top
+  const sorted = [...particles].sort((a, b) => {
+    if (a.type === 'electron' && b.type !== 'electron') return -1;
+    if (b.type === 'electron' && a.type !== 'electron') return 1;
+    return 0;
+  });
+
+  for (const p of sorted) {
+    const isSelected = p.id === selectedId;
+
+    if (p.type === 'electron') {
+      // Color by local density (computed from φ at this position)
+      const ions = particles.filter(pp => pp.type === 'ion+' || pp.type === 'ion-');
+      const phi = potentialAt(p.x, p.y, ions);
+      const expArg = phi / kBT;
+      const intensity = Math.min(1, Math.max(0.2, 0.4 + expArg * 0.15));
+
+      // Glow
+      const glowSize = 4 + (isSelected ? 6 : 0);
+      ctx.fillStyle = `rgba(150, 200, 255, ${0.3 * intensity})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, glowSize + 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = isSelected ? '#ffd54f' : `rgba(${150 + intensity * 105}, ${200 + intensity * 55}, 255, ${intensity})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (isSelected) {
+        ctx.strokeStyle = '#ffd54f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
+      // Ion
+      const baseColor = p.q > 0 ? '#ff6b35' : '#4ab8d8';
+      const glowColor = p.q > 0 ? '255, 107, 53' : '74, 184, 216';
+
+      // Glow
+      const glowSize = 50 + (isSelected ? 20 : 0);
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
+      grad.addColorStop(0, `rgba(${glowColor}, 0.4)`);
+      grad.addColorStop(1, `rgba(${glowColor}, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#ffd54f' : '#fff';
+      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.stroke();
+
+      // Sign
+      ctx.fillStyle = '#fff';
+      ctx.font = "bold 18px 'Fraunces', serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.q > 0 ? '+' : '−', p.x, p.y + 1);
+
+      if (isSelected) {
+        ctx.strokeStyle = '#ffd54f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius + 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+  drawField();
+  drawConnections();
+  drawParticles();
+  requestAnimationFrame(draw);
+}
+draw();
+
+// ============ INTERACTION ============
+function findParticleAt(x, y) {
+  // Check ions first (larger), then electrons
+  const ions = particles.filter(p => p.type !== 'electron');
+  for (const p of ions) {
+    if (Math.hypot(x - p.x, y - p.y) < p.radius + 6) return p;
+  }
+  const electrons = particles.filter(p => p.type === 'electron');
+  for (const p of electrons) {
+    if (Math.hypot(x - p.x, y - p.y) < p.radius + 8) return p;
+  }
+  return null;
+}
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const p = findParticleAt(x, y);
+  if (p) {
+    selectedId = p.id;
+    selectedPoint = null;
+    document.getElementById('hint').style.display = 'none';
+  } else {
+    // Clicked empty space — compute density at that point
+    selectedId = null;
+    selectedPoint = { x, y };
+    document.getElementById('hint').style.display = 'none';
+  }
+  updatePanel();
+});
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 0) return;
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = t.clientX - rect.left;
+  const y = t.clientY - rect.top;
+  const p = findParticleAt(x, y);
+  if (p) {
+    selectedId = p.id;
+    selectedPoint = null;
+    document.getElementById('hint').style.display = 'none';
+    updatePanel();
+    e.preventDefault();
+  } else {
+    selectedId = null;
+    selectedPoint = { x, y };
+    document.getElementById('hint').style.display = 'none';
+    updatePanel();
+    e.preventDefault();
+  }
+}, { passive: false });
+
+// ============ PANEL UPDATE ============
+function updatePanel() {
+  const body = document.getElementById('calcBody');
+  const resultBlock = document.getElementById('resultBlock');
+  const subtitle = document.getElementById('panelSubtitle');
+
+  if (selectedId === null && selectedPoint === null) {
+    body.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">∑</div>
+        <div class="text">
+          Click any particle <em>or anywhere in space</em>.<br>
+          The Boltzmann formula computes density at that point<br>
+          from the sum over all charges.
+        </div>
+      </div>
+    `;
+    resultBlock.style.display = 'none';
+    subtitle.textContent = 'click anywhere';
+    return;
+  }
+
+  if (selectedPoint !== null) {
+    // Empty-space click: compute density at that point
+    showPointCalc(selectedPoint);
+    return;
+  }
+
+  const sel = particles.find(p => p.id === selectedId);
+  if (!sel) return;
+
+  if (sel.type === 'electron') {
+    showElectronCalc(sel);
+  } else {
+    showIonInfo(sel);
+  }
+}
+
+// Wrapper for clicking empty space — treat it like a "virtual electron" at that point
+function showPointCalc(point) {
+  // Make a fake "electron" object so we can reuse the same calculation
+  const virtualElectron = { x: point.x, y: point.y, type: 'electron-virtual' };
+  showElectronCalc(virtualElectron);
+}
+
+function showIonInfo(ion) {
+  const body = document.getElementById('calcBody');
+  const resultBlock = document.getElementById('resultBlock');
+  const subtitle = document.getElementById('panelSubtitle');
+
+  subtitle.textContent = ion.q > 0 ? 'positive ion' : 'negative ion';
+
+  body.innerHTML = `
+    <div class="selected-header ${ion.q > 0 ? 'pos' : 'neg'}">
+      <div class="selected-title">${ion.q > 0 ? 'Positive ion' : 'Negative ion'}</div>
+      <div class="selected-meta">charge q = ${ion.q > 0 ? '+e' : '−e'} &nbsp;·&nbsp; position (${ion.x.toFixed(0)}, ${ion.y.toFixed(0)})</div>
+    </div>
+
+    <div class="step">
+      <div class="step-label">about ions in this view</div>
+      <div class="note">
+        Ions are shown as <strong>fixed</strong> in this scene — heavy and slow on the timescale of electron motion.
+        The Boltzmann formula <strong>n = n₀ · exp(−U/k<sub>B</sub>T)</strong> is being applied to <em>electrons</em> here,
+        which are the species that thermally equilibrate fast enough to follow it.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-label">what this ion does</div>
+      <div class="note">
+        This ion contributes to the electric potential φ at every other point in the scene.
+        The contribution at distance r is <strong>k<sub>e</sub> · ${ion.q > 0 ? '+e' : '−e'} / r</strong>.
+        ${ion.q > 0
+          ? '<em>Positive φ</em> — attracts electrons (they pile up nearby).'
+          : '<em>Negative φ</em> — repels electrons (they avoid nearby regions).'}
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-label">try this</div>
+      <div class="note">
+        Click an <strong>electron</strong> (small blue dot) to see all the ions in the scene
+        contributing to its density via the sum over all charges.
+      </div>
+    </div>
+  `;
+  resultBlock.style.display = 'none';
+}
+
+function showElectronCalc(electron) {
+  const body = document.getElementById('calcBody');
+  const resultBlock = document.getElementById('resultBlock');
+  const subtitle = document.getElementById('panelSubtitle');
+
+  const isVirtual = electron.type === 'electron-virtual';
+  subtitle.textContent = isVirtual ? 'point in space · density calculation' : 'electron · density calculation';
+
+  const ions = particles.filter(p => p.type === 'ion+' || p.type === 'ion-');
+  const otherElectrons = particles.filter(p => p.type === 'electron' && p.id !== electron.id);
+
+  // Compute contributions from each ion
+  const ionContribs = ions.map(ion => {
+    const dx = electron.x - ion.x;
+    const dy = electron.y - ion.y;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const rEff = Math.max(r, 20);
+    const phi_i = COULOMB_K * ion.q / rEff;
+    return { particle: ion, r, phi_i };
+  });
+
+  // Compute contributions from each other electron
+  const electronContribs = otherElectrons.map(e => {
+    const dx = electron.x - e.x;
+    const dy = electron.y - e.y;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const rEff = Math.max(r, 20);
+    const phi_i = COULOMB_K * (-1) / rEff;
+    return { particle: e, r, phi_i };
+  });
+
+  // Sort ions by magnitude
+  ionContribs.sort((a, b) => Math.abs(b.phi_i) - Math.abs(a.phi_i));
+
+  // Sums
+  const phiFromIons = ionContribs.reduce((s, c) => s + c.phi_i, 0);
+  const phiFromElectrons = electronContribs.reduce((s, c) => s + c.phi_i, 0);
+
+  // Decide which sum to use as the actual φ
+  // In real mean-field theory, electron-electron contributions are absorbed into n0
+  // so we use ions only. But we'll show the comparison if toggled.
+  const phiTotal = phiFromIons; // mean-field: only ions
+  const expArg = phiTotal / kBT;
+  const expArgClamped = Math.min(8, Math.max(-8, expArg));
+  const densityRatio = Math.exp(expArgClamped);
+
+  // Build ion contribution table
+  let ionTableRows = '';
+  const COULOMB_DISPLAY = COULOMB_K; // for showing in the table
+  for (const c of ionContribs) {
+    const sign = c.particle.q > 0 ? '+' : '−';
+    const phiStr = c.phi_i >= 0 ? `+${c.phi_i.toFixed(2)}` : c.phi_i.toFixed(2);
+    const cls = c.phi_i >= 0 ? 'contribution-pos' : 'contribution-neg';
+    const chargeCls = c.particle.q > 0 ? 'charge-pos' : 'charge-neg';
+    // Show the actual division: k × q / r
+    const computation = `${COULOMB_DISPLAY} × (${sign}1) / ${c.r.toFixed(0)}`;
+    ionTableRows += `
+      <tr>
+        <td class="${chargeCls}">${sign}e</td>
+        <td>${c.r.toFixed(0)}</td>
+        <td style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a7a66;">${computation}</td>
+        <td class="${cls}"><strong>= ${phiStr}</strong></td>
+      </tr>
+    `;
+  }
+
+  const phiIonsStr = phiFromIons >= 0 ? `+${phiFromIons.toFixed(2)}` : phiFromIons.toFixed(2);
+  const phiIonsCls = phiFromIons >= 0 ? 'contribution-pos' : 'contribution-neg';
+  ionTableRows += `
+    <tr class="total-row">
+      <td colspan="3" style="text-align: right; padding-right: 10px;">φ from ions  =  Σ contributions  =</td>
+      <td class="${phiIonsCls}"><strong>${phiIonsStr}</strong></td>
+    </tr>
+  `;
+
+  // Mean-field section (shown when toggled)
+  let meanFieldSection = '';
+  if (showElectronContribs) {
+    const phiElectronsStr = phiFromElectrons >= 0 ? `+${phiFromElectrons.toFixed(2)}` : phiFromElectrons.toFixed(2);
+    const phiElectronsCls = phiFromElectrons >= 0 ? 'contribution-pos' : 'contribution-neg';
+    const cancellationPct = ions.length > 0 && Math.abs(phiFromIons) > 0.01
+      ? (Math.abs(phiFromElectrons) / Math.abs(phiFromIons) * 100).toFixed(0)
+      : '—';
+
+    meanFieldSection = `
+      <div class="step" style="background: rgba(127, 219, 150, 0.06); padding: 14px; border-radius: 3px; margin-top: 8px;">
+        <div class="step-label" style="color: #4a9c5e;"><span class="nm" style="color: #4a9c5e;">∗</span> mean-field check · electron-electron contributions</div>
+        <div class="note" style="margin-bottom: 10px;">
+          The faint blue lines on the canvas are this electron's pulls from <strong>${otherElectrons.length} other electrons</strong>.
+          Each one repels (negative contribution). Sum:
+        </div>
+        <div class="formula" style="margin-bottom: 10px;">
+          <span class="${phiElectronsCls === 'contribution-pos' ? 'pos' : 'neg'} num">${phiElectronsStr}</span>
+          <span class="op">  ←  sum from all electrons</span>
+        </div>
+        <div class="note">
+          <strong>Notice how small this is</strong> compared to the ion sum (${phiIonsStr}).
+          Electron contributions in random directions <em>mostly cancel</em>.
+          What's left is only ~${cancellationPct}% of the ion sum.
+          That's why we ignore them — they're already "baked into" n₀ as the uniform background.
+          This cancellation <em>is</em> mean-field theory.
+        </div>
+      </div>
+    `;
+  }
+
+  body.innerHTML = `
+    <div class="selected-header electron">
+      <div class="selected-title">${isVirtual ? 'Point in space' : 'Electron'}</div>
+      <div class="selected-meta">${isVirtual ? 'asking: what would n_e be here?' : 'charge q = −e'} &nbsp;·&nbsp; position (${electron.x.toFixed(0)}, ${electron.y.toFixed(0)})</div>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="nm">A</span> the formula</div>
+      <div class="formula">
+        <span class="var">n<sub>e</sub></span> <span class="equals">=</span> <span class="var">n<sub>0</sub></span> <span class="op">·</span> exp<span class="op">(</span> e · φ / k<sub>B</sub>T <span class="op">)</span>
+      </div>
+      <div class="note">
+        For an electron: U = −e·φ, and the two minus signs cancel, giving the <em>+e·φ</em> form.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="nm">B</span> compute φ at this point — sum over all <strong>ions</strong></div>
+      <div class="note" style="margin-bottom: 8px;">
+        φ(r) = Σ k<sub>e</sub> · q<sub>i</sub> / |r − r<sub>i</sub>| &nbsp; over all ${ions.length} ion${ions.length !== 1 ? 's' : ''} on the scene.
+        Lines on the canvas show each contribution: <span style="color: var(--ion);">orange</span> = positive (attractive),
+        <span style="color: #2e6f9c;">blue</span> = negative (repulsive).
+        <br><span style="color: #8a7a66; font-size: 11px;">Coulomb constant k<sub>e</sub> = ${COULOMB_K} (in the sim's reduced units).</span>
+      </div>
+      <table class="sum-table">
+        <thead>
+          <tr>
+            <th>charge</th>
+            <th>distance r</th>
+            <th>computation k·q/r</th>
+            <th>= contribution</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ionTableRows}
+        </tbody>
+      </table>
+    </div>
+
+    ${meanFieldSection}
+
+    <div class="step">
+      <div class="step-label"><span class="nm">C</span> divide by k<sub>B</sub>T</div>
+      <div class="formula">
+        <span class="${phiIonsCls === 'contribution-pos' ? 'pos' : 'neg'} num">${phiIonsStr}</span>
+        <span class="op">/</span>
+        <span class="num" style="color: #6e5aa3;">${kBT.toFixed(2)}</span>
+        <span class="equals">=</span>
+        <span class="num" style="color: #1a1410; font-weight: 600;">${expArg.toFixed(3)}</span>
+      </div>
+      <div class="note">
+        This is the <strong>dimensionless</strong> exponent — it tells us how strong the local potential is compared to thermal energy.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="nm">D</span> exponentiate</div>
+      <div class="formula">
+        exp<span class="op">(</span> <span class="num" style="color: #1a1410; font-weight: 600;">${expArg.toFixed(3)}</span> <span class="op">)</span>
+        <span class="equals">=</span>
+        <span class="num" style="color: var(--ion); font-weight: 600;">${formatDensity(densityRatio)}</span>
+      </div>
+      <div class="note" style="margin-bottom: 8px;">
+        Each unit in the exponent = one factor of <em>e</em> ≈ 2.72.
+        Your exponent of ${expArg.toFixed(2)} ≈ ${expArg >= 0 ? '+' : '−'}${Math.abs(expArg).toFixed(1)} units of e-folding.
+      </div>
+      <div style="background: rgba(26, 20, 16, 0.04); padding: 10px 12px; border-radius: 2px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; color: #4a3f33;">
+        exp(0) = 1 &nbsp;<span style="color: #8a7a66;">(bulk)</span><br>
+        exp(±1) = ${Math.exp(1).toFixed(2)} &nbsp;or&nbsp; ${Math.exp(-1).toFixed(2)}<br>
+        exp(±2) = ${Math.exp(2).toFixed(2)} &nbsp;or&nbsp; ${Math.exp(-2).toFixed(2)}<br>
+        exp(±5) = ${Math.exp(5).toFixed(0)} &nbsp;or&nbsp; ${Math.exp(-5).toFixed(3)}<br>
+        <span style="color: var(--ion); font-weight: 600;">exp(${expArg.toFixed(2)}) = ${formatDensity(densityRatio)}</span> &nbsp;<span style="color: #8a7a66;">← yours</span>
+      </div>
+      <div class="note" style="margin-top: 8px;">
+        ${expArg > 0.5
+          ? `<strong>Positive exponent</strong> — the net potential here is positive (electron-attractive) → density rises above n₀.`
+          : expArg < -0.5
+          ? `<strong>Negative exponent</strong> — the net potential here is negative (electron-repulsive) → density falls below n₀.`
+          : `<strong>Small exponent</strong> — net potential roughly cancels out → density is close to bulk n₀.`}
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="nm">E</span> density profile · n<sub>e</sub>/n₀ vs distance from this point</div>
+      <div class="note" style="margin-bottom: 10px;">
+        How does electron density change as you move <em>away</em> from this point? The yellow dot shows where you are.
+        Notice how the density approaches n₀ (the dashed line) far away — that's <strong>Debye screening</strong> in action.
+      </div>
+      <canvas id="densityProfileCanvas" style="width: 100%; height: 180px; background: rgba(26, 20, 16, 0.04); border: 1px solid rgba(26, 20, 16, 0.15); border-radius: 2px;"></canvas>
+    </div>
+  `;
+
+  // Final result
+  document.getElementById('finalDensity').textContent = formatDensity(densityRatio);
+  document.getElementById('finalMultiplier').textContent =
+    densityRatio >= 100 ? `≈ ${Math.round(densityRatio)}× bulk` :
+    densityRatio >= 10 ? `≈ ${densityRatio.toFixed(0)}× bulk` :
+    densityRatio >= 2 ? `≈ ${densityRatio.toFixed(1)}× bulk` :
+    densityRatio >= 0.5 ? `≈ ${(densityRatio * 100).toFixed(0)}% of bulk` :
+    densityRatio >= 0.05 ? `≈ ${(densityRatio * 100).toFixed(1)}% of bulk` :
+    'far below bulk';
+
+  // Absolute n_e: ratio × n0
+  const n0 = Math.pow(10, n0Exponent);
+  const ne = densityRatio * n0;
+  document.getElementById('finalNe').textContent = formatScientific(ne);
+
+  // n0 display
+  const superscripts = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+  const expStr = String(n0Exponent).split('').map(c => superscripts[c] || c).join('');
+  document.getElementById('n0Display').textContent = '10' + expStr;
+
+  const meaning = document.getElementById('finalMeaning');
+  if (densityRatio >= 50) {
+    meaning.innerHTML = `<strong>Strong pile-up.</strong> This electron sits in a deep net well from the surrounding ions. <em>Many electrons cluster here.</em>`;
+  } else if (densityRatio >= 5) {
+    meaning.innerHTML = `<strong>Clear enhancement.</strong> The net pull from positive ions wins. Electrons prefer this region.`;
+  } else if (densityRatio >= 1.5) {
+    meaning.innerHTML = `<strong>Mild enhancement.</strong> Slightly attractive — some clustering, but not dramatic.`;
+  } else if (densityRatio >= 0.7) {
+    meaning.innerHTML = `<strong>Near bulk.</strong> Contributions roughly cancel — this looks like generic plasma.`;
+  } else if (densityRatio >= 0.1) {
+    meaning.innerHTML = `<strong>Suppressed.</strong> Net repulsion from nearby negative charges. Electrons avoid this spot.`;
+  } else {
+    meaning.innerHTML = `<strong>Strong depletion.</strong> The electron is sitting on a tall potential hill. <em>Very few would naturally be here at equilibrium.</em>`;
+  }
+
+  resultBlock.style.display = 'block';
+
+  // Draw density profile chart
+  drawDensityProfile(electron, ions);
+}
+
+function drawDensityProfile(electron, ions) {
+  const canvas = document.getElementById('densityProfileCanvas');
+  if (!canvas) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const dctx = canvas.getContext('2d');
+  dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const W = rect.width;
+  const H = rect.height;
+  const padL = 38, padR = 14, padT = 14, padB = 26;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  // Sample n_e along an outward ray from the electron's position.
+  // Direction: pick the direction toward the strongest pull (most informative).
+  // We'll find the dominant ion direction.
+  let maxContrib = 0;
+  let dirX = 1, dirY = 0;
+  for (const ion of ions) {
+    const dx = ion.x - electron.x;
+    const dy = ion.y - electron.y;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const contrib = COULOMB_K * ion.q / Math.max(r, 20);
+    if (Math.abs(contrib) > Math.abs(maxContrib)) {
+      maxContrib = contrib;
+      dirX = dx / r;
+      dirY = dy / r;
+    }
+  }
+
+  // Sample r from 0 to ~600 px outward
+  const maxR = 600;
+  const nSamples = 80;
+  const samples = [];
+  for (let i = 0; i < nSamples; i++) {
+    const r = (i / (nSamples - 1)) * maxR;
+    const sx = electron.x + dirX * r;
+    const sy = electron.y + dirY * r;
+    let phi = 0;
+    for (const ion of ions) {
+      const dx = sx - ion.x;
+      const dy = sy - ion.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      phi += COULOMB_K * ion.q / Math.max(dist, 20);
+    }
+    const expArg = Math.min(8, Math.max(-8, phi / kBT));
+    const ratio = Math.exp(expArg);
+    samples.push({ r, ratio });
+  }
+
+  // Find y range
+  let yMin = 1, yMax = 1;
+  for (const s of samples) {
+    if (s.ratio < yMin) yMin = s.ratio;
+    if (s.ratio > yMax) yMax = s.ratio;
+  }
+  // Pad
+  const range = yMax - yMin;
+  yMin = Math.max(0, yMin - range * 0.1);
+  yMax = yMax + range * 0.1;
+  if (yMax - yMin < 0.5) yMax = yMin + 0.5;
+
+  // Helpers
+  const xToPix = r => padL + (r / maxR) * plotW;
+  const yToPix = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  // Background grid
+  dctx.strokeStyle = 'rgba(26, 20, 16, 0.06)';
+  dctx.lineWidth = 1;
+  for (let i = 1; i <= 4; i++) {
+    const x = padL + (i / 4) * plotW;
+    dctx.beginPath();
+    dctx.moveTo(x, padT);
+    dctx.lineTo(x, padT + plotH);
+    dctx.stroke();
+  }
+
+  // Axes
+  dctx.strokeStyle = 'rgba(26, 20, 16, 0.5)';
+  dctx.lineWidth = 1;
+  dctx.beginPath();
+  dctx.moveTo(padL, padT);
+  dctx.lineTo(padL, padT + plotH);
+  dctx.lineTo(padL + plotW, padT + plotH);
+  dctx.stroke();
+
+  // n₀ reference line
+  if (yMin <= 1 && yMax >= 1) {
+    const refY = yToPix(1);
+    dctx.strokeStyle = 'rgba(26, 20, 16, 0.3)';
+    dctx.setLineDash([3, 4]);
+    dctx.beginPath();
+    dctx.moveTo(padL, refY);
+    dctx.lineTo(padL + plotW, refY);
+    dctx.stroke();
+    dctx.setLineDash([]);
+    dctx.fillStyle = 'rgba(26, 20, 16, 0.55)';
+    dctx.font = "9px 'JetBrains Mono', monospace";
+    dctx.textAlign = 'right';
+    dctx.fillText('n₀', padL - 4, refY + 3);
+  }
+
+  // Filled area under curve
+  dctx.fillStyle = 'rgba(200, 72, 46, 0.12)';
+  dctx.beginPath();
+  dctx.moveTo(xToPix(samples[0].r), yToPix(yMin));
+  for (const s of samples) {
+    dctx.lineTo(xToPix(s.r), yToPix(s.ratio));
+  }
+  dctx.lineTo(xToPix(samples[samples.length - 1].r), yToPix(yMin));
+  dctx.closePath();
+  dctx.fill();
+
+  // Curve
+  dctx.strokeStyle = '#c8482e';
+  dctx.lineWidth = 2;
+  dctx.beginPath();
+  for (let i = 0; i < samples.length; i++) {
+    const x = xToPix(samples[i].r);
+    const y = yToPix(samples[i].ratio);
+    if (i === 0) dctx.moveTo(x, y);
+    else dctx.lineTo(x, y);
+  }
+  dctx.stroke();
+
+  // Marker at r=0 (where the electron is)
+  const markerX = xToPix(0);
+  const markerY = yToPix(samples[0].ratio);
+  dctx.fillStyle = '#d4a017';
+  dctx.beginPath();
+  dctx.arc(markerX, markerY, 5, 0, Math.PI * 2);
+  dctx.fill();
+  dctx.strokeStyle = '#1a1410';
+  dctx.lineWidth = 1.5;
+  dctx.stroke();
+
+  // Axis labels
+  dctx.fillStyle = 'rgba(26, 20, 16, 0.6)';
+  dctx.font = "9px 'JetBrains Mono', monospace";
+  dctx.textAlign = 'center';
+  dctx.fillText('DISTANCE r →', padL + plotW / 2, H - 8);
+  dctx.save();
+  dctx.translate(10, padT + plotH / 2);
+  dctx.rotate(-Math.PI / 2);
+  dctx.textAlign = 'center';
+  dctx.fillText('n_e / n₀', 0, 0);
+  dctx.restore();
+
+  // Y-axis ticks (just min and max)
+  dctx.textAlign = 'right';
+  dctx.fillStyle = 'rgba(26, 20, 16, 0.55)';
+  dctx.fillText(yMax.toFixed(yMax >= 100 ? 0 : yMax >= 10 ? 1 : 2), padL - 4, padT + 8);
+  dctx.fillText(yMin.toFixed(yMin >= 100 ? 0 : yMin >= 10 ? 1 : 2), padL - 4, padT + plotH);
+
+  // Direction note at top right
+  dctx.fillStyle = 'rgba(26, 20, 16, 0.5)';
+  dctx.font = "italic 9px 'Fraunces', serif";
+  dctx.textAlign = 'right';
+  dctx.fillText('outward toward strongest pull', padL + plotW - 4, padT + 10);
+}
+
+function formatDensity(d) {
+  if (d >= 1000) return d.toFixed(0);
+  if (d >= 100) return d.toFixed(1);
+  if (d >= 10) return d.toFixed(2);
+  if (d >= 1) return d.toFixed(3);
+  if (d >= 0.01) return d.toFixed(3);
+  return d.toExponential(2);
+}
+
+function formatScientific(n) {
+  if (n === 0) return '0';
+  if (!isFinite(n)) return '∞';
+  const exp = Math.floor(Math.log10(Math.abs(n)));
+  const mantissa = n / Math.pow(10, exp);
+  const superscripts = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+  const expStr = String(exp).split('').map(c => superscripts[c] || c).join('');
+  return `${mantissa.toFixed(2)} × 10${expStr}`;
+}
+
+// ============ TOOLBAR ============
+document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    presets[btn.dataset.preset]();
+    selectedId = null;
+    selectedPoint = null;
+    updatePanel();
+  });
+});
+
+document.getElementById('kbtSlider').addEventListener('input', e => {
+  kBT = parseFloat(e.target.value);
+  document.getElementById('kbtVal').textContent = kBT.toFixed(1);
+  // Re-equilibrate electrons
+  const ions = particles.filter(p => p.type !== 'electron');
+  particles = ions;
+  placeElectronsAtEquilibrium(80);
+  // If selected was electron, deselect (it's gone)
+  if (selectedId !== null && !particles.find(p => p.id === selectedId)) {
+    selectedId = null;
+  }
+  updatePanel();
+});
+
+document.getElementById('n0Slider').addEventListener('input', e => {
+  n0Exponent = parseInt(e.target.value);
+  // Format as superscript
+  const superscripts = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+  const expStr = String(n0Exponent).split('').map(c => superscripts[c] || c).join('');
+  document.getElementById('n0Val').textContent = '10' + expStr;
+  updatePanel();
+});
+
+document.getElementById('resetSelect').addEventListener('click', () => {
+  selectedId = null;
+  selectedPoint = null;
+  updatePanel();
+});
+
+document.getElementById('minimizeBtn').addEventListener('click', () => {
+  const tb = document.getElementById('toolbar');
+  const btn = document.getElementById('minimizeBtn');
+  tb.classList.toggle('minimized');
+  btn.textContent = tb.classList.contains('minimized') ? '+' : '−';
+  btn.title = tb.classList.contains('minimized') ? 'Show controls' : 'Minimize controls';
+});
+
+document.getElementById('meanFieldToggle').addEventListener('click', e => {
+  showElectronContribs = !showElectronContribs;
+  e.target.textContent = showElectronContribs ? 'hide e⁻ contribs' : 'show e⁻ contribs';
+  e.target.style.background = showElectronContribs ? 'rgba(127, 219, 150, 0.15)' : 'transparent';
+  updatePanel();
+});
+
+window.addEventListener('resize', () => {
+  resize();
+});
+
+// Initial scene
+presets.dipole();
+updatePanel();
+</script>
+
+</body>
+</html>

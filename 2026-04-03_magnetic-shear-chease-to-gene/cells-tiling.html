@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cells Tile Perfectly</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:880px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#f5c042;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:16px;line-height:1.5;max-width:540px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:130px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:36px;text-align:right;color:#f5c042;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#f5c042;cursor:pointer;}
+h2{font-size:16px;font-weight:700;color:#f5c042;margin:20px 0 10px;padding-top:12px;border-top:1px solid #17253f;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>No Gaps, No <span>Overlaps</span></h1>
+<p class="sub">Drag the shear slider from 0 to 3. Watch every cell tilt together — they always tile perfectly like a mosaic.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Shear (drag me!)</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.05" value="0"><span class="cg-v" id="vShat">0.0</span></div>
+  </div>
+</div>
+
+<!-- Main: tiling grid -->
+<div class="panel">
+  <div class="plbl"><span>UNROLLED TUBE — CELLS TILING</span><span id="tileStatus" style="color:#3ee886">shear = 0: perfect squares</span></div>
+  <canvas id="cTile" style="height:380px;"></canvas>
+</div>
+
+<div class="box">
+  <p>Every cell shares edges with its neighbors — no space between them, no overlap. As you increase shear, the <b class="p">whole column tilts together</b>. The cell on top leans the same way as the cell below, so they stay flush. Neighboring columns tilt by slightly different amounts (different z = different g^xy), but the edges still line up perfectly.</p>
+</div>
+
+<!-- Deck of cards analogy -->
+<h2>The Deck of Cards</h2>
+
+<div class="panel">
+  <div class="plbl"><span>SHEAR = PUSHING A DECK SIDEWAYS</span><span style="color:#9b7ff0">SAME SLIDER</span></div>
+  <canvas id="cDeck" style="height:250px;"></canvas>
+</div>
+
+<div class="box">
+  <p>A deck of cards standing upright = zero shear. Push the top sideways = shear. Each card tilts, but they're still stacked flush — no card overlaps another. That's exactly what happens to the radial layers in the flux tube. The amount of push increases with z (distance from the outboard midplane).</p>
+</div>
+
+<!-- On the ring -->
+<h2>Same Thing on the Ring</h2>
+
+<div class="panel">
+  <div class="plbl"><span>TILING ON THE ACTUAL FLUX SURFACE</span><span style="color:#f5c042">SAME SHEAR VALUE</span></div>
+  <canvas id="cRing" style="height:440px;"></canvas>
+</div>
+
+<div class="box">
+  <p>The unrolled grid above wraps onto this ring. The cells still tile perfectly — they just follow the curvature of the surface now. Each cell touches its neighbors on all four sides with no gaps. The colors alternate so you can see the individual cells clearly.</p>
+</div>
+
+</div>
+
+<script>
+let shat=0;
+const nZ=14, nR=6;
+
+function getMetrics(z){
+  return{
+    gxx:1+0.15*Math.cos(z),
+    gxy:shat*z,
+    gyy:1+0.4*shat*shat*z*z*0.12+0.06*Math.cos(z)
+  };
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+// ===== TILING GRID =====
+function drawTile(){
+  const s=setupCanvas('cTile');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const pad={l:40,r:16,t:20,b:32};
+  const pw=w-pad.l-pad.r;
+  const ph=h-pad.t-pad.b;
+  const cellW=pw/nZ;
+  const cellH=ph/nR;
+
+  // For each cell, compute the 4 corners properly so they share edges
+  // Key insight: corners are shared between adjacent cells
+  // Corner(iz, ir) position:
+  function cornerPos(iz,ir){
+    const z=((iz)/nZ-0.5)*2*Math.PI;
+    const m=getMetrics(z);
+    // x position: just column position
+    const px=pad.l+iz*cellW;
+    // y position: radial position, shifted by g^xy based on which layer
+    const irCentered=ir-nR/2;
+    const shearShift=irCentered*(cellH/nR)*m.gxy*0.08;
+    // g^xx stretches radially
+    const gxxStretch=Math.sqrt(Math.abs(m.gxx));
+    const py=pad.t+ph/2-irCentered*cellH*0.8*gxxStretch+shearShift;
+    return{x:px,y:py};
+  }
+
+  for(let iz=0;iz<nZ;iz++){
+    const z=((iz+0.5)/nZ-0.5)*2*Math.PI;
+    const k=Math.cos(z)*0.5;
+
+    for(let ir=0;ir<nR;ir++){
+      const c00=cornerPos(iz,ir);
+      const c10=cornerPos(iz+1,ir);
+      const c11=cornerPos(iz+1,ir+1);
+      const c01=cornerPos(iz,ir+1);
+
+      // Alternating colors to show individual cells
+      const checker=(iz+ir)%2;
+      const baseAlpha=0.06+Math.abs(k)*0.08;
+      let fill;
+      if(checker===0){
+        fill=k>0?`rgba(200,140,240,${baseAlpha+0.04})`:`rgba(140,180,240,${baseAlpha+0.04})`;
+      } else {
+        fill=k>0?`rgba(180,110,220,${baseAlpha+0.02})`:`rgba(110,150,220,${baseAlpha+0.02})`;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(c00.x,c00.y);ctx.lineTo(c10.x,c10.y);
+      ctx.lineTo(c11.x,c11.y);ctx.lineTo(c01.x,c01.y);
+      ctx.closePath();
+      ctx.fillStyle=fill;ctx.fill();
+      ctx.strokeStyle='rgba(155,127,240,0.35)';ctx.lineWidth=1;ctx.stroke();
+    }
+  }
+
+  // X labels
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='center';ctx.textBaseline='top';
+  ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>{
+    ctx.fillText(l,pad.l+(i/4)*pw,h-pad.b+6);
+  });
+  ctx.font='9px monospace';ctx.fillText('z →',pad.l+pw/2,h-8);
+
+  // Y label
+  ctx.save();ctx.translate(10,pad.t+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillText('radial',0,0);ctx.restore();
+
+  // Status
+  let status;
+  if(shat<0.1)status='shear = 0: perfect rectangles, no tilt';
+  else if(shat<1)status=`shear = ${shat.toFixed(1)}: slight tilt, still tiling`;
+  else if(shat<2)status=`shear = ${shat.toFixed(1)}: clear parallelograms, still no gaps`;
+  else status=`shear = ${shat.toFixed(1)}: heavy tilt, STILL perfectly tiled`;
+  document.getElementById('tileStatus').textContent=status;
+  document.getElementById('tileStatus').style.color=shat<0.5?'#3ee886':shat<2?'#f5c042':'#ef6461';
+}
+
+// ===== DECK OF CARDS =====
+function drawDeck(){
+  const s=setupCanvas('cDeck');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const nCards=8;
+  const cardW=Math.min(w*0.06,30);
+  const cardH=Math.min(h*0.55,120);
+  const deckX=w/2;
+  const deckBaseY=h*0.75;
+
+  // Each card is offset from the one below by the shear
+  const maxShift=cardW*4*shat/3;
+
+  for(let i=0;i<nCards;i++){
+    const frac=i/(nCards-1); // 0=bottom, 1=top
+    const shiftX=(frac-0.5)*maxShift;
+    const cx=deckX+shiftX;
+    const cy=deckBaseY-i*(cardH/nCards*1.05);
+
+    const corners=[
+      [cx-cardW/2, cy],
+      [cx+cardW/2, cy],
+      [cx+cardW/2, cy-cardH/nCards],
+      [cx-cardW/2, cy-cardH/nCards],
+    ];
+
+    const checker=i%2;
+    ctx.beginPath();
+    corners.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+    ctx.closePath();
+    ctx.fillStyle=checker?'rgba(155,127,240,0.12)':'rgba(180,150,250,0.08)';
+    ctx.fill();
+    ctx.strokeStyle='rgba(155,127,240,0.4)';ctx.lineWidth=1.5;ctx.stroke();
+  }
+
+  // Labels
+  ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.3)';ctx.textAlign='center';
+  ctx.fillText('bottom (inner)',deckX,deckBaseY+16);
+  ctx.fillText('top (outer)',deckX+(0.5)*maxShift,deckBaseY-nCards*(cardH/nCards*1.05)-6);
+
+  if(shat>0.5){
+    // Show shear arrow
+    ctx.strokeStyle='rgba(245,192,66,0.3)';ctx.lineWidth=1;
+    const arrowY=deckBaseY-nCards*(cardH/nCards*1.05)+10;
+    ctx.beginPath();ctx.moveTo(deckX-10,arrowY);ctx.lineTo(deckX+maxShift*0.4,arrowY);ctx.stroke();
+    ctx.font='8px monospace';ctx.fillStyle='rgba(245,192,66,0.3)';
+    ctx.fillText('shear pushes →',deckX+maxShift*0.4+30,arrowY+3);
+  }
+
+  // "No overlap" callout
+  ctx.font='bold 10px monospace';ctx.fillStyle='rgba(62,232,134,0.4)';
+  ctx.fillText(shat<0.1?'no shear — upright stack':'tilted but still stacked flush — no overlap',w/2,h-10);
+}
+
+// ===== RING =====
+function drawRing(){
+  const s=setupCanvas('cRing');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const cx=w/2,cy=h/2,maxR=Math.min(w,h)*0.39;
+  const selRho=0.6;
+  const elong=1.35,tri=0.2;
+
+  function surfPt(theta,rho){
+    const r=maxR*rho,e=elong,d=tri,sh=0.08*(1-rho)*maxR;
+    return{x:sh+r*Math.cos(theta+d*Math.sin(theta)),y:r*e*Math.sin(theta)};
+  }
+
+  // Ghost surfaces
+  for(let i=1;i<=7;i++){
+    const rho=i/7;
+    ctx.beginPath();
+    for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,rho);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+    ctx.closePath();
+    ctx.strokeStyle=`rgba(31,214,232,${0.02+0.008*rho})`;ctx.lineWidth=0.4;ctx.stroke();
+  }
+
+  // Tiled cells on the ring
+  const drho=0.003; // very thin — one tight ribbon
+  const ringNz=28,ringNr=nR;
+
+  for(let iz=0;iz<ringNz;iz++){
+    const theta0=(iz/ringNz)*Math.PI*2;
+    const theta1=((iz+1)/ringNz)*Math.PI*2;
+    const thetaMid=(theta0+theta1)/2;
+    const z=thetaMid>Math.PI?thetaMid-2*Math.PI:thetaMid;
+    const m=getMetrics(z);
+    const k=Math.cos(thetaMid)*0.5;
+
+    for(let ir=0;ir<ringNr;ir++){
+      const irC=ir-ringNr/2+0.5;
+
+      // Shared corners: compute corner positions properly
+      const irC0=ir-ringNr/2;
+      const irC1=ir-ringNr/2+1;
+
+      const shift0=irC0*drho*m.gxy*0.8;
+      const shift1=irC1*drho*m.gxy*0.8;
+      const gxxS=Math.sqrt(Math.abs(m.gxx));
+
+      const r0=selRho+irC0*drho*gxxS;
+      const r1=selRho+irC1*drho*gxxS;
+
+      const p00=surfPt(theta0+shift0,r0);
+      const p10=surfPt(theta1+shift0,r0);
+      const p11=surfPt(theta1+shift1,r1);
+      const p01=surfPt(theta0+shift1,r1);
+
+      const checker=(iz+ir)%2;
+      const baseAlpha=0.05+Math.abs(k)*0.07;
+
+      ctx.beginPath();
+      ctx.moveTo(cx+p00.x,cy-p00.y);ctx.lineTo(cx+p10.x,cy-p10.y);
+      ctx.lineTo(cx+p11.x,cy-p11.y);ctx.lineTo(cx+p01.x,cy-p01.y);
+      ctx.closePath();
+
+      ctx.fillStyle=checker?`rgba(180,140,250,${baseAlpha+0.03})`:`rgba(140,110,220,${baseAlpha+0.02})`;
+      ctx.fill();
+      ctx.strokeStyle='rgba(155,127,240,0.2)';ctx.lineWidth=0.5;ctx.stroke();
+    }
+  }
+
+  // Labels
+  ctx.font='bold 9px monospace';ctx.textAlign='center';
+  ctx.fillStyle='rgba(239,100,97,0.3)';
+  const outSp=surfPt(0,selRho);
+  ctx.fillText('outboard',cx+outSp.x+30,cy-outSp.y);
+  ctx.fillStyle='rgba(62,232,134,0.3)';
+  const inSp=surfPt(Math.PI,selRho);
+  ctx.fillText('inboard',cx+inSp.x-30,cy-inSp.y);
+
+  ctx.font='7px monospace';ctx.fillStyle='rgba(100,116,139,0.12)';
+  ctx.fillText('AXIS',cx,cy);
+
+  // Shear note
+  ctx.font='9px monospace';ctx.fillStyle='rgba(155,127,240,0.3)';ctx.textAlign='center';
+  if(shat<0.1) ctx.fillText('no shear — all cells upright',w/2,h-10);
+  else ctx.fillText(`shear = ${shat.toFixed(1)} — cells tilt but still tile perfectly`,w/2,h-10);
+}
+
+function drawAll(){drawTile();drawDeck();drawRing();}
+
+document.getElementById('sShat').addEventListener('input',function(e){
+  shat=parseFloat(e.target.value);
+  document.getElementById('vShat').textContent=shat.toFixed(1);
+  drawAll();
+});
+
+window.addEventListener('load',function(){setTimeout(drawAll,150);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

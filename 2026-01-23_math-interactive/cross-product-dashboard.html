@@ -1,0 +1,527 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cross product dashboard</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function CrossProductDashboard() {
+  const canvasRef = useRef(null);
+  const [vectorA, setVectorA] = useState({ x: 2, y: 0, z: 0 });
+  const [vectorB, setVectorB] = useState({ x: 0, y: 2, z: 0 });
+  const [rotationY, setRotationY] = useState(0.5);
+  const [rotationX, setRotationX] = useState(0.4);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+  const [showParallelogram, setShowParallelogram] = useState(true);
+  const [showComponents, setShowComponents] = useState(true);
+  const [animateRightHand, setAnimateRightHand] = useState(false);
+  const [zoom, setZoom] = useState(1);
+
+  // Cross product: A × B
+  const crossProduct = {
+    x: vectorA.y * vectorB.z - vectorA.z * vectorB.y,
+    y: vectorA.z * vectorB.x - vectorA.x * vectorB.z,
+    z: vectorA.x * vectorB.y - vectorA.y * vectorB.x
+  };
+
+  // Magnitude of cross product = area of parallelogram
+  const crossMagnitude = Math.sqrt(
+    crossProduct.x ** 2 + crossProduct.y ** 2 + crossProduct.z ** 2
+  );
+
+  // Magnitudes of input vectors
+  const magA = Math.sqrt(vectorA.x ** 2 + vectorA.y ** 2 + vectorA.z ** 2);
+  const magB = Math.sqrt(vectorB.x ** 2 + vectorB.y ** 2 + vectorB.z ** 2);
+
+  // Angle between vectors
+  const dotProduct = vectorA.x * vectorB.x + vectorA.y * vectorB.y + vectorA.z * vectorB.z;
+  const angle = magA > 0 && magB > 0 ? Math.acos(Math.min(1, Math.max(-1, dotProduct / (magA * magB)))) : 0;
+  const angleDegrees = (angle * 180 / Math.PI);
+
+  // 3D projection
+  const project = (x, y, z, width, height) => {
+    // Rotate around Y axis
+    let tempX = x * Math.cos(rotationY) - z * Math.sin(rotationY);
+    let tempZ = x * Math.sin(rotationY) + z * Math.cos(rotationY);
+    x = tempX;
+    z = tempZ;
+
+    // Rotate around X axis
+    let tempY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
+    tempZ = y * Math.sin(rotationX) + z * Math.cos(rotationX);
+    y = tempY;
+    z = tempZ;
+
+    const scale = 50 * zoom;
+    const perspective = 500;
+    const factor = perspective / (perspective + z + 5);
+
+    return {
+      x: width / 2 + x * scale * factor,
+      y: height / 2 - y * scale * factor,
+      z: z
+    };
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Background gradient
+    const bgGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
+    bgGradient.addColorStop(0, '#1e2a4a');
+    bgGradient.addColorStop(1, '#0f1525');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw axes
+    const axisLength = 3.5;
+    const origin = project(0, 0, 0, width, height);
+    const xEnd = project(axisLength, 0, 0, width, height);
+    const yEnd = project(0, axisLength, 0, width, height);
+    const zEnd = project(0, 0, axisLength, width, height);
+    const xNeg = project(-axisLength, 0, 0, width, height);
+    const yNeg = project(0, -axisLength, 0, width, height);
+    const zNeg = project(0, 0, -axisLength, width, height);
+
+    // Axis lines
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    
+    ctx.strokeStyle = 'rgba(255, 100, 100, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(xNeg.x, xNeg.y);
+    ctx.lineTo(xEnd.x, xEnd.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(100, 255, 100, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(yNeg.x, yNeg.y);
+    ctx.lineTo(yEnd.x, yEnd.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(100, 100, 255, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(zNeg.x, zNeg.y);
+    ctx.lineTo(zEnd.x, zEnd.y);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+
+    // Axis labels
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = 'rgba(255, 100, 100, 0.8)';
+    ctx.fillText('x', xEnd.x + 5, xEnd.y + 5);
+    ctx.fillStyle = 'rgba(100, 255, 100, 0.8)';
+    ctx.fillText('y', yEnd.x + 5, yEnd.y - 5);
+    ctx.fillStyle = 'rgba(100, 100, 255, 0.8)';
+    ctx.fillText('z', zEnd.x + 5, zEnd.y + 5);
+
+    // Draw parallelogram (area represented by cross product)
+    if (showParallelogram && crossMagnitude > 0.1) {
+      const p1 = project(0, 0, 0, width, height);
+      const p2 = project(vectorA.x, vectorA.y, vectorA.z, width, height);
+      const p3 = project(vectorA.x + vectorB.x, vectorA.y + vectorB.y, vectorA.z + vectorB.z, width, height);
+      const p4 = project(vectorB.x, vectorB.y, vectorB.z, width, height);
+
+      ctx.fillStyle = 'rgba(155, 89, 182, 0.3)';
+      ctx.strokeStyle = 'rgba(155, 89, 182, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineTo(p3.x, p3.y);
+      ctx.lineTo(p4.x, p4.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Area label in center
+      const centerX = (p1.x + p2.x + p3.x + p4.x) / 4;
+      const centerY = (p1.y + p2.y + p3.y + p4.y) / 4;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.font = 'bold 12px Arial';
+      ctx.fillText(`Area = ${crossMagnitude.toFixed(2)}`, centerX - 30, centerY);
+    }
+
+    // Helper function to draw 3D arrow
+    const draw3DArrow = (fromX, fromY, fromZ, toX, toY, toZ, color, label, lineWidth = 4) => {
+      const from = project(fromX, fromY, fromZ, width, height);
+      const to = project(toX, toY, toZ, width, height);
+
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+
+      if (len < 5) return;
+
+      // Glow effect
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+
+      // Line
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+
+      // Arrowhead
+      const angle = Math.atan2(dy, dx);
+      const headLen = 12;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(to.x - headLen * Math.cos(angle - 0.4), to.y - headLen * Math.sin(angle - 0.4));
+      ctx.lineTo(to.x - headLen * Math.cos(angle + 0.4), to.y - headLen * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+
+      // Label
+      if (label) {
+        ctx.fillStyle = color;
+        ctx.font = 'bold 16px Arial';
+        ctx.fillText(label, to.x + 10, to.y - 10);
+      }
+    };
+
+    // Draw vectors
+    draw3DArrow(0, 0, 0, vectorA.x, vectorA.y, vectorA.z, '#e74c3c', 'A');
+    draw3DArrow(0, 0, 0, vectorB.x, vectorB.y, vectorB.z, '#3498db', 'B');
+
+    // Draw cross product vector
+    if (crossMagnitude > 0.1) {
+      draw3DArrow(0, 0, 0, crossProduct.x, crossProduct.y, crossProduct.z, '#2ecc71', 'A×B', 5);
+    }
+
+    // Draw component projections
+    if (showComponents && crossMagnitude > 0.1) {
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(46, 204, 113, 0.4)';
+
+      // Project cross product onto each axis
+      const cpProj = project(crossProduct.x, crossProduct.y, crossProduct.z, width, height);
+      
+      // X component
+      if (Math.abs(crossProduct.x) > 0.1) {
+        const xProj = project(crossProduct.x, 0, 0, width, height);
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        ctx.lineTo(xProj.x, xProj.y);
+        ctx.stroke();
+      }
+      
+      // Y component
+      if (Math.abs(crossProduct.y) > 0.1) {
+        const yProj = project(0, crossProduct.y, 0, width, height);
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        ctx.lineTo(yProj.x, yProj.y);
+        ctx.stroke();
+      }
+      
+      // Z component
+      if (Math.abs(crossProduct.z) > 0.1) {
+        const zProj = project(0, 0, crossProduct.z, width, height);
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        ctx.lineTo(zProj.x, zProj.y);
+        ctx.stroke();
+      }
+
+      ctx.setLineDash([]);
+    }
+
+    // Right angle indicators (show perpendicularity)
+    if (crossMagnitude > 0.5) {
+      const indicatorSize = 0.3;
+      
+      // Normalize vectors for indicators
+      const normCross = {
+        x: crossProduct.x / crossMagnitude,
+        y: crossProduct.y / crossMagnitude,
+        z: crossProduct.z / crossMagnitude
+      };
+      
+      const normA = magA > 0 ? {
+        x: vectorA.x / magA,
+        y: vectorA.y / magA,
+        z: vectorA.z / magA
+      } : { x: 0, y: 0, z: 0 };
+
+      // Draw small square to show perpendicularity
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+      
+      const corner1 = project(
+        normA.x * indicatorSize,
+        normA.y * indicatorSize,
+        normA.z * indicatorSize,
+        width, height
+      );
+      const corner2 = project(
+        normA.x * indicatorSize + normCross.x * indicatorSize,
+        normA.y * indicatorSize + normCross.y * indicatorSize,
+        normA.z * indicatorSize + normCross.z * indicatorSize,
+        width, height
+      );
+      const corner3 = project(
+        normCross.x * indicatorSize,
+        normCross.y * indicatorSize,
+        normCross.z * indicatorSize,
+        width, height
+      );
+
+      ctx.beginPath();
+      ctx.moveTo(corner1.x, corner1.y);
+      ctx.lineTo(corner2.x, corner2.y);
+      ctx.lineTo(corner3.x, corner3.y);
+      ctx.stroke();
+    }
+
+  }, [vectorA, vectorB, crossProduct, rotationX, rotationY, showParallelogram, showComponents, zoom, crossMagnitude, magA, magB]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    setRotationY(prev => prev + dx * 0.01);
+    setRotationX(prev => Math.max(-1.5, Math.min(1.5, prev + dy * 0.01)));
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    setZoom(prev => Math.max(0.5, Math.min(2, prev - e.deltaY * 0.001)));
+  };
+
+  // Preset examples
+  const presets = [
+    { name: 'i × j = k', a: { x: 1, y: 0, z: 0 }, b: { x: 0, y: 1, z: 0 } },
+    { name: 'j × k = i', a: { x: 0, y: 1, z: 0 }, b: { x: 0, y: 0, z: 1 } },
+    { name: 'k × i = j', a: { x: 0, y: 0, z: 1 }, b: { x: 1, y: 0, z: 0 } },
+    { name: 'Parallel (zero)', a: { x: 2, y: 0, z: 0 }, b: { x: 3, y: 0, z: 0 } },
+    { name: 'General', a: { x: 1, y: 2, z: 0 }, b: { x: -1, y: 1, z: 1 } },
+  ];
+
+  const swapVectors = () => {
+    const temp = { ...vectorA };
+    setVectorA({ ...vectorB });
+    setVectorB(temp);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold mb-1 text-center">Cross Product: A × B</h1>
+      <p className="text-center text-gray-400 mb-4 text-sm">The cross product gives a vector perpendicular to both inputs</p>
+
+      <div className="flex flex-col lg:flex-row gap-4 max-w-7xl mx-auto">
+        
+        {/* 3D View */}
+        <div className="lg:flex-1">
+          <div className="bg-gray-800 rounded-xl p-4">
+            <canvas
+              ref={canvasRef}
+              width={550}
+              height={500}
+              className="rounded-lg w-full cursor-grab active:cursor-grabbing"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onWheel={handleWheel}
+            />
+            <p className="text-gray-500 text-xs mt-2 text-center">Drag to rotate • Scroll to zoom</p>
+            
+            <div className="flex flex-wrap gap-2 mt-3 justify-center">
+              {presets.map((preset, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setVectorA(preset.a); setVectorB(preset.b); }}
+                  className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-mono"
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Controls and Info */}
+        <div className="lg:w-96 space-y-3">
+          
+          {/* Vector A */}
+          <div className="bg-red-900/30 border border-red-600/50 rounded-xl p-4">
+            <h2 className="font-semibold mb-3 text-red-400 flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              Vector A
+            </h2>
+            <div className="space-y-2">
+              {['x', 'y', 'z'].map(axis => (
+                <div key={axis} className="flex items-center gap-2">
+                  <span className="w-8 font-mono text-sm">{axis}:</span>
+                  <input
+                    type="range" min="-3" max="3" step="0.1"
+                    value={vectorA[axis]}
+                    onChange={(e) => setVectorA(prev => ({ ...prev, [axis]: parseFloat(e.target.value) }))}
+                    className="flex-1 accent-red-500 h-2"
+                  />
+                  <span className="w-12 font-mono text-sm text-right">{vectorA[axis].toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2 font-mono">
+              A = ⟨{vectorA.x.toFixed(1)}, {vectorA.y.toFixed(1)}, {vectorA.z.toFixed(1)}⟩  |A| = {magA.toFixed(2)}
+            </p>
+          </div>
+
+          {/* Vector B */}
+          <div className="bg-blue-900/30 border border-blue-600/50 rounded-xl p-4">
+            <h2 className="font-semibold mb-3 text-blue-400 flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              Vector B
+            </h2>
+            <div className="space-y-2">
+              {['x', 'y', 'z'].map(axis => (
+                <div key={axis} className="flex items-center gap-2">
+                  <span className="w-8 font-mono text-sm">{axis}:</span>
+                  <input
+                    type="range" min="-3" max="3" step="0.1"
+                    value={vectorB[axis]}
+                    onChange={(e) => setVectorB(prev => ({ ...prev, [axis]: parseFloat(e.target.value) }))}
+                    className="flex-1 accent-blue-500 h-2"
+                  />
+                  <span className="w-12 font-mono text-sm text-right">{vectorB[axis].toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2 font-mono">
+              B = ⟨{vectorB.x.toFixed(1)}, {vectorB.y.toFixed(1)}, {vectorB.z.toFixed(1)}⟩  |B| = {magB.toFixed(2)}
+            </p>
+          </div>
+
+          {/* Swap button */}
+          <button
+            onClick={swapVectors}
+            className="w-full py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-sm transition-all"
+          >
+            ↔ Swap A and B (watch sign flip!)
+          </button>
+
+          {/* Result: A × B */}
+          <div className="bg-green-900/30 border border-green-600/50 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-green-400 flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              Result: A × B
+            </h2>
+            <div className="font-mono text-lg">
+              ⟨{crossProduct.x.toFixed(2)}, {crossProduct.y.toFixed(2)}, {crossProduct.z.toFixed(2)}⟩
+            </div>
+            <div className="text-sm text-gray-400 mt-2">
+              |A × B| = {crossMagnitude.toFixed(2)} <span className="text-purple-400">(= parallelogram area)</span>
+            </div>
+          </div>
+
+          {/* The Formula */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">The Formula</h2>
+            <div className="font-mono text-xs space-y-1 text-gray-300">
+              <p>(A × B)<sub>x</sub> = A<sub>y</sub>B<sub>z</sub> − A<sub>z</sub>B<sub>y</sub> = ({vectorA.y.toFixed(1)})({vectorB.z.toFixed(1)}) − ({vectorA.z.toFixed(1)})({vectorB.y.toFixed(1)}) = <span className="text-green-400">{crossProduct.x.toFixed(2)}</span></p>
+              <p>(A × B)<sub>y</sub> = A<sub>z</sub>B<sub>x</sub> − A<sub>x</sub>B<sub>z</sub> = ({vectorA.z.toFixed(1)})({vectorB.x.toFixed(1)}) − ({vectorA.x.toFixed(1)})({vectorB.z.toFixed(1)}) = <span className="text-green-400">{crossProduct.y.toFixed(2)}</span></p>
+              <p>(A × B)<sub>z</sub> = A<sub>x</sub>B<sub>y</sub> − A<sub>y</sub>B<sub>x</sub> = ({vectorA.x.toFixed(1)})({vectorB.y.toFixed(1)}) − ({vectorA.y.toFixed(1)})({vectorB.x.toFixed(1)}) = <span className="text-green-400">{crossProduct.z.toFixed(2)}</span></p>
+            </div>
+          </div>
+
+          {/* Properties */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">Properties</h2>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className={`w-3 h-3 rounded-full ${angleDegrees > 1 && angleDegrees < 179 ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                <span>Angle between A and B: <span className="font-mono text-yellow-400">{angleDegrees.toFixed(1)}°</span></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-3 h-3 rounded-full ${crossMagnitude > 0.1 ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span>
+                  {crossMagnitude < 0.1 
+                    ? <span className="text-red-400">Vectors are parallel → cross product is zero!</span>
+                    : <span className="text-green-400">Result is perpendicular to both A and B</span>
+                  }
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-purple-500"></span>
+                <span>|A × B| = |A||B|sin(θ) = {magA.toFixed(2)} × {magB.toFixed(2)} × sin({angleDegrees.toFixed(0)}°) = <span className="font-mono text-purple-400">{crossMagnitude.toFixed(2)}</span></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Toggles */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input 
+                  type="checkbox" 
+                  checked={showParallelogram} 
+                  onChange={(e) => setShowParallelogram(e.target.checked)}
+                  className="accent-purple-500 w-4 h-4"
+                />
+                <span className="text-purple-400">Parallelogram</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input 
+                  type="checkbox" 
+                  checked={showComponents} 
+                  onChange={(e) => setShowComponents(e.target.checked)}
+                  className="accent-green-500 w-4 h-4"
+                />
+                <span className="text-green-400">Components</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Key insight */}
+          <div className="bg-blue-900/20 border border-blue-700/50 p-4 rounded-xl text-xs">
+            <p className="font-semibold text-blue-400 mb-1">Key insights:</p>
+            <ul className="space-y-1 text-gray-300">
+              <li>• <strong>Direction:</strong> A × B is perpendicular to both A and B (right-hand rule)</li>
+              <li>• <strong>Magnitude:</strong> |A × B| = area of parallelogram spanned by A and B</li>
+              <li>• <strong>Anti-commutative:</strong> B × A = −(A × B) — swap them and the result flips!</li>
+              <li>• <strong>Parallel = zero:</strong> If A and B point the same way, A × B = 0</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CrossProductDashboard));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

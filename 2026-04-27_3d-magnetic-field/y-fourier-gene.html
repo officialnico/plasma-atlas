@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>y in Fourier space — how GENE sees the plasma</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  p { margin-bottom:1rem; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+
+  h2 {
+    color:#e2e5ed;
+    font-size:1.15rem;
+    font-weight:600;
+    margin:2rem 0 0.5rem;
+    padding-top:1rem;
+    border-top:1px solid #252a36;
+  }
+  h2 .num {
+    font-family:'IBM Plex Mono',monospace;
+    color:#f0a050;
+    font-size:0.85rem;
+    margin-right:0.6rem;
+  }
+
+  .viz {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    overflow:hidden;
+    margin:1rem 0 1.5rem;
+  }
+  .viz canvas { width:100%; display:block; }
+  .viz-tag {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 4px;
+  }
+
+  .ctrl {
+    display:flex; gap:8px; padding:10px 14px;
+    border-top:1px solid #252a36;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .ctrl button {
+    padding:6px 14px;
+    border-radius:4px;
+    border:1px solid #252a36;
+    background:transparent;
+    color:#8a8f9f;
+    font-size:0.78rem;
+    cursor:pointer;
+    font-family:'DM Sans',sans-serif;
+    transition:all 0.15s;
+  }
+  .ctrl button.on {
+    border-color:#f0a050;
+    color:#f0a050;
+    background:rgba(240,160,80,0.1);
+  }
+
+  .sliders {
+    padding:14px 16px;
+    border-top:1px solid #252a36;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .slider-row {
+    display:grid;
+    grid-template-columns:90px 1fr 70px;
+    align-items:center;
+    gap:12px;
+  }
+  .slider-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.78rem;
+    font-weight:500;
+    color:#8a8f9f;
+  }
+  .slider-value {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.78rem;
+    color:#e2e5ed;
+    text-align:right;
+  }
+  input[type=range] {
+    -webkit-appearance:none;
+    width:100%;
+    height:3px;
+    background:#252a36;
+    border-radius:2px;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none;
+    width:14px; height:14px;
+    border-radius:50%;
+    background:#4ade80;
+    cursor:pointer;
+    border:2px solid #0c0e13;
+  }
+  input[type=range]::-moz-range-thumb {
+    width:14px; height:14px;
+    border-radius:50%;
+    background:#4ade80;
+    cursor:pointer;
+    border:2px solid #0c0e13;
+  }
+
+  .note {
+    background:#12151c;
+    border-left:3px solid #5cb8f0;
+    border-radius:0 4px 4px 0;
+    padding:0.9rem 1.1rem;
+    margin:1.2rem 0;
+    font-size:0.92rem;
+  }
+  .note-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#5cb8f0;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+
+  .grid-info {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:1px;
+    background:#252a36;
+    border:1px solid #252a36;
+    border-radius:6px;
+    overflow:hidden;
+    margin:1rem 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.8rem;
+  }
+  .grid-info > div { background:#12151c; padding:14px; }
+  .grid-info .head { color:#f0a050; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:8px; }
+  .grid-info .axis { color:#8a8f9f; line-height:1.7; }
+  .grid-info .axis .x-c { color:#fb7185; }
+  .grid-info .axis .y-c { color:#4ade80; }
+  .grid-info .axis .z-c { color:#5cb8f0; }
+  @media (max-width:520px) {
+    .grid-info { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>y, in Fourier space</h1>
+<p class="sub">From wiggles to sine waves to GENE's actual data</p>
+
+<p>We'll go in three steps:</p>
+<p>1. Look at what a "wiggle" along y looks like.<br>
+2. See how that wiggle is built out of sine waves.<br>
+3. See what GENE actually stores in its arrays.</p>
+
+<h2><span class="num">01</span>A wiggle along y</h2>
+
+<p>Imagine you're standing on the flux surface, walking along the binormal direction. As you walk, you measure the temperature fluctuation — how much hotter or colder it is than the average. You'd see something like this:</p>
+
+<div class="viz">
+  <div class="viz-tag">Temperature fluctuation as a function of y position</div>
+  <canvas id="c-wiggle" height="240"></canvas>
+</div>
+
+<p>That's the <em>real-space</em> picture. At each y position, there's a number. In a simulation you'd store this as an array: <code>T[0], T[1], T[2], ...</code> — one value per gridpoint along y. If you have 256 gridpoints, that's 256 numbers.</p>
+
+<h2><span class="num">02</span>Same wiggle, built from sine waves</h2>
+
+<p>Now here's the magic of Fourier: <strong>any wiggle can be written as a sum of sine waves</strong>. Each sine wave has a wavelength (or equivalently, a wavenumber <code>k_y</code>) and an amplitude (how big it is). Add them all up and you get back your original wiggle.</p>
+
+<div class="viz">
+  <div class="viz-tag">Drag the sliders — build the wiggle from individual sine waves</div>
+  <canvas id="c-fourier" height="380"></canvas>
+  <div class="sliders">
+    <div class="slider-row">
+      <span class="slider-label">k_y = 1</span>
+      <input type="range" id="a1" min="-100" max="100" value="60">
+      <span class="slider-value" id="v1">0.60</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">k_y = 2</span>
+      <input type="range" id="a2" min="-100" max="100" value="-30">
+      <span class="slider-value" id="v2">-0.30</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">k_y = 3</span>
+      <input type="range" id="a3" min="-100" max="100" value="20">
+      <span class="slider-value" id="v3">0.20</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">k_y = 4</span>
+      <input type="range" id="a4" min="-100" max="100" value="-15">
+      <span class="slider-value" id="v4">-0.15</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">k_y = 5</span>
+      <input type="range" id="a5" min="-100" max="100" value="10">
+      <span class="slider-value" id="v5">0.10</span>
+    </div>
+  </div>
+</div>
+
+<p>Each slider controls the amplitude of one sine wave. The four faded curves at top are the individual sine waves. The bold curve at bottom is their sum — the actual wiggle.</p>
+
+<p>So instead of storing the wiggle as 256 values of T(y), GENE can store it as 256 amplitudes — one for each k_y. <strong>Same information, different representation.</strong> One says "what's the temperature at each position?" The other says "how much of each sine wave is there?"</p>
+
+<div class="note">
+  <span class="note-label">Why bother switching?</span>
+  <p style="margin-bottom:0">Because in y, the plasma is the same everywhere, each sine wave evolves <em>on its own</em>. The k_y=3 wave never affects the k_y=5 wave. So GENE can update each amplitude independently, in parallel, without doing any communication between them. That's the speedup.</p>
+</div>
+
+<h2><span class="num">03</span>What GENE actually stores</h2>
+
+<p>Now let's connect this to the real GENE variables. GENE solves for a function called <em>f</em> — the distribution of plasma particles. f depends on position (x, y, z) and on velocity (v_parallel, mu). So at the most basic level, f is a 5-dimensional array.</p>
+
+<p>But because of the y → Fourier swap, GENE doesn't store f(x, y, z, ...). It stores <strong>f̂(x, k_y, z, ...)</strong> — with k_y instead of y. Same information, different axis.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · GENE's 5D data array — what each axis means</div>
+  <canvas id="c-array" height="340"></canvas>
+</div>
+
+<div class="grid-info">
+  <div>
+    <div class="head">Real-space axes (gridded)</div>
+    <div class="axis"><span class="x-c">x</span> · radial position · <code>nx0</code> points</div>
+    <div class="axis"><span class="z-c">z</span> · along field line · <code>nz0</code> points</div>
+    <div class="axis">v_∥ · parallel velocity · <code>nv0</code> points</div>
+    <div class="axis">μ · magnetic moment · <code>nw0</code> points</div>
+  </div>
+  <div>
+    <div class="head">Fourier axis (sine wave amplitudes)</div>
+    <div class="axis"><span class="y-c">k_y</span> · binormal wavenumber · <code>nky0</code> modes</div>
+    <div style="margin-top:10px; color:#6b7084;">For each k_y, GENE solves a separate problem. They don't talk to each other (at the linear level).</div>
+  </div>
+</div>
+
+<p>So when you see a GENE namelist with values like <code>nx0=128</code>, <code>nky0=32</code>, <code>nz0=24</code>, <code>nv0=32</code>, <code>nw0=8</code> — that's the size of the array. Total memory: 128 × 32 × 24 × 32 × 8 ≈ 25 million complex numbers per species. That's the simulation.</p>
+
+<p>And the <code>kymin</code> parameter you might have seen? That sets the longest wavelength sine wave — k_y values are <code>kymin × 0, kymin × 1, kymin × 2, ...</code> up to <code>nky0 − 1</code>. So <code>kymin</code> tells you the spacing between sine wave wavelengths, and <code>nky0</code> tells you how many of them you keep.</p>
+
+<div class="note">
+  <span class="note-label">Putting it together</span>
+  <p style="margin-bottom:0">GENE simulates plasma turbulence by storing the distribution function as a 5D array. The y axis is Fourier-transformed because the physics is symmetric there, so each k_y mode evolves independently. The other four axes (x, z, v_∥, μ) stay in real space because the physics depends on where you are. That's it. That's the whole architecture.</p>
+</div>
+
+<script>
+(function(){
+  const C = {
+    bg:'#0c0e13', surface:'#12151c', border:'#252a36',
+    text:'#b8bcc8', dim:'#6b7084', heading:'#e2e5ed',
+    accent:'#f0a050', blue:'#5cb8f0', green:'#4ade80',
+    red:'#fb7185', purple:'#a388f0'
+  };
+  const F = "'DM Sans',sans-serif";
+  const M = "'IBM Plex Mono',monospace";
+
+  function init(id) {
+    const cv = document.getElementById(id);
+    if (!cv) return null;
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth;
+    const H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H + 'px';
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    ctx.scale(dpr, dpr);
+    return {c:cv, x:ctx, W, H};
+  }
+
+  // ── PANEL 1: A wiggle along y ──
+  (function(){
+    const s = init('c-wiggle'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    // Fixed Fourier coefficients for "the wiggle"
+    const coeffs = [0.6, -0.3, 0.2, -0.15, 0.1];
+    function f(y) {
+      let sum = 0;
+      for (let k = 0; k < coeffs.length; k++) {
+        sum += coeffs[k] * Math.sin((k+1) * y);
+      }
+      return sum;
+    }
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 60, padR = 30, padT = 30, padB = 50;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+      const yMid = padT + plotH / 2;
+
+      // Axes
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, yMid);
+      ctx.lineTo(padL + plotW, yMid);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + plotH);
+      ctx.stroke();
+
+      // The wiggle
+      ctx.beginPath();
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 2.2;
+      const amp = plotH * 0.35;
+      const cycles = Math.PI * 2;
+      for (let i = 0; i <= plotW; i++) {
+        const yPos = (i / plotW) * cycles;
+        const val = f(yPos);
+        const py = yMid - val * amp;
+        if (i === 0) ctx.moveTo(padL + i, py);
+        else ctx.lineTo(padL + i, py);
+      }
+      ctx.stroke();
+
+      // Sample points (showing it's stored as discrete values)
+      const N_SAMPLES = 16;
+      for (let n = 0; n < N_SAMPLES; n++) {
+        const yPos = ((n + 0.5) / N_SAMPLES) * cycles;
+        const val = f(yPos);
+        const px = padL + (yPos / cycles) * plotW;
+        const py = yMid - val * amp;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fillStyle = C.green;
+        ctx.fill();
+        ctx.strokeStyle = C.bg;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Moving probe
+      const probePhase = (t * 0.4) % 1;
+      const probeY = probePhase * cycles;
+      const probeVal = f(probeY);
+      const probePx = padL + probePhase * plotW;
+      const probePy = yMid - probeVal * amp;
+
+      ctx.beginPath();
+      ctx.moveTo(probePx, padT);
+      ctx.lineTo(probePx, padT + plotH);
+      ctx.strokeStyle = C.accent + '60';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.arc(probePx, probePy, 6, 0, Math.PI * 2);
+      ctx.fillStyle = C.accent;
+      ctx.fill();
+
+      // Labels
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'left';
+      ctx.fillText('+T', padL - 30, padT + 12);
+      ctx.fillText('−T', padL - 30, padT + plotH);
+      ctx.fillText('0', padL - 18, yMid + 4);
+
+      ctx.textAlign = 'center';
+      ctx.fillText('y →', padL + plotW / 2, H - 15);
+
+      ctx.font = '500 10px ' + F;
+      ctx.fillStyle = C.green;
+      ctx.fillText(`δT(y) = ${probeVal.toFixed(2)}`, probePx, padT - 8);
+
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'right';
+      ctx.fillText('16 grid points along y', W - padR, padT - 12);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 2: Fourier decomposition ──
+  (function(){
+    const s = init('c-fourier'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    const sliders = [];
+    const values = [];
+    for (let k = 1; k <= 5; k++) {
+      sliders.push(document.getElementById('a' + k));
+      values.push(document.getElementById('v' + k));
+    }
+
+    function getCoeffs() {
+      return sliders.map(s => parseInt(s.value) / 100);
+    }
+
+    sliders.forEach((sl, i) => {
+      sl.addEventListener('input', () => {
+        const v = parseInt(sl.value) / 100;
+        values[i].textContent = v.toFixed(2);
+      });
+    });
+
+    function draw() {
+      t += 0.01;
+      ctx.clearRect(0, 0, W, H);
+
+      const coeffs = getCoeffs();
+
+      const padL = 50, padR = 30;
+      const plotW = W - padL - padR;
+
+      // Top section: individual sine waves (faded)
+      const topPadT = 20, topPadB = 20;
+      const topH = H * 0.4;
+      const topPlotH = topH - topPadT - topPadB;
+
+      // Bottom section: their sum
+      const botPadT = 30, botPadB = 30;
+      const botStart = topH + 10;
+      const botH = H - botStart;
+      const botPlotH = botH - botPadT - botPadB;
+
+      // Section labels
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'left';
+      ctx.fillText('INDIVIDUAL SINE WAVES (each k_y)', padL, topPadT - 8);
+      ctx.fillText('SUM = THE ACTUAL WIGGLE', padL, botStart + botPadT - 12);
+
+      // Top: each sine wave
+      const topMid = topPadT + topPlotH / 2;
+      const colors = ['#5cb8f0', '#a388f0', '#f0a050', '#fb7185', '#4ade80'];
+      const cycles = Math.PI * 2;
+
+      // Axis
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(padL, topMid);
+      ctx.lineTo(padL + plotW, topMid);
+      ctx.stroke();
+
+      const indAmp = topPlotH * 0.3;
+      for (let k = 0; k < 5; k++) {
+        const c = coeffs[k];
+        if (Math.abs(c) < 0.01) continue;
+
+        ctx.beginPath();
+        ctx.strokeStyle = colors[k] + 'a0';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i <= plotW; i++) {
+          const yPos = (i / plotW) * cycles;
+          const val = c * Math.sin((k+1) * yPos);
+          const py = topMid - val * indAmp;
+          if (i === 0) ctx.moveTo(padL + i, py);
+          else ctx.lineTo(padL + i, py);
+        }
+        ctx.stroke();
+
+        // Label on the right
+        const labelY = topMid - c * indAmp * Math.sin((k+1) * cycles * 0.95);
+        ctx.font = '500 9px ' + M;
+        ctx.fillStyle = colors[k];
+        ctx.textAlign = 'left';
+        ctx.fillText(`k=${k+1}`, padL + plotW + 4, labelY + 3);
+      }
+
+      // Bottom: sum
+      const botMid = botStart + botPadT + botPlotH / 2;
+
+      // Axis
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, botMid);
+      ctx.lineTo(padL + plotW, botMid);
+      ctx.stroke();
+
+      // Sum
+      const sumAmp = botPlotH * 0.4;
+      ctx.beginPath();
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 2.2;
+      for (let i = 0; i <= plotW; i++) {
+        const yPos = (i / plotW) * cycles;
+        let sum = 0;
+        for (let k = 0; k < 5; k++) {
+          sum += coeffs[k] * Math.sin((k+1) * yPos);
+        }
+        const py = botMid - sum * sumAmp;
+        if (i === 0) ctx.moveTo(padL + i, py);
+        else ctx.lineTo(padL + i, py);
+      }
+      ctx.stroke();
+
+      // Bottom axis label
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText('y →', padL + plotW / 2, H - 8);
+
+      // Y-axis label on left
+      ctx.textAlign = 'left';
+      ctx.fillText('δT', padL - 35, botMid + 4);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 3: GENE 5D array ──
+  (function(){
+    const s = init('c-array'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const cx = W / 2;
+      const cy = H / 2 + 10;
+
+      // Title
+      ctx.font = '600 12px ' + M;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      ctx.fillText('f̂(x, k_y, z, v∥, μ)', cx, 24);
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.fillText("the distribution function — GENE's 5D array", cx, 40);
+
+      // Draw a 3D-ish stack of grids representing the 5D array
+      // Center: a 2D grid (x by k_y), then we stack copies for z, v∥, μ
+      const gridW = 100;
+      const gridH = 60;
+      const offsetX = 14;
+      const offsetY = -10;
+      const N_LAYERS = 4;
+
+      // Position the stack
+      const baseX = cx - gridW/2 - offsetX * (N_LAYERS-1) / 2;
+      const baseY = cy - gridH/2 - offsetY * (N_LAYERS-1) / 2;
+
+      // Draw layers from back to front
+      for (let layer = N_LAYERS - 1; layer >= 0; layer--) {
+        const lx = baseX + layer * offsetX;
+        const ly = baseY + layer * offsetY;
+        const alpha = 0.3 + (1 - layer / (N_LAYERS - 1)) * 0.7;
+
+        // Background
+        ctx.fillStyle = `rgba(18, 21, 28, ${alpha})`;
+        ctx.fillRect(lx, ly, gridW, gridH);
+        ctx.strokeStyle = `rgba(37, 42, 54, ${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(lx, ly, gridW, gridH);
+
+        // Fill with cells, animate
+        const cols = 12, rows = 8;
+        const cellW = gridW / cols;
+        const cellH = gridH / rows;
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < rows; j++) {
+            const phase = i * 0.4 + j * 0.6 + layer * 0.3 + t;
+            const v = (Math.sin(phase) + 1) / 2;
+            const r = Math.floor(40 + v * 80);
+            const g = Math.floor(60 + v * 100);
+            const b = Math.floor(120 + v * 130);
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.6})`;
+            ctx.fillRect(lx + i * cellW + 0.5, ly + j * cellH + 0.5, cellW - 1, cellH - 1);
+          }
+        }
+
+        // Highlight front layer
+        if (layer === 0) {
+          ctx.strokeStyle = C.accent;
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(lx, ly, gridW, gridH);
+        }
+      }
+
+      // Front layer position
+      const frontX = baseX;
+      const frontY = baseY;
+
+      // Axis labels for front face
+      // Bottom: k_y axis (Fourier)
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.green;
+      ctx.textAlign = 'center';
+      ctx.fillText('k_y →', frontX + gridW/2, frontY + gridH + 14);
+      ctx.font = '500 8px ' + M;
+      ctx.fillStyle = C.green + '80';
+      ctx.fillText('FOURIER (sine wave amplitudes)', frontX + gridW/2, frontY + gridH + 26);
+
+      // Left: x axis
+      ctx.save();
+      ctx.translate(frontX - 8, frontY + gridH/2);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillStyle = C.red;
+      ctx.font = '500 9px ' + M;
+      ctx.textAlign = 'center';
+      ctx.fillText('x →', 0, 0);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(frontX - 22, frontY + gridH/2);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillStyle = C.red + '80';
+      ctx.font = '500 8px ' + M;
+      ctx.textAlign = 'center';
+      ctx.fillText('REAL SPACE', 0, 0);
+      ctx.restore();
+
+      // Top-right: indication of stacks for z, v_par, mu
+      const stackEndX = baseX + (N_LAYERS-1) * offsetX + gridW;
+      const stackEndY = baseY + (N_LAYERS-1) * offsetY;
+
+      // Arrow into the stack
+      ctx.beginPath();
+      ctx.moveTo(stackEndX + 10, stackEndY + 30);
+      ctx.lineTo(stackEndX + 60, stackEndY - 5);
+      ctx.strokeStyle = C.dim;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.blue;
+      ctx.textAlign = 'left';
+      ctx.fillText('z', stackEndX + 65, stackEndY - 6);
+      ctx.fillStyle = C.text;
+      ctx.fillText('v∥', stackEndX + 65, stackEndY + 8);
+      ctx.fillText('μ', stackEndX + 65, stackEndY + 22);
+      ctx.font = '500 8px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.fillText('(more dimensions,', stackEndX + 65, stackEndY + 38);
+      ctx.fillText('stacked behind)', stackEndX + 65, stackEndY + 50);
+
+      // Bottom annotation
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      const note = 'Each cell = one complex number. For each k_y slice, the dynamics are independent.';
+      ctx.fillText(note, cx, H - 14);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+})();
+</script>
+
+</body>
+</html>

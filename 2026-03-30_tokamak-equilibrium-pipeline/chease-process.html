@@ -1,0 +1,569 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease process</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function CHEASEProcess() {
+  const [step, setStep] = useState(0);
+
+  const steps = [
+    {
+      id: 0,
+      title: "Start: EFIT's EQDSK file",
+      action: "READ",
+      desc: "CHEASE opens the EQDSK file from EFIT. It reads three things and throws away everything else.",
+      keeps: ["Boundary shape (R,Z points)", "P'(ψ) profile", "ff'(ψ) profile", "Scaling: R₀, B₀, Ip"],
+      throws: ["ψ(R,Z) grid (65×65)", "fpol array", "pressure array", "q array"],
+    },
+    {
+      id: 1,
+      title: "CHEASE sets up its own grid",
+      action: "SETUP",
+      desc: "CHEASE creates a fresh computational grid — but NOT in the rectangular (R,Z) coordinates EFIT used. It uses flux coordinates (s, θ), where s = which flux surface (0 at center, 1 at edge) and θ = angle around the surface (0 to 2π). This means the grid lines follow the plasma shape instead of cutting across it.",
+    },
+    {
+      id: 2,
+      title: "Solve Grad-Shafranov from scratch",
+      action: "SOLVE",
+      desc: "Using the boundary and profiles as inputs, CHEASE solves the same equation EFIT solved — but with Hermite bicubic elements. The solution lives inside the solver as polynomial patches with exact derivatives at every node. This takes seconds.",
+    },
+    {
+      id: 3,
+      title: "Solution exists as Hermite elements",
+      action: "INTERNAL",
+      desc: "The solution is now stored internally as Hermite elements — each node has ψ + ∂ψ/∂R + ∂ψ/∂Z + ∂²ψ/∂R∂Z. Between nodes, the solution is a smooth polynomial. You can evaluate it at ANY point with exact interpolation.",
+    },
+    {
+      id: 4,
+      title: "Sample onto output grid",
+      action: "SAMPLE",
+      desc: "CHEASE evaluates its internal Hermite solution at 256×256 regularly-spaced (R,Z) points. Each evaluation is just plugging coordinates into the polynomial — trivial math. This creates the dense grid of numbers.",
+    },
+    {
+      id: 5,
+      title: "Write output files",
+      action: "WRITE",
+      desc: "The 256×256 grid of ψ values goes into a new EQDSK file. Plus fpol, pressure, q (recomputed from the solution). Plus geometric coefficients (curvature, shear, metric tensors) for GENE. Regular numbers on a regular grid — no Hermite elements in the output file.",
+    },
+  ];
+
+  const s = steps[step];
+
+  // Mini grid visualization
+  const svgW = 340, svgH = 200;
+
+  function MiniGrid({ n, label, color, showNodes, showPolynomials, showSamples, sampleN }) {
+    const pad = 15;
+    const gw = svgW - 2 * pad;
+    const gh = svgH - 2 * pad;
+
+    // Simple elliptical boundary
+    const boundaryPts = Array.from({ length: 100 }, (_, k) => {
+      const theta = (2 * Math.PI * k) / 100;
+      const x = pad + gw / 2 + gw * 0.4 * Math.cos(theta + 0.3 * Math.sin(theta));
+      const y = pad + gh / 2 - gh * 0.42 * Math.sin(theta);
+      return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+    }).join(" ") + " Z";
+
+    return (
+      <svg width={svgW} height={svgH} style={{ display: "block" }}>
+        <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" rx={4} />
+
+        {/* Boundary */}
+        <path d={boundaryPts} fill="rgba(78,205,196,0.05)" stroke={color} strokeWidth={2} />
+
+        {/* Grid lines */}
+        {showNodes && Array.from({ length: n }, (_, i) => {
+          const x = pad + (i / (n - 1)) * gw;
+          const y = pad + (i / (n - 1)) * gh;
+          return (
+            <g key={i}>
+              <line x1={x} y1={pad} x2={x} y2={pad + gh} stroke={`${color}22`} strokeWidth={0.5} />
+              <line x1={pad} y1={y} x2={pad + gw} y2={y} stroke={`${color}22`} strokeWidth={0.5} />
+            </g>
+          );
+        })}
+
+        {/* Grid nodes */}
+        {showNodes && Array.from({ length: n * n }, (_, k) => {
+          const i = k % n, j = Math.floor(k / n);
+          const x = pad + (i / (n - 1)) * gw;
+          const y = pad + (j / (n - 1)) * gh;
+          // Check if inside boundary roughly
+          const dx = (x - svgW / 2) / (gw * 0.4);
+          const dy = (y - svgH / 2) / (gh * 0.42);
+          if (dx * dx + dy * dy > 1.1) return null;
+          return (
+            <circle key={k} cx={x} cy={y} r={n > 20 ? 1 : 2.5}
+              fill={color} opacity={0.6} />
+          );
+        })}
+
+        {/* Polynomial patches (wavy lines between nodes) */}
+        {showPolynomials && Array.from({ length: 8 }, (_, i) => {
+          const baseY = pad + 20 + i * (gh - 40) / 7;
+          const pts = Array.from({ length: 40 }, (_, k) => {
+            const x = pad + 30 + (k / 39) * (gw - 60);
+            const y = baseY + Math.sin(k * 0.5 + i) * 3;
+            return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+          }).join(" ");
+          return <path key={i} d={pts} fill="none" stroke="#c9a3f5" strokeWidth={1} opacity={0.4} />;
+        })}
+
+        {/* Sample points overlaid */}
+        {showSamples && Array.from({ length: sampleN * sampleN }, (_, k) => {
+          const i = k % sampleN, j = Math.floor(k / sampleN);
+          const x = pad + (i / (sampleN - 1)) * gw;
+          const y = pad + (j / (sampleN - 1)) * gh;
+          const dx = (x - svgW / 2) / (gw * 0.4);
+          const dy = (y - svgH / 2) / (gh * 0.42);
+          if (dx * dx + dy * dy > 1.1) return null;
+          return (
+            <circle key={k} cx={x} cy={y} r={0.8}
+              fill="#4ecdc4" opacity={0.5} />
+          );
+        })}
+
+        {/* Label */}
+        <text x={svgW / 2} y={svgH - 3} textAnchor="middle" fill="#5c6a7a" fontSize={9}>
+          {label}
+        </text>
+      </svg>
+    );
+  }
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          WHAT ACTUALLY HAPPENS INSIDE CHEASE
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          IT RE-SOLVES FROM SCRATCH — IT DOES NOT UPSCALE EFIT'S GRID
+        </p>
+
+        {/* Step buttons */}
+        <div style={{ display: "flex", gap: 2, marginBottom: 12, flexWrap: "wrap" }}>
+          {steps.map((st, i) => (
+            <button key={i} onClick={() => setStep(i)}
+              style={{
+                padding: "6px 8px", fontSize: 9, fontFamily: "inherit",
+                background: step === i ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${step === i ? "#4ecdc4" : "#1e2630"}`,
+                color: step === i ? "#4ecdc4" : "#5c6a7a",
+                borderRadius: 4, cursor: "pointer",
+                fontWeight: step === i ? 700 : 400,
+                flex: 1, minWidth: 50,
+              }}
+            >
+              {i}
+            </button>
+          ))}
+        </div>
+
+        {/* Step title and action badge */}
+        <div style={{
+          padding: "10px 14px", marginBottom: 12,
+          background: "#1a2a3a", borderRadius: 6,
+          borderLeft: "3px solid #4ecdc4",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{
+              padding: "2px 8px", borderRadius: 3, fontSize: 9, fontWeight: 700,
+              background: s.action === "READ" ? "#ff6b6b22" : s.action === "SOLVE" ? "#4ecdc422" : s.action === "WRITE" ? "#c9a3f522" : "#8ab4f822",
+              color: s.action === "READ" ? "#ff6b6b" : s.action === "SOLVE" ? "#4ecdc4" : s.action === "WRITE" ? "#c9a3f5" : "#8ab4f8",
+              border: `1px solid ${s.action === "READ" ? "#ff6b6b44" : s.action === "SOLVE" ? "#4ecdc444" : s.action === "WRITE" ? "#c9a3f544" : "#8ab4f844"}`,
+            }}>
+              {s.action}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#e6ecf2" }}>{s.title}</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.7 }}>{s.desc}</div>
+        </div>
+
+        {/* Step-specific content */}
+        {step === 0 && (
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <div style={{
+              flex: 1, padding: 10, background: "#12171f", borderRadius: 6,
+              border: "1px solid #4ecdc433",
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>KEEPS</div>
+              {s.keeps.map((k, i) => (
+                <div key={i} style={{ fontSize: 10, color: "#8a95a5", padding: "3px 0", borderBottom: "1px solid #1a2030" }}>
+                  ✓ {k}
+                </div>
+              ))}
+            </div>
+            <div style={{
+              flex: 1, padding: 10, background: "#12171f", borderRadius: 6,
+              border: "1px solid #ff6b6b33",
+            }}>
+              <div style={{ fontSize: 10, color: "#ff6b6b", fontWeight: 700, marginBottom: 6 }}>THROWS AWAY</div>
+              {s.throws.map((t, i) => (
+                <div key={i} style={{ fontSize: 10, color: "#5c6a7a", padding: "3px 0", borderBottom: "1px solid #1a2030", textDecoration: "line-through" }}>
+                  ✗ {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Visual for each step */}
+        <div style={{
+          background: "#0d1117", borderRadius: 6,
+          border: "1px solid #1e2630", padding: 10, marginBottom: 12,
+        }}>
+          {step === 0 && (
+            <MiniGrid n={7} label="EFIT's 65×65 grid — boundary and profiles extracted, grid thrown away"
+              color="#ff6b6b" showNodes={true} showPolynomials={false} showSamples={false} sampleN={0} />
+          )}
+          {step === 1 && (
+            <div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {/* EFIT rectangular grid */}
+                <div style={{ flex: 1 }}>
+                  <svg width={165} height={200} style={{ display: "block" }}>
+                    <rect x={0} y={0} width={165} height={200} fill="#060a0e" rx={4} />
+                    {/* Rectangular grid lines */}
+                    {Array.from({ length: 8 }, (_, i) => {
+                      const x = 15 + (i / 7) * 135;
+                      const y = 10 + (i / 7) * 180;
+                      return (
+                        <g key={i}>
+                          <line x1={x} y1={10} x2={x} y2={190} stroke="#ff6b6b22" strokeWidth={0.5} />
+                          <line x1={15} y1={y} x2={150} y2={y} stroke="#ff6b6b22" strokeWidth={0.5} />
+                        </g>
+                      );
+                    })}
+                    {/* Plasma boundary */}
+                    {(() => {
+                      const pts = Array.from({ length: 80 }, (_, k) => {
+                        const theta = (2 * Math.PI * k) / 80;
+                        const x = 82 + 55 * Math.cos(theta + 0.3 * Math.sin(theta));
+                        const y = 100 - 75 * Math.sin(theta);
+                        return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                      }).join(" ") + " Z";
+                      return <path d={pts} fill="none" stroke="#ff6b6b" strokeWidth={1.5} />;
+                    })()}
+                    <text x={82} y={196} textAnchor="middle" fill="#ff6b6b" fontSize={8} fontWeight={700}>EFIT: R,Z grid</text>
+                    <text x={82} y={8} textAnchor="middle" fill="#5c6a7a" fontSize={7}>Grid cuts across plasma</text>
+                  </svg>
+                </div>
+                {/* Arrow */}
+                <div style={{ display: "flex", alignItems: "center", fontSize: 18, color: "#3a4a5a" }}>→</div>
+                {/* CHEASE flux coordinate grid */}
+                <div style={{ flex: 1 }}>
+                  <svg width={165} height={200} style={{ display: "block" }}>
+                    <rect x={0} y={0} width={165} height={200} fill="#060a0e" rx={4} />
+                    {/* Flux surfaces (s = constant) — concentric D-shapes */}
+                    {Array.from({ length: 8 }, (_, i) => {
+                      const s = (i + 1) / 8;
+                      const pts = Array.from({ length: 80 }, (_, k) => {
+                        const theta = (2 * Math.PI * k) / 80;
+                        const x = 82 + s * 55 * Math.cos(theta + 0.3 * Math.sin(theta));
+                        const y = 100 - s * 75 * Math.sin(theta);
+                        return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                      }).join(" ") + " Z";
+                      return <path key={`s${i}`} d={pts} fill="none" stroke="#4ecdc4" strokeWidth={0.8} opacity={0.5} />;
+                    })}
+                    {/* θ lines (radial spokes from center) */}
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const theta = (2 * Math.PI * i) / 12;
+                      const x1 = 82;
+                      const y1 = 100;
+                      const x2 = 82 + 55 * Math.cos(theta + 0.3 * Math.sin(theta));
+                      const y2 = 100 - 75 * Math.sin(theta);
+                      return <line key={`t${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4ecdc4" strokeWidth={0.5} opacity={0.3} />;
+                    })}
+                    {/* Center dot */}
+                    <circle cx={82} cy={100} r={3} fill="#4ecdc4" opacity={0.6} />
+                    <text x={82} y={196} textAnchor="middle" fill="#4ecdc4" fontSize={8} fontWeight={700}>CHEASE: s,θ grid</text>
+                    <text x={82} y={8} textAnchor="middle" fill="#5c6a7a" fontSize={7}>Grid follows plasma shape</text>
+                  </svg>
+                </div>
+              </div>
+              {/* Flux coordinate explanation */}
+              <div style={{
+                marginTop: 8, padding: 10, background: "#12171f", borderRadius: 4,
+                border: "1px solid #1e2630",
+              }}>
+                <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>
+                  What are flux coordinates?
+                </div>
+                <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 1.8 }}>
+                  EFIT uses a rectangular (R,Z) grid — straight horizontal and vertical lines that cut across the plasma shape. Many grid points are wasted outside the plasma.
+                  <br /><br />
+                  CHEASE uses flux coordinates (s, θ):
+                  <br />
+                  <span style={{ color: "#4ecdc4", fontWeight: 700 }}>s</span> = which flux surface you're on (0 at magnetic axis, 1 at plasma edge). The concentric D-shapes in the diagram.
+                  <br />
+                  <span style={{ color: "#4ecdc4", fontWeight: 700 }}>θ</span> = angle around that surface (0 to 2π). The radial spokes in the diagram.
+                  <br /><br />
+                  Every grid point is inside the plasma. No wasted points outside. The grid lines naturally follow the D-shape, so the solution is smoother and the derivatives are cleaner. This is like drawing contour lines on a map instead of overlaying a square grid — the contour lines follow the terrain.
+                </div>
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div>
+              <svg width={340} height={220} style={{ display: "block" }}>
+                <rect x={0} y={0} width={340} height={220} fill="#060a0e" rx={4} />
+                {/* Sparse flux surfaces being solved — some solid, some forming */}
+                {Array.from({ length: 8 }, (_, i) => {
+                  const s = (i + 1) / 8;
+                  const pts = Array.from({ length: 80 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 80;
+                    const x = 170 + s * 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - s * 90 * Math.sin(theta);
+                    return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                  }).join(" ") + " Z";
+                  return <path key={i} d={pts} fill="none" stroke="#4ecdc4" strokeWidth={1.2} opacity={i < 5 ? 0.6 : 0.2} strokeDasharray={i >= 5 ? "4,4" : "none"} />;
+                })}
+                {/* θ spokes */}
+                {Array.from({ length: 12 }, (_, i) => {
+                  const theta = (2 * Math.PI * i) / 12;
+                  return <line key={i} x1={170} y1={105} x2={170 + 100 * Math.cos(theta + 0.3 * Math.sin(theta))} y2={105 - 90 * Math.sin(theta)} stroke="#4ecdc4" strokeWidth={0.5} opacity={0.15} />;
+                })}
+                {/* Hermite nodes on the surfaces — 4 values each */}
+                {Array.from({ length: 5 }, (_, i) => {
+                  const s = (i + 1) * 0.2;
+                  return Array.from({ length: 8 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 8;
+                    const x = 170 + s * 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - s * 90 * Math.sin(theta);
+                    return (
+                      <g key={`${i}-${k}`}>
+                        <circle cx={x} cy={y} r={4} fill="#0d1117" stroke="#c9a3f5" strokeWidth={1.5} />
+                        {/* Tiny derivative arrows */}
+                        <line x1={x} y1={y} x2={x + 5} y2={y - 2} stroke="#c9a3f5" strokeWidth={0.8} opacity={0.5} />
+                        <line x1={x} y1={y} x2={x - 1} y2={y + 5} stroke="#c9a3f5" strokeWidth={0.8} opacity={0.5} />
+                      </g>
+                    );
+                  });
+                })}
+                <circle cx={170} cy={105} r={3} fill="#4ecdc4" />
+                <text x={170} y={215} textAnchor="middle" fill="#5c6a7a" fontSize={9}>
+                  Solving on flux grid — each node gets ψ + 3 derivatives (purple dots with arrows)
+                </text>
+              </svg>
+              <div style={{
+                marginTop: 8, padding: 10, background: "#12171f", borderRadius: 4,
+                border: "1px solid #1e2630", fontSize: 10, color: "#8a95a5", lineHeight: 1.8,
+              }}>
+                The solver iterates on the flux coordinate grid. At each node (purple circles), it computes ψ and all three derivatives simultaneously. The dashed outer surfaces are still converging. Solid surfaces have converged. The derivative arrows at each node show ∂ψ/∂R and ∂ψ/∂Z — these come out of the solver for free, not by subtracting neighbors.
+              </div>
+            </div>
+          )}
+          {step === 3 && (
+            <div>
+              <svg width={340} height={220} style={{ display: "block" }}>
+                <rect x={0} y={0} width={340} height={220} fill="#060a0e" rx={4} />
+                {/* Dense flux surfaces — converged */}
+                {Array.from({ length: 16 }, (_, i) => {
+                  const s = (i + 1) / 16;
+                  const pts = Array.from({ length: 80 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 80;
+                    const x = 170 + s * 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - s * 90 * Math.sin(theta);
+                    return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                  }).join(" ") + " Z";
+                  return <path key={i} d={pts} fill="none" stroke="#c9a3f5" strokeWidth={0.8} opacity={0.4} />;
+                })}
+                {/* Hermite nodes — denser grid, each with derivative indicators */}
+                {Array.from({ length: 8 }, (_, i) => {
+                  const s = (i + 1) / 8;
+                  return Array.from({ length: 12 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 12;
+                    const x = 170 + s * 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - s * 90 * Math.sin(theta);
+                    return (
+                      <g key={`${i}-${k}`}>
+                        <circle cx={x} cy={y} r={2.5} fill="#c9a3f5" opacity={0.6} />
+                      </g>
+                    );
+                  });
+                })}
+                <circle cx={170} cy={105} r={3} fill="#c9a3f5" />
+                <text x={170} y={215} textAnchor="middle" fill="#5c6a7a" fontSize={9}>
+                  Converged — smooth Hermite solution on flux grid. Can evaluate ψ anywhere inside.
+                </text>
+              </svg>
+              <div style={{
+                marginTop: 8, padding: 10, background: "#12171f", borderRadius: 4,
+                border: "1px solid #1e2630", fontSize: 10, color: "#8a95a5", lineHeight: 1.8,
+              }}>
+                The solution has converged. Every purple dot stores 4 numbers (ψ, ∂ψ/∂R, ∂ψ/∂Z, ∂²ψ/∂R∂Z). Between dots, the Hermite polynomial gives you an exact smooth value at any point you ask for. This is the internal representation — it never gets written to a file directly.
+              </div>
+            </div>
+          )}
+          {step === 4 && (
+            <div>
+              <svg width={340} height={220} style={{ display: "block" }}>
+                <rect x={0} y={0} width={340} height={220} fill="#060a0e" rx={4} />
+                {/* Faint flux surfaces in background */}
+                {Array.from({ length: 8 }, (_, i) => {
+                  const s = (i + 1) / 8;
+                  const pts = Array.from({ length: 80 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 80;
+                    const x = 170 + s * 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - s * 90 * Math.sin(theta);
+                    return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                  }).join(" ") + " Z";
+                  return <path key={i} d={pts} fill="none" stroke="#c9a3f5" strokeWidth={0.5} opacity={0.15} />;
+                })}
+                {/* Rectangular output grid overlaid — sampling points */}
+                {Array.from({ length: 28 }, (_, j) => {
+                  return Array.from({ length: 24 }, (_, i) => {
+                    const x = 50 + (i / 23) * 240;
+                    const y = 8 + (j / 27) * 200;
+                    // Check if inside plasma boundary
+                    const dx = (x - 170) / 100;
+                    const dy = (y - 105) / 90;
+                    if (dx * dx + dy * dy > 1.05) return null;
+                    return (
+                      <circle key={`${i}-${j}`} cx={x} cy={y} r={1.2}
+                        fill="#4ecdc4" opacity={0.5} />
+                    );
+                  });
+                })}
+                {/* Boundary */}
+                {(() => {
+                  const pts = Array.from({ length: 80 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 80;
+                    const x = 170 + 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - 90 * Math.sin(theta);
+                    return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                  }).join(" ") + " Z";
+                  return <path d={pts} fill="none" stroke="#4ecdc4" strokeWidth={1.5} opacity={0.4} />;
+                })()}
+                <text x={170} y={215} textAnchor="middle" fill="#5c6a7a" fontSize={9}>
+                  Sampling: rectangular (R,Z) grid points evaluate the Hermite solution
+                </text>
+              </svg>
+              <div style={{
+                marginTop: 8, padding: 10, background: "#12171f", borderRadius: 4,
+                border: "1px solid #1e2630", fontSize: 10, color: "#8a95a5", lineHeight: 1.8,
+              }}>
+                Now CHEASE lays a regular rectangular (R,Z) grid over the solution — the same kind of grid the EQDSK format uses. At each teal dot, it evaluates the Hermite polynomial to get ψ. This is just plugging R,Z coordinates into the polynomial — trivial computation. The faint purple flux surfaces are the internal solution being sampled.
+              </div>
+            </div>
+          )}
+          {step === 5 && (
+            <div>
+              <svg width={340} height={220} style={{ display: "block" }}>
+                <rect x={0} y={0} width={340} height={220} fill="#060a0e" rx={4} />
+                {/* Dense rectangular output grid — the final EQDSK */}
+                {Array.from({ length: 28 }, (_, j) => {
+                  return Array.from({ length: 24 }, (_, i) => {
+                    const x = 50 + (i / 23) * 240;
+                    const y = 8 + (j / 27) * 200;
+                    const dx = (x - 170) / 100;
+                    const dy = (y - 105) / 90;
+                    const rho = Math.sqrt(dx * dx + dy * dy);
+                    if (rho > 1.05) return null;
+                    // Color by psi value
+                    const t = Math.min(rho, 1);
+                    const r = Math.round(10 + t * 20);
+                    const g = Math.round(190 - t * 150);
+                    const b = Math.round(190 - t * 70);
+                    return (
+                      <rect key={`${i}-${j}`} x={x - 5} y={y - 3.5} width={10} height={7}
+                        fill={`rgb(${r},${g},${b})`} rx={1} />
+                    );
+                  });
+                })}
+                {/* Boundary */}
+                {(() => {
+                  const pts = Array.from({ length: 80 }, (_, k) => {
+                    const theta = (2 * Math.PI * k) / 80;
+                    const x = 170 + 100 * Math.cos(theta + 0.3 * Math.sin(theta));
+                    const y = 105 - 90 * Math.sin(theta);
+                    return `${k === 0 ? "M" : "L"} ${x} ${y}`;
+                  }).join(" ") + " Z";
+                  return <path d={pts} fill="none" stroke="#4ecdc4" strokeWidth={1.5} opacity={0.3} />;
+                })()}
+                <text x={170} y={215} textAnchor="middle" fill="#5c6a7a" fontSize={9}>
+                  Output: 256×256 EQDSK — regular grid of ψ values, colored by magnitude
+                </text>
+              </svg>
+              <div style={{
+                marginTop: 8, padding: 10, background: "#12171f", borderRadius: 4,
+                border: "1px solid #1e2630", fontSize: 10, color: "#8a95a5", lineHeight: 1.8,
+              }}>
+                The final output. A regular 256×256 (R,Z) grid of ψ values — same format as EFIT's EQDSK, just denser and smoother. Plus 1D profiles (fpol, P, q) recomputed on 256 points. Plus geometric coefficients (curvature, shear, Jacobian) written in GENE's format. The Hermite elements are gone — just clean numbers on a grid. Ready for Stage 3.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* The flow summary — always visible */}
+        <div style={{
+          padding: 12, background: "#12171f", borderRadius: 6,
+          border: "1px solid #1e2630", marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+            The complete sequence
+          </div>
+          {[
+            { label: "Read EFIT", detail: "Extract boundary + P' + ff'", color: "#ff6b6b", active: step >= 0 },
+            { label: "Throw away", detail: "EFIT's ψ grid, fpol, P, q — all gone", color: "#ff6b6b", active: step >= 0, strike: true },
+            { label: "Fresh grid", detail: "256×256 in flux coordinates", color: "#4ecdc4", active: step >= 1 },
+            { label: "Re-solve GS", detail: "Hermite elements — values + derivatives at every node", color: "#4ecdc4", active: step >= 2 },
+            { label: "Sample", detail: "Evaluate polynomials at 256×256 output points", color: "#c9a3f5", active: step >= 4 },
+            { label: "Write", detail: "New EQDSK (256×256) + geometric coefficients for GENE", color: "#c9a3f5", active: step >= 5 },
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "5px 8px", marginBottom: 2,
+              borderLeft: `3px solid ${item.active ? item.color : "#1e2630"}`,
+              opacity: item.active ? 1 : 0.3,
+            }}>
+              <span style={{
+                fontSize: 10, color: item.color, fontWeight: 700, minWidth: 80,
+                textDecoration: item.strike ? "line-through" : "none",
+              }}>
+                {item.label}
+              </span>
+              <span style={{ fontSize: 9, color: "#5c6a7a" }}>{item.detail}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Key misconception callout */}
+        <div style={{
+          padding: 12, background: "rgba(255,107,107,0.05)",
+          borderRadius: 6, border: "1px solid rgba(255,107,107,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#ff6b6b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            Not what's happening
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            CHEASE does NOT take EFIT's 65×65 grid and upscale it to 256×256 by interpolating between EFIT's values. That would just be smoothing noise — the noise would still be there, just blurred.
+            <br /><br />
+            CHEASE re-solves the equation from scratch. The 256×256 output has never seen EFIT's ψ values. It only inherited the boundary shape and the profiles. The ψ values are completely fresh, computed by CHEASE's own solver with its own (better) numerical method.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CHEASEProcess));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

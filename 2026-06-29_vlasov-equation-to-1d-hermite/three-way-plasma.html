@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three ways to simulate a plasma — racing the same problem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b16;--bg2:#0d1224;--panel:#121830;--panel2:#171e3b;--line:#26305a;
+  --ink:#eaeefb;--muted:#8b95bd;--faint:#5a648c;--mag:#ff5d8f;--amber:#f9a03f;
+  --gold:#ffd35e;--violet:#9a6bff;--cyan:#4fd6e0;--good:#6fe0a8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:0 22px}
+.mono{font-family:'IBM Plex Mono',monospace}
+header{padding:50px 0 22px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.3em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+h1{font-family:'Spectral',serif;font-weight:400;font-size:clamp(2rem,4.6vw,3.3rem);line-height:1.05;letter-spacing:-.02em;margin:0}
+h1 em{font-style:italic;color:var(--mag)}
+.sub{max-width:740px;margin:18px 0 0;font-size:1.08rem;color:#dde3f6}
+.lab{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase}
+
+.stage{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0 0}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px 15px 16px;display:flex;flex-direction:column}
+.cell h3{font-family:'Spectral',serif;font-weight:500;font-size:1.1rem;margin:2px 0}
+.cell .tag{color:var(--faint)}
+.cell.pic h3{color:var(--cyan)} .cell.grid h3{color:var(--gold)} .cell.herm h3{color:var(--violet)}
+.cell .desc{font-size:.86rem;color:#c3cbe8;margin:5px 0 11px;min-height:56px}
+canvas.sim{width:100%;display:block;background:#0a0e1f;border:1px solid var(--line);border-radius:10px}
+.readout{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:.74rem;color:var(--muted);margin-top:9px}
+.readout b{color:#fff;font-weight:500}
+
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:20px 0 4px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:15px 18px}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:.84rem;background:#0e1430;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 18px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--mag)} .btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btn.primary{background:rgba(255,93,143,.16);border-color:var(--mag);color:#fff}
+.sliderrow{display:flex;align-items:center;gap:12px;flex:1;min-width:240px}
+.sliderrow label{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;flex:1;min-width:110px;background:linear-gradient(90deg,var(--violet),var(--cyan));outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--cyan);cursor:pointer;box-shadow:0 0 12px rgba(79,214,224,.6)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--cyan);cursor:pointer}
+.timepill{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--gold)}
+
+.note{border-left:2px solid var(--mag);padding:6px 0 6px 20px;margin:28px 0 0;color:#dde3f6}
+.note.cyan{border-color:var(--cyan)} .note.violet{border-color:var(--violet)}
+table.cmp{width:100%;border-collapse:collapse;margin:32px 0 8px;font-size:.9rem}
+table.cmp th,table.cmp td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line)}
+table.cmp th{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:500}
+table.cmp td:first-child{color:var(--muted)}
+.pic-c{color:var(--cyan)} .grid-c{color:var(--gold)} .herm-c{color:var(--violet)}
+footer{padding:28px 0 70px;color:var(--faint);font-size:.84rem}
+@media(max-width:900px){.stage{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <p class="eyebrow">Same two-stream plasma · three philosophies · live</p>
+  <h1>Sample it, grid it,<br>or write its <em>recipe.</em></h1>
+  <p class="sub">All three panels solve the identical problem. <span class="pic-c">PIC</span> tracks sample particles. <span class="grid-c">Vlasov grid</span> stores the heat-map on a mesh. <span class="herm-c">Hermite</span> stores the heat-map as a short list of coefficients — and shows you that list. Press play; drag the particle slider; watch each method's strength and weakness appear.</p>
+</div></header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="cell pic">
+      <div class="lab tag">sample the particles</div>
+      <h3>PIC</h3>
+      <div class="desc">Push super-particles by Newton. Dead simple — but a finite sample is grainy. Cyan = right beam, magenta = left.</div>
+      <canvas id="picCv" class="sim" width="380" height="300"></canvas>
+      <div class="readout"><span>particles <b id="npLabel">4000</b></span><span>noise ±<b id="noiseLabel">1.6%</b></span></div>
+    </div>
+    <div class="cell grid">
+      <div class="lab tag">grid the distribution</div>
+      <h3>Vlasov grid</h3>
+      <div class="desc">Carry f(x,v) on a fixed mesh and flow it. No sampling, so no noise — but the velocity mesh is finite.</div>
+      <canvas id="gridCv" class="sim" width="380" height="300"></canvas>
+      <div class="readout"><span>mesh <b>32 × 96</b></span><span>noise <b style="color:var(--good)">none</b></span></div>
+    </div>
+    <div class="cell herm">
+      <div class="lab tag">encode the distribution</div>
+      <h3>Hermite spectral</h3>
+      <div class="desc">Store f as a recipe of smooth humps. The strip below the map is the recipe — watch energy climb into high modes as filaments form.</div>
+      <canvas id="hermCv" class="sim" width="380" height="300"></canvas>
+      <div class="readout"><span>modes <b id="nhLabel">32</b></span><span>noise <b style="color:var(--good)">none</b></span></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="play">Pause</button>
+    <button class="btn" id="reset">Reset</button>
+    <div class="sliderrow">
+      <label>PIC particles</label>
+      <input type="range" id="npart" min="500" max="12000" step="500" value="4000">
+      <span class="mono" id="npVal" style="color:var(--cyan);min-width:52px;text-align:right">4000</span>
+    </div>
+    <span class="timepill" id="timepill">t = 0.0</span>
+  </div>
+
+  <div class="note"><strong>Watch them agree, then differ.</strong> All three roll up into the same cat's-eye vortex — the physics is one physics. But look closely: <span class="pic-c">PIC</span> is speckled (slide particles down to 500 and it dissolves into static); <span class="grid-c">grid</span> is smooth but its fine swirls blur where the mesh runs out; <span class="herm-c">Hermite</span> is smooth too, and its coefficient strip tells the real story.</div>
+
+  <div class="note violet"><strong>Reading the Hermite recipe strip.</strong> Each bar is how much one building-block hump is being used. Early on, only the low bars are lit — a few humps describe two calm beams. As the vortex tightens and grows fine velocity stripes, energy marches up into the high bars. When it reaches the last bar, the recipe has run out of room — that's the truncation, the spectral method's version of "the mesh ran out." A gentle damping on the top modes (a stand-in for collisions) keeps it from exploding.</div>
+
+  <table class="cmp">
+    <tr><th>question</th><th class="pic-c">PIC (sample)</th><th class="grid-c">grid (store values)</th><th class="herm-c">Hermite (store recipe)</th></tr>
+    <tr><td>what's stored</td><td>millions of particles</td><td>values on an (x,v) mesh</td><td>a few coefficients per location</td></tr>
+    <tr><td>noise</td><td>yes — the headache</td><td class="grid-c">none</td><td class="herm-c">none</td></tr>
+    <tr><td>cost of a calm Maxwellian</td><td>still millions</td><td>full mesh</td><td class="herm-c">one coefficient</td></tr>
+    <tr><td>struggles with</td><td>quiet results, fine detail</td><td>fine velocity filaments</td><td>fine velocity filaments</td></tr>
+    <tr><td>ease / wild geometry</td><td class="pic-c">easiest, most flexible</td><td>moderate</td><td>most delicate to derive</td></tr>
+    <tr><td>natural home</td><td>big production codes</td><td>kinetic studies</td><td>near-thermal &amp; fluid-kinetic theory</td></tr>
+  </table>
+  <footer>All panels share one field solve (charge → Poisson → field). PIC: cloud-in-cell. Grid: semi-Lagrangian. Hermite: RK4 on the mode equations with spectral x-derivatives and a high-mode damping. k=0.5, beams at ±1.5.</footer>
+</div>
+
+<script>
+/* ---------------- shared setup ---------------- */
+const k=0.5,L=2*Math.PI/k,Nx=32,dx=L/Nx;
+const v0=1.5,vt=0.4,A=0.05,dt=0.05,SUB=2;
+const VW=3.2;                       // shared display velocity window
+const xc=[];for(let i=0;i<Nx;i++)xc[i]=i*dx;
+const REDUCE=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const sq=z=>z*z;
+const PLASMA=[[13,8,135],[75,3,161],[125,3,168],[168,34,150],[203,70,121],[229,107,93],[248,148,65],[253,195,40],[240,249,33]];
+function cmap(t){t=Math.max(0,Math.min(1,t));const s=t*8,i=s|0,f=s-i,a=PLASMA[i],b=PLASMA[Math.min(i+1,8)];return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+function fit(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{ctx:x,w:r.width,h:r.height};}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const AXL={l:30,r:9,t:11,b:18};   // plot gutters for axis labels
+function drawAxes(ctx,x0,y0,x1,y1){
+  ctx.textBaseline='alphabetic';ctx.font="10px 'IBM Plex Mono'";
+  // velocity ticks (left gutter)
+  ctx.fillStyle='rgba(234,238,251,.55)';ctx.textAlign='left';
+  ctx.fillText('+'+VW.toFixed(1),4,y0+9);
+  ctx.fillText('0',4,(y0+y1)/2+3);
+  ctx.fillText('-'+VW.toFixed(1),4,y1);
+  // velocity axis title (rotated)
+  ctx.save();ctx.translate(12,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+  ctx.fillStyle='rgba(234,238,251,.9)';ctx.fillText('speed  v',0,0);ctx.restore();
+  // position axis labels (below plot)
+  ctx.fillStyle='rgba(234,238,251,.55)';ctx.textAlign='left';ctx.fillText('x = 0',x0,y1+13);
+  ctx.textAlign='right';ctx.fillText('x = L',x1,y1+13);
+  ctx.textAlign='center';ctx.fillStyle='rgba(234,238,251,.9)';ctx.fillText('position  x',(x0+x1)/2,y1+13);
+  ctx.textAlign='left';
+}
+
+/* shared spectral field solve + derivative (Nx-point DFT, periodic) */
+const COS=[],SIN=[],KX=[];
+for(let kk=0;kk<Nx;kk++){COS[kk]=new Float64Array(Nx);SIN[kk]=new Float64Array(Nx);for(let n=0;n<Nx;n++){const a=2*Math.PI*kk*n/Nx;COS[kk][n]=Math.cos(a);SIN[kk][n]=Math.sin(a);}const fr=(kk<=Nx/2)?kk:kk-Nx;KX[kk]=2*Math.PI*fr/L;}
+const _Re=new Float64Array(Nx),_Im=new Float64Array(Nx);
+function fwd(r){for(let kk=0;kk<Nx;kk++){let sr=0,si=0;const c=COS[kk],s=SIN[kk];for(let n=0;n<Nx;n++){sr+=r[n]*c[n];si-=r[n]*s[n];}_Re[kk]=sr;_Im[kk]=si;}}
+function solveE(rho,E){fwd(rho);for(let kk=0;kk<Nx;kk++){if(KX[kk]===0){_Re[kk]=0;_Im[kk]=0;}else{const er=_Im[kk]/KX[kk],ei=-_Re[kk]/KX[kk];_Re[kk]=er;_Im[kk]=ei;}}
+  for(let n=0;n<Nx;n++){let s=0;for(let kk=0;kk<Nx;kk++)s+=_Re[kk]*COS[kk][n]-_Im[kk]*SIN[kk][n];E[n]=s/Nx;}}
+function ddx(r,out){fwd(r);for(let kk=0;kk<Nx;kk++){const dr=-KX[kk]*_Im[kk],di=KX[kk]*_Re[kk];_Re[kk]=dr;_Im[kk]=di;}
+  for(let n=0;n<Nx;n++){let s=0;for(let kk=0;kk<Nx;kk++)s+=_Re[kk]*COS[kk][n]-_Im[kk]*SIN[kk][n];out[n]=s/Nx;}}
+
+/* =================== PIC =================== */
+const PIC={x:null,v:null,N:4000,E:new Float64Array(Nx),dens:new Float64Array(Nx),rho:new Float64Array(Nx)};
+function picInit(N){PIC.N=N;PIC.x=new Float64Array(N);PIC.v=new Float64Array(N);const rng=mulberry32(12345);
+  for(let i=0;i<N;i++){let x=rng()*L;x-=(A/k)*Math.sin(k*x);PIC.x[i]=((x%L)+L)%L;let g=0;for(let j=0;j<3;j++)g+=rng();g=(g/3-0.5)*2;PIC.v[i]=(i%2?v0:-v0)+g*vt;}}
+function picStep(){const n=PIC.N,wgt=Nx/n,d=PIC.dens;d.fill(0);
+  for(let i=0;i<n;i++){const xs=PIC.x[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;d[i0]+=(1-fr)*wgt;d[(i0+1)%Nx]+=fr*wgt;}
+  let mean=0;for(let i=0;i<Nx;i++)mean+=d[i];mean/=Nx;for(let i=0;i<Nx;i++)PIC.rho[i]=mean-d[i];
+  solveE(PIC.rho,PIC.E);
+  for(let i=0;i<n;i++){const xs=PIC.x[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;
+    const Ei=PIC.E[i0]*(1-fr)+PIC.E[(i0+1)%Nx]*fr;PIC.v[i]+=(-Ei)*dt;PIC.x[i]+=PIC.v[i]*dt;PIC.x[i]=((PIC.x[i]%L)+L)%L;}}
+function picDraw(){const {ctx,w,h}=fit(picCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  const x0=AXL.l,x1=w-AXL.r,y0=AXL.t,y1=h-AXL.b;
+  const X=x=>x0+x/L*(x1-x0),Y=v=>{const t=(v+VW)/(2*VW);return y1-t*(y1-y0);};
+  ctx.strokeStyle='rgba(255,255,255,.10)';ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x1,Y(0));ctx.stroke();
+  for(let i=0;i<PIC.N;i++){const vv=PIC.v[i];if(vv<-VW||vv>VW)continue;ctx.fillStyle=vv>=0?'rgba(79,214,224,.5)':'rgba(255,93,143,.5)';ctx.fillRect(X(PIC.x[i]),Y(vv),1.4,1.4);}
+  drawAxes(ctx,x0,y0,x1,y1);}
+
+/* =================== GRID (semi-Lagrangian) =================== */
+const Nv=96,vmax=4.0,dv=2*vmax/Nv,vc=[];for(let j=0;j<Nv;j++)vc.push(-vmax+(j+0.5)*dv);
+let gf=new Float64Array(Nx*Nv),gtmp=new Float64Array(Nx*Nv),gfmax=1;
+const GI=(i,j)=>i*Nv+j;const gE=new Float64Array(Nx),grho=new Float64Array(Nx);
+function gridInit(){gfmax=0;for(let i=0;i<Nx;i++){const r=1+A*Math.cos(k*xc[i]);for(let j=0;j<Nv;j++){const vv=vc[j];const val=(Math.exp(-sq(vv-v0)/(2*vt*vt))+Math.exp(-sq(vv+v0)/(2*vt*vt)))*r;gf[GI(i,j)]=val;if(val>gfmax)gfmax=val;}}}
+function gAdvX(frac){for(let j=0;j<Nv;j++){const sh=vc[j]*dt*frac/dx;for(let i=0;i<Nx;i++){let src=i-sh,i0=Math.floor(src);const fr=src-i0;i0=((i0%Nx)+Nx)%Nx;gtmp[GI(i,j)]=gf[GI(i0,j)]*(1-fr)+gf[GI((i0+1)%Nx,j)]*fr;}}const t=gf;gf=gtmp;gtmp=t;}
+function gAdvV(){for(let i=0;i<Nx;i++){const sh=(-gE[i])*dt/dv;for(let j=0;j<Nv;j++){let src=j-sh,j0=Math.floor(src);const fr=src-j0;const a=(j0>=0&&j0<Nv)?gf[GI(i,j0)]:0,b=(j0+1>=0&&j0+1<Nv)?gf[GI(i,j0+1)]:0;gtmp[GI(i,j)]=a*(1-fr)+b*fr;}}const t=gf;gf=gtmp;gtmp=t;}
+function gridStep(){gAdvX(0.5);let mean=0;for(let i=0;i<Nx;i++){let s=0;for(let j=0;j<Nv;j++)s+=gf[GI(i,j)];s*=dv;grho[i]=s;mean+=s;}mean/=Nx;for(let i=0;i<Nx;i++)grho[i]=mean-grho[i];solveE(grho,gE);gAdvV();gAdvX(0.5);}
+function gridDraw(){const {ctx,w,h}=fit(gridCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  const x0=AXL.l,x1=w-AXL.r,y0=AXL.t,y1=h-AXL.b,cw=(x1-x0)/Nx;
+  const Y=v=>{const t=(v+VW)/(2*VW);return y1-t*(y1-y0);};const ch=(Y(-VW)-Y(VW))/((2*VW)/dv);
+  for(let i=0;i<Nx;i++)for(let j=0;j<Nv;j++){const vv=vc[j];if(vv<-VW||vv>VW)continue;const val=gf[GI(i,j)]/gfmax;if(val<0.02)continue;const c=cmap(val);ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;ctx.fillRect(x0+i*cw,Y(vv+dv/2),cw+0.6,Math.abs(ch)+0.8);}
+  drawAxes(ctx,x0,y0,x1,y1);}
+
+/* =================== HERMITE spectral =================== */
+const NH=32,alpha=1.5,uH=0.0,nu=4.0,dth=0.025;
+const FACT=[1];for(let i=1;i<=NH+2;i++)FACT[i]=FACT[i-1]*i;
+function Hn(n,x){if(n===0)return 1;if(n===1)return 2*x;let hm=1,h=2*x;for(let kk=1;kk<n;kk++){const nx=2*x*h-2*kk*hm;hm=h;h=nx;}return h;}
+function Psi(n,xi){return Hn(n,xi)*Math.exp(-xi*xi)/Math.sqrt(Math.PI*Math.pow(2,n)*FACT[n]);}
+function PsiD(n,xi){return Hn(n,xi)/Math.sqrt(Math.pow(2,n)*FACT[n]);}
+const sUp=m=>Math.sqrt((m+1)/2),sDn=m=>Math.sqrt(m/2);
+function wcol(m){if(m<3)return 0;return m*(m-1)*(m-2)/((NH-1)*(NH-2)*(NH-3));}
+// display basis matrix PSI[m][j]
+const Nvd=64,vcd=[];for(let j=0;j<Nvd;j++)vcd.push(-VW+(j+0.5)*(2*VW/Nvd));
+const PSI=[];for(let m=0;m<NH;m++){PSI[m]=new Float64Array(Nvd);for(let j=0;j<Nvd;j++)PSI[m][j]=Psi(m,(vcd[j]-uH)/alpha);}
+// state: C[m] arrays; preallocated RK4 buffers
+let C=[],dmAll=new Float64Array(NH);
+function hermInit(){
+  dmAll.fill(0);const a=-9,b=9,Nq=2400,h=(b-a)/Nq;
+  for(let q=0;q<=Nq;q++){const xi=a+q*h;const wq=(q===0||q===Nq)?0.5:1;const gv=Math.exp(-sq(uH+alpha*xi-v0)/(2*vt*vt))+Math.exp(-sq(uH+alpha*xi+v0)/(2*vt*vt));for(let m=0;m<NH;m++)dmAll[m]+=wq*gv*PsiD(m,xi)*h;}
+  C=[];for(let m=0;m<NH;m++){C[m]=new Float64Array(Nx);for(let i=0;i<Nx;i++)C[m][i]=(1+A*Math.cos(k*xc[i]))*dmAll[m];}
+}
+const _dCx=[];for(let m=0;m<NH;m++)_dCx[m]=new Float64Array(Nx);
+const _hE=new Float64Array(Nx),_hrho=new Float64Array(Nx);
+function mkRows(){const a=[];for(let m=0;m<NH;m++)a[m]=new Float64Array(Nx);return a;}
+const k1=mkRows(),k2=mkRows(),k3=mkRows(),k4=mkRows(),Ct=mkRows();
+function deriv(Cin,out){
+  let mean=0;for(let i=0;i<Nx;i++){_hrho[i]=alpha*Cin[0][i];mean+=_hrho[i];}mean/=Nx;
+  for(let i=0;i<Nx;i++)_hrho[i]=mean-alpha*Cin[0][i];
+  solveE(_hrho,_hE);
+  for(let m=0;m<NH;m++)ddx(Cin[m],_dCx[m]);
+  for(let m=0;m<NH;m++){const o=out[m];const su=alpha*sUp(m),sd=alpha*sDn(m),fc=(m>=1)?Math.sqrt(2*m)/alpha:0,wc=nu*wcol(m);
+    for(let i=0;i<Nx;i++){let adv=0;if(m+1<NH)adv+=su*_dCx[m+1][i];if(m-1>=0)adv+=sd*_dCx[m-1][i];
+      let fld=(m>=1)?-fc*_hE[i]*Cin[m-1][i]:0;o[i]=-adv+fld-wc*Cin[m][i];}}
+}
+function rk4(h){
+  deriv(C,k1);
+  for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)Ct[m][i]=C[m][i]+0.5*h*k1[m][i];deriv(Ct,k2);
+  for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)Ct[m][i]=C[m][i]+0.5*h*k2[m][i];deriv(Ct,k3);
+  for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)Ct[m][i]=C[m][i]+h*k3[m][i];deriv(Ct,k4);
+  for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)C[m][i]+=h/6*(k1[m][i]+2*k2[m][i]+2*k3[m][i]+k4[m][i]);
+}
+function hermStep(){rk4(dth);rk4(dth);}   // advance one display dt (=2*dth)
+let hfmax=0;
+function hermDraw(){
+  const {ctx,w,h}=fit(hermCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  const stripH=28;
+  const x0=AXL.l,x1=w-AXL.r,y0=AXL.t,y1=h-AXL.b-stripH-18;   // map region bottom
+  const cw=(x1-x0)/Nx, ch=(y1-y0)/Nvd;
+  if(hfmax===0){for(let i=0;i<Nx;i++)for(let j=0;j<Nvd;j++){let s=0;for(let m=0;m<NH;m++)s+=C[m][i]*PSI[m][j];if(s>hfmax)hfmax=s;}}
+  for(let i=0;i<Nx;i++)for(let j=0;j<Nvd;j++){let s=0;for(let m=0;m<NH;m++)s+=C[m][i]*PSI[m][j];const val=s/hfmax;if(val<0.02)continue;const c=cmap(val);ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;ctx.fillRect(x0+i*cw,y0+(Nvd-1-j)*ch,cw+0.6,ch+0.8);}
+  drawAxes(ctx,x0,y0,x1,y1);
+  // coefficient recipe strip (below the labeled axes)
+  const sy=y1+20, bw=(x1-x0)/NH;
+  ctx.fillStyle='rgba(255,255,255,.04)';ctx.fillRect(x0,sy,x1-x0,stripH);
+  let cmaxv=1e-9,mag=new Float64Array(NH);
+  for(let m=0;m<NH;m++){let s=0;for(let i=0;i<Nx;i++)s+=C[m][i]*C[m][i];mag[m]=Math.sqrt(s/Nx);if(mag[m]>cmaxv)cmaxv=mag[m];}
+  for(let m=0;m<NH;m++){const bh=Math.pow(mag[m]/cmaxv,0.5)*stripH;const hot=m/(NH-1);
+    ctx.fillStyle=`hsl(${280-hot*230},80%,${45+hot*18}%)`;ctx.fillRect(x0+m*bw+0.5,sy+stripH-bh,bw-1,bh);}
+  ctx.fillStyle='rgba(234,238,251,.55)';ctx.font="9px 'IBM Plex Mono'";ctx.textAlign='left';
+  ctx.fillText('recipe |Cₘ|  (mode 0 → '+(NH-1)+')',x0,sy+stripH+10);
+}
+
+/* =================== driver =================== */
+const picCv=document.getElementById('picCv'),gridCv=document.getElementById('gridCv'),hermCv=document.getElementById('hermCv');
+const playBtn=document.getElementById('play'),resetBtn=document.getElementById('reset');
+const npart=document.getElementById('npart'),npVal=document.getElementById('npVal'),npLabel=document.getElementById('npLabel'),noiseLabel=document.getElementById('noiseLabel');
+const timepill=document.getElementById('timepill');
+let playing=!REDUCE,T=0;
+function updNoise(){const N=PIC.N;npVal.textContent=N;npLabel.textContent=N;noiseLabel.textContent=(100/Math.sqrt(N)).toFixed(1)+'%';}
+function resetAll(){T=0;picInit(+npart.value);gridInit();hermInit();hfmax=0;updNoise();picDraw();gridDraw();hermDraw();timepill.textContent='t = 0.0';}
+function frame(){if(playing){for(let s=0;s<SUB;s++){picStep();gridStep();hermStep();T+=dt;}timepill.textContent='t = '+T.toFixed(1);}
+  picDraw();gridDraw();hermDraw();requestAnimationFrame(frame);}
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';});
+resetBtn.addEventListener('click',resetAll);
+npart.addEventListener('input',()=>{picInit(+npart.value);updNoise();picDraw();});
+window.addEventListener('resize',()=>{picDraw();gridDraw();hermDraw();});
+resetAll();playBtn.textContent=playing?'Pause':'Play';
+if(REDUCE){for(let s=0;s<200;s++){picStep();gridStep();hermStep();T+=dt;}timepill.textContent='t = '+T.toFixed(1);picDraw();gridDraw();hermDraw();}
+else requestAnimationFrame(frame);
+</script>
+</body>
+</html>

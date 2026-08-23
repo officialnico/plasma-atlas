@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Toroidal & Poloidal cuts — what's symmetric in y?</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; overflow-x: hidden; }
+
+.wrap { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+h1 {
+  font-family: 'Fraunces', serif; font-weight: 700;
+  font-size: 28px; letter-spacing: -0.02em;
+  margin-bottom: 6px; color: #fff;
+}
+.lede {
+  font-family: 'Fraunces', serif; color: #a8a59c;
+  font-size: 14px; line-height: 1.55; margin-bottom: 24px;
+  max-width: 760px;
+}
+
+.controls {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+}
+.toggle {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #e8e6e0; padding: 7px 14px; border-radius: 3px;
+  cursor: pointer; transition: all 0.15s;
+}
+.toggle:hover { background: rgba(255,255,255,0.12); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+.toggle.field-toggle.on { background: #4a9d6e; color: #08120c; border-color: #4a9d6e; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: rgba(12, 12, 18, 0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 18px;
+}
+.card h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: #d4a04a; margin-bottom: 4px;
+}
+.card .sub {
+  font-family: 'Fraunces', serif; font-size: 13px;
+  color: #d4cfc0; margin-bottom: 12px; font-style: italic;
+}
+.card canvas { width: 100%; height: 460px; display: block; }
+
+.legend {
+  margin-top: 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  color: #a8a59c; line-height: 1.7;
+}
+.swatch { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.tag-x { color: #ff6b6b; font-weight: 600; }
+.tag-y { color: #5fc28e; font-weight: 600; }
+.tag-z { color: #7badd6; font-weight: 600; }
+
+.summary {
+  background: rgba(212, 160, 74, 0.06);
+  border-left: 3px solid #d4a04a;
+  border-radius: 4px;
+  padding: 16px 20px;
+  font-family: 'Fraunces', serif; font-size: 14px; line-height: 1.65;
+  color: #e8e6e0;
+}
+.summary strong { color: #d4a04a; }
+.summary code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px;
+}
+
+.field-list {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px 18px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  margin-top: 10px;
+}
+.field-list .y { color: #5fc28e; }
+.field-list .n { color: #c44545; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The two cuts of a tokamak</h1>
+  <p class="lede">The donut has two natural 2D slices. <strong style="color:#fff">Poloidal</strong> = a knife cut through the bagel, perpendicular to its axis (you see the cross-section circles). <strong style="color:#fff">Toroidal</strong> = a horizontal slice, looking down from above (you see two concentric circles). At any point on either cut, we can drop the local <span class="tag-x">x</span>/<span class="tag-y">y</span>/<span class="tag-z">z</span> frame. Pick which equilibrium field to display, then ask: does it change when you move in y?</p>
+
+  <div class="controls">
+    <span style="color: #888; padding-right: 6px; align-self: center;">show field:</span>
+    <button class="toggle field-toggle on" data-field="T">T₀ (temperature)</button>
+    <button class="toggle field-toggle" data-field="n">n₀ (density)</button>
+    <button class="toggle field-toggle" data-field="B">|B| (field strength)</button>
+    <button class="toggle field-toggle" data-field="dT">δT (fluctuation)</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Poloidal cut</h2>
+      <div class="sub">Slice perpendicular to the donut axis — the "donut cross-section." Nested flux surfaces appear as concentric loops.</div>
+      <canvas id="polCanvas"></canvas>
+      <div class="legend">
+        Vectors at each point: <span class="tag-x">x</span> = radial (outward from center).
+        <span class="tag-y">y</span> = binormal (tangent to surface, perp to B).
+        <span class="tag-z">z</span> = along B (mostly out of this page, into the toroidal direction).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Toroidal cut</h2>
+      <div class="sub">Looking down at the donut from above (equatorial plane). Two concentric circles = inner and outer edges of one flux surface.</div>
+      <canvas id="torCanvas"></canvas>
+      <div class="legend">
+        Vectors at each point: <span class="tag-x">x</span> = radial.
+        <span class="tag-y">y</span> = binormal — moving along the circumference of the surface, this direction.
+        <span class="tag-z">z</span> = along B (mostly tangent to the circles, with a small poloidal component).
+      </div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <strong>What is "binormally symmetric"?</strong> Slide your eye in the <span class="tag-y">y</span> direction in either picture. If the field's value doesn't change, it's symmetric in y.
+    <div class="field-list">
+      <span class="y">✓ T₀ — yes, constant in y</span>
+      <span class="y">✓ n₀ — yes, constant in y</span>
+      <span class="y">✓ |B| — yes, constant in y*</span>
+      <span class="n">✗ δT (fluctuation) — no</span>
+    </div>
+    <p style="margin-top: 12px; font-size: 13px; color: #a8a59c;">
+      *|B| is constant in y because y is defined as a direction <em>within</em> a flux surface (and roughly perpendicular to B). |B| varies along z (around the torus the long way: stronger inboard, weaker outboard) and across x (different flux surfaces), but not along y.
+    </p>
+    <p style="margin-top: 10px; font-size: 13px;">
+      So your instinct was right: <strong>equilibrium quantities</strong> (T, n, |B|, p) are all symmetric in y. <strong>Fluctuations</strong> (δT, δn, δφ — the things GENE solves for) are <em>not</em> — they have rich structure in y, which is exactly what gets decomposed into ky Fourier modes.
+    </p>
+  </div>
+</div>
+
+<script>
+// ============ POLOIDAL CUT ============
+// Cross-section perpendicular to torus axis: shows nested circular flux surfaces
+// (idealized as circles centered at the magnetic axis)
+function setupCanvas(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+const state = { field: 'T' };
+document.querySelectorAll('.field-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.field-toggle').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    state.field = btn.dataset.field;
+    drawPoloidal();
+    drawToroidal();
+  });
+});
+
+// Field value as function of normalized minor radius r in [0,1]
+// (and additional inputs for fluctuations)
+function fieldValue(r, theta, kind, perturbSeed) {
+  // r: 0 = magnetic axis, 1 = edge
+  if (kind === 'T') {
+    // hot in center, cold at edge
+    return Math.exp(-2 * r * r); // 1 at center, ~0.13 at edge
+  }
+  if (kind === 'n') {
+    return 0.3 + 0.7 * Math.exp(-1.5 * r * r);
+  }
+  if (kind === 'B') {
+    // |B| ∝ 1/R where R = R0 + r cos(theta) (inboard stronger, outboard weaker)
+    const R0 = 3, R = R0 + r * Math.cos(theta);
+    return R0 / R;
+  }
+  if (kind === 'dT') {
+    // fluctuation pattern: sinusoidal in y (poloidal-ish) with envelope in r
+    // Use perturbSeed to make it look turbulent
+    const ky = 6;
+    const env = Math.exp(-Math.pow((r - 0.6) / 0.25, 2));
+    let v = env * (
+      Math.cos(ky * theta + 1.3) +
+      0.6 * Math.cos(ky * 1.5 * theta - 0.7) +
+      0.4 * Math.cos(ky * 0.7 * theta + 2.1)
+    );
+    return 0.5 + 0.4 * v; // shift to make visible
+  }
+  return 0;
+}
+
+function fieldColor(v, kind) {
+  if (kind === 'dT') {
+    // diverging
+    const t = Math.max(0, Math.min(1, v));
+    const c = (t - 0.5) * 2;
+    if (c >= 0) {
+      return `rgb(${(245 - 30*c)|0}, ${(220 - 150*c)|0}, ${(200 - 130*c)|0})`;
+    } else {
+      return `rgb(${(245 + 100*c)|0}, ${(220 + 70*c)|0}, ${(200 + 20*c)|0})`;
+    }
+  }
+  // sequential: dark blue (low) → orange/yellow (high)
+  const t = Math.max(0, Math.min(1, v));
+  const r = lerp(50, 240, t);
+  const g = lerp(70, 180, t);
+  const b = lerp(120, 70, t);
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+function drawPoloidal() {
+  const canvas = document.getElementById('polCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w/2, cy = h/2;
+  const R = Math.min(w, h) * 0.4; // edge radius
+
+  // Fill flux surfaces with field color
+  const N = 80; // radial samples
+  const M = 120; // angular samples
+  for (let i = N-1; i >= 0; i--) {
+    const r0 = i / N, r1 = (i+1) / N;
+    for (let j = 0; j < M; j++) {
+      const th0 = (j / M) * Math.PI * 2 - Math.PI/2;
+      const th1 = ((j+1) / M) * Math.PI * 2 - Math.PI/2;
+      const thMid = (th0 + th1) / 2;
+      const rMid = (r0 + r1) / 2;
+      const v = fieldValue(rMid, thMid, state.field);
+      ctx.fillStyle = fieldColor(v, state.field);
+      ctx.beginPath();
+      ctx.moveTo(cx + r0 * R * Math.cos(th0), cy + r0 * R * Math.sin(th0));
+      ctx.lineTo(cx + r1 * R * Math.cos(th0), cy + r1 * R * Math.sin(th0));
+      ctx.lineTo(cx + r1 * R * Math.cos(th1), cy + r1 * R * Math.sin(th1));
+      ctx.lineTo(cx + r0 * R * Math.cos(th1), cy + r0 * R * Math.sin(th1));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Flux surfaces (nested circles)
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 0.7;
+  for (let k = 1; k <= 5; k++) {
+    const r = (k/5) * R;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  // Magnetic axis
+  ctx.fillStyle = '#d4a04a';
+  ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#d4a04a';
+  ctx.font = '10px JetBrains Mono';
+  ctx.fillText('magnetic axis', cx + 8, cy + 3);
+
+  // Pick a flux surface to highlight (r = 0.6) and place vector frames around it
+  const rHi = 0.6 * R;
+  ctx.strokeStyle = 'rgba(212, 160, 74, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rHi, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Place x/y/z vectors at several points on this surface
+  const pts = 6;
+  for (let i = 0; i < pts; i++) {
+    const th = (i / pts) * Math.PI * 2 - Math.PI/2;
+    const px = cx + rHi * Math.cos(th);
+    const py = cy + rHi * Math.sin(th);
+
+    // Local frame:
+    //   x = radial outward = (cos th, sin th)
+    //   y = binormal: in poloidal cross-section, since B is mostly toroidal (out of page),
+    //       and y must be perpendicular to B and tangent to the flux surface,
+    //       y points along the poloidal direction (tangent to the circle).
+    //       y = (-sin th, cos th)
+    //   z = along B = mostly out of page in this cut (toroidal direction).
+    //       Show z as a circle with a dot (out-of-page symbol).
+    const xDir = { x: Math.cos(th), y: Math.sin(th) };
+    const yDir = { x: -Math.sin(th), y: Math.cos(th) };
+
+    drawVector(ctx, px, py, xDir, 22, '#ff6b6b');
+    drawVector(ctx, px, py, yDir, 22, '#5fc28e');
+    drawOutOfPage(ctx, px, py, 6, '#7badd6');
+  }
+
+  // Labels
+  ctx.fillStyle = '#fff'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText('inboard', cx - R - 30, cy + 4);
+  ctx.fillText('outboard', cx + R + 8, cy + 4);
+  ctx.fillText('top', cx - 12, cy - R - 8);
+  ctx.fillText('bottom', cx - 18, cy + R + 16);
+
+  // Legend marker for highlighted surface
+  ctx.fillStyle = '#d4a04a'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('one flux surface', cx + rHi * 0.7, cy - rHi * 0.7 - 6);
+}
+
+function drawVector(ctx, x0, y0, dir, len, color) {
+  const x1 = x0 + dir.x * len;
+  const y1 = y0 + dir.y * len;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+  ctx.stroke();
+  // arrowhead
+  const angle = Math.atan2(dir.y, dir.x);
+  const ah = 6;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - ah*Math.cos(angle - 0.45), y1 - ah*Math.sin(angle - 0.45));
+  ctx.lineTo(x1 - ah*Math.cos(angle + 0.45), y1 - ah*Math.sin(angle + 0.45));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawOutOfPage(ctx, x, y, r, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI*2); ctx.fill();
+}
+
+function drawIntoPage(ctx, x, y, r, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x - r*0.6, y - r*0.6); ctx.lineTo(x + r*0.6, y + r*0.6);
+  ctx.moveTo(x - r*0.6, y + r*0.6); ctx.lineTo(x + r*0.6, y - r*0.6);
+  ctx.stroke();
+}
+
+// ============ TOROIDAL CUT ============
+// Looking down at the donut from above. Two concentric circles per flux surface
+// (inner edge of donut tube, outer edge of donut tube).
+function drawToroidal() {
+  const canvas = document.getElementById('torCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w/2, cy = h/2;
+  const Rmax = Math.min(w, h) * 0.42;
+
+  // Donut params (top-down): major radius R0, minor radius a
+  const R0 = Rmax * 0.65, a = Rmax * 0.32;
+  // Outer edge: R0 + a, inner edge: R0 - a (with crossing on inboard side)
+  // We highlight the same r = 0.6 surface
+  const rHi = 0.6;
+
+  // The toroidal cut intersects EACH flux surface in two circles:
+  //   outer: radius R0 + r*a  (the outboard side)
+  //   inner: radius R0 - r*a  (the inboard side)
+  // Fill the annular region between flux surfaces with field color
+  const N = 50; // radial samples
+  const M = 240; // toroidal samples
+  for (let i = N-1; i >= 0; i--) {
+    const rN0 = i / N, rN1 = (i+1) / N;
+    // outer ring
+    for (let j = 0; j < M; j++) {
+      const ph0 = (j/M) * Math.PI * 2;
+      const ph1 = ((j+1)/M) * Math.PI * 2;
+      // outer half: theta = 0 (outboard), inner half: theta = pi (inboard)
+      // For toroidal symmetry of the field: T0 depends only on flux surface r.
+      // |B| depends on r AND R, where R = R0 + r*a*cos(theta).
+      // For the outer ring, theta = 0 → R = R0 + r*a (max R, weakest |B|)
+      // For inner ring, theta = pi → R = R0 - r*a (min R, strongest |B|)
+      const v_out_0 = fieldValue(rN0, 0, state.field);
+      const v_out_1 = fieldValue(rN1, 0, state.field);
+      const vMid = (v_out_0 + v_out_1) / 2;
+      ctx.fillStyle = fieldColor(vMid, state.field);
+      const r0px_out = R0 + rN0 * a;
+      const r1px_out = R0 + rN1 * a;
+      ctx.beginPath();
+      ctx.moveTo(cx + r0px_out * Math.cos(ph0), cy + r0px_out * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_out * Math.cos(ph0), cy + r1px_out * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_out * Math.cos(ph1), cy + r1px_out * Math.sin(ph1));
+      ctx.lineTo(cx + r0px_out * Math.cos(ph1), cy + r0px_out * Math.sin(ph1));
+      ctx.closePath();
+      ctx.fill();
+    }
+    // inner ring (inboard side of the tube)
+    for (let j = 0; j < M; j++) {
+      const ph0 = (j/M) * Math.PI * 2;
+      const ph1 = ((j+1)/M) * Math.PI * 2;
+      const v_in_0 = fieldValue(rN0, Math.PI, state.field);
+      const v_in_1 = fieldValue(rN1, Math.PI, state.field);
+      const vMid = (v_in_0 + v_in_1) / 2;
+      ctx.fillStyle = fieldColor(vMid, state.field);
+      const r0px_in = R0 - rN0 * a;
+      const r1px_in = R0 - rN1 * a;
+      ctx.beginPath();
+      ctx.moveTo(cx + r0px_in * Math.cos(ph0), cy + r0px_in * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_in * Math.cos(ph0), cy + r1px_in * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_in * Math.cos(ph1), cy + r1px_in * Math.sin(ph1));
+      ctx.lineTo(cx + r0px_in * Math.cos(ph1), cy + r0px_in * Math.sin(ph1));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Hole in the middle (between inner edge of inboard side and center)
+  ctx.fillStyle = '#08080d';
+  ctx.beginPath();
+  ctx.arc(cx, cy, R0 - a - 0.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Outer edge of donut
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, R0 + a, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, R0 - a, 0, Math.PI*2); ctx.stroke();
+
+  // Highlighted surface (r = 0.6) — two circles (outer and inner)
+  ctx.strokeStyle = 'rgba(212, 160, 74, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, R0 + rHi*a, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, R0 - rHi*a, 0, Math.PI*2); ctx.stroke();
+
+  // Place x/y/z vectors at points along the OUTER highlighted circle
+  const pts = 8;
+  const rRing = R0 + rHi * a;
+  for (let i = 0; i < pts; i++) {
+    const phi = (i / pts) * Math.PI * 2;
+    const px = cx + rRing * Math.cos(phi);
+    const py = cy + rRing * Math.sin(phi);
+
+    // Local frame on outboard side:
+    //   x = radial = outward in (R, Z) plane → in this top-down view, points away from cx,cy
+    //   y = binormal: tangent to flux surface, perp to B.
+    //       B is mostly toroidal here, direction = (-sin phi, cos phi) (azimuthal).
+    //       y must be perp to B and tangent to surface. The two surface tangents are
+    //       (a) toroidal (along B) and (b) poloidal (out of this top-down page).
+    //       So y is mostly poloidal — out of the page on the top half of the donut tube,
+    //       into the page on the bottom half. On this top-down equatorial cut, the
+    //       outboard ring is "where you cut at z=0 with the donut tube directly under you,"
+    //       so y is OUT OF THE PAGE on the outboard ring.
+    //   z = along B = azimuthal (along the ring) with small poloidal component.
+    //       Show z tangent to the ring.
+    const xDir = { x: Math.cos(phi), y: Math.sin(phi) };
+    const zDir = { x: -Math.sin(phi), y: Math.cos(phi) };
+
+    drawVector(ctx, px, py, xDir, 20, '#ff6b6b');
+    drawVector(ctx, px, py, zDir, 22, '#7badd6');
+    drawOutOfPage(ctx, px, py, 5.5, '#5fc28e'); // y out of page (top of tube)
+  }
+
+  // And on the INNER (inboard) ring
+  const rRingIn = R0 - rHi * a;
+  for (let i = 0; i < pts; i++) {
+    const phi = (i / pts) * Math.PI * 2;
+    const px = cx + rRingIn * Math.cos(phi);
+    const py = cy + rRingIn * Math.sin(phi);
+    // x points INWARD from cx,cy here (because radial = away from magnetic axis,
+    // which sits at R = R0; on the inboard side, radial-out means toward smaller R = toward center of toroidal cut)
+    const xDir = { x: -Math.cos(phi), y: -Math.sin(phi) };
+    const zDir = { x: -Math.sin(phi), y: Math.cos(phi) };
+    drawVector(ctx, px, py, xDir, 18, '#ff6b6b');
+    drawVector(ctx, px, py, zDir, 20, '#7badd6');
+    // y on inboard ring points INTO the page
+    drawIntoPage(ctx, px, py, 5, '#5fc28e');
+  }
+
+  // Labels
+  ctx.fillStyle = '#fff'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText('outboard ring', cx + R0 + a*0.9 - 60, cy - 4);
+  ctx.fillText('inboard ring', cx - R0 + a*0.9 - 50, cy - 4);
+  ctx.fillStyle = '#5fc28e'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('y ⊙ (out of page on outboard)', 18, h - 24);
+  ctx.fillText('y ⊗ (into page on inboard)', 18, h - 10);
+
+  // Annotation about y-direction symmetry
+  ctx.fillStyle = '#d4a04a'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('toroidal angle φ = "the y direction" approximately', cx - 160, 16);
+  ctx.fillText('— along these rings', cx - 60, 28);
+}
+
+drawPoloidal();
+drawToroidal();
+window.addEventListener('resize', () => { drawPoloidal(); drawToroidal(); });
+</script>
+</body>
+</html>

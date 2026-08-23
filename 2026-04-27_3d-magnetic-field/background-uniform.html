@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Background vs fluctuation</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  p { margin-bottom:1rem; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+
+  h2 {
+    color:#e2e5ed;
+    font-size:1.1rem;
+    font-weight:600;
+    margin:1.8rem 0 0.5rem;
+    padding-top:1rem;
+    border-top:1px solid #252a36;
+  }
+  h2 .num {
+    font-family:'IBM Plex Mono',monospace;
+    color:#f0a050;
+    font-size:0.85rem;
+    margin-right:0.6rem;
+  }
+
+  .viz {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    overflow:hidden;
+    margin:1rem 0 1.5rem;
+  }
+  .viz canvas { width:100%; display:block; }
+  .viz-tag {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 4px;
+  }
+
+  .ctrl {
+    display:flex; gap:8px; padding:10px 14px;
+    border-top:1px solid #252a36;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .ctrl button {
+    padding:6px 14px;
+    border-radius:4px;
+    border:1px solid #252a36;
+    background:transparent;
+    color:#8a8f9f;
+    font-size:0.78rem;
+    cursor:pointer;
+    font-family:'DM Sans',sans-serif;
+    transition:all 0.15s;
+  }
+  .ctrl button.on {
+    border-color:#f0a050;
+    color:#f0a050;
+    background:rgba(240,160,80,0.1);
+  }
+
+  .note {
+    background:#12151c;
+    border-left:3px solid #5cb8f0;
+    border-radius:0 4px 4px 0;
+    padding:0.9rem 1.1rem;
+    margin:1.2rem 0;
+    font-size:0.92rem;
+  }
+  .note-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#5cb8f0;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+
+  .analogy {
+    background:rgba(163, 136, 240, 0.06);
+    border:1px solid rgba(163, 136, 240, 0.3);
+    border-radius:6px;
+    padding:0.9rem 1.1rem;
+    margin:1rem 0;
+    font-size:0.92rem;
+  }
+  .analogy-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#a388f0;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>What "background uniform" means</h1>
+<p class="sub">Splitting the plasma into the steady part and the wiggly part</p>
+
+<p>The plasma is doing two things at once:</p>
+<p>1. <strong>The background:</strong> the slow, average state — average temperature, average density. Mostly steady.<br>
+2. <strong>The fluctuations:</strong> the wiggles on top — turbulent eddies, hot blobs, cold blobs. This is what GENE is actually solving for.</p>
+
+<p>Total plasma = background + fluctuations. We split them apart because they live on completely different scales.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · Total = background + fluctuations</div>
+  <canvas id="c-decompose" height="380"></canvas>
+</div>
+
+<p>Top: the total temperature you'd measure walking along some direction. Wiggly. Middle: the smooth average — the <strong>background</strong>. Bottom: what's left when you subtract the background out — the <strong>fluctuations</strong>. GENE only solves for the bottom part, treating the middle part as a fixed input.</p>
+
+<h2><span class="num">01</span>"Uniform" means the background doesn't depend on the direction</h2>
+
+<p>Now the key question for each direction: <strong>does the background change when you walk in that direction?</strong></p>
+
+<div class="viz">
+  <div class="viz-tag">Walk in different directions · what does the background do?</div>
+  <canvas id="c-compare" height="420"></canvas>
+  <div class="ctrl">
+    <button id="bt-x" class="on">walk in x</button>
+    <button id="bt-y">walk in y</button>
+  </div>
+</div>
+
+<p>In <strong style="color:#fb7185">x</strong>: the background sloped — temperature drops as you walk outward. Walk a little way in x and the average temperature is genuinely different. Background is <em>not uniform</em> in x.</p>
+
+<p>In <strong style="color:#4ade80">y</strong>: the background is flat — wherever you stop, the average temperature is the same. The fluctuations are different (you're at a different point in the wiggle pattern), but the average doesn't care. Background <em>is uniform</em> in y.</p>
+
+<div class="analogy">
+  <span class="analogy-label">A useful analogy</span>
+  <p style="margin-bottom:0.5rem">Imagine waves on a beach. The wave heights wiggle up and down — those are the fluctuations.</p>
+  <p style="margin-bottom:0.5rem">If you walk <em>along the shore</em> (parallel to the waterline), the average water level is the same wherever you are. Background uniform → like y.</p>
+  <p style="margin-bottom:0">If you walk <em>into the ocean</em> (perpendicular to shore), the average water level rises as you go deeper. Background not uniform → like x.</p>
+  <p style="margin:0.6rem 0 0">In both cases there are still wiggles (waves), but only walking-along-the-shore preserves the average. That's what "uniform background" means.</p>
+</div>
+
+<h2><span class="num">02</span>Why uniformity matters for Fourier</h2>
+
+<p>Here's the connection to GENE: <strong>Fourier modes only decouple when the background is uniform</strong>.</p>
+
+<p>If the background changes as you move, then the equations the fluctuations obey have *coefficients that depend on position*. A sine wave moving through a region with changing coefficients gets distorted — its wavelength shifts, its amplitude varies — which means it picks up other Fourier components. The k=3 mode bleeds into the k=4 mode. They couple.</p>
+
+<p>If the background is the same everywhere, then the equations have *constant coefficients*. A sine wave stays a clean sine wave forever. The k=3 mode is k=3 forever. No bleeding, no coupling. Each mode is its own little decoupled world.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · sine wave through uniform vs non-uniform background</div>
+  <canvas id="c-sine" height="340"></canvas>
+</div>
+
+<p>Top: clean sine wave moving through uniform background — stays a clean sine wave. Bottom: same wave moving through non-uniform background — gets distorted, wavelength shifts, amplitude varies. The first one stays a single Fourier mode. The second one becomes a mixture.</p>
+
+<div class="note">
+  <span class="note-label">The whole story in one paragraph</span>
+  <p style="margin-bottom:0">"Uniform background" means the slow average plasma state doesn't depend on that coordinate. y has a uniform background because the flux surface is symmetric — slide along y and nothing changes on average. x has a non-uniform background because that's <em>where the gradient lives</em> (hot core to cold edge). Uniform background → equations have constant coefficients → Fourier modes don't mix → each k_y is its own independent simulation. That's why GENE Fouriers y and not x.</p>
+</div>
+
+<script>
+(function(){
+  const C = {
+    bg:'#0c0e13', surface:'#12151c', border:'#252a36',
+    text:'#b8bcc8', dim:'#6b7084', heading:'#e2e5ed',
+    accent:'#f0a050', blue:'#5cb8f0', green:'#4ade80',
+    red:'#fb7185', purple:'#a388f0'
+  };
+  const F = "'DM Sans',sans-serif";
+  const M = "'IBM Plex Mono',monospace";
+
+  function init(id) {
+    const cv = document.getElementById(id);
+    if (!cv) return null;
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth;
+    const H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H + 'px';
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    ctx.scale(dpr, dpr);
+    return {c:cv, x:ctx, W, H};
+  }
+
+  // ── PANEL 1: decomposition: total = background + fluctuation ──
+  (function(){
+    const s = init('c-decompose'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 70, padR = 30;
+      const plotW = W - padL - padR;
+      const sectionH = H / 3;
+      const innerH = sectionH * 0.7;
+
+      const sections = [
+        {y0: 0, color: C.accent, label: 'TOTAL TEMPERATURE T(y, t)', sub: 'what you actually measure'},
+        {y0: sectionH, color: C.purple, label: 'BACKGROUND ⟨T⟩', sub: 'time-average / smooth part'},
+        {y0: 2*sectionH, color: C.green, label: 'FLUCTUATION δT', sub: 'wiggles · this is what GENE solves for'}
+      ];
+
+      // Compute the wiggle field
+      function wiggle(y, time) {
+        return 0.45 * Math.sin(2*y + time*1.4) +
+               0.3 * Math.sin(4*y - time*1.0 + 0.7) +
+               0.2 * Math.sin(7*y + time*0.6 + 1.4);
+      }
+
+      // Background: just a constant (here we walk in y, so background = const)
+      const bgValue = 0;
+
+      sections.forEach((sec, idx) => {
+        const yMid = sec.y0 + sectionH * 0.5 + 5;
+
+        // Section label
+        ctx.font = '500 9px ' + M;
+        ctx.fillStyle = sec.color;
+        ctx.textAlign = 'left';
+        ctx.fillText(sec.label, padL, sec.y0 + 18);
+        ctx.font = '500 8px ' + M;
+        ctx.fillStyle = C.dim;
+        ctx.fillText(sec.sub, padL, sec.y0 + 30);
+
+        // Axis
+        ctx.strokeStyle = C.border;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(padL, yMid);
+        ctx.lineTo(padL + plotW, yMid);
+        ctx.stroke();
+
+        // Plot
+        ctx.beginPath();
+        ctx.strokeStyle = sec.color;
+        ctx.lineWidth = 2;
+        const amp = innerH * 0.35;
+
+        for (let i = 0; i <= plotW; i++) {
+          const yPos = (i / plotW) * 6;
+          let val;
+          if (idx === 0) {
+            // Total
+            val = bgValue + wiggle(yPos, t);
+          } else if (idx === 1) {
+            // Background — constant
+            val = bgValue;
+          } else {
+            // Fluctuation
+            val = wiggle(yPos, t);
+          }
+          const py = yMid - val * amp;
+          if (i === 0) ctx.moveTo(padL + i, py);
+          else ctx.lineTo(padL + i, py);
+        }
+        ctx.stroke();
+
+        // For the constant background, add a label showing the value
+        if (idx === 1) {
+          ctx.font = '500 9px ' + M;
+          ctx.fillStyle = C.purple;
+          ctx.textAlign = 'right';
+          ctx.fillText('= constant', padL + plotW, yMid - 6);
+        }
+      });
+
+      // Plus / equals signs
+      ctx.font = '600 16px ' + F;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText('=', padL/2, sectionH * 0.5 + 18);
+      ctx.fillText('+', padL/2, 2*sectionH * 0.5 + sectionH/2 + 18);
+
+      // Connecting equation at bottom-ish
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText('y →', W/2, H - 4);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 2: walk in x vs walk in y, showing background ──
+  (function(){
+    const s = init('c-compare'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+    let mode = 'x';
+
+    document.getElementById('bt-x').addEventListener('click', () => {
+      mode = 'x';
+      document.getElementById('bt-x').classList.add('on');
+      document.getElementById('bt-y').classList.remove('on');
+    });
+    document.getElementById('bt-y').addEventListener('click', () => {
+      mode = 'y';
+      document.getElementById('bt-y').classList.add('on');
+      document.getElementById('bt-x').classList.remove('on');
+    });
+
+    function wiggle(s, time, seed) {
+      return 0.35 * Math.sin(2.5*s + time*1.4 + seed) +
+             0.25 * Math.sin(5*s - time*1.0 + seed*0.7) +
+             0.15 * Math.sin(9*s + time*0.6 + seed*1.4);
+    }
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 70, padR = 50, padT = 50, padB = 60;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+      const yMid = padT + plotH * 0.55;
+
+      // Title
+      ctx.font = '500 11px ' + F;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      const title = mode === 'x'
+        ? 'Walking in x — background SLOPES (not uniform)'
+        : 'Walking in y — background is FLAT (uniform)';
+      ctx.fillText(title, W/2, padT - 25);
+
+      const accentColor = mode === 'x' ? C.red : C.green;
+
+      // Axis
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(padL, yMid);
+      ctx.lineTo(padL + plotW, yMid);
+      ctx.stroke();
+
+      // Background — sloped for x, flat for y
+      ctx.beginPath();
+      ctx.strokeStyle = C.purple;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      const bgAmp = plotH * 0.3;
+
+      for (let i = 0; i <= plotW; i++) {
+        const sFrac = i / plotW;
+        let bg;
+        if (mode === 'x') {
+          // Background slopes down — temperature drops with x
+          bg = 0.7 - sFrac * 1.3;
+        } else {
+          // Background flat
+          bg = 0.0;
+        }
+        const py = yMid - bg * bgAmp;
+        if (i === 0) ctx.moveTo(padL + i, py);
+        else ctx.lineTo(padL + i, py);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Total signal (background + fluctuation)
+      ctx.beginPath();
+      ctx.strokeStyle = accentColor;
+      ctx.lineWidth = 2;
+      for (let i = 0; i <= plotW; i++) {
+        const sFrac = i / plotW;
+        const sPos = sFrac * 6;
+        let bg;
+        if (mode === 'x') {
+          bg = 0.7 - sFrac * 1.3;
+        } else {
+          bg = 0.0;
+        }
+        const fluct = wiggle(sPos, t, mode === 'x' ? 1.0 : 2.0);
+        const total = bg + fluct;
+        const py = yMid - total * bgAmp;
+        if (i === 0) ctx.moveTo(padL + i, py);
+        else ctx.lineTo(padL + i, py);
+      }
+      ctx.stroke();
+
+      // Two probe positions, walking
+      const phase = (t * 0.4) % 1;
+      const s1Frac = 0.15 + 0.5 * phase;
+      const s2Frac = s1Frac + 0.18;
+
+      [s1Frac, s2Frac].forEach((sFrac, i) => {
+        const px = padL + sFrac * plotW;
+        let bg;
+        if (mode === 'x') {
+          bg = 0.7 - sFrac * 1.3;
+        } else {
+          bg = 0.0;
+        }
+        const sPos = sFrac * 6;
+        const total = bg + wiggle(sPos, t, mode === 'x' ? 1.0 : 2.0);
+        const py = yMid - total * bgAmp;
+        const bgPy = yMid - bg * bgAmp;
+
+        // Vertical line down to background
+        ctx.beginPath();
+        ctx.moveTo(px, bgPy);
+        ctx.lineTo(px, padT + plotH + 6);
+        ctx.strokeStyle = C.purple + '60';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Background marker
+        ctx.beginPath();
+        ctx.arc(px, bgPy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = C.purple;
+        ctx.fill();
+        ctx.strokeStyle = C.bg;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Total marker
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = accentColor;
+        ctx.fill();
+        ctx.strokeStyle = C.bg;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Background readout
+        ctx.font = '500 10px ' + M;
+        ctx.fillStyle = C.purple;
+        ctx.textAlign = 'center';
+        ctx.fillText(`bg=${bg.toFixed(2)}`, px, padT + plotH + 22);
+      });
+
+      // Verdict
+      ctx.font = '500 11px ' + F;
+      ctx.fillStyle = mode === 'x' ? C.red : C.green;
+      ctx.textAlign = 'center';
+      const verdict = mode === 'x'
+        ? 'background DIFFERS at the two probes → not uniform'
+        : 'background SAME at both probes → uniform ✓';
+      ctx.fillText(verdict, W/2, padT + plotH + 42);
+
+      // Legend
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.purple;
+      ctx.textAlign = 'left';
+      ctx.fillText('— — background (avg)', padL, padT - 8);
+      ctx.fillStyle = accentColor;
+      ctx.fillText('— total (bg + fluct)', padL + 130, padT - 8);
+
+      // Axis label
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText(mode === 'x' ? 'x →' : 'y →', W/2, H - 6);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 3: sine wave through uniform vs non-uniform ──
+  (function(){
+    const s = init('c-sine'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.018;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 50, padR = 50;
+      const plotW = W - padL - padR;
+      const sectionH = H / 2;
+
+      // Top section: uniform background
+      // Bottom section: non-uniform background
+      const sections = [
+        {y0: 0, label: 'UNIFORM background — sine stays sine', uniform: true, color: C.green},
+        {y0: sectionH, label: 'NON-UNIFORM background — sine distorts', uniform: false, color: C.red}
+      ];
+
+      sections.forEach(sec => {
+        const yMid = sec.y0 + sectionH * 0.55;
+        const innerH = sectionH * 0.85;
+
+        // Section label
+        ctx.font = '500 10px ' + F;
+        ctx.fillStyle = sec.color;
+        ctx.textAlign = 'left';
+        ctx.fillText(sec.label, padL, sec.y0 + 22);
+
+        // Background indicator
+        if (sec.uniform) {
+          // Solid horizontal bar (constant)
+          ctx.fillStyle = C.purple + '20';
+          ctx.fillRect(padL, sec.y0 + 35, plotW, sectionH - 50);
+        } else {
+          // Gradient bar
+          const grad = ctx.createLinearGradient(padL, 0, padL + plotW, 0);
+          grad.addColorStop(0, 'rgba(163, 136, 240, 0.35)');
+          grad.addColorStop(1, 'rgba(163, 136, 240, 0.05)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(padL, sec.y0 + 35, plotW, sectionH - 50);
+        }
+
+        // Axis
+        ctx.strokeStyle = C.border;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(padL, yMid);
+        ctx.lineTo(padL + plotW, yMid);
+        ctx.stroke();
+
+        // Sine wave
+        ctx.beginPath();
+        ctx.strokeStyle = sec.color;
+        ctx.lineWidth = 2;
+        const amp = innerH * 0.18;
+
+        for (let i = 0; i <= plotW; i++) {
+          const sFrac = i / plotW;
+          let val;
+          if (sec.uniform) {
+            // Pure sine
+            val = Math.sin(sFrac * Math.PI * 2 * 4 - t * 1.5);
+          } else {
+            // Distorted by non-uniform background:
+            // local wavelength changes with position
+            // amplitude also varies with position
+            const localK = 4 * (1 + sFrac * 0.6);
+            const localAmp = 1 - sFrac * 0.4;
+            // Phase shift accumulates
+            const cumPhase = sFrac * Math.PI * 2 * 4 + sFrac * sFrac * Math.PI * 1.2;
+            val = localAmp * Math.sin(cumPhase - t * 1.5);
+          }
+          const py = yMid - val * amp;
+          if (i === 0) ctx.moveTo(padL + i, py);
+          else ctx.lineTo(padL + i, py);
+        }
+        ctx.stroke();
+
+        // Annotation
+        ctx.font = '500 9px ' + M;
+        ctx.fillStyle = C.purple + 'a0';
+        ctx.textAlign = 'right';
+        if (sec.uniform) {
+          ctx.fillText('background = const', padL + plotW - 8, sec.y0 + sectionH - 18);
+        } else {
+          ctx.fillText('background varies →', padL + plotW - 8, sec.y0 + sectionH - 18);
+        }
+      });
+
+      // Divider
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, sectionH);
+      ctx.lineTo(W, sectionH);
+      ctx.stroke();
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+})();
+</script>
+
+</body>
+</html>

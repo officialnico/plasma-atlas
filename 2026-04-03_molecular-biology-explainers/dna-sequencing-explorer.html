@@ -1,0 +1,389 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dna sequencing explorer</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const FORMATS = [
+  {
+    id: "fastq",
+    name: "FASTQ",
+    ext: ".fastq",
+    stage: "Raw Reads",
+    desc: "The raw output from the sequencing machine. Each entry has a sequence ID, the DNA letters, and a quality score for each letter (how confident the machine is it read it correctly).",
+    color: "#22c55e",
+    example: `@SRR123456.1 HWI-ST1234:100:C1234ACXX:1:1101:1234:2045
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGCC
++
+FFFFFFHHHHHJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ
+@SRR123456.2 HWI-ST1234:100:C1234ACXX:1:1101:1567:2089
+ACTTGCCTGTCGCTCTATCTTCACCGATTTGTCTGCCTCATTCTAGGAGCT
++
+FFFFFFFHHHHHIJJJJJJIJJJJJJJJJJJJJJIJJJJJJJJJJJJJHF
+@SRR123456.3 HWI-ST1234:100:C1234ACXX:1:1101:1890:2134
+TTAGATACCCCACTATGCTTAGCCCTAAACCTCAACAGTTAAATCAACAAAA
++
+FFFFFFHHHHHHJJJJJJJJJJJJJJJJJIJJJJJJJJJJJJJJJJIJJJ`,
+    annotations: [
+      { line: 0, label: "Sequence ID", color: "#fbbf24", detail: "Unique identifier for this read — includes machine name, run, lane, tile, and coordinates" },
+      { line: 1, label: "DNA Sequence", color: "#22c55e", detail: "The actual letters the machine read — each A, T, C, G is one nucleotide (base)" },
+      { line: 2, label: "Separator", color: "#6b7280", detail: "Just a '+' divider between the sequence and quality scores" },
+      { line: 3, label: "Quality Scores", color: "#f472b6", detail: "ASCII characters encoding confidence — 'F' and 'J' = high confidence, lower letters = less certain" },
+    ],
+  },
+  {
+    id: "sam",
+    name: "SAM/BAM",
+    ext: ".sam / .bam",
+    stage: "Aligned Reads",
+    desc: "After raw reads are mapped to a reference genome, results go into SAM (text) or BAM (compressed binary) format. Each line shows where a read landed on the reference genome.",
+    color: "#3b82f6",
+    example: `@HD\tVN:1.6\tSO:coordinate
+@SQ\tSN:chr1\tLN:248956422
+@SQ\tSN:chr2\tLN:242193529
+@RG\tID:ROSIE_TUMOR\tSM:Rosie_T\tPL:ILLUMINA
+read_001\t99\tchr1\t10024\t60\t50M\t=\t10200\t226\tGATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGCC\tFFFFFFHHHHHJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ\tMD:Z:50\tNM:i:0
+read_002\t163\tchr1\t10200\t42\t35M2I13M\t=\t10024\t-226\tACTTGCCTGTCGCTCTATCTTCACCGATTTGTCTGCCTCATTCTAGGAGCT\tFFFFFFFHHHHHIJJJJJJIJJJJJJJJJJJJJJJIJJJJJJJJJJJJJHF\tMD:Z:48\tNM:i:2
+read_003\t99\tchr2\t54821\t60\t50M\t=\t55010\t239\tTTAGATACCCCACTATGCTTAGCCCTAAACCTCAACACTTAAATCAACAAAA\tFFFFFFHHHHHHJJJJJJJJJJJJJJJJJIJJJJJJJJJJJJJJJJIJJJ\tMD:Z:42A7\tNM:i:1`,
+    annotations: [
+      { line: 0, label: "Header — Format", color: "#94a3b8", detail: "File version and sort order" },
+      { line: 1, label: "Header — Chromosome", color: "#94a3b8", detail: "Reference chromosome and its length in base pairs" },
+      { line: 3, label: "Read Group", color: "#fbbf24", detail: "Identifies the sample — here it's Rosie's tumor tissue" },
+      { line: 4, label: "Aligned Read", color: "#3b82f6", detail: "A read mapped to chr1 position 10024, with mapping quality 60 (high), perfect match (50M = 50 bases matched)" },
+      { line: 5, label: "Read with Insertion", color: "#f97316", detail: "This read has a 2-base insertion (35M2I13M) — could be a mutation! NM:i:2 means 2 mismatches" },
+      { line: 6, label: "Read with SNP", color: "#ef4444", detail: "MD:Z:42A7 means position 42 has an A in the reference but something different in Rosie — a single nucleotide variant" },
+    ],
+  },
+  {
+    id: "vcf",
+    name: "VCF",
+    ext: ".vcf",
+    stage: "Variant Calls",
+    desc: "The 'smoking gun' file — this lists every mutation found when comparing tumor DNA to healthy DNA. Each row is one variant (difference). This is what Conyngham fed into AI to find drug targets.",
+    color: "#ef4444",
+    example: `##fileformat=VCFv4.2
+##source=GATK_HaplotypeCaller
+##reference=CanFam3.1
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tROSIE_NORMAL\tROSIE_TUMOR
+chr13\t28018505\trs851264817\tA\tT\t5000\tPASS\tDP=120;AF=0.45\tGT:DP:GQ\t0/0:58:99\t0/1:62:99
+chr13\t28018548\t.\tGCT\tG\t3200\tPASS\tDP=95;AF=0.38\tGT:DP:GQ\t0/0:45:99\t0/1:50:95
+chr13\t28018601\t.\tC\tCTGGA\t4100\tPASS\tDP=110;AF=0.42\tGT:DP:GQ\t0/0:52:99\t0/1:58:99
+chr4\t76291845\t.\tG\tA\t2800\tPASS\tDP=88;AF=0.51\tGT:DP:GQ\t0/0:40:99\t1/1:48:99`,
+    annotations: [
+      { line: 5, label: "Column Headers", color: "#94a3b8", detail: "CHROM=chromosome, POS=position, REF=normal letter, ALT=mutated letter, QUAL=confidence" },
+      { line: 6, label: "Point Mutation (SNP)", color: "#ef4444", detail: "At chr13 position 28,018,505 — normal DNA has A, tumor has T. This is in the c-KIT gene region! 0/0 = normal in healthy, 0/1 = heterozygous mutation in tumor" },
+      { line: 7, label: "Deletion", color: "#f97316", detail: "GCT → G means two bases (CT) were deleted from the tumor DNA" },
+      { line: 8, label: "Insertion", color: "#a855f7", detail: "C → CTGGA means four extra bases (TGGA) were inserted in the tumor" },
+      { line: 9, label: "Homozygous Mutation", color: "#dc2626", detail: "1/1 in tumor = both copies mutated. AF=0.51 means ~half of reads show the variant. This is a strong cancer driver candidate." },
+    ],
+  },
+];
+
+const PIPELINE_STEPS = [
+  { label: "Blood / Tissue Sample", icon: "🧬", desc: "Collect tumor + healthy tissue" },
+  { label: "Sequencing Machine", icon: "🔬", desc: "Break DNA into fragments, read each one" },
+  { label: "FASTQ", icon: "📄", desc: "Raw reads + quality scores", format: "fastq" },
+  { label: "Alignment", icon: "🧩", desc: "Map reads to reference genome" },
+  { label: "SAM/BAM", icon: "📄", desc: "Reads positioned on chromosomes", format: "sam" },
+  { label: "Variant Calling", icon: "🔍", desc: "Find differences from reference" },
+  { label: "VCF", icon: "📄", desc: "List of all mutations found", format: "vcf" },
+  { label: "AI Analysis", icon: "🤖", desc: "Find drug targets from mutations" },
+];
+
+function QualityBar({ char }) {
+  const code = char.charCodeAt(0) - 33;
+  const max = 41;
+  const pct = Math.min((code / max) * 100, 100);
+  const hue = (pct / 100) * 120;
+  return (
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", width: 11 }}>
+      <div style={{
+        width: 8, height: Math.max(4, pct * 0.28), borderRadius: 2,
+        background: `hsl(${hue}, 80%, 55%)`, transition: "height 0.3s"
+      }} />
+      <span style={{ fontSize: 9, color: "#94a3b8", fontFamily: "monospace", marginTop: 1 }}>{char}</span>
+    </div>
+  );
+}
+
+function BaseLetter({ letter }) {
+  const colors = { A: "#22c55e", T: "#ef4444", C: "#3b82f6", G: "#fbbf24" };
+  return (
+    <span style={{
+      color: colors[letter] || "#94a3b8", fontWeight: 700, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      fontSize: 14, letterSpacing: 1, display: "inline-block", width: 11, textAlign: "center"
+    }}>
+      {letter}
+    </span>
+  );
+}
+
+function DNAColorizer({ seq }) {
+  return (
+    <span>
+      {seq.split("").map((ch, i) => <BaseLetter key={i} letter={ch} />)}
+    </span>
+  );
+}
+
+function DNASequencingExplorer() {
+  const [activeFormat, setActiveFormat] = useState("fastq");
+  const [hoveredLine, setHoveredLine] = useState(null);
+  const [showQuality, setShowQuality] = useState(false);
+  const [hoveredStep, setHoveredStep] = useState(null);
+
+  const fmt = FORMATS.find((f) => f.id === activeFormat);
+  const lines = fmt.example.split("\n");
+
+  const activeAnnotation = fmt.annotations.find((a) => a.line === hoveredLine);
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: "#0a0e1a",
+      fontFamily: "'Inter', 'Helvetica Neue', sans-serif", color: "#e2e8f0",
+      padding: "24px 16px"
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        {/* Title */}
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{
+            fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #22c55e, #3b82f6, #ef4444, #fbbf24)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
+          }}>
+            DNA Sequencing File Formats
+          </h1>
+          <p style={{ color: "#64748b", fontSize: 13, margin: "6px 0 0" }}>
+            How raw DNA becomes actionable mutation data — tap any line to explore
+          </p>
+        </div>
+
+        {/* Pipeline */}
+        <div style={{
+          display: "flex", gap: 0, overflowX: "auto", padding: "12px 0 16px",
+          marginBottom: 20, WebkitOverflowScrolling: "touch"
+        }}>
+          {PIPELINE_STEPS.map((step, i) => {
+            const isFile = !!step.format;
+            const isActive = step.format === activeFormat;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                <div
+                  onClick={isFile ? () => setActiveFormat(step.format) : undefined}
+                  onMouseEnter={() => setHoveredStep(i)}
+                  onMouseLeave={() => setHoveredStep(null)}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center",
+                    padding: "8px 10px", borderRadius: 10, cursor: isFile ? "pointer" : "default",
+                    background: isActive ? "rgba(59,130,246,0.15)" : hoveredStep === i ? "rgba(255,255,255,0.04)" : "transparent",
+                    border: isActive ? "1px solid rgba(59,130,246,0.4)" : "1px solid transparent",
+                    transition: "all 0.2s", minWidth: 64
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{step.icon}</span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 600, marginTop: 4, textAlign: "center",
+                    color: isActive ? "#60a5fa" : isFile ? "#94a3b8" : "#475569",
+                    textTransform: "uppercase", letterSpacing: "0.05em"
+                  }}>
+                    {step.label}
+                  </span>
+                </div>
+                {i < PIPELINE_STEPS.length - 1 && (
+                  <div style={{ color: "#334155", fontSize: 14, margin: "0 2px" }}>→</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Format Tabs */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {FORMATS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => { setActiveFormat(f.id); setHoveredLine(null); setShowQuality(false); }}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600,
+                background: activeFormat === f.id ? f.color + "22" : "rgba(255,255,255,0.04)",
+                color: activeFormat === f.id ? f.color : "#64748b",
+                outline: activeFormat === f.id ? `1px solid ${f.color}44` : "none",
+                transition: "all 0.2s"
+              }}
+            >
+              {f.name} <span style={{ opacity: 0.6, fontSize: 11 }}>{f.ext}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Description */}
+        <div style={{
+          background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 16px",
+          marginBottom: 16, borderLeft: `3px solid ${fmt.color}44`
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: fmt.color, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+            {fmt.stage}
+          </div>
+          <p style={{ margin: 0, fontSize: 13, color: "#94a3b8", lineHeight: 1.5 }}>{fmt.desc}</p>
+        </div>
+
+        {/* Code Block */}
+        <div style={{
+          background: "#0f1423", borderRadius: 12, overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.06)"
+        }}>
+          <div style={{
+            padding: "8px 14px", background: "rgba(255,255,255,0.03)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            borderBottom: "1px solid rgba(255,255,255,0.05)"
+          }}>
+            <span style={{ fontSize: 11, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+              {activeFormat === "fastq" ? "rosie_tumor_R1.fastq" : activeFormat === "sam" ? "rosie_aligned.sam" : "rosie_somatic_variants.vcf"}
+            </span>
+            {activeFormat === "fastq" && (
+              <button
+                onClick={() => setShowQuality(!showQuality)}
+                style={{
+                  fontSize: 10, padding: "3px 10px", borderRadius: 6, border: "none",
+                  background: showQuality ? "#f472b622" : "rgba(255,255,255,0.06)",
+                  color: showQuality ? "#f472b6" : "#64748b", cursor: "pointer", fontWeight: 600
+                }}
+              >
+                {showQuality ? "Hide" : "Show"} Quality Bars
+              </button>
+            )}
+          </div>
+
+          <div style={{ padding: "12px 0", overflowX: "auto" }}>
+            {lines.map((line, i) => {
+              const annotation = fmt.annotations.find((a) => a.line === i);
+              const isHovered = hoveredLine === i;
+              const isDNA = activeFormat === "fastq" && (i % 4 === 1);
+              const isQual = activeFormat === "fastq" && (i % 4 === 3);
+
+              return (
+                <div key={i}>
+                  <div
+                    onMouseEnter={() => annotation && setHoveredLine(i)}
+                    onMouseLeave={() => setHoveredLine(null)}
+                    onClick={() => annotation && setHoveredLine(hoveredLine === i ? null : i)}
+                    style={{
+                      padding: "3px 14px", fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 11, lineHeight: 1.7, cursor: annotation ? "pointer" : "default",
+                      background: isHovered ? (annotation?.color || "#fff") + "11" : "transparent",
+                      borderLeft: isHovered ? `3px solid ${annotation?.color || "#fff"}` : "3px solid transparent",
+                      transition: "all 0.15s", whiteSpace: "pre", overflowX: "auto"
+                    }}
+                  >
+                    <span style={{ color: "#334155", marginRight: 12, userSelect: "none", fontSize: 10 }}>
+                      {String(i + 1).padStart(2, " ")}
+                    </span>
+                    {isDNA ? <DNAColorizer seq={line} /> : (
+                      <span style={{ color: isHovered ? "#e2e8f0" : "#7c8ba0" }}>{line}</span>
+                    )}
+                    {annotation && (
+                      <span style={{
+                        marginLeft: 12, fontSize: 9, color: annotation.color,
+                        background: annotation.color + "15", padding: "1px 8px",
+                        borderRadius: 4, fontWeight: 600, whiteSpace: "nowrap"
+                      }}>
+                        {annotation.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Quality visualization */}
+                  {isQual && showQuality && (
+                    <div style={{ padding: "6px 14px 12px 40px", display: "flex", gap: 1, flexWrap: "wrap" }}>
+                      {line.split("").map((ch, j) => <QualityBar key={j} char={ch} />)}
+                      <div style={{ width: "100%", marginTop: 4, fontSize: 9, color: "#475569" }}>
+                        ↑ Taller green bars = higher confidence the machine read that base correctly
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Annotation Detail Panel */}
+        {activeAnnotation && (
+          <div style={{
+            marginTop: 12, padding: "12px 16px", borderRadius: 10,
+            background: activeAnnotation.color + "0d",
+            border: `1px solid ${activeAnnotation.color}33`,
+            animation: "fadeIn 0.2s ease"
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: activeAnnotation.color, marginBottom: 4 }}>
+              {activeAnnotation.label}
+            </div>
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>
+              {activeAnnotation.detail}
+            </div>
+          </div>
+        )}
+
+        {/* Legend */}
+        {activeFormat === "fastq" && (
+          <div style={{
+            marginTop: 16, padding: "12px 16px", borderRadius: 10,
+            background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)"
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+              Base Colors
+            </div>
+            <div style={{ display: "flex", gap: 16 }}>
+              {[["A", "#22c55e", "Adenine"], ["T", "#ef4444", "Thymine"], ["C", "#3b82f6", "Cytosine"], ["G", "#fbbf24", "Guanine"]].map(([l, c, n]) => (
+                <div key={l} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: c, fontSize: 16 }}>{l}</span>
+                  <span style={{ fontSize: 11, color: "#64748b" }}>{n}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeFormat === "vcf" && (
+          <div style={{
+            marginTop: 16, padding: "12px 16px", borderRadius: 10,
+            background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.15)"
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+              This is what Conyngham fed into ChatGPT
+            </div>
+            <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>
+              The VCF file lists every place Rosie's tumor DNA differs from her healthy DNA. AI tools helped identify which mutations were in cancer-driving genes (like c-KIT) and which ones to target with the mRNA vaccine.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        ::-webkit-scrollbar { height: 4px; width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+      `}</style>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(DNASequencingExplorer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

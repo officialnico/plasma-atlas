@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particle Radiation & Nuclear Decay — A Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f;--ink:#eef0fb;--muted:#8a90b4;--line:rgba(255,255,255,.09);
+    --neutron:#39c2ff;--proton:#ff5d73;--electron:#7be08a;--photon:#c98bff;
+    --up:#ffd166;--down:#7c8bff;--muon:#ff7ad1;--gluon:#9aa0c8;--hot:#ff4d6d;--safe:#5fe0a0;
+    --strong:#5fe0a0;--coulomb:#ff5d73;--beta-minus:#39c2ff;--beta-plus:#ff5d73;--alpha:#ff9d5c;--stable:#5fe0a0;--gold:#ffd166;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1100px 700px at 85% -10%, rgba(57,194,255,.16), transparent 60%),
+      radial-gradient(900px 600px at -10% 25%, rgba(255,93,115,.10), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:70px 0 38px}
+  .kicker{color:var(--neutron);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:24px;background:rgba(57,194,255,.06)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.3rem,8vw,4.2rem);line-height:.99;letter-spacing:-.02em;margin-bottom:20px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--proton),var(--up),var(--electron),var(--neutron));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.16rem;color:#c7cbe6;max-width:58ch}.lede b{color:var(--ink);font-weight:700}
+  .toc{margin-top:28px;display:flex;flex-wrap:wrap;gap:8px}
+  .toc a{font-family:"Space Mono",monospace;font-size:.68rem;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:100px;text-decoration:none;transition:.18s}
+  .toc a:hover{color:var(--ink);border-color:var(--neutron)}
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.6rem,5.5vw,2.3rem);letter-spacing:-.01em;line-height:1.06;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.82rem;color:var(--neutron);display:block;margin-bottom:13px;font-weight:700;letter-spacing:.2em}
+  h2 .num.g{color:var(--gold)}
+  .sub{color:var(--muted);margin-bottom:24px;max-width:62ch}
+  p+p{margin-top:14px}.body{color:#c7cbe6}.body b{color:var(--ink)}
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(124,139,255,.08),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 4px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;letter-spacing:.04em;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.18s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle:disabled{opacity:.35;cursor:default}
+  button.toggle.on{background:var(--neutron);color:#04121c;border-color:var(--neutron);font-weight:700}
+  .readout{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--muted)}
+  .cap{font-family:"Space Mono",monospace;font-size:.74rem;color:var(--muted);margin-top:12px;min-height:1.4em;transition:.2s}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.15);outline:none;margin:10px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--gold);box-shadow:0 0 12px rgba(255,209,102,.55)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--gold)}
+  .callout{margin-top:18px;border-left:3px solid var(--neutron);background:rgba(57,194,255,.06);padding:14px 18px;border-radius:0 12px 12px 0}
+  .callout b{color:var(--neutron)}
+  .callout.warn{border-color:var(--hot);background:rgba(255,77,109,.06)}.callout.warn b{color:var(--hot)}
+  .callout.g{border-color:var(--gold);background:rgba(255,209,102,.06)}.callout.g b{color:var(--gold)}
+
+  /* radiation vs radioactive */
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media(max-width:560px){.vs{grid-template-columns:1fr}}
+  .vs .col{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(255,255,255,.03)}
+  .vs .col h3{font-family:"Fraunces",serif;font-size:1.25rem;margin-bottom:4px}
+  .vs .col .k{font-family:"Space Mono",monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--neutron);margin-bottom:10px}
+  .vs .col p{font-size:.9rem;color:var(--muted)}.vs .col p b{color:var(--ink)}
+
+  /* zoom panel */
+  .zpanel{margin-top:14px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:18px;min-height:118px}
+  .zpanel .scale{font-family:"Space Mono",monospace;font-size:.72rem;color:var(--up);letter-spacing:.05em}
+  .zpanel h4{font-family:"Fraunces",serif;font-size:1.4rem;font-weight:600;margin:4px 0 6px}
+  .zpanel p{font-size:.95rem;color:#c7cbe6}
+  .zbar{display:flex;gap:4px;margin-top:14px}
+  .zbar .seg{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1);transition:.3s}
+  .zbar .seg.on{background:var(--neutron)}
+
+  /* catalog */
+  .cat{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(max-width:560px){.cat{grid-template-columns:1fr}}
+  .ccard{border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden;background:rgba(255,255,255,.02)}
+  .ccard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+  .ccard h4{font-family:"Fraunces",serif;font-size:1.18rem;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .badge{font-family:"Space Mono",monospace;font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:100px;font-weight:700}
+  .badge.comp{background:rgba(255,122,209,.16);color:var(--muon);border:1px solid rgba(255,122,209,.3)}
+  .badge.elem{background:rgba(95,224,160,.16);color:var(--safe);border:1px solid rgba(95,224,160,.3)}
+  .ccard .row{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:.72rem;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .ccard .row span:first-child{color:var(--muted)}.ccard .row span:last-child{color:var(--ink);text-align:right}
+  .ccard .prov{margin-top:10px;font-size:.8rem;color:#c7cbe6}.ccard .prov b{color:var(--c)}
+  .quarkdot{display:inline-block;width:15px;height:15px;border-radius:50%;text-align:center;line-height:15px;font-size:.6rem;font-weight:700;font-family:"Space Mono",monospace;color:#04121c;margin:0 1px;vertical-align:middle}
+
+  /* force meters */
+  .meters{margin-top:16px;display:grid;gap:12px}
+  .meter .lbl{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:.74rem;margin-bottom:5px}
+  .meter .track{height:16px;border-radius:8px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--line)}
+  .meter .fill{height:100%;transition:width .25s ease;border-radius:8px}
+  .verdict{font-family:"Fraunces",serif;font-size:1.3rem;font-weight:600;margin-top:14px;transition:.2s}
+
+  /* equations */
+  .eq{font-family:"Fraunces",serif;font-size:clamp(1.15rem,4.4vw,1.5rem);text-align:center;padding:20px 14px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;margin:16px 0;line-height:1.5;overflow-x:auto}
+  .eq .v{font-style:italic}
+  .eq small{font-size:.62em;color:var(--muted);display:block;margin-top:8px;font-family:"Space Mono",monospace;font-style:normal}
+  .frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .25em}
+  .frac .n{border-bottom:1.5px solid currentColor;padding:0 .35em}
+  .frac .d{padding:2px .35em 0}
+  .steps{counter-reset:s;margin-top:8px}
+  .steps li{list-style:none;position:relative;padding:10px 0 10px 40px;border-bottom:1px dashed var(--line);font-size:.95rem;color:#c7cbe6}
+  .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:9px;width:26px;height:26px;border-radius:50%;background:rgba(255,209,102,.14);color:var(--gold);font-family:"Space Mono",monospace;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .steps li b{color:var(--ink)}
+  .key{font-family:"Space Mono",monospace;font-size:.72rem;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}
+  .key b{color:var(--ink)}
+
+  /* nz panel */
+  .nzinfo{margin-top:14px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:16px;min-height:84px;font-size:.95rem;color:#c7cbe6}
+  .nzinfo b{color:var(--ink)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:"Space Mono",monospace;font-size:.7rem;margin-top:10px}
+  .legend i{font-style:normal;display:inline-flex;align-items:center;gap:5px}
+  .legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  footer{padding:48px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce;font-family:"Space Mono",monospace}
+  .big{font-family:"Space Mono",monospace;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Deep dive · companion to the field guide</span>
+  <h1>The matter that flies — and <em>why it flies at all.</em></h1>
+  <p class="lede">Light is a wave; the other half of radiation is <b>real, physical matter</b> in motion. The questions compound quickly: What is it built from — quarks, or something genuinely indivisible? What experiments established that? Why does a <i>flying proton</i> count as radiation when it isn't decaying? And the structural question beneath them all — what destabilizes a nucleus, and what sets the <b>timescale</b> on which it sheds these particles? The answer to the last one collapses to a single separable differential equation; the rest is the physics that feeds it.</p>
+  <nav class="toc">
+    <a href="#sA">A · radiation vs radioactive</a><a href="#sB">B · how deep is matter</a><a href="#sC">C · alpha</a>
+    <a href="#sD">D · beta decay</a><a href="#sE">E · the record</a>
+    <a href="#sF">F · why nuclei decay</a><a href="#sG">G · valley of stability</a><a href="#sH">H · binding curve</a>
+    <a href="#sI">I · pure dice</a><a href="#sJ">J · the math</a><a href="#sK">K · half-life sim</a><a href="#sL">L · carbon-14</a>
+    <a href="#sM">M · cosmic rays</a>
+  </nav>
+</header>
+
+<!-- A -->
+<section id="sA">
+  <h2><span class="num">A / FIRST, A WORD FIX</span>"Radiation" isn't "radioactive"</h2>
+  <p class="sub body">A flying proton being called "radioactive" feels off — and it is. These are two different ideas people blur together:</p>
+  <div class="vs">
+    <div class="col" style="--c:var(--hot)"><div class="k">a property of a source</div><h3>Radioactive</h3><p>An <b>unstable nucleus</b> that will, on its own, fall apart and spit something out. Uranium is radioactive. It describes the <b>thing that decays.</b></p></div>
+    <div class="col" style="--c:var(--neutron)"><div class="k">stuff in flight</div><h3>Radiation</h3><p>The <b>energy or particles travelling</b> through space — whatever got spat out, plus anything else moving fast and carrying energy. It describes the <b>stuff in motion.</b></p></div>
+  </div>
+  <div class="callout body"><b>So the flying proton?</b> It's <b>radiation</b> — a fast, charged particle that rips electrons off atoms as it passes (ionizing). But it is <b>not radioactive</b>: a lone proton is stable and isn't decaying into anything. It became radiation because something <i>accelerated</i> it — the Sun, a supernova, a hospital's proton-therapy machine — not because it's unstable. Being radiation is about <b>motion and energy</b>, not about being broken.</div>
+</section>
+
+<!-- B -->
+<section id="sB">
+  <h2><span class="num">B / HOW DEEP IS MATTER</span>Are they made of quarks? Let's go down.</h2>
+  <p class="sub body">"What <i>is</i> an alpha particle, really?" is a question about how far down matter goes. Descend one layer at a time — watch the scale bar plummet — and see exactly where the quarks appear, and where the ladder stops.</p>
+  <div class="stage"><canvas id="zoomCanvas"></canvas></div>
+  <div class="controls" style="justify-content:space-between">
+    <button class="toggle" id="zUp">↑ zoom out</button>
+    <span class="readout" id="zLevel">layer 1 / 5</span>
+    <button class="toggle on" id="zDown">zoom in ↓</button>
+  </div>
+  <div class="zbar" id="zbar"></div>
+  <div class="zpanel">
+    <div class="scale" id="zScale"></div>
+    <h4 id="zTitle"></h4>
+    <p id="zDesc"></p>
+  </div>
+</section>
+
+<!-- C -->
+<section id="sC">
+  <h2><span class="num">C / EXHIBIT ONE</span>The alpha particle, dissected</h2>
+  <p class="sub body">An alpha (α) is simply a <b>helium nucleus</b> torn loose: two protons + two neutrons, clamped together. Each of those four nucleons is itself a bag of <b>three quarks</b> glued by the strong force. So an alpha is, all the way down, <b>twelve quarks</b> — six "up," six "down" — plus the gluons binding them. Here it is with the lid off.</p>
+  <div class="stage"><canvas id="alphaCanvas"></canvas></div>
+  <p class="cap">Charge check: proton (+1) + proton (+1) + neutron (0) + neutron (0) = <b style="color:var(--proton)">+2</b>, exactly the alpha's measured charge.</p>
+  <div class="callout body"><b>The quark arithmetic</b> — an up quark carries +⅔, a down quark −⅓. A proton is up+up+down = +⅔+⅔−⅓ = <b>+1</b>. A neutron is up+down+down = +⅔−⅓−⅓ = <b>0</b>. The charges you measure on whole particles fall straight out of the fractional quark charges underneath — one of the cleanest pieces of evidence that quarks are really there.</div>
+  <p class="body" style="margin-top:24px">But two of those four nucleons are positive protons — so why doesn't the electrostatic repulsion blow it apart? Toggle between a bare <b>diproton</b> (two protons, no neutrons) and the real <b>alpha</b>, and watch what the neutrons do.</p>
+  <div class="controls">
+    <button class="toggle" id="abDiproton">²He · 2 protons only</button>
+    <button class="toggle on" id="abAlpha">⁴He (α) · 2p + 2n</button>
+  </div>
+  <div class="stage"><canvas id="alphaBindCanvas"></canvas></div>
+  <p class="cap" id="abVerdict"></p>
+  <div class="callout body"><b>Neutrons are the rescue.</b> The strong force is <i>charge-blind</i> — the green bonds pull every pair (p–p, p–n, n–n) together equally — while Coulomb repulsion (red) acts only between the two protons. With two protons alone, one attractive bond is set against that repulsion, and a real diproton is in fact <b>unbound</b>: it has no bound state and flies apart. Add two neutrons and you get <b>six</b> attractive bonds against the <i>same single</i> repulsion, so the cluster drops into a deep energy well — about <b>28 MeV</b> below four free nucleons. Reversing that (α → 2p + 2n) has Q ≈ −28 MeV, so it would need 28 MeV <i>supplied</i> and never happens spontaneously. Helium-4 is also "doubly magic," which is why it's the exceptionally stable fragment heavy nuclei prefer to eject.</div>
+</section>
+
+<!-- D -->
+<section id="sD">
+  <h2><span class="num">D / EXHIBIT TWO</span>Beta decay — where the electron is born</h2>
+  <p class="sub body">A beta particle is just a fast <b>electron</b> — and unlike the alpha, the electron is <b>elementary</b>: no quarks, no parts, a true point as far as we can measure. But here's the twist that surprises everyone: that electron was <b>not</b> hiding inside the nucleus. It's <b>created on the spot</b>. Watch a neutron do it.</p>
+  <div class="stage"><canvas id="betaCanvas"></canvas></div>
+  <p class="cap" id="betaCap"></p>
+  <div class="callout body"><b>What you just saw</b> — the weak force flipped one <b>down</b> quark into an <b>up</b> quark (turning the neutron into a proton), and the leftover energy materialized as a brand-new electron plus a near-invisible antineutrino. The electron didn't escape; it was <b>conjured from energy</b> at the instant of decay. And note: a <b>free neutron does this all by itself in about 15 minutes</b> — meaning the neutron, alone, is genuinely radioactive.</div>
+</section>
+
+<!-- E -->
+<section id="sE">
+  <h2><span class="num">E / THE RECORD</span>Made of what — and has it been proven?</h2>
+  <p class="sub body">Composite or elementary, what's inside, and — most usefully — <b>how we know</b>. None of this is conjecture; each was nailed down by experiment, with a name and a date.</p>
+  <div class="cat">
+    <div class="ccard" style="--c:var(--proton)">
+      <h4>Alpha α <span class="badge comp">composite</span></h4>
+      <div class="row"><span>made of</span><span>2 protons + 2 neutrons</span></div>
+      <div class="row"><span>quarks inside</span><span>6 up · 6 down</span></div>
+      <div class="row"><span>charge</span><span>+2</span></div>
+      <div class="prov"><b>Proven:</b> Rutherford & Royds, 1909 — trapped alphas in a tube and saw helium's exact spectral fingerprint appear.</div>
+    </div>
+    <div class="ccard" style="--c:var(--electron)">
+      <h4>Beta β <span class="badge elem">elementary</span></h4>
+      <div class="row"><span>is</span><span>a single electron</span></div>
+      <div class="row"><span>quarks inside</span><span>none — a lepton</span></div>
+      <div class="row"><span>charge</span><span>−1</span></div>
+      <div class="prov"><b>Proven:</b> electron by J.J. Thomson, 1897; betas shown to be electrons soon after by their identical charge-to-mass ratio.</div>
+    </div>
+    <div class="ccard" style="--c:var(--up)">
+      <h4>Proton p <span class="badge comp">composite</span></h4>
+      <div class="row"><span>quarks</span><span><span class="quarkdot" style="background:var(--up)">u</span><span class="quarkdot" style="background:var(--up)">u</span><span class="quarkdot" style="background:var(--down);color:#fff">d</span></span></div>
+      <div class="row"><span>charge</span><span>+1</span></div>
+      <div class="row"><span>stable?</span><span>yes (never seen to decay)</span></div>
+      <div class="prov"><b>Proven:</b> quark substructure revealed at SLAC, 1968–69 — electrons fired into protons bounced off three hard points inside.</div>
+    </div>
+    <div class="ccard" style="--c:var(--neutron)">
+      <h4>Neutron n <span class="badge comp">composite</span></h4>
+      <div class="row"><span>quarks</span><span><span class="quarkdot" style="background:var(--up)">u</span><span class="quarkdot" style="background:var(--down);color:#fff">d</span><span class="quarkdot" style="background:var(--down);color:#fff">d</span></span></div>
+      <div class="row"><span>charge</span><span>0</span></div>
+      <div class="row"><span>stable?</span><span>no — ~15 min when free</span></div>
+      <div class="prov"><b>Proven:</b> James Chadwick, 1932 — found a neutral particle as heavy as the proton that no electric field could deflect.</div>
+    </div>
+  </div>
+  <div class="callout body"><b>"But we've never <i>seen</i> a quark."</b> True — the strong force won't let one travel alone (it's called confinement). We prove them the same way Rutherford found the nucleus: fire something hard inside and watch how it ricochets. Shoot high-energy electrons into a proton and they scatter off <b>three</b> distinct point-like lumps. That, plus the fractional charges adding up perfectly, plus a thousand other tests of the Standard Model, is why quarks are considered as real as atoms.</div>
+</section>
+
+<!-- ===== bridge into decay ===== -->
+<!-- F -->
+<section id="sF">
+  <h2><span class="num g">F / THE CAUSE</span>So why does a nucleus fall apart?</h2>
+  <p class="sub body">We've catalogued the particles; now the mechanism that emits them. Nuclear stability is a competition between two terms in the binding energy. The <b style="color:var(--strong)">strong force</b> <i>saturates</i> — its range is so short that each nucleon binds only its immediate neighbours, so the attractive (volume) contribution scales linearly, ∝ A. <b style="color:var(--coulomb)">Coulomb repulsion</b> does not saturate: every proton pair contributes, and for a roughly uniform charged sphere of radius R ∝ A<sup>⅓</sup> the electrostatic energy goes as Z²/A<sup>⅓</sup>. Because Z² outpaces A as nuclei grow, repulsion inevitably gains on the glue — the core of the <b>liquid-drop model</b>. Drag A upward and watch the two terms converge.</p>
+  <div class="stage"><canvas id="nucCanvas"></canvas></div>
+  <input type="range" id="aSlider" min="4" max="260" value="56" step="1">
+  <span class="readout">mass number A = <b id="aVal" style="color:var(--ink)">56</b> (protons + neutrons)</span>
+  <div class="meters">
+    <div class="meter"><div class="lbl"><span style="color:var(--strong)">Strong glue · grows like A</span><span id="gVal">—</span></div><div class="track"><div class="fill" id="gFill" style="background:var(--strong)"></div></div></div>
+    <div class="meter"><div class="lbl"><span style="color:var(--coulomb)">Coulomb push · grows like Z²</span><span id="cVal">—</span></div><div class="track"><div class="fill" id="cFill" style="background:var(--coulomb)"></div></div></div>
+  </div>
+  <div class="verdict" id="verdict"></div>
+  <div class="callout g body"><b>The variational principle underneath:</b> a nucleus is unstable whenever some accessible configuration has lower total rest-energy — equivalently, greater binding energy. A decay proceeds spontaneously precisely when its <b>Q-value is positive</b>. It isn't that "the forces balance," but that the system can descend to a lower point on the energy surface; the forces only set the shape of that surface.</div>
+</section>
+
+<!-- G -->
+<section id="sG">
+  <h2><span class="num g">G / WHICH WAY IT FALLS</span>The valley of stability</h2>
+  <p class="sub body">Plot every nuclide on the (Z, N) plane and the stable species trace a narrow <b>belt</b>: light nuclei hug N ≈ Z, while heavier ones bend toward a neutron excess — the extra neutrons supply binding without adding to the Coulomb term. Off the belt, the favoured decay is whichever moves a nuclide back toward it. A neutron-rich nuclide converts a neutron to a proton (<b style="color:var(--beta-minus)">β⁻</b>); a proton-rich one does the reverse via <b style="color:var(--beta-plus)">β⁺</b> emission or electron capture; a nuclide beyond Z ≈ 83 sheds an <b style="color:var(--alpha)">α</b>, lowering both Z and A. Tap anywhere to drop a nuclide.</p>
+  <div class="stage"><canvas id="nzCanvas"></canvas></div>
+  <div class="legend">
+    <i><span class="sw" style="background:var(--stable)"></span>stable belt</i>
+    <i><span class="sw" style="background:var(--beta-minus)"></span>β⁻ (neutron-rich)</i>
+    <i><span class="sw" style="background:var(--beta-plus)"></span>β⁺ / capture (proton-rich)</i>
+    <i><span class="sw" style="background:var(--alpha)"></span>α (too heavy)</i>
+  </div>
+  <div class="nzinfo" id="nzInfo">Tap the chart to drop a nucleus and see how it decays back toward the belt.</div>
+</section>
+
+<!-- H -->
+<section id="sH">
+  <h2><span class="num g">H / THE REFEREE</span>Energy is the boss — the binding curve</h2>
+  <p class="sub body">The master diagram of nuclear physics: <b>binding energy per nucleon</b>, B/A — higher means more tightly bound. It climbs steeply, peaks near <b>iron-56 / nickel-62</b> at ≈ 8.8 MeV, then declines, a profile reproduced term-by-term by the <b>semi-empirical mass formula</b> (volume − surface − Coulomb − asymmetry + pairing). Every nucleus runs downhill toward that maximum.</p>
+  <div class="stage"><canvas id="beCanvas"></canvas></div>
+  <p class="body" style="margin-top:16px">That hump organizes everything: light nuclei liberate energy by <b>fusing</b> rightward toward iron, heavy nuclei by <b>fissioning</b> leftward toward it, and an unstable nucleus decays because its products sit <b>higher</b> on the curve. The binding energy is literally the <b>mass defect</b> made energy — the shortfall between the assembled nucleus and its separated constituents:</p>
+  <div class="eq"><span class="v">B</span> = [ <span class="v">Z·m</span><sub>p</sub> + <span class="v">N·m</span><sub>n</sub> − <span class="v">M</span>(<span class="v">Z,N</span>) ] <span class="v">c</span>²<small>Δm = (sum of the parts) − (mass of the whole), converted by E = Δm c²</small></div>
+  <p class="body">The energy a decay releases is the corresponding difference in rest-mass between parent and products — equivalently, the gain in binding:</p>
+  <div class="eq"><span class="v">Q</span> = ( <span class="v">m</span><sub>parent</sub> − Σ<span class="v">m</span><sub>products</sub> ) <span class="v">c</span>²<small>Q &gt; 0 is the condition for spontaneous decay; Q appears as the kinetic energy of the emitted products</small></div>
+  <div class="callout g body"><b>Why an alpha, specifically?</b> Helium-4 sits on a local spike in B/A — doubly magic, exceptionally bound — so ejecting a pre-formed α maximizes Q among the fragments a heavy nucleus could shed. The α must still <b>tunnel</b> through the Coulomb barrier it is classically trapped behind; the exponential sensitivity of that tunneling probability to Q is the <b>Geiger–Nuttall relation</b>, which is why α half-lives range across some thirty orders of magnitude for a modest spread in Q.</div>
+</section>
+
+<!-- I -->
+<section id="sI">
+  <h2><span class="num g">I / THE STRANGE PART</span>It's pure dice — and ageless</h2>
+  <p class="sub body">Quantum mechanics refuses to tell you <i>when</i> a given nucleus will decay; it supplies only a <b>constant hazard rate</b> λ — a fixed probability per unit time, independent of the nucleus's entire history. This is the defining property of a <b>Poisson process</b>: the waiting time to decay is <b>memoryless</b>,</p>
+  <div class="eq">P( <span class="v">T</span> &gt; <span class="v">s</span> + <span class="v">t</span> &nbsp;|&nbsp; <span class="v">T</span> &gt; <span class="v">s</span> ) = P( <span class="v">T</span> &gt; <span class="v">t</span> )<small>having already survived a time s tells you nothing — the conditional distribution resets</small></div>
+  <p class="body">A uranium nucleus that has persisted for 4 billion years is statistically indistinguishable from one minted this morning: no internal clock, no aging, no accumulated wear. That single premise — a constant, memoryless rate — is sufficient to derive the entire macroscopic decay law. Here it is.</p>
+</section>
+
+<!-- J -->
+<section id="sJ">
+  <h2><span class="num g">J / THE MATH</span>The decay law, from one assumption</h2>
+  <p class="sub body">Encode that single assumption. With <span class="v">N</span> nuclei each carrying hazard rate <b style="color:var(--gold)">λ</b>, the expected number decaying in an interval <span class="v">dt</span> is λN dt, which gives an autonomous first-order linear ODE:</p>
+  <div class="eq"><frac><span class="n"><span class="v">dN</span></span><span class="d"><span class="v">dt</span></span></frac> = −<span class="v">λN</span><small>the rate of loss is proportional to the population — separable and autonomous</small></div>
+  <p class="body">Separate the variables and integrate both sides:</p>
+  <div class="eq">∫ <frac><span class="n"><span class="v">dN</span></span><span class="d"><span class="v">N</span></span></frac> = −<span class="v">λ</span> ∫ <span class="v">dt</span> &nbsp;⟹&nbsp; ln <span class="v">N</span> = −<span class="v">λt</span> + <span class="v">C</span></div>
+  <p class="body">Exponentiate and fix the constant of integration with the initial condition <span class="v">N</span>(0) = <span class="v">N</span><sub>0</sub>:</p>
+  <div class="eq"><span class="v">N</span>(<span class="v">t</span>) = <span class="v">N</span><sub>0</sub> <span class="v">e</span><sup>−<span class="v">λt</span></sup><small>the unique solution — exponential decay falls directly out of the constant-rate hypothesis</small></div>
+  <p class="body">Define the half-life by <span class="v">N</span>(<span class="v">t</span><sub>½</sub>) = <span class="v">N</span><sub>0</sub>/2. The factor of N₀ cancels — which is precisely why the half-life is independent of how much you started with:</p>
+  <div class="eq"><frac><span class="n">1</span><span class="d">2</span></frac> = <span class="v">e</span><sup>−<span class="v">λt</span><sub>½</sub></sup> &nbsp;⟹&nbsp; <span class="v">t</span><sub>½</sub> = <frac><span class="n">ln 2</span><span class="d"><span class="v">λ</span></span></frac></div>
+  <p class="body">The decay time of a <i>single</i> nucleus is a random variable <span class="v">T</span> with exponential probability density <span class="v">f</span>(<span class="v">t</span>) = λ<span class="v">e</span><sup>−λt</sup>. The <b>mean lifetime</b> τ is its expectation — one integration by parts:</p>
+  <div class="eq"><span class="v">τ</span> = E[<span class="v">T</span>] = ∫<sub>0</sub><sup>∞</sup> <span class="v">t</span> · <span class="v">λe</span><sup>−<span class="v">λt</span></sup> <span class="v">dt</span> = <frac><span class="n">1</span><span class="d"><span class="v">λ</span></span></frac><small>hence t½ = τ ln 2 ≈ 0.693 τ — the half-life is the distribution's median, the lifetime its mean</small></div>
+  <div class="key">
+    <span><b>λ</b> hazard rate (per sec)</span><span><b>t½ = ln2/λ</b> median</span><span><b>τ = 1/λ</b> mean</span><span><b>A = −dN/dt = λN</b> activity (Bq)</span>
+  </div>
+  <div class="callout g body"><b>Reconciling our neutron:</b> the "about 15 minutes" from section D is the <b>mean lifetime</b> τ ≈ 880 s ≈ 14.7 min — the expectation computed just above. The <b>half-life</b> is the <i>median</i> of the same distribution, t½ = τ ln2 ≈ 10.2 min. Mean and median diverge for any skewed distribution; for the exponential, they differ by exactly that factor of ln2 ≈ 0.693.</div>
+</section>
+
+<!-- K -->
+<section id="sK">
+  <h2><span class="num g">K / SEE IT</span>Half-life, made visible</h2>
+  <p class="sub body">A population of identical nuclei, each running its own independent exponential clock with no coordination — yet by the <b>law of large numbers</b> the ensemble traces a smooth exponential. The live count (white) tracks the deterministic curve N₀e<sup>−λt</sup> (gold), with residual scatter of order √N: those are <b>Poisson counting fluctuations</b>, so the relative noise ~1/√N vanishes only in the large-N limit. The macroscopic law is an expectation, not a guarantee. Set the half-life and watch.</p>
+  <div class="stage"><canvas id="simCanvas"></canvas></div>
+  <input type="range" id="hSlider" min="20" max="160" value="60" step="5">
+  <div class="controls" style="justify-content:space-between">
+    <span class="readout">half-life: <b id="hVal" style="color:var(--ink)">60</b> ticks</span>
+    <span class="readout">elapsed: <b id="thalf" style="color:var(--gold)">0.0</b> half-lives · alive: <b id="aliveN" style="color:var(--ink)">—</b></span>
+    <button class="toggle on" id="simReset">restart</button>
+  </div>
+</section>
+
+<!-- L -->
+<section id="sL">
+  <h2><span class="num g">L / THE PAYOFF</span>Worked example: carbon-14 dating</h2>
+  <p class="sub body">The math earning its keep. Living things keep a fixed trace of radioactive <b>carbon-14</b> (t½ = <b class="big">5,730 years</b>) topped up from the air. The instant something dies, top-ups stop and the C-14 starts its exponential slide. Measure how much is left, run the equation backward, and you've dated it.</p>
+  <p class="body">Invert <span class="v">N</span>(<span class="v">t</span>) = <span class="v">N</span><sub>0</sub>e<sup>−λt</sup> for the elapsed time, using λ = ln2 / t<sub>½</sub> = 1.21 × 10<sup>−4</sup> yr<sup>−1</sup>:</p>
+  <div class="eq"><span class="v">t</span> = <frac><span class="n">1</span><span class="d"><span class="v">λ</span></span></frac> · ln<frac><span class="n"><span class="v">N</span><sub>0</sub></span><span class="d"><span class="v">N</span></span></frac> = <frac><span class="n"><span class="v">t</span><sub>½</sub></span><span class="d">ln 2</span></frac> · ln<frac><span class="n">100%</span><span class="d">% left</span></frac></div>
+  <p class="body">Try it — slide to how much C-14 a bone still has:</p>
+  <div class="stage" style="padding:22px 18px;text-align:center">
+    <div style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--muted)">C-14 remaining</div>
+    <div style="font-family:'Fraunces',serif;font-size:2.4rem;font-weight:600;color:var(--neutron)" id="c14pct">25%</div>
+    <input type="range" id="c14Slider" min="1" max="99" value="25" step="1" style="max-width:420px;margin:6px auto 18px">
+    <div style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--muted)">estimated age</div>
+    <div style="font-family:'Fraunces',serif;font-size:2.4rem;font-weight:900;color:var(--gold)" id="c14age">—</div>
+  </div>
+  <ol class="steps">
+    <li>A bone has <b>25%</b> of its original C-14 left.</li>
+    <li>25% is one half (50%) then half again — that's <b>2 half-lives</b>.</li>
+    <li>2 × 5,730 = <b>≈ 11,460 years old.</b> The equation gives the same: (5730/ln2)·ln(100/25) ≈ 11,460 yr.</li>
+  </ol>
+  <div class="callout g body"><b>Why the method has a ceiling — by differentiation.</b> Differentiate the inverse: δ<span style="font-style:italic">t</span> = (1/λ)·(δN/N), so a given <i>fractional</i> error in the surviving C-14 maps to a fixed absolute age error of (1/λ) ≈ 8,270 yr per unit fractional error. The problem is that N decays exponentially, so for old samples the counts run out and δN/N — limited by Poisson statistics ~1/√N — blows up. By ~10 half-lives (≈ 57,000 yr) under 0.1% remains and the signal drowns in noise. That ceiling near 50,000 years is structural; older samples demand a slower clock such as uranium-238 (t<sub>½</sub> = 4.5 <i>billion</i> years).</div>
+</section>
+
+<!-- M -->
+<section id="sM">
+  <h2><span class="num">M / THE BIG ONE</span>Cosmic "rays" — the great misnomer</h2>
+  <p class="sub body">One last particle, and the name is a historical accident. When they were found in 1912 nobody knew what they were, so they got filed under "rays" alongside light. They are <b>not</b> electromagnetic. They're <b>matter</b> — about <b>90% bare protons</b>, ~9% alpha particles, the rest heavier nuclei and electrons — screaming in from the Sun, supernovae, and unknown corners of the cosmos.</p>
+  <div class="callout body"><b>How do we know they're particles and not light?</b> The magnet test: <b>they bend in Earth's magnetic field.</b> More cosmic rays arrive near the magnetic poles than the equator (the "latitude effect"). Light would sail straight through a magnet untouched — so anything a magnet steers <i>must</i> be charged matter. Case closed.</div>
+  <p class="body" style="margin-top:18px">When one slams into the top of the atmosphere, it shatters air molecules and triggers an <b>air shower</b> — a branching cascade of secondary particles raining down. Most of what reaches the ground (and passes through your body right now) is muons, born kilometers up. Watch one come in:</p>
+  <div class="stage"><canvas id="showerCanvas"></canvas></div>
+  <p class="cap">A single primary becomes millions of secondaries. The muons (pink) survive all the way to the ground.</p>
+  <div class="callout warn body"><b>The "Oh-My-God" particle</b> — in 1991 a detector in Utah clocked a single subatomic particle carrying ~3×10²⁰ electron-volts: the kinetic energy of a fast-pitched baseball, packed into one proton. We still don't fully know what could accelerate a thing that small to that energy. Particle radiation at its most extreme — and as un-electromagnetic as it gets.</div>
+</section>
+
+<footer>
+  <p class="mono">PARTICLE RADIATION & NUCLEAR DECAY · A DEEP DIVE</p>
+  <p style="margin-top:8px">The full throughline: a particle is "radiation" because it's moving with energy, not because it's broken. Some (alpha, proton, neutron) are little quark assemblies; one (the beta electron) is elementary and gets born mid-decay. Nuclei fire these out when two forces compete and a lower-energy arrangement exists — and exactly <i>when</i> is pure quantum dice, which for a crowd gives N₀e^(−λt) and a half-life of ln2/λ. From a uranium atom outlasting the Earth to a cosmic-ray proton thrown across the universe, it's all the same physics with a different number plugged in.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function dot(ctx,x,y,r,col,glow){ctx.fillStyle=col;if(glow){ctx.shadowColor=col;ctx.shadowBlur=glow;}ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowBlur=0;}
+
+/* ===== B. ZOOM INTO MATTER ===== */
+(function(){
+  const c=document.getElementById("zoomCanvas");let S,t=0,level=1;
+  function size(){S=setup(c,Math.min(300,Math.max(240,c.clientWidth*0.6)));}size();
+  const levels=[
+    {scale:"scale ≈ 1 m  ·  everyday matter",title:"Ordinary matter",desc:"A speck of anything — skin, metal, air. Zoom in and it dissolves into a swarm of atoms, around ten billion of them across a single millimetre."},
+    {scale:"scale ≈ 10⁻¹⁰ m  ·  one atom",title:"An atom",desc:"A dense central nucleus wrapped in a fuzzy cloud of electrons. It's almost entirely empty space — if the atom were a stadium, the nucleus would be a pea at the centre."},
+    {scale:"scale ≈ 10⁻¹⁴ m  ·  the nucleus",title:"The nucleus",desc:"A tight cluster of protons (red) and neutrons (blue). This is what an alpha particle is a chip off of — and what fires out in alpha and beta decay."},
+    {scale:"scale ≈ 10⁻¹⁵ m  ·  one nucleon",title:"Inside a proton",desc:"Crack open a single proton and you find three quarks — two up, one down — in a roiling field of gluons, the strong-force 'springs' that bind them and refuse to let any quark leave alone."},
+    {scale:"scale < 10⁻¹⁸ m  ·  the floor (so far)",title:"A quark · an electron",desc:"Here the ladder stops. Quarks and electrons show no measurable size and no internal parts — they appear to be truly elementary, the current bottom of physics."},
+  ];
+  const zbar=document.getElementById("zbar");levels.forEach(()=>{const s=document.createElement("div");s.className="seg";zbar.appendChild(s);});
+  const zUp=document.getElementById("zUp"),zDown=document.getElementById("zDown"),zLevel=document.getElementById("zLevel");
+  function refresh(){
+    const L=levels[level-1];
+    document.getElementById("zScale").textContent=L.scale;
+    document.getElementById("zTitle").textContent=L.title;
+    document.getElementById("zDesc").textContent=L.desc;
+    zLevel.textContent="layer "+level+" / 5";
+    [...zbar.children].forEach((s,i)=>s.classList.toggle("on",i<level));
+    zUp.disabled=level<=1;zDown.disabled=level>=5;
+    zUp.classList.toggle("on",level>1);zDown.classList.toggle("on",level<5);
+  }
+  zUp.onclick=()=>{if(level>1){level--;refresh();}};
+  zDown.onclick=()=>{if(level<5){level++;refresh();}};
+  refresh();
+  function draw(){
+    const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const cx=w/2,cy=h/2;
+    if(level===1){
+      for(let i=0;i<60;i++){const a=i*0.7+t*0.002,rr=20+(i%6)*16;
+        const x=cx+Math.cos(a)*(rr+Math.sin(t*0.02+i)*4), y=cy+Math.sin(a*1.1)*(rr*0.7+Math.cos(t*0.02+i)*4);
+        dot(ctx,x,y,3,"rgba(124,139,255,.75)");}
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("a swarm of atoms",cx,h-16);
+    } else if(level===2){
+      ctx.strokeStyle="rgba(255,255,255,.13)";ctx.lineWidth=1;
+      for(let o=0;o<3;o++){ctx.save();ctx.translate(cx,cy);ctx.rotate(o*1.1);ctx.beginPath();ctx.ellipse(0,0,70+o*8,30+o*6,0,0,7);ctx.stroke();
+        const a=t*0.04+o*2;dot(ctx,Math.cos(a)*(70+o*8),Math.sin(a)*(30+o*6),5,"#39c2ff",10);ctx.restore();}
+      dot(ctx,cx,cy,11,"#ff9d5c",18);
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("tiny nucleus + electron cloud",cx,h-16);
+    } else if(level===3){
+      const N=12;for(let i=0;i<N;i++){const a=i*(Math.PI*2/N)+t*0.01,ring=(i%2?34:16);
+        const x=cx+Math.cos(a)*ring+Math.sin(t*0.03+i)*2, y=cy+Math.sin(a)*ring+Math.cos(t*0.03+i)*2;
+        dot(ctx,x,y,11,i%2?"#ff5d73":"#39c2ff",6);}
+      ctx.fillStyle="#ff5d73";ctx.font='10px "Space Mono"';ctx.textAlign="center";ctx.fillText("● protons",cx-52,h-16);ctx.fillStyle="#39c2ff";ctx.fillText("neutrons ●",cx+58,h-16);
+    } else if(level===4){
+      const q=[{a:-Math.PI/2,l:"u",c:"#ffd166"},{a:Math.PI/6,l:"u",c:"#ffd166"},{a:5*Math.PI/6,l:"d",c:"#7c8bff"}];
+      const R=46;ctx.strokeStyle="rgba(255,255,255,.12)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,R+22,0,7);ctx.stroke();
+      ctx.strokeStyle="rgba(154,160,200,.5)";ctx.lineWidth=2;
+      for(let i=0;i<3;i++){const j=(i+1)%3;const x1=cx+Math.cos(q[i].a)*R,y1=cy+Math.sin(q[i].a)*R,x2=cx+Math.cos(q[j].a)*R,y2=cy+Math.sin(q[j].a)*R;
+        ctx.beginPath();const seg=10;for(let s=0;s<=seg;s++){const f=s/seg;const x=x1+(x2-x1)*f, y=y1+(y2-y1)*f;const off=Math.sin(f*Math.PI*4+t*0.1)*4;const nx=-(y2-y1),ny=(x2-x1);const len=Math.hypot(nx,ny);ctx.lineTo(x+nx/len*off,y+ny/len*off);}ctx.stroke();}
+      q.forEach(Q=>{const x=cx+Math.cos(Q.a)*R+Math.sin(t*0.05)*2,y=cy+Math.sin(Q.a)*R+Math.cos(t*0.05)*2;
+        dot(ctx,x,y,15,Q.c,12);ctx.fillStyle="#04121c";ctx.font='bold 13px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(Q.l,x,y);});
+      ctx.textBaseline="alphabetic";ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("3 quarks + gluon springs",cx,h-14);
+    } else {
+      const pr=4+Math.sin(t*0.08)*1.5;
+      for(let i=4;i>0;i--){ctx.strokeStyle=`rgba(95,224,160,${0.05*i})`;ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,18*i+Math.sin(t*0.05)*3,0,7);ctx.stroke();}
+      dot(ctx,cx,cy,pr,"#5fe0a0",22);
+      ctx.fillStyle="rgba(238,240,251,.45)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("no parts found — a point",cx,h-14);
+    }
+    t++;requestAnimationFrame(draw);
+  }
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== C. ALPHA ANATOMY ===== */
+(function(){
+  const c=document.getElementById("alphaCanvas");let S,t=0;
+  function size(){S=setup(c,Math.min(260,Math.max(220,c.clientWidth*0.5)));}size();
+  function nucleon(ctx,x,y,type){
+    const base=type==='p'?"#ff5d73":"#39c2ff";
+    ctx.strokeStyle=base;ctx.globalAlpha=.25;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,30,0,7);ctx.stroke();ctx.globalAlpha=1;
+    const quarks=type==='p'?[["u","#ffd166"],["u","#ffd166"],["d","#7c8bff"]]:[["u","#ffd166"],["d","#7c8bff"],["d","#7c8bff"]];
+    quarks.forEach((q,i)=>{const a=-Math.PI/2+i*(Math.PI*2/3)+t*0.02;const qx=x+Math.cos(a)*13,qy=y+Math.sin(a)*13;
+      dot(ctx,qx,qy,9,q[1],6);ctx.fillStyle="#04121c";ctx.font='bold 10px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(q[0],qx,qy);});
+    ctx.textBaseline="alphabetic";
+    ctx.fillStyle=base;ctx.font='bold 11px "Space Mono"';ctx.textAlign="center";ctx.fillText(type==='p'?"p +1":"n  0",x,y+44);
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const cx=w/2,cy=h/2-6;const d=44+Math.sin(t*0.03)*3;
+    ctx.fillStyle="rgba(255,209,102,.05)";ctx.beginPath();ctx.arc(cx,cy,d+44,0,7);ctx.fill();
+    nucleon(ctx,cx-d,cy-d*0.7,'p');nucleon(ctx,cx+d,cy-d*0.7,'n');
+    nucleon(ctx,cx-d,cy+d*0.7,'n');nucleon(ctx,cx+d,cy+d*0.7,'p');
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== C2. ALPHA BINDING (force balance) ===== */
+(function(){
+  const c=document.getElementById("alphaBindCanvas");let S,mode="alpha",parts=[],resetting=false;
+  function size(){S=setup(c,Math.min(280,Math.max(230,c.clientWidth*0.55)));init();}
+  const bD=document.getElementById("abDiproton"),bA=document.getElementById("abAlpha"),verdict=document.getElementById("abVerdict");
+  function init(){const {w,h}=S;const cx=w/2,cy=h/2;parts=[];
+    if(mode==="alpha"){const d=20;
+      parts.push({x:cx-d,y:cy-d,p:true});parts.push({x:cx+d,y:cy-d,p:false});
+      parts.push({x:cx-d,y:cy+d,p:false});parts.push({x:cx+d,y:cy+d,p:true});
+    } else {
+      parts.push({x:cx-15,y:cy,p:true});parts.push({x:cx+15,y:cy,p:true});
+    }
+    parts.forEach(q=>{q.vx=(Math.random()-.5)*0.4;q.vy=(Math.random()-.5)*0.4;});
+  }
+  function setMode(m){mode=m;bA.classList.toggle("on",m==="alpha");bD.classList.toggle("on",m==="diproton");init();
+    if(m==="alpha")verdict.innerHTML="⁴He (α): <b style='color:var(--strong)'>bound</b> — six strong bonds outvote one Coulomb push; sits ≈ 28 MeV deep in an energy well.";
+    else verdict.innerHTML="²He (diproton): <b style='color:var(--hot)'>unbound</b> — one weak bond loses to Coulomb repulsion, so it flies apart.";
+  }
+  bD.onclick=()=>setMode("diproton");bA.onclick=()=>setMode("alpha");
+  function physics(){const n=parts.length;const core=22,range=82,r0=30;
+    for(let i=0;i<n;i++){let fx=0,fy=0;
+      for(let j=0;j<n;j++){if(i===j)continue;
+        const dx=parts[j].x-parts[i].x,dy=parts[j].y-parts[i].y;const r=Math.hypot(dx,dy)||0.001;const ux=dx/r,uy=dy/r;
+        let fs=0;
+        if(r<core)fs=-(core-r)*0.9;            // hard-core repulsion
+        else if(r<range)fs=0.06*(1-(r-r0)/(range-r0)); // strong attraction, fades with range
+        fx+=ux*fs;fy+=uy*fs;
+        if(parts[i].p&&parts[j].p){const fc=120/(r*r);fx-=ux*fc;fy-=uy*fc;} // Coulomb push (protons)
+      }
+      parts[i].ax=fx;parts[i].ay=fy;
+    }
+    parts.forEach(q=>{q.vx=(q.vx+q.ax)*0.94;q.vy=(q.vy+q.ay)*0.94;
+      const sp=Math.hypot(q.vx,q.vy);if(sp>6){q.vx*=6/sp;q.vy*=6/sp;}
+      q.x+=q.vx;q.y+=q.vy;});
+    if(mode==="diproton"&&!resetting){const dx=parts[0].x-parts[1].x,dy=parts[0].y-parts[1].y;
+      if(Math.hypot(dx,dy)>S.w*0.66){resetting=true;setTimeout(()=>{init();resetting=false;},650);}}
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);physics();
+    for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){const a=parts[i],b=parts[j];
+      ctx.strokeStyle="rgba(95,224,160,.5)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      if(a.p&&b.p){ctx.strokeStyle="rgba(255,77,109,.85)";ctx.setLineDash([4,3]);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);}
+    }
+    parts.forEach(q=>{dot(ctx,q.x,q.y,13,q.p?"#ff5d73":"#39c2ff",8);ctx.fillStyle="#04121c";ctx.font='bold 12px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(q.p?"p":"n",q.x,q.y);});
+    ctx.textBaseline="alphabetic";ctx.font='10px "Space Mono"';ctx.textAlign="left";
+    ctx.fillStyle="#5fe0a0";ctx.fillText("— strong pull · every pair · charge-blind",12,h-26);
+    ctx.fillStyle="#ff4d6d";ctx.fillText("- - Coulomb push · protons only",12,h-12);
+    requestAnimationFrame(draw);
+  }
+  size();setMode("alpha");draw();window.addEventListener("resize",size);
+})();
+
+/* ===== D. BETA DECAY ===== */
+(function(){
+  const c=document.getElementById("betaCanvas");let S,t=0;
+  function size(){S=setup(c,Math.min(280,Math.max(230,c.clientWidth*0.55)));}size();
+  const cap=document.getElementById("betaCap");
+  const CYCLE=360;
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const cx=w*0.36,cy=h/2;const p=(t%CYCLE);
+    const flipping = p>90 && p<170;
+    const flipped = p>=130;
+    const emit = p>=150;
+    const ep = Math.max(0,(p-150)/120);
+    if(p<90) cap.innerHTML="A free neutron: quarks <b style='color:var(--up)'>u</b> <b style='color:var(--down)'>d</b> <b style='color:var(--down)'>d</b>, sitting at rest.";
+    else if(p<150) cap.innerHTML="The weak force flips one <b style='color:var(--down)'>down</b> quark toward <b style='color:var(--up)'>up</b> — emitting a W⁻ boson.";
+    else cap.innerHTML="Now a proton (<b style='color:var(--up)'>u</b> <b style='color:var(--up)'>u</b> <b style='color:var(--down)'>d</b>) — plus a freshly created <b style='color:var(--electron)'>electron</b> &amp; antineutrino.";
+    const isProton = flipped;
+    const base=isProton?"#ff5d73":"#39c2ff";
+    ctx.strokeStyle=base;ctx.globalAlpha=.3;ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,40,0,7);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=base;ctx.font='bold 12px "Space Mono"';ctx.textAlign="center";ctx.fillText(isProton?"proton":"neutron",cx,cy+62);
+    const qs=[{a:-Math.PI/2,l:"u",c:"#ffd166"},{a:Math.PI/6,l:flipped?"u":"d",c:flipped?"#ffd166":"#7c8bff"},{a:5*Math.PI/6,l:"d",c:"#7c8bff"}];
+    qs.forEach((q,i)=>{let x=cx+Math.cos(q.a)*18,y=cy+Math.sin(q.a)*18;
+      let col=q.c;if(i===1&&flipping&&!flipped){col=t%6<3?"#ffd166":"#7c8bff";}
+      dot(ctx,x,y,12,col,8);ctx.fillStyle="#04121c";ctx.font='bold 12px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(q.l,x,y);});
+    ctx.textBaseline="alphabetic";
+    if(emit){
+      const ex=cx+40+ep*(w-cx-60), ey=cy-ep*(h*0.32);
+      dot(ctx,ex,ey,8,"#7be08a",14);ctx.fillStyle="#7be08a";ctx.font='bold 11px "Space Mono"';ctx.textAlign="left";ctx.fillText("e⁻ (β)",ex+12,ey-6);
+      const nx=cx+40+ep*(w-cx-50), ny=cy+ep*(h*0.30);
+      ctx.globalAlpha=.55;dot(ctx,nx,ny,5,"#9aa0c8",6);ctx.fillStyle="#9aa0c8";ctx.font='10px "Space Mono"';ctx.fillText("ν̄ (antineutrino)",nx+10,ny+4);ctx.globalAlpha=1;
+    } else if(flipping){
+      const wp=(p-90)/60;const wx=cx+40+wp*30,wy=cy-wp*16;
+      ctx.globalAlpha=.8;dot(ctx,wx,wy,7,"#ff7ad1",10);ctx.fillStyle="#ff7ad1";ctx.font='bold 10px "Space Mono"';ctx.textAlign="left";ctx.fillText("W⁻",wx+10,wy);ctx.globalAlpha=1;
+    }
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== F. NUCLEUS TUG OF WAR ===== */
+(function(){
+  const c=document.getElementById("nucCanvas");let S,t=0,A=56,nucleons=[];
+  function size(){S=setup(c,Math.min(260,Math.max(210,c.clientWidth*0.5)));build();}
+  const sl=document.getElementById("aSlider"),aVal=document.getElementById("aVal"),verdict=document.getElementById("verdict");
+  const gFill=document.getElementById("gFill"),cFill=document.getElementById("cFill"),gValEl=document.getElementById("gVal"),cValEl=document.getElementById("cVal");
+  function ZforA(A){let Z=(-2+Math.sqrt(4+4*0.006*A))/(2*0.006);return Math.max(1,Math.round(Z));}
+  function build(){nucleons=[];const Z=ZforA(A);const {w,h}=S;const cx=w/2,cy=h/2;
+    const R=Math.min(w,h)*0.32*Math.cbrt(A/56);
+    for(let i=0;i<A;i++){const ang=Math.random()*7,rad=Math.sqrt(Math.random())*R;
+      nucleons.push({bx:cx+Math.cos(ang)*rad,by:cy+Math.sin(ang)*rad,ph:Math.random()*7,proton:i<Z});}
+  }
+  function metrics(){const Z=ZforA(A);const glue=A;const push=Z*Z/Math.cbrt(A);return {Z,glue,push};}
+  function refresh(){A=parseInt(sl.value);aVal.textContent=A;build();
+    const {Z,glue,push}=metrics();
+    const gMax=260, cMax=92*92/Math.cbrt(238);
+    gFill.style.width=Math.min(100,glue/gMax*100)+"%";
+    cFill.style.width=Math.min(100,push/cMax*100)+"%";
+    gValEl.textContent="Z="+Z+", A="+A; cValEl.textContent="∝ "+Math.round(push);
+    const ratio=push/glue;
+    if(A<=20){verdict.textContent="● Rock solid — glue dominates easily";verdict.style.color="var(--stable)";}
+    else if(ratio<0.78){verdict.textContent="● Stable — glue still ahead";verdict.style.color="var(--stable)";}
+    else if(ratio<0.95){verdict.textContent="◐ Strained — likely radioactive";verdict.style.color="var(--gold)";}
+    else{verdict.textContent="☢ Unstable — repulsion is winning, it decays";verdict.style.color="var(--hot)";}
+  }
+  sl.oninput=refresh;
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const protons=nucleons.filter(n=>n.proton);
+    ctx.strokeStyle="rgba(255,93,115,.06)";ctx.lineWidth=1;
+    const step=Math.max(1,Math.floor(protons.length/14));
+    for(let i=0;i<protons.length;i+=step)for(let j=i+step;j<protons.length;j+=step){
+      ctx.beginPath();ctx.moveTo(protons[i].bx,protons[i].by);ctx.lineTo(protons[j].bx,protons[j].by);ctx.stroke();}
+    nucleons.forEach(n=>{const jx=Math.sin(t*0.04+n.ph)*1.5,jy=Math.cos(t*0.05+n.ph)*1.5;
+      dot(ctx,n.bx+jx,n.by+jy,Math.max(2.4,Math.min(6, 90/Math.sqrt(A)+1)),n.proton?"#ff5d73":"#39c2ff",0);});
+    t++;requestAnimationFrame(draw);}
+  size();refresh();draw();window.addEventListener("resize",()=>{size();refresh();});
+})();
+
+/* ===== G. VALLEY OF STABILITY ===== */
+(function(){
+  const c=document.getElementById("nzCanvas");let S;
+  function size(){S=setup(c,Math.min(360,Math.max(300,c.clientWidth*0.72)));draw();}
+  const info=document.getElementById("nzInfo");
+  const pad={l:44,r:14,t:14,b:38};
+  const Zmax=100,Nmax=150;
+  function stableN(Z){return Z+0.006*Z*Z;}
+  let marker=null;
+  function toXY(Z,N,w,h){const x=pad.l+(Z/Zmax)*(w-pad.l-pad.r);const y=h-pad.b-(N/Nmax)*(h-pad.t-pad.b);return [x,y];}
+  function fromXY(px,py,w,h){const Z=(px-pad.l)/(w-pad.l-pad.r)*Zmax;const N=(h-pad.b-py)/(h-pad.t-pad.b)*Nmax;return [Z,N];}
+  function classify(Z,N){
+    if(Z>83||N>140){return ["α","var(--alpha)","Too heavy. It ejects an α (2p+2n), stepping down toward the belt."];}
+    const sN=stableN(Z),band=4+Z*0.12;
+    if(N>sN+band)return ["β⁻","var(--beta-minus)","Neutron-rich. A neutron turns into a proton (n→p + e⁻ + ν̄), sliding down toward the belt."];
+    if(N<sN-band)return ["β⁺","var(--beta-plus)","Proton-rich. A proton turns into a neutron (p→n + e⁺ + ν), climbing toward the belt."];
+    return ["stable","var(--stable)","On the belt — this one is stable, no decay needed."];
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,h-pad.b);ctx.lineTo(w-pad.r,h-pad.b);ctx.stroke();
+    ctx.fillStyle="rgba(238,240,251,.6)";ctx.font='11px "Space Mono"';ctx.textAlign="center";
+    ctx.fillText("protons  Z →",(pad.l+(w-pad.r))/2,h-10);
+    ctx.save();ctx.translate(14,(pad.t+(h-pad.b))/2);ctx.rotate(-Math.PI/2);ctx.fillText("neutrons  N →",0,0);ctx.restore();
+    ctx.strokeStyle="rgba(255,255,255,.12)";ctx.setLineDash([4,4]);
+    let [x0,y0]=toXY(0,0,w,h),[x1,y1]=toXY(Math.min(Zmax,Nmax),Math.min(Zmax,Nmax),w,h);
+    ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(255,255,255,.3)";ctx.textAlign="left";ctx.fillText("N = Z",x1-44,y1+14);
+    ctx.strokeStyle="rgba(95,224,160,.9)";ctx.lineWidth=7;ctx.lineCap="round";ctx.globalAlpha=.85;ctx.beginPath();
+    for(let Z=1;Z<=83;Z++){const [x,y]=toXY(Z,stableN(Z),w,h);Z===1?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=1;
+    if(marker){const [mx,my]=toXY(marker.Z,marker.N,w,h);
+      dot(ctx,mx,my,6,marker.col,12);
+      if(marker.mode!=="stable"){
+        let tN=marker.N,tZ=marker.Z;
+        if(marker.mode==="β⁻"){tN-=8;tZ+=8;}else if(marker.mode==="β⁺"){tN+=8;tZ-=8;}else{tN-=10;tZ-=10;}
+        const [tx,ty]=toXY(tZ,tN,w,h);
+        ctx.strokeStyle=marker.col;ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);
+        const ang=Math.atan2(ty-my,tx-mx);ctx.fillStyle=marker.col;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx-9*Math.cos(ang-0.4),ty-9*Math.sin(ang-0.4));ctx.lineTo(tx-9*Math.cos(ang+0.4),ty-9*Math.sin(ang+0.4));ctx.fill();
+      }
+    }
+  }
+  function handle(ev){const r=c.getBoundingClientRect();const px=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;const py=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
+    const {w,h}=S;let [Z,N]=fromXY(px,py,w,h);Z=Math.max(1,Math.min(Zmax,Math.round(Z)));N=Math.max(0,Math.min(Nmax,Math.round(N)));
+    const [mode,col,desc]=classify(Z,N);marker={Z,N,mode,col};
+    info.innerHTML=`<b>Z = ${Z} protons, N = ${N} neutrons</b> &nbsp;→&nbsp; <b style="color:${col}">${mode==="stable"?"STABLE":mode+" decay"}</b><br>${desc}`;
+    draw();}
+  c.addEventListener("click",handle);c.addEventListener("touchstart",e=>{e.preventDefault();handle(e);},{passive:false});
+  size();window.addEventListener("resize",size);
+})();
+
+/* ===== H. BINDING ENERGY CURVE ===== */
+(function(){
+  const c=document.getElementById("beCanvas");let S;
+  function size(){S=setup(c,Math.min(300,Math.max(240,c.clientWidth*0.58)));draw();}
+  const pts=[[2,1.11],[3,2.83],[4,7.07],[6,5.33],[7,5.61],[9,6.46],[12,7.68],[16,7.98],[20,8.03],[24,8.26],[40,8.55],[56,8.79],[62,8.79],[75,8.7],[90,8.7],[107,8.55],[120,8.5],[140,8.33],[160,8.21],[180,8.05],[200,7.87],[220,7.7],[238,7.57]];
+  const pad={l:42,r:14,t:18,b:34};const Amax=240,Bmax=9;
+  function toXY(A,B,w,h){return [pad.l+(A/Amax)*(w-pad.l-pad.r), h-pad.b-(B/Bmax)*(h-pad.t-pad.b)];}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,h-pad.b);ctx.lineTo(w-pad.r,h-pad.b);ctx.stroke();
+    ctx.fillStyle="rgba(238,240,251,.55)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    ctx.fillText("mass number A →",(pad.l+w-pad.r)/2,h-8);
+    ctx.save();ctx.translate(13,(pad.t+h-pad.b)/2);ctx.rotate(-Math.PI/2);ctx.fillText("binding E / nucleon (MeV)",0,0);ctx.restore();
+    ctx.strokeStyle="#ffd166";ctx.lineWidth=2.5;ctx.beginPath();
+    pts.forEach((p,i)=>{const [x,y]=toXY(p[0],p[1],w,h);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
+    ctx.lineTo(...toXY(238,0,w,h));ctx.lineTo(...toXY(2,0,w,h));ctx.closePath();ctx.fillStyle="rgba(255,209,102,.07)";ctx.fill();
+    function mark(A,B,lab,col){const [x,y]=toXY(A,B,w,h);dot(ctx,x,y,4,col,8);ctx.fillStyle=col;ctx.font='bold 10px "Space Mono"';ctx.textAlign="left";ctx.fillText(lab,x+7,y+(lab.includes("Fe")?-6:14));}
+    mark(4,7.07,"He-4","#39c2ff");mark(56,8.79,"Fe-56 ▲ peak","#5fe0a0");mark(238,7.57,"U-238","#ff5d73");
+    ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    let [fx]=toXY(28,0,w,h);ctx.fillText("fusion →",fx,pad.t+12);
+    let [gx]=toXY(150,0,w,h);ctx.fillText("← fission",gx,pad.t+12);
+  }
+  size();window.addEventListener("resize",size);
+})();
+
+/* ===== K. HALF-LIFE SIMULATOR ===== */
+(function(){
+  const c=document.getElementById("simCanvas");let S;
+  function size(){S=setup(c,Math.min(380,Math.max(320,c.clientWidth*0.78)));layout();}
+  const hSlider=document.getElementById("hSlider"),hVal=document.getElementById("hVal"),thalf=document.getElementById("thalf"),aliveN=document.getElementById("aliveN"),resetBtn=document.getElementById("simReset");
+  let cols,rows,N0,nuclei,t,history,H,lambda,flashes,gridH,paused,pauseTimer;
+  function layout(){const {w,h}=S;gridH=h*0.5;cols=Math.max(16,Math.floor((w-20)/13));rows=Math.max(8,Math.floor((gridH-16)/13));N0=cols*rows;reset();}
+  function reset(){nuclei=new Array(N0).fill(0);t=0;history=[];flashes=[];paused=false;
+    H=parseInt(hSlider.value);lambda=Math.LN2/H;}
+  hSlider.oninput=()=>{hVal.textContent=hSlider.value;reset();};
+  resetBtn.onclick=reset;
+  function alive(){let a=0;for(const v of nuclei)if(v===0)a++;return a;}
+  function step(){if(paused)return;const p=1-Math.exp(-lambda);
+    for(let i=0;i<N0;i++){if(nuclei[i]===0&&Math.random()<p){nuclei[i]=1;flashes.push({i:i,a:1});}}
+    history.push(alive());t++;
+    if(t>=5*H){paused=true;clearTimeout(pauseTimer);pauseTimer=setTimeout(reset,1400);}
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    step();
+    const gx0=12,gy0=12,cw=(w-24)/cols,ch=(gridH-16)/rows;
+    for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){const i=r*cols+col;const x=gx0+col*cw+cw/2,y=gy0+r*ch+ch/2;
+      if(nuclei[i]===0)dot(ctx,x,y,Math.min(4,cw*0.32),"#ffffff",4);
+      else{ctx.fillStyle="rgba(255,255,255,.10)";ctx.beginPath();ctx.arc(x,y,Math.min(3,cw*0.25),0,7);ctx.fill();}}
+    for(let k=flashes.length-1;k>=0;k--){const f=flashes[k];const r=Math.floor(f.i/cols),col=f.i%cols;const x=gx0+col*cw+cw/2,y=gy0+r*ch+ch/2;
+      ctx.strokeStyle=`rgba(255,209,102,${f.a})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,(1-f.a)*9+3,0,7);ctx.stroke();f.a-=0.08;if(f.a<=0)flashes.splice(k,1);}
+    const px0=44,py0=gridH+14,pw=w-px0-14,ph=h-py0-26;
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px0,py0+ph);ctx.lineTo(px0+pw,py0+ph);ctx.stroke();
+    const Tmax=5*H;
+    const X=tt=>px0+(tt/Tmax)*pw, Y=nn=>py0+ph-(nn/N0)*ph;
+    ctx.font='9px "Space Mono"';ctx.textAlign="center";
+    for(let k=1;k<=5;k++){const x=X(k*H);ctx.strokeStyle="rgba(255,255,255,.07)";ctx.beginPath();ctx.moveTo(x,py0);ctx.lineTo(x,py0+ph);ctx.stroke();
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.fillText(k+"·t½",x,py0+ph+14);}
+    ctx.textAlign="right";for(let k=1;k<=3;k++){const frac=Math.pow(0.5,k);const y=Y(N0*frac);ctx.strokeStyle="rgba(255,255,255,.05)";ctx.beginPath();ctx.moveTo(px0,y);ctx.lineTo(px0+pw,y);ctx.stroke();
+      ctx.fillStyle="rgba(238,240,251,.35)";ctx.fillText(Math.round(frac*100)+"%",px0-4,y+3);}
+    ctx.strokeStyle="#ffd166";ctx.lineWidth=2;ctx.beginPath();
+    for(let tt=0;tt<=Math.min(t,Tmax);tt+=2){const x=X(tt),y=Y(N0*Math.exp(-lambda*tt));tt===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+    ctx.strokeStyle="rgba(255,255,255,.85)";ctx.lineWidth=1.5;ctx.beginPath();
+    history.forEach((nn,tt)=>{const x=X(tt),y=Y(nn);tt===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
+    ctx.fillStyle="#ffd166";ctx.textAlign="left";ctx.fillText("— theory  N₀e^(−λt)",px0+6,py0+12);
+    ctx.fillStyle="rgba(255,255,255,.85)";ctx.fillText("— actual count",px0+6,py0+24);
+    thalf.textContent=(t/H).toFixed(1);aliveN.textContent=alive()+" / "+N0;
+    requestAnimationFrame(draw);
+  }
+  hVal.textContent=hSlider.value;size();draw();window.addEventListener("resize",size);
+})();
+
+/* ===== L. CARBON-14 ===== */
+(function(){
+  const sl=document.getElementById("c14Slider"),pct=document.getElementById("c14pct"),age=document.getElementById("c14age");
+  const T=5730;
+  function up(){const p=parseInt(sl.value);pct.textContent=p+"%";
+    const yrs=(T/Math.LN2)*Math.log(100/p);
+    age.textContent=yrs>=10000?(yrs/1000).toFixed(1)+"k yr":Math.round(yrs/10)*10+" yr";}
+  sl.oninput=up;up();
+})();
+
+/* ===== M. COSMIC RAY AIR SHOWER ===== */
+(function(){
+  const c=document.getElementById("showerCanvas");let S;
+  function size(){S=setup(c,Math.min(360,Math.max(280,c.clientWidth*0.7)));}
+  size();
+  let tracks=[],groundHits=[],frame=0;
+  const types={prim:{c:"#ffffff",r:3.5},pion:{c:"#5fe0d6",r:2.6},muon:{c:"#ff7ad1",r:2.4},elec:{c:"#7be08a",r:2},phot:{c:"#c98bff",r:2}};
+  function spawnPrimary(){const {w}=S;tracks=[{x:w*0.5+(Math.random()-.5)*40,y:-6,vx:(Math.random()-.5)*0.6,vy:3.4,type:"prim",gen:0,split:false}];groundHits=[];}
+  function childType(gen){const r=Math.random();if(gen<2)return r<0.7?"pion":"phot";if(r<0.4)return "muon";if(r<0.7)return "elec";return "phot";}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const atmoY=h*0.16, groundY=h-22;
+    ctx.strokeStyle="rgba(57,194,255,.25)";ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(0,atmoY);ctx.lineTo(w,atmoY);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(57,194,255,.5)";ctx.font='10px "Space Mono"';ctx.textAlign="left";ctx.fillText("top of atmosphere",8,atmoY-6);
+    ctx.fillStyle="rgba(255,255,255,.08)";ctx.fillRect(0,groundY,w,h-groundY);
+    ctx.fillStyle="rgba(238,240,251,.45)";ctx.fillText("ground",8,groundY+15);
+    const next=[];
+    tracks.forEach(tr=>{
+      tr.x+=tr.vx;tr.y+=tr.vy;
+      if(!tr.split && ((tr.type==="prim"&&tr.y>=atmoY) || (tr.type==="pion"&&tr.gen<5&&Math.random()<0.03))){
+        tr.split=true;
+        const n=tr.type==="prim"?4:(2+(Math.random()<0.5?1:0));
+        for(let i=0;i<n;i++){const ct=childType(tr.gen);
+          next.push({x:tr.x,y:tr.y,vx:(Math.random()-.5)*2.2,vy:2.6+Math.random()*1.2,type:ct,gen:tr.gen+1,split:false});}
+        if(tr.type==="prim")return;
+      }
+      const T=types[tr.type];dot(ctx,tr.x,tr.y,T.r,T.c, tr.type==="muon"?6:0);
+      if(tr.y<groundY+2 && tr.x>-10 && tr.x<w+10 && next.length<160){
+        if(!(tr.type==="prim"&&tr.split)) next.push(tr);
+      } else if(tr.y>=groundY && tr.type==="muon"){groundHits.push({x:tr.x});}
+    });
+    tracks=next;
+    groundHits.slice(-40).forEach(g=>{dot(ctx,g.x,groundY,2.5,"#ff7ad1",6);});
+    ctx.textAlign="right";ctx.font='9px "Space Mono"';
+    ctx.fillStyle="#ffffff";ctx.fillText("● primary",w-8,atmoY-6);
+    ctx.fillStyle="#5fe0d6";ctx.fillText("● pion",w-8,atmoY+8);
+    ctx.fillStyle="#ff7ad1";ctx.fillText("● muon",w-8,atmoY+20);
+    ctx.fillStyle="#c98bff";ctx.fillText("● photon",w-8,atmoY+32);
+    ctx.fillStyle="#7be08a";ctx.fillText("● electron",w-8,atmoY+44);
+    frame++;
+    if(tracks.length===0 || frame%260===0) spawnPrimary();
+    requestAnimationFrame(draw);
+  }
+  spawnPrimary();draw();
+  window.addEventListener("resize",()=>{size();spawnPrimary();});
+})();
+</script>
+</body>
+</html>

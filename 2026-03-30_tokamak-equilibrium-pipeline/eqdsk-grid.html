@@ -1,0 +1,396 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eqdsk grid</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Generate a realistic D-shaped tokamak equilibrium on a grid
+function generateEquilibrium(nR, nZ) {
+  const Rmin = 0.6, Rmax = 1.8;
+  const Zmin = -1.0, Zmax = 1.0;
+  const dR = (Rmax - Rmin) / (nR - 1);
+  const dZ = (Zmax - Zmin) / (nZ - 1);
+
+  // Magnetic axis location (shifted outward from geometric center = Shafranov shift)
+  const R0 = 1.15, Z0 = 0.0;
+
+  // Shape parameters
+  const a = 0.42;        // minor radius
+  const kappa = 1.75;    // elongation
+  const delta = 0.40;    // triangularity
+
+  const grid = [];
+  for (let j = 0; j < nZ; j++) {
+    for (let i = 0; i < nR; i++) {
+      const R = Rmin + i * dR;
+      const Z = Zmin + j * dZ;
+
+      // Compute normalized distance from magnetic axis using shaped geometry
+      const dRn = (R - R0) / a;
+      const dZn = Z / (a * kappa);
+      // Add triangularity effect
+      const triShift = delta * dZn * dZn;
+      const rhoSq = (dRn - triShift) * (dRn - triShift) + dZn * dZn;
+      const rho = Math.sqrt(rhoSq);
+
+      // Psi value - normalized 0 at axis, 1 at boundary, >1 outside
+      let psi = rho;
+
+      // Add Shafranov shift (surfaces shift outward with radius)
+      psi = psi + 0.08 * (R - R0) / a * rhoSq;
+
+      grid.push({ R, Z, i, j, psi: Math.min(psi, 2.5), rho });
+    }
+  }
+  return { grid, nR, nZ, Rmin, Rmax, Zmin, Zmax, R0, Z0 };
+}
+
+// Generate contour paths from grid data
+function getContourPoints(eq, psiVal, numPoints = 200) {
+  const points = [];
+  for (let t = 0; t < numPoints; t++) {
+    const theta = (2 * Math.PI * t) / numPoints;
+    const a = 0.42;
+    const kappa = 1.75;
+    const delta = 0.40;
+    const R0 = 1.15;
+
+    // Parametric D-shaped surface
+    const r = a * psiVal;
+    const R = R0 + r * Math.cos(theta + delta * Math.sin(theta)) + 0.04 * psiVal * psiVal;
+    const Z = kappa * r * Math.sin(theta);
+
+    if (R >= 0.6 && R <= 1.8 && Z >= -1.0 && Z <= 1.0) {
+      points.push({ R, Z });
+    }
+  }
+  return points;
+}
+
+function EQDSKVisualizer() {
+  const nR = 17, nZ = 21;
+  const eq = generateEquilibrium(nR, nZ);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [showMode, setShowMode] = useState("psi"); // "grid", "psi", "contours"
+  const svgRef = useRef(null);
+
+  // SVG coordinate mapping
+  const svgW = 500, svgH = 580;
+  const pad = 50;
+  const plotW = svgW - 2 * pad;
+  const plotH = svgH - 2 * pad;
+
+  const toSvgX = (R) => pad + ((R - eq.Rmin) / (eq.Rmax - eq.Rmin)) * plotW;
+  const toSvgY = (Z) => pad + ((eq.Zmax - Z) / (eq.Zmax - eq.Zmin)) * plotH;
+
+  // Color map for psi values
+  const psiColor = (psi) => {
+    if (psi > 1.0) return "#1a1a2e"; // outside plasma
+    const t = Math.max(0, Math.min(1, psi));
+    // Teal to dark blue
+    const r = Math.round(10 + t * 10);
+    const g = Math.round(200 - t * 160);
+    const b = Math.round(200 - t * 80);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  // Wall contour (approximate D-shape vessel)
+  const wallPoints = [];
+  for (let t = 0; t <= 200; t++) {
+    const theta = (2 * Math.PI * t) / 200;
+    const R = 1.15 + 0.55 * Math.cos(theta + 0.3 * Math.sin(theta));
+    const Z = 0.9 * Math.sin(theta);
+    wallPoints.push(`${toSvgX(R)},${toSvgY(Z)}`);
+  }
+
+  // Contour levels
+  const contourLevels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+
+  const handleMouseMove = useCallback((e) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    let closest = null, minDist = Infinity;
+    eq.grid.forEach((p) => {
+      const sx = toSvgX(p.R), sy = toSvgY(p.Z);
+      const d = (mx - sx) ** 2 + (my - sy) ** 2;
+      if (d < minDist && d < 400) { minDist = d; closest = p; }
+    });
+    setHoveredPoint(closest);
+  }, []);
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          WHAT THE EQDSK GRID ACTUALLY LOOKS LIKE
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          A RECTANGULAR GRID OVER A D-SHAPED PLASMA — HOVER TO SEE VALUES
+        </p>
+
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+          {[
+            { id: "grid", label: "1. The bare grid" },
+            { id: "psi", label: "2. ψ values on grid" },
+            { id: "contours", label: "3. Contour lines emerge" },
+          ].map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setShowMode(m.id)}
+              style={{
+                padding: "8px 14px",
+                background: showMode === m.id ? "#1a2a3a" : "#12171f",
+                border: showMode === m.id ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: showMode === m.id ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 11, fontFamily: "inherit", cursor: "pointer",
+                fontWeight: showMode === m.id ? 700 : 400,
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          {/* SVG plot */}
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 10,
+          }}>
+            <svg
+              ref={svgRef}
+              width={svgW}
+              height={svgH}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={() => setHoveredPoint(null)}
+              style={{ display: "block" }}
+            >
+              {/* Background */}
+              <rect x={pad} y={pad} width={plotW} height={plotH} fill="#080c12" stroke="#1e2630" />
+
+              {/* Grid lines */}
+              {Array.from({ length: nR }, (_, i) => {
+                const R = eq.Rmin + i * (eq.Rmax - eq.Rmin) / (nR - 1);
+                return <line key={`vg${i}`} x1={toSvgX(R)} y1={pad} x2={toSvgX(R)} y2={pad + plotH} stroke="#151b24" strokeWidth={0.5} />;
+              })}
+              {Array.from({ length: nZ }, (_, j) => {
+                const Z = eq.Zmin + j * (eq.Zmax - eq.Zmin) / (nZ - 1);
+                return <line key={`hg${j}`} x1={pad} y1={toSvgY(Z)} x2={pad + plotW} y2={toSvgY(Z)} stroke="#151b24" strokeWidth={0.5} />;
+              })}
+
+              {/* Wall contour */}
+              <polygon points={wallPoints.join(" ")} fill="none" stroke="#3a4a5a" strokeWidth={2} strokeDasharray="4,3" />
+
+              {/* Psi colored cells (show in psi and contour mode) */}
+              {(showMode === "psi" || showMode === "contours") && eq.grid.map((p, idx) => {
+                const cellW = plotW / (nR - 1);
+                const cellH = plotH / (nZ - 1);
+                return (
+                  <rect
+                    key={`c${idx}`}
+                    x={toSvgX(p.R) - cellW / 2}
+                    y={toSvgY(p.Z) - cellH / 2}
+                    width={cellW}
+                    height={cellH}
+                    fill={psiColor(p.psi)}
+                    opacity={0.7}
+                  />
+                );
+              })}
+
+              {/* Contour lines */}
+              {showMode === "contours" && contourLevels.map((psiVal) => {
+                const pts = getContourPoints(eq, psiVal);
+                if (pts.length < 3) return null;
+                const d = pts.map((p, i) =>
+                  `${i === 0 ? "M" : "L"} ${toSvgX(p.R)} ${toSvgY(p.Z)}`
+                ).join(" ") + " Z";
+                return (
+                  <path
+                    key={`contour${psiVal}`}
+                    d={d}
+                    fill="none"
+                    stroke={psiVal === 1.0 ? "#ff6b6b" : "#4ecdc4"}
+                    strokeWidth={psiVal === 1.0 ? 2 : 1}
+                    opacity={psiVal === 1.0 ? 1 : 0.6}
+                  />
+                );
+              })}
+
+              {/* Grid points */}
+              {eq.grid.map((p, idx) => {
+                const isInside = p.psi <= 1.0;
+                const isHovered = hoveredPoint && hoveredPoint.i === p.i && hoveredPoint.j === p.j;
+                let radius = showMode === "grid" ? 3 : 2;
+                let color = showMode === "grid"
+                  ? (isInside ? "#4ecdc4" : "#2a3544")
+                  : (isInside ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.1)");
+
+                if (isHovered) { radius = 6; color = "#ff6b6b"; }
+
+                return (
+                  <circle
+                    key={`p${idx}`}
+                    cx={toSvgX(p.R)}
+                    cy={toSvgY(p.Z)}
+                    r={radius}
+                    fill={color}
+                  />
+                );
+              })}
+
+              {/* Magnetic axis marker */}
+              <circle cx={toSvgX(1.15)} cy={toSvgY(0)} r={5} fill="none" stroke="#ff6b6b" strokeWidth={2} />
+              <line x1={toSvgX(1.15) - 4} y1={toSvgY(0)} x2={toSvgX(1.15) + 4} y2={toSvgY(0)} stroke="#ff6b6b" strokeWidth={2} />
+              <line x1={toSvgX(1.15)} y1={toSvgY(0) - 4} x2={toSvgX(1.15)} y2={toSvgY(0) + 4} stroke="#ff6b6b" strokeWidth={2} />
+
+              {/* Axis labels */}
+              {Array.from({ length: 7 }, (_, i) => {
+                const R = eq.Rmin + i * (eq.Rmax - eq.Rmin) / 6;
+                return <text key={`rl${i}`} x={toSvgX(R)} y={svgH - 12} textAnchor="middle" fill="#5c6a7a" fontSize={10}>{R.toFixed(1)}</text>;
+              })}
+              {Array.from({ length: 5 }, (_, i) => {
+                const Z = eq.Zmin + i * (eq.Zmax - eq.Zmin) / 4;
+                return <text key={`zl${i}`} x={pad - 8} y={toSvgY(Z) + 4} textAnchor="end" fill="#5c6a7a" fontSize={10}>{Z.toFixed(1)}</text>;
+              })}
+              <text x={svgW / 2} y={svgH - 0} textAnchor="middle" fill="#5c6a7a" fontSize={11}>R (meters from central axis) →</text>
+              <text x={12} y={svgH / 2} textAnchor="middle" fill="#5c6a7a" fontSize={11} transform={`rotate(-90, 12, ${svgH / 2})`}>↑ Z (meters)</text>
+            </svg>
+          </div>
+
+          {/* Info panel */}
+          <div style={{ flex: 1, minWidth: 280 }}>
+            {/* Hover info */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+              minHeight: 140,
+            }}>
+              <div style={{ fontSize: 10, color: "#5c6a7a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                {hoveredPoint ? "Grid Point" : "Hover over a point"}
+              </div>
+              {hoveredPoint ? (
+                <div>
+                  <div style={{ fontSize: 13, color: "#a0aab8", lineHeight: 1.8 }}>
+                    <span style={{ color: "#5c6a7a" }}>Grid index:</span> [{hoveredPoint.i}, {hoveredPoint.j}]
+                  </div>
+                  <div style={{ fontSize: 13, color: "#a0aab8", lineHeight: 1.8 }}>
+                    <span style={{ color: "#5c6a7a" }}>R =</span> <span style={{ color: "#e6ecf2", fontWeight: 700 }}>{hoveredPoint.R.toFixed(3)} m</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#a0aab8", lineHeight: 1.8 }}>
+                    <span style={{ color: "#5c6a7a" }}>Z =</span> <span style={{ color: "#e6ecf2", fontWeight: 700 }}>{hoveredPoint.Z.toFixed(3)} m</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#a0aab8", lineHeight: 1.8 }}>
+                    <span style={{ color: "#5c6a7a" }}>ψ =</span>{" "}
+                    <span style={{
+                      color: hoveredPoint.psi <= 1.0 ? "#4ecdc4" : "#ff6b6b",
+                      fontWeight: 700,
+                      fontSize: 16,
+                    }}>
+                      {hoveredPoint.psi.toFixed(3)}
+                    </span>
+                  </div>
+                  <div style={{
+                    marginTop: 8,
+                    padding: "6px 10px",
+                    background: hoveredPoint.psi <= 1.0 ? "rgba(78,205,196,0.1)" : "rgba(255,107,107,0.1)",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    color: hoveredPoint.psi <= 1.0 ? "#4ecdc4" : "#ff6b6b",
+                  }}>
+                    {hoveredPoint.psi <= 0.05 ? "Near magnetic axis (center of plasma)" :
+                     hoveredPoint.psi <= 0.5 ? "Inside plasma — core region" :
+                     hoveredPoint.psi <= 0.9 ? "Inside plasma — outer region" :
+                     hoveredPoint.psi <= 1.0 ? "Near plasma boundary" :
+                     hoveredPoint.psi <= 1.5 ? "Outside plasma — scrape-off layer" :
+                     "Far outside plasma — vacuum / wall region"}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#3a4a5a", lineHeight: 1.6 }}>
+                  Hover over any dot on the grid to see its (R, Z) coordinates and ψ value
+                </div>
+              )}
+            </div>
+
+            {/* Explanation for current mode */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                {showMode === "grid" ? "Step 1: The Grid" : showMode === "psi" ? "Step 2: Fill in ψ values" : "Step 3: Connect equal values"}
+              </div>
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.7 }}>
+                {showMode === "grid" ? (
+                  <>
+                    This is the raw rectangular grid that the EQDSK file uses. {nR}×{nZ} = {nR * nZ} points arranged in a boring rectangle. The dashed line is the vessel wall. Teal dots are inside the plasma, dark dots are outside.
+                    <br /><br />
+                    Notice: many grid points are outside the plasma entirely. The grid doesn't know or care about the plasma shape. It just covers the whole area.
+                  </>
+                ) : showMode === "psi" ? (
+                  <>
+                    Now every grid point has a ψ value (the color). Bright teal = low ψ (near the center). Dark = high ψ (near the edge or outside).
+                    <br /><br />
+                    ψ = 0 at the magnetic axis (the crosshair). ψ = 1 at the plasma boundary. ψ {">"} 1 is outside the plasma. These {nR * nZ} numbers ARE the EQDSK file. That's all it is.
+                  </>
+                ) : (
+                  <>
+                    Now draw lines connecting points with the same ψ value. The teal lines are flux surfaces (ψ = 0.1, 0.2, ... 0.9). The red line is the plasma boundary (ψ = 1.0).
+                    <br /><br />
+                    The D-shape emerges by itself. Nobody told the grid about the D-shape. The shape is encoded entirely in the pattern of ψ numbers. The inner surfaces are rounder. The outer surfaces are more D-shaped and shifted outward. All from one rectangular grid of numbers.
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#5c6a7a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                In the real EQDSK file
+              </div>
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.7 }}>
+                Real EFIT uses 65×65 or 129×129 grid points (not {nR}×{nZ} like this demo). That's 4,225 or 16,641 ψ values. Written as plain text, 5 numbers per line, Fortran fixed-width format. The entire D-shaped, elongated, Shafranov-shifted equilibrium is just those numbers on a rectangular grid.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EQDSKVisualizer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

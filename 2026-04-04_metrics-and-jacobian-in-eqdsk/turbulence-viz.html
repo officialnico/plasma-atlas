@@ -1,0 +1,527 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>turbulence viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+};
+
+// Simplex-like noise (fast 2D)
+function createNoise() {
+  const perm = new Uint8Array(512);
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+
+  const grad2 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+
+  return function noise2D(x, y) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    const xf = x - Math.floor(x);
+    const yf = y - Math.floor(y);
+    const u = xf * xf * (3 - 2 * xf);
+    const v = yf * yf * (3 - 2 * yf);
+
+    const aa = perm[perm[X] + Y] & 7;
+    const ab = perm[perm[X] + Y + 1] & 7;
+    const ba = perm[perm[X + 1] + Y] & 7;
+    const bb = perm[perm[X + 1] + Y + 1] & 7;
+
+    const d = (i, fx, fy) => grad2[i][0] * fx + grad2[i][1] * fy;
+    const x1 = d(aa, xf, yf) * (1 - u) + d(ba, xf - 1, yf) * u;
+    const x2 = d(ab, xf, yf - 1) * (1 - u) + d(bb, xf - 1, yf - 1) * u;
+    return x1 * (1 - v) + x2 * v;
+  };
+}
+
+function fbm(noise, x, y, octaves = 4) {
+  let val = 0, amp = 1, freq = 1, max = 0;
+  for (let i = 0; i < octaves; i++) {
+    val += noise(x * freq, y * freq) * amp;
+    max += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return val / max;
+}
+
+const VIEWS = [
+  {
+    id: "flux-tube-turb",
+    title: "Turbulence on a Flux Tube",
+    desc: "Looking at the flux tube unwrapped — x is radial (across surfaces), z is along the field line. The eddies are hugely stretched along z but narrow in x. This is why one surface's geometry is enough.",
+  },
+  {
+    id: "cross-section",
+    title: "Cross-Section View",
+    desc: "Looking at the (x, y) plane perpendicular to B. The turbulent structures are small — just centimeters across — compared to the plasma radius. The flux tube captures a tiny radial window.",
+  },
+  {
+    id: "tokamak",
+    title: "Turbulence in the Tokamak",
+    desc: "The full picture — thin turbulent filaments spiraling along field lines inside the torus. Each one is a long ribbon stretched along B, narrow across it. A flux tube simulation captures one of these ribbons.",
+  },
+];
+
+function TurbulenceViz() {
+  const [view, setView] = useState(0);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const noiseRef = useRef(null);
+  const timeRef = useRef(0);
+  const particlesRef = useRef(null);
+
+  // Initialize noise
+  useEffect(() => {
+    noiseRef.current = createNoise();
+  }, []);
+
+  // Initialize particles for tokamak view
+  useEffect(() => {
+    if (view === 2) {
+      const parts = [];
+      for (let i = 0; i < 300; i++) {
+        parts.push({
+          phi: Math.random() * Math.PI * 2,
+          theta: Math.random() * Math.PI * 2,
+          psiOff: (Math.random() - 0.5) * 0.06,
+          speed: 0.3 + Math.random() * 0.4,
+          size: 1 + Math.random() * 2,
+          drift: (Math.random() - 0.5) * 0.01,
+          hue: Math.random(),
+        });
+      }
+      particlesRef.current = parts;
+    }
+  }, [view]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !noiseRef.current) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const noise = noiseRef.current;
+
+    let running = true;
+    const animate = () => {
+      if (!running) return;
+      timeRef.current += 0.016;
+      const t = timeRef.current;
+
+      ctx.fillStyle = C.bg;
+      ctx.fillRect(0, 0, W, H);
+
+      if (view === 0) {
+        // === FLUX TUBE VIEW (x vs z) ===
+        // Turbulence field: stretched along z (field-aligned), narrow in x (radial)
+        const imgData = ctx.createImageData(W, H);
+        const data = imgData.data;
+        const stretchZ = 0.3; // eddies elongated along z
+        const stretchX = 3.0; // narrow in x
+
+        for (let py = 0; py < H; py++) {
+          for (let px = 0; px < W; px++) {
+            const x = (px / W) * 10;
+            const z = (py / H) * 10;
+
+            // Turbulence: anisotropic noise
+            let val = fbm(noise, x * stretchX + t * 0.2, z * stretchZ + t * 0.5, 5);
+            val += 0.3 * fbm(noise, x * stretchX * 2 + t * 0.3 + 50, z * stretchZ * 0.5 - t * 0.2 + 50, 3);
+
+            // Zonal flow component (radially varying, field-aligned)
+            val += 0.2 * Math.sin(x * stretchX * 1.5 + t * 0.1) * fbm(noise, z * 0.2 + t * 0.1 + 100, 0, 2);
+
+            const v = (val + 1) * 0.5;
+            const idx = (py * W + px) * 4;
+
+            // Color: blue-cyan for negative, red-orange for positive (density fluctuations)
+            if (v > 0.5) {
+              const s = (v - 0.5) * 2;
+              data[idx] = Math.round(40 + 200 * s);
+              data[idx + 1] = Math.round(30 + 80 * s);
+              data[idx + 2] = Math.round(20);
+              data[idx + 3] = 255;
+            } else {
+              const s = (0.5 - v) * 2;
+              data[idx] = Math.round(15);
+              data[idx + 1] = Math.round(40 + 120 * s);
+              data[idx + 2] = Math.round(80 + 170 * s);
+              data[idx + 3] = 255;
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+
+        // Overlay: flux tube box
+        ctx.strokeStyle = C.accent + "60";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(2, 2, W - 4, H - 4);
+
+        // Axis labels
+        ctx.font = "bold 12px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.textBright + "cc";
+        ctx.fillText("← x (radial) →", W / 2 - 55, H - 8);
+        ctx.save();
+        ctx.translate(14, H / 2 + 50);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText("← z (along field line) →", 0, 0);
+        ctx.restore();
+
+        // Scale annotation
+        ctx.font = "10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.highlight + "bb";
+        ctx.fillText("~cm", W / 2 - 8, 18);
+        ctx.fillStyle = C.green + "bb";
+        ctx.save();
+        ctx.translate(W - 15, H / 2 + 20);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText("~100s of meters", 0, 0);
+        ctx.restore();
+
+        // Arrow annotations
+        ctx.strokeStyle = C.highlight + "90";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(W / 2 - 40, 22);
+        ctx.lineTo(W / 2 - 60, 22);
+        ctx.moveTo(W / 2 + 25, 22);
+        ctx.lineTo(W / 2 + 45, 22);
+        ctx.stroke();
+
+      } else if (view === 1) {
+        // === CROSS-SECTION VIEW (x vs y, perp to B) ===
+        const imgData = ctx.createImageData(W, H);
+        const data = imgData.data;
+
+        for (let py = 0; py < H; py++) {
+          for (let px = 0; px < W; px++) {
+            const x = (px / W) * 12;
+            const y = (py / H) * 12;
+
+            // More isotropic turbulence in the perp plane
+            let val = fbm(noise, x * 1.5 + t * 0.3, y * 1.5 + t * 0.15 + 200, 5);
+            val += 0.4 * fbm(noise, x * 3 + t * 0.2 + 300, y * 3 - t * 0.25 + 300, 4);
+            // Zonal flows (y-elongated streaks = radially structured)
+            val += 0.3 * Math.sin(x * 2.5 + 0.5 * fbm(noise, x + t * 0.1, y * 0.3 + t * 0.05, 2));
+
+            const v = (val + 1) * 0.5;
+            const idx = (py * W + px) * 4;
+
+            if (v > 0.5) {
+              const s = (v - 0.5) * 2;
+              data[idx] = Math.round(40 + 200 * s);
+              data[idx + 1] = Math.round(30 + 80 * s);
+              data[idx + 2] = Math.round(20);
+              data[idx + 3] = 255;
+            } else {
+              const s = (0.5 - v) * 2;
+              data[idx] = Math.round(15);
+              data[idx + 1] = Math.round(40 + 120 * s);
+              data[idx + 2] = Math.round(80 + 170 * s);
+              data[idx + 3] = 255;
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+
+        // Flux tube box overlay
+        const boxW = 50, boxH = H - 40;
+        const boxX = W / 2 - boxW / 2;
+        ctx.strokeStyle = C.accent;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(boxX, 20, boxW, boxH);
+        ctx.setLineDash([]);
+
+        ctx.font = "10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.accent;
+        ctx.fillText("flux tube", boxX + boxW + 5, 35);
+        ctx.fillText("width", boxX + boxW + 5, 48);
+
+        // Show plasma scale
+        ctx.strokeStyle = C.textDim + "80";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(30, H - 15);
+        ctx.lineTo(W - 30, H - 15);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(30, H - 20);
+        ctx.lineTo(30, H - 10);
+        ctx.moveTo(W - 30, H - 20);
+        ctx.lineTo(W - 30, H - 10);
+        ctx.stroke();
+        ctx.font = "10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.textDim;
+        ctx.fillText("~1m (plasma minor radius)", W / 2 - 75, H - 4);
+
+        // Labels
+        ctx.font = "bold 12px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.textBright + "cc";
+        ctx.fillText("← x (radial) →", W / 2 - 55, 15);
+        ctx.save();
+        ctx.translate(14, H / 2 + 50);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText("← y (binormal) →", 0, 0);
+        ctx.restore();
+
+      } else if (view === 2) {
+        // === TOKAMAK VIEW ===
+        const cx = W / 2, cy = H / 2;
+        const R0 = 140; // major radius in pixels
+        const a = 80; // minor radius
+        const kappa = 1.4;
+
+        // Draw torus cross-section outline (faint)
+        for (let side = 0; side < 2; side++) {
+          const sign = side === 0 ? 1 : -1;
+          ctx.beginPath();
+          for (let th = 0; th <= Math.PI * 2; th += 0.05) {
+            const R = cx + sign * (R0 + a * Math.cos(th)) * 0.5;
+            const Z = cy + kappa * a * Math.sin(th) * 0.5;
+            if (th === 0) ctx.moveTo(R, Z);
+            else ctx.lineTo(R, Z);
+          }
+          ctx.closePath();
+          ctx.strokeStyle = C.border + "40";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
+        // Draw flux surfaces as ellipses (top-down-ish 3/4 view)
+        for (let si = 2; si <= 6; si += 2) {
+          const psi = si / 8;
+          const rr = a * psi;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, R0 + rr * 0.3, rr * kappa * 0.5, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = C.fluxBright + "20";
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, R0 - rr * 0.3, rr * kappa * 0.5, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = C.fluxBright + "20";
+          ctx.stroke();
+        }
+
+        // Animate particles along field lines
+        const parts = particlesRef.current;
+        if (parts) {
+          for (const p of parts) {
+            // Advance along field line (toroidal + poloidal)
+            p.phi += p.speed * 0.016;
+            p.theta += p.speed * 0.016 * 0.35; // q ~ 3
+            p.psiOff += p.drift * Math.sin(t * 2 + p.phi) * 0.016;
+            p.psiOff = Math.max(-0.06, Math.min(0.06, p.psiOff));
+
+            const psi = 0.6 + p.psiOff;
+            const r = a * psi;
+
+            // 3D -> 2D projection (oblique view)
+            const viewAngle = 0.35;
+            const Rlocal = R0 + r * Math.cos(p.theta);
+            const Zlocal = r * kappa * Math.sin(p.theta);
+            const X3d = Rlocal * Math.cos(p.phi);
+            const Y3d = Rlocal * Math.sin(p.phi);
+            const Z3d = Zlocal;
+
+            // Project
+            const px = cx + X3d * 0.5 + Y3d * 0.15;
+            const py = cy - Z3d * 0.5 + Y3d * 0.25 * viewAngle;
+
+            // Depth for opacity
+            const depth = (Y3d + R0) / (2 * R0);
+            const alpha = 0.2 + 0.8 * depth;
+
+            // Color by density fluctuation
+            const turb = fbm(noise, p.phi * 2 + t * 0.3, p.theta * 0.5, 3);
+            const v = (turb + 1) * 0.5;
+
+            let r2, g2, b2;
+            if (v > 0.5) {
+              const s = (v - 0.5) * 2;
+              r2 = Math.round(60 + 195 * s);
+              g2 = Math.round(40 + 60 * s);
+              b2 = 30;
+            } else {
+              const s = (0.5 - v) * 2;
+              r2 = 20;
+              g2 = Math.round(60 + 140 * s);
+              b2 = Math.round(100 + 155 * s);
+            }
+
+            ctx.beginPath();
+            ctx.arc(px, py, p.size * (0.5 + depth * 0.8), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${r2},${g2},${b2},${(alpha * 0.8).toFixed(2)})`;
+            ctx.fill();
+          }
+        }
+
+        // Draw one highlighted field line
+        ctx.beginPath();
+        const nLine = 200;
+        for (let i = 0; i <= nLine; i++) {
+          const phi = (i / nLine) * Math.PI * 2 * 2;
+          const theta = phi * 0.35 + t * 0.3;
+          const psi = 0.6;
+          const r2 = a * psi;
+          const Rlocal = R0 + r2 * Math.cos(theta);
+          const Zlocal = r2 * kappa * Math.sin(theta);
+          const X3d = Rlocal * Math.cos(phi);
+          const Y3d = Rlocal * Math.sin(phi);
+          const Z3d = Zlocal;
+          const px = cx + X3d * 0.5 + Y3d * 0.15;
+          const py = cy - Z3d * 0.5 + Y3d * 0.25 * 0.35;
+          const depth = (Y3d + R0) / (2 * R0);
+
+          if (depth < 0.35) continue;
+
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = C.accent + "40";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Labels
+        ctx.font = "10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.accent + "aa";
+        ctx.fillText("field line", cx + R0 * 0.5 + 10, cy - a * 0.5 - 10);
+
+        ctx.fillStyle = C.warm + "bb";
+        ctx.fillText("turbulent filaments", cx - R0 * 0.7, cy + a * kappa * 0.55 + 20);
+        ctx.fillText("spiraling along B", cx - R0 * 0.7, cy + a * kappa * 0.55 + 33);
+      }
+
+      animRef.current = requestAnimationFrame(animate);
+    };
+
+    animRef.current = requestAnimationFrame(animate);
+    return () => {
+      running = false;
+      cancelAnimationFrame(animRef.current);
+    };
+  }, [view]);
+
+  const currentView = VIEWS[view];
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <h1 style={{ fontSize: 17, fontWeight: 700, color: C.textBright, margin: 0, letterSpacing: "0.04em" }}>
+            Plasma Turbulence
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            density fluctuations — <span style={{ color: C.warm }}>hot</span> / <span style={{ color: C.cool }}>cool</span>
+          </div>
+        </div>
+
+        {/* View selector */}
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 12 }}>
+          {VIEWS.map((v, i) => (
+            <button key={i} onClick={() => setView(i)} style={{
+              padding: "6px 12px", borderRadius: 6, fontSize: 10,
+              border: `1px solid ${i === view ? C.accent : C.border}`,
+              background: i === view ? C.accentDim : C.bgPanel,
+              color: i === view ? C.accent : C.textDim,
+              cursor: "pointer", fontFamily: "inherit", transition: "all 0.3s",
+            }}>
+              {["Flux Tube", "Cross-Section", "Tokamak"][i]}
+            </button>
+          ))}
+        </div>
+
+        {/* Canvas */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, overflow: "hidden", marginBottom: 12,
+        }}>
+          <canvas ref={canvasRef} width={500} height={450}
+            style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        {/* Info */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 6 }}>
+            {currentView.title}
+          </div>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.6 }}>
+            {currentView.desc}
+          </div>
+
+          {view === 0 && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px", background: C.surface,
+              borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.7,
+            }}>
+              Notice how the structures are streaked vertically (along B) but thin horizontally (radially).
+              This extreme anisotropy is why a flux tube works — the eddies "fit" inside the tube.
+              The metric coefficients tell GENE how to correctly compute gradients in this elongated geometry.
+            </div>
+          )}
+
+          {view === 1 && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px", background: C.surface,
+              borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.7,
+            }}>
+              The dashed box is the flux tube's radial extent — tiny compared to the whole plasma.
+              The geometry barely changes across this width, so using one surface's metric coefficients is valid.
+              The vertical streaks are zonal flows — radially structured, poloidally extended.
+            </div>
+          )}
+
+          {view === 2 && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px", background: C.surface,
+              borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.7,
+            }}>
+              Each colored particle represents a turbulent density fluctuation.
+              They follow field lines spiraling around the torus, drifting slightly radially.
+              A flux tube simulation captures one thin ribbon of this — enough because each eddy is so narrow.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TurbulenceViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

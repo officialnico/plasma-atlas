@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why 2d, and why squared</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --plate:#15120d; --plate-2:#1f1a13; --edge:#322a1e;
+    --bone:#ece5d6; --bone-dim:#9a8f78;
+    --force:#f0a33a; --vel:#6fb6ac;
+    --serif:'Spectral',Georgia,serif; --sans:'Archivo',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--plate);color:var(--bone);font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(120% 80% at 50% -10%, rgba(240,163,58,0.06), transparent 60%);
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px;}
+  header{padding:72px 0 40px;border-bottom:1px solid var(--edge);}
+  .eyebrow{font-weight:600;font-size:11px;letter-spacing:0.34em;text-transform:uppercase;color:var(--bone-dim);margin:0 0 22px;}
+  h1{font-family:var(--serif);font-weight:300;font-size:clamp(34px,6.5vw,60px);line-height:1.04;letter-spacing:-0.015em;margin:0 0 22px;}
+  h1 em{font-style:italic;color:var(--force);}
+  .lede{font-family:var(--serif);font-size:clamp(16px,2.3vw,19px);font-weight:300;max-width:60ch;margin:0;}
+  .lede b{font-weight:500;color:var(--force);font-style:normal;}
+
+  .eq{font-family:var(--serif);font-style:italic;font-size:clamp(20px,4vw,30px);color:var(--bone);text-align:center;margin:38px 0 6px;}
+  .eq .hi{color:var(--force);font-style:normal;}
+  .eq-note{text-align:center;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--bone-dim);margin:0 0 8px;}
+
+  .stage{padding:40px 0;}
+  .plate-frame{position:relative;background:var(--plate-2);border:1px solid var(--edge);border-radius:3px;overflow:hidden;}
+  .plate-frame::after{content:'Velocity × time';position:absolute;top:10px;right:14px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--bone-dim);opacity:0.7;}
+  canvas{display:block;width:100%;height:380px;}
+  @media (max-width:560px){ canvas{height:320px;} }
+
+  .controls{display:flex;flex-wrap:wrap;gap:24px 30px;align-items:flex-end;margin-top:24px;}
+  .ctrl{display:flex;flex-direction:column;gap:8px;flex:1 1 220px;min-width:200px;}
+  .ctrl label{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--bone-dim);font-weight:600;display:flex;justify-content:space-between;}
+  .ctrl label .val{color:var(--bone);font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--edge);border-radius:2px;outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--force);border:2px solid var(--plate-2);box-shadow:0 0 0 1px var(--force);cursor:pointer;}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--force);border:2px solid var(--plate-2);cursor:pointer;}
+  button{font-family:var(--sans);font-weight:600;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--bone);background:transparent;box-shadow:inset 0 0 0 1px var(--edge);border:none;border-radius:2px;padding:11px 18px;cursor:pointer;transition:.15s;}
+  button:hover{color:var(--force);box-shadow:inset 0 0 0 1px var(--force);}
+  button.on{background:var(--force);color:var(--plate);box-shadow:none;}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--force);outline-offset:3px;}
+
+  .readout{display:flex;flex-wrap:wrap;border:1px solid var(--edge);border-radius:3px;overflow:hidden;margin-top:24px;}
+  .cell{flex:1 1 150px;padding:14px 18px;border-right:1px solid var(--edge);}
+  .cell:last-child{border-right:none;}
+  .cell .k{font-size:9.5px;letter-spacing:0.18em;text-transform:uppercase;color:var(--bone-dim);font-weight:600;}
+  .cell .v{font-variant-numeric:tabular-nums;font-weight:700;font-size:20px;margin-top:4px;}
+  .cell .v.force{color:var(--force);}
+  .cell .v.vel{color:var(--vel);}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:8px 0 0;}
+  @media (max-width:560px){ .pair{grid-template-columns:1fr;} }
+  .panel{border-top:2px solid var(--edge);padding-top:18px;}
+  .panel.two{border-top-color:var(--vel);}
+  .panel.sq{border-top-color:var(--force);}
+  .panel h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:0 0 8px;}
+  .panel.two h3{color:var(--vel);}
+  .panel.sq h3{color:var(--force);}
+  .panel p{font-size:15px;color:var(--bone-dim);margin:0;}
+  .panel p b{color:var(--bone);font-weight:500;}
+
+  footer{padding:44px 0 80px;color:var(--bone-dim);font-size:13px;border-top:1px solid var(--edge);margin-top:48px;}
+  footer .rule{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--bone);margin-bottom:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Motion Studies · Addendum</p>
+    <h1>Why <em>2d</em>,<br>and why <em>squared</em></h1>
+    <p class="lede">Stopping distance is the area of a triangle. That one fact answers both questions: a triangle is <b>half</b> its rectangle (the 2), and doubling the speed stretches <b>both of its sides</b> at once (the square).</p>
+    <div class="eq" style="margin-top:34px;">F · d = <span class="hi">½</span> m v<span style="font-size:0.7em;vertical-align:super;">2</span> &nbsp;⟶&nbsp; F = m v<span style="font-size:0.7em;vertical-align:super;">2</span> ⁄ <span class="hi">2</span>d</div>
+    <p class="eq-note">work to stop  =  kinetic energy</p>
+  </header>
+
+  <div class="stage">
+    <div class="plate-frame">
+      <canvas id="cv"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label>Speed multiplier <span class="val" id="kv">×2.0</span></label>
+        <input type="range" id="k" min="1" max="3" step="0.1" value="2">
+      </div>
+      <button id="rect" class="on">Show the rectangle</button>
+      <button id="refs" class="on">Show ×1 · ×2 · ×3</button>
+    </div>
+
+    <div class="readout">
+      <div class="cell"><div class="k">Speed (height)</div><div class="v vel" id="rSpeed">×2.0</div></div>
+      <div class="cell"><div class="k">Time to stop (base)</div><div class="v vel" id="rTime">×2.0</div></div>
+      <div class="cell"><div class="k">Distance = triangle area</div><div class="v force" id="rDist">×4.0</div></div>
+      <div class="cell"><div class="k">Impact force ∝ distance⁻¹·v²</div><div class="v force" id="rForce">×4.0</div></div>
+    </div>
+
+    <div class="pair">
+      <div class="panel two">
+        <h3>The 2 — it's a triangle</h3>
+        <p>The block never travels at full speed the whole way; it ramps from v down to 0, averaging <b>v⁄2</b>. Distance = average speed × time, so the filled triangle is exactly <b>half</b> the rectangle. That ½ is the 2 in <b>2d</b>.</p>
+      </div>
+      <div class="panel sq">
+        <h3>The square — two sides grow</h3>
+        <p>Go twice as fast and two things double together: you cover ground twice as fast (<b>height</b>) and it takes twice as long to stop (<b>base</b>). Two factors of speed multiply, so the area — the stopping distance — grows as <b>speed²</b>.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="rule">Halve the stopping distance and you double the force. That is the whole reason for crumple zones and airbags.</div>
+    They cannot reduce the momentum you must shed — only stretch d, dropping the force.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const DPR = Math.min(window.devicePixelRatio||1, 2);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const C={plate:'#1f1a13',bone:'#ece5d6',boneDim:'#9a8f78',edge:'#322a1e',
+           grid:'rgba(236,229,214,0.05)',force:'#f0a33a',vel:'#6fb6ac'};
+  const cv=document.getElementById('cv');
+  let G;
+  function fit(){
+    const r=cv.getBoundingClientRect();
+    cv.width=Math.round(r.width*DPR); cv.height=Math.round(r.height*DPR);
+    const ctx=cv.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0);
+    G={W:r.width,H:r.height,ctx};
+  }
+  fit();
+
+  let kTarget=2, kCur=reduce?2:1, showRect=true, showRefs=true, sweep=reduce?1:0;
+
+  const mL=58, mR=34, mT=34, mB=46;     // plot margins
+  function plot(){ return {x0:mL, y0:G.H-mB, w:G.W-mL-mR, h:G.H-mT-mB}; }
+  function units(p){ return {UV:0.90*p.h/3, UT:0.90*p.w/3}; }
+
+  function draw(){
+    const ctx=G.ctx, p=plot(), u=units(p);
+    ctx.fillStyle=C.plate; ctx.fillRect(0,0,G.W,G.H);
+
+    // grid
+    ctx.strokeStyle=C.grid; ctx.lineWidth=1; ctx.beginPath();
+    for(let i=1;i<=3;i++){ const gx=p.x0+i*u.UT; ctx.moveTo(gx,mT); ctx.lineTo(gx,p.y0);
+                           const gy=p.y0-i*u.UV; ctx.moveTo(p.x0,gy); ctx.lineTo(G.W-mR,gy); }
+    ctx.stroke();
+
+    // axes
+    ctx.strokeStyle=C.edge; ctx.lineWidth=1.5; ctx.beginPath();
+    ctx.moveTo(p.x0,mT-2); ctx.lineTo(p.x0,p.y0); ctx.lineTo(G.W-mR,p.y0); ctx.stroke();
+    ctx.fillStyle=C.boneDim; ctx.font='600 10px Archivo'; ctx.save();
+    ctx.translate(16,(mT+p.y0)/2); ctx.rotate(-Math.PI/2);
+    ctx.textAlign='center'; ctx.fillText('VELOCITY', 0,0); ctx.restore();
+    ctx.textAlign='center'; ctx.fillText('TIME', (p.x0+G.W-mR)/2, G.H-14); ctx.textAlign='start';
+
+    // reference triangles (hypotenuse lines) for k=1,2,3
+    if(showRefs){
+      const labs=['×1','×4','×9'];
+      for(let i=1;i<=3;i++){
+        const tx=p.x0+i*u.UT, ty=p.y0-i*u.UV;
+        ctx.strokeStyle='rgba(236,229,214,0.16)'; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+        ctx.beginPath(); ctx.moveTo(p.x0,ty); ctx.lineTo(tx,p.y0); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle='rgba(236,229,214,0.34)'; ctx.font='600 10px Archivo';
+        ctx.fillText(labs[i-1], tx-16, p.y0-6);
+      }
+    }
+
+    const k=kCur;
+    const topY=p.y0-k*u.UV, footX=p.x0+k*u.UT;
+
+    // rectangle (full-speed distance) — triangle is half of it
+    if(showRect){
+      ctx.strokeStyle='rgba(111,182,172,0.45)'; ctx.lineWidth=1.2; ctx.setLineDash([4,4]);
+      ctx.strokeRect(p.x0, topY, footX-p.x0, p.y0-topY); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(111,182,172,0.06)'; ctx.fillRect(p.x0,topY,footX-p.x0,p.y0-topY);
+      ctx.fillStyle='rgba(111,182,172,0.7)'; ctx.font='italic 11px Spectral'; ctx.textAlign='right';
+      ctx.fillText('full speed × time', footX-6, topY+15); ctx.textAlign='start';
+    }
+
+    // filled triangle (= stopping distance), with left-to-right sweep
+    const sx=p.x0+(footX-p.x0)*sweep;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(p.x0,mT-4,sx-p.x0,G.H); ctx.clip();
+    ctx.beginPath(); ctx.moveTo(p.x0,p.y0); ctx.lineTo(p.x0,topY); ctx.lineTo(footX,p.y0); ctx.closePath();
+    ctx.fillStyle='rgba(240,163,58,0.22)'; ctx.fill();
+    ctx.restore();
+
+    // velocity line (the hypotenuse)
+    ctx.strokeStyle=C.bone; ctx.lineWidth=2.5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(p.x0,topY); ctx.lineTo(footX,p.y0); ctx.stroke();
+
+    // markers
+    ctx.fillStyle=C.vel; ctx.beginPath(); ctx.arc(p.x0,topY,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=C.force; ctx.beginPath(); ctx.arc(footX,p.y0,4,0,Math.PI*2); ctx.fill();
+
+    // height brace label (speed = v) and base label (time)
+    ctx.fillStyle=C.vel; ctx.font='italic 13px Spectral';
+    ctx.fillText('v', p.x0-16, topY+5);
+    ctx.fillStyle=C.force; ctx.fillText('t', footX-3, p.y0+18);
+
+    // area label inside triangle
+    if(footX-p.x0>70 && p.y0-topY>34){
+      ctx.fillStyle=C.force; ctx.font='600 12px Archivo';
+      ctx.fillText('distance = ½ v t', p.x0+14, p.y0-12);
+      ctx.fillStyle='rgba(240,163,58,0.6)'; ctx.font='italic 11px Spectral';
+      ctx.fillText('half the rectangle', p.x0+14, p.y0-28);
+    }
+  }
+
+  function readouts(){
+    const k=kTarget;
+    document.getElementById('rSpeed').textContent='×'+k.toFixed(1);
+    document.getElementById('rTime').textContent='×'+k.toFixed(1);
+    document.getElementById('rDist').textContent='×'+(k*k).toFixed(1);
+    document.getElementById('rForce').textContent='×'+(k*k).toFixed(1);
+    document.getElementById('kv').textContent='×'+k.toFixed(1);
+  }
+
+  function loop(){
+    kCur += (kTarget-kCur)*0.16;
+    if(sweep<1) sweep=Math.min(1, sweep+0.05);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('k').addEventListener('input',e=>{
+    kTarget=+e.target.value; sweep=reduce?1:0.15; readouts();
+  });
+  document.getElementById('rect').addEventListener('click',e=>{
+    showRect=!showRect; e.target.classList.toggle('on',showRect);
+  });
+  document.getElementById('refs').addEventListener('click',e=>{
+    showRefs=!showRefs; e.target.classList.toggle('on',showRefs);
+  });
+  window.addEventListener('resize',()=>{ fit(); });
+
+  readouts();
+  requestAnimationFrame(()=>{ fit(); requestAnimationFrame(loop); });
+})();
+</script>
+</body>
+</html>

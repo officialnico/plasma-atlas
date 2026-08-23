@@ -1,0 +1,3442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Notes — A Hands-On Guide to Vector Calculus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script>
+  MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="../_lib/mathjax/tex-svg.js" id="MathJax-script" async></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
+<style>
+  :root {
+    --paper: #f4ecd8;
+    --paper-shadow: #e8dfc6;
+    --paper-deep: #ede2c4;
+    --ink: #1a1410;
+    --ink-soft: #3d3128;
+    --ink-faded: #6b5d4f;
+    --red: #a63d2a;
+    --red-deep: #7d2c1e;
+    --blue: #2b4865;
+    --blue-deep: #1a2e44;
+    --teal: #2d5a4f;
+    --gold: #b8862c;
+    --rule: #cfc4a8;
+    --grid: rgba(166, 61, 42, 0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 19px;
+    line-height: 1.6;
+    font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
+    background-image:
+      radial-gradient(circle at 20% 50%, rgba(184, 134, 44, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(166, 61, 42, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(43, 72, 101, 0.03) 0%, transparent 50%);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Paper grain */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0 0.06 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.5;
+    z-index: 1;
+    mix-blend-mode: multiply;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 2;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 40px 120px;
+  }
+
+  /* ============ HERO ============ */
+  .hero {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 50px;
+    margin-bottom: 70px;
+    position: relative;
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--ink);
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .eyebrow::before, .eyebrow::after {
+    content: "";
+    height: 1px;
+    background: var(--red);
+    flex: 0 0 40px;
+  }
+
+  .eyebrow::after { flex: 1; }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(56px, 9vw, 120px);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    margin-bottom: 30px;
+    font-variation-settings: "SOFT" 50, "WONK" 1;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--red);
+    font-weight: 400;
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+
+  .subtitle {
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-size: 24px;
+    color: var(--ink-soft);
+    max-width: 700px;
+    margin-bottom: 40px;
+    line-height: 1.4;
+  }
+
+  .meta-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+  }
+
+  .meta-bar span strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* ============ TOC ============ */
+  .toc {
+    margin: 50px 0 80px;
+    padding: 30px;
+    border: 1px solid var(--rule);
+    background: rgba(255, 255, 255, 0.3);
+    position: relative;
+  }
+
+  .toc::before {
+    content: "CONTENTS";
+    position: absolute;
+    top: -10px;
+    left: 24px;
+    background: var(--paper);
+    padding: 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--ink-faded);
+  }
+
+  .toc ol {
+    list-style: none;
+    counter-reset: chap;
+    columns: 2;
+    column-gap: 50px;
+  }
+
+  .toc li {
+    counter-increment: chap;
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--rule);
+    break-inside: avoid;
+  }
+
+  .toc li a {
+    color: var(--ink);
+    text-decoration: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    transition: color 0.2s;
+  }
+
+  .toc li a:hover { color: var(--red); }
+
+  .toc li a::before {
+    content: counter(chap, decimal-leading-zero);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--red);
+    flex: 0 0 auto;
+  }
+
+  .toc li a span {
+    flex: 1;
+    font-size: 18px;
+  }
+
+  /* ============ CHAPTERS ============ */
+  .chapter {
+    margin-bottom: 100px;
+    scroll-margin-top: 40px;
+  }
+
+  .chapter-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 30px;
+    align-items: baseline;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .chapter-num {
+    font-family: 'Fraunces', serif;
+    font-weight: 200;
+    font-size: 90px;
+    line-height: 1;
+    color: var(--red);
+    font-variation-settings: "SOFT" 0, "WONK" 1;
+    letter-spacing: -0.05em;
+  }
+
+  .chapter-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-variation-settings: "SOFT" 30, "WONK" 1;
+  }
+
+  .chapter-title em {
+    font-style: italic;
+    color: var(--ink-soft);
+  }
+
+  .chapter-kicker {
+    grid-column: 2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+    margin-top: 8px;
+  }
+
+  /* ============ BODY TEXT ============ */
+  p {
+    margin-bottom: 1.2em;
+    max-width: 68ch;
+  }
+
+  p.lead::first-letter {
+    font-family: 'Fraunces', serif;
+    font-size: 5em;
+    float: left;
+    line-height: 0.85;
+    margin: 0.05em 0.1em -0.05em 0;
+    color: var(--red);
+    font-weight: 400;
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+
+  h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 26px;
+    margin: 40px 0 16px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  h3::before {
+    content: "§ ";
+    color: var(--red);
+    font-weight: 300;
+  }
+
+  /* MathJax */
+  mjx-container { color: var(--ink); }
+  mjx-container[display="true"] { margin: 1.4em 0 !important; }
+
+  /* Inline emphasis */
+  strong { font-weight: 600; color: var(--ink); }
+  em { color: var(--ink-soft); }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: rgba(166, 61, 42, 0.08);
+    padding: 2px 6px;
+    border-radius: 2px;
+    color: var(--red-deep);
+  }
+
+  /* ============ MARGIN NOTE ============ */
+  .margin-note {
+    border-left: 2px solid var(--red);
+    padding: 4px 0 4px 20px;
+    margin: 24px 0;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink-soft);
+    max-width: 60ch;
+  }
+
+  .margin-note::before {
+    content: "Note. ";
+    font-style: normal;
+    font-weight: 600;
+    color: var(--red);
+    font-family: 'Fraunces', serif;
+  }
+
+  /* ============ INTERACTIVE FIGURE ============ */
+  .figure {
+    margin: 40px 0;
+    border: 1px solid var(--ink);
+    background: #fbf6e7;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .figure-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .figure-head .tag { color: var(--gold); }
+
+  .figure-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+  }
+
+  .figure-canvas {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: #fbf6e7;
+    border-right: 1px solid var(--rule);
+    cursor: crosshair;
+  }
+
+  .figure-canvas canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .figure-controls {
+    padding: 24px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .control-group label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+    margin-bottom: 8px;
+  }
+
+  .control-group .formula {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink);
+    background: rgba(255,255,255,0.5);
+    padding: 8px 12px;
+    border: 1px solid var(--rule);
+    margin-bottom: 8px;
+  }
+
+  .control-group select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    font-family: 'Newsreader', serif;
+    font-size: 15px;
+    color: var(--ink);
+    cursor: pointer;
+    font-style: italic;
+  }
+
+  .control-group input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 2px;
+    background: var(--ink);
+    outline: none;
+  }
+
+  .control-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--red);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .control-group input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--red);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .readout {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink);
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    line-height: 1.7;
+  }
+
+  .readout .label-mono {
+    color: var(--ink-faded);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .readout .value {
+    color: var(--red-deep);
+    font-weight: 600;
+  }
+
+  .figure-caption {
+    padding: 14px 20px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--ink-soft);
+    background: rgba(255,255,255,0.3);
+  }
+
+  .figure-caption strong {
+    font-style: normal;
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-right: 8px;
+  }
+
+  /* ============ HOMEWORK ============ */
+  .homework {
+    margin: 50px 0 0;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 31px,
+        rgba(43, 72, 101, 0.15) 31px,
+        rgba(43, 72, 101, 0.15) 32px
+      ),
+      #fafaf0;
+    border: 1px solid var(--blue);
+    border-left: 4px solid var(--red);
+    padding: 30px 36px 36px;
+    position: relative;
+    box-shadow: 4px 4px 0 var(--paper-shadow);
+  }
+
+  .homework::before {
+    content: "Homework";
+    position: absolute;
+    top: -14px;
+    left: 24px;
+    background: var(--red);
+    color: var(--paper);
+    padding: 4px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  .homework h4 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 22px;
+    margin-bottom: 6px;
+    color: var(--blue-deep);
+    line-height: 1.6;
+  }
+
+  .homework h4::before {
+    content: "Problem " counter(prob) ". ";
+    font-style: normal;
+    color: var(--red);
+    font-weight: 600;
+    counter-increment: prob;
+  }
+
+  .homework { counter-reset: prob; }
+
+  .homework ol {
+    list-style: none;
+    padding: 0;
+    counter-reset: prob;
+  }
+
+  .homework ol > li {
+    margin-bottom: 24px;
+    padding: 4px 0;
+    line-height: 32px;
+  }
+
+  .homework ol > li:last-child { margin-bottom: 0; }
+
+  .homework .hint {
+    margin-top: 10px;
+    font-size: 15px;
+    color: var(--blue-deep);
+  }
+
+  .homework details {
+    margin-top: 10px;
+  }
+
+  .homework summary {
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--red);
+    user-select: none;
+    padding: 4px 0;
+    display: inline-block;
+  }
+
+  .homework summary:hover { color: var(--red-deep); }
+  .homework summary::marker { content: ""; }
+  .homework summary::-webkit-details-marker { display: none; }
+  .homework summary::before {
+    content: "▸ ";
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+
+  .homework details[open] summary::before { content: "▾ "; }
+
+  .homework details > div {
+    padding: 12px 16px;
+    margin-top: 8px;
+    background: rgba(255,255,255,0.5);
+    border-left: 2px solid var(--blue);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* ============ KEY IDEA BOX ============ */
+  .key-idea {
+    margin: 30px 0;
+    padding: 24px 30px;
+    background: rgba(184, 134, 44, 0.12);
+    border-top: 2px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
+    position: relative;
+  }
+
+  .key-idea::before {
+    content: "✦";
+    position: absolute;
+    top: -14px;
+    left: 24px;
+    background: var(--paper);
+    color: var(--gold);
+    padding: 0 10px;
+    font-size: 18px;
+  }
+
+  .key-idea h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+
+  .key-idea p {
+    margin-bottom: 0;
+    font-family: 'Newsreader', serif;
+    font-size: 19px;
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  /* ============ FOOTER ============ */
+  footer {
+    margin-top: 120px;
+    padding-top: 40px;
+    border-top: 2px solid var(--ink);
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+  }
+
+  footer .colophon {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink-soft);
+    text-transform: none;
+    letter-spacing: normal;
+    margin-top: 16px;
+    max-width: 50ch;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .ornament {
+    font-size: 24px;
+    color: var(--red);
+    margin: 20px 0;
+    letter-spacing: 1em;
+  }
+
+  /* Mobile */
+  @media (max-width: 800px) {
+    .wrap { padding: 40px 24px 80px; }
+    .figure-body { grid-template-columns: 1fr; }
+    .figure-canvas { border-right: none; border-bottom: 1px solid var(--rule); }
+    .toc ol { columns: 1; }
+    .chapter-head { grid-template-columns: 1fr; gap: 10px; }
+    .chapter-num { font-size: 60px; }
+    .chapter-title { font-size: 32px; }
+    h1 { font-size: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="eyebrow">An Illustrated Field Guide · Volume I</div>
+  <h1>Field <em>Notes</em></h1>
+  <p class="subtitle">A hands-on tour of vector calculus — gradient, divergence, curl, and the theorems that bind them — with interactive figures and exercises at every step.</p>
+  <div class="meta-bar">
+    <span><strong>10</strong> Chapters</span>
+    <span><strong>8</strong> Interactive Figures</span>
+    <span><strong>30+</strong> Problems</span>
+    <span>Reading time <strong>≈ 60 min</strong></span>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<nav class="toc">
+  <ol>
+    <li><a href="#ch1"><span>Scalar &amp; Vector Fields</span></a></li>
+    <li><a href="#ch2"><span>The Gradient</span></a></li>
+    <li><a href="#ch3"><span>Directional Derivatives</span></a></li>
+    <li><a href="#ch4"><span>Divergence</span></a></li>
+    <li><a href="#ch5"><span>Curl</span></a></li>
+    <li><a href="#ch6"><span>Line Integrals</span></a></li>
+    <li><a href="#ch7"><span>Green's Theorem</span></a></li>
+    <li><a href="#ch8"><span>Flux &amp; Surface Integrals</span></a></li>
+    <li><a href="#ch9"><span>Stokes &amp; Divergence</span></a></li>
+    <li><a href="#ch10"><span>The Big Picture</span></a></li>
+  </ol>
+</nav>
+
+<!-- ============ CHAPTER 1 ============ -->
+<section id="ch1" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">01</div>
+    <div>
+      <h2 class="chapter-title">Scalar &amp; Vector <em>Fields</em></h2>
+      <div class="chapter-kicker">Functions that live on space itself</div>
+    </div>
+  </div>
+
+  <p class="lead">Before we can speak of gradients or curls, we need the things they act on. A <strong>scalar field</strong> assigns a single number to every point in space — think temperature in a room, or elevation across a landscape. A <strong>vector field</strong> assigns an arrow: think wind, water flow, or the magnetic field around a wire.</p>
+
+  <p>In two dimensions, a scalar field is a function $f(x, y)$. A vector field is a pair of functions packaged together, $\mathbf{F}(x, y) = \big(P(x,y),\, Q(x,y)\big)$, telling you the components of the arrow at each point.</p>
+
+  <div class="key-idea">
+    <h4>Key Idea</h4>
+    <p>A field is not a single quantity but a <em>rule</em>: give it a point, it gives you back a value. Vector calculus is the study of how those rules change from place to place.</p>
+  </div>
+
+  <h3>Visualizing fields</h3>
+  <p>Below is your first interactive figure. Pick a vector field from the menu. Hover the canvas: the readout shows the field's value at that point. Notice how some fields swirl, some radiate outward, and some flow uniformly.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 1.1</span><span class="tag">Hover to inspect</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-1">
+        <canvas></canvas>
+      </div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Vector Field</label>
+          <select id="field-1">
+            <option value="uniform">Uniform flow ⟨1, 0.3⟩</option>
+            <option value="radial" selected>Radial ⟨x, y⟩</option>
+            <option value="rotational">Rotation ⟨−y, x⟩</option>
+            <option value="saddle">Saddle ⟨x, −y⟩</option>
+            <option value="shear">Shear ⟨y, 0⟩</option>
+            <option value="sink">Sink ⟨−x, −y⟩</option>
+          </select>
+        </div>
+        <div class="readout" id="readout-1">
+          <div class="label-mono">Cursor</div>
+          <div>x = <span class="value">—</span>, y = <span class="value">—</span></div>
+          <div class="label-mono" style="margin-top:8px">Field value</div>
+          <div>P = <span class="value">—</span></div>
+          <div>Q = <span class="value">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 1.1</strong> Six prototypical 2D vector fields. The arrow length and color encode magnitude.</div>
+  </figure>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Sketch each field by hand on the same axes: $\mathbf{F}_1 = (1, 0)$, $\mathbf{F}_2 = (0, x)$, $\mathbf{F}_3 = (-y, x)/(x^2+y^2)$. Describe in one sentence what each "does" physically.</h4>
+        <details><summary>Solution sketch</summary><div>The first is uniform horizontal flow (like a steady breeze). The second is purely vertical, but its strength grows with $x$ — like wind that gets stronger as you move east. The third is a circulation that gets <em>weaker</em> as you move outward; this is the velocity field around an idealized vortex line.</div></details>
+      </li>
+      <li>
+        <h4>Where does the field $\mathbf{F}(x,y) = (x - y,\; x + y - 2)$ vanish? Find the single point where both components are zero.</h4>
+        <details><summary>Solution sketch</summary><div>Set $x - y = 0$ and $x + y - 2 = 0$. The first gives $x = y$; substituting into the second, $2x = 2$, so $x = y = 1$. The field vanishes at $(1, 1)$.</div></details>
+      </li>
+      <li>
+        <h4>For the scalar field $f(x,y) = x^2 + y^2$, sketch three level curves $f = 1$, $f = 4$, $f = 9$. What shape are they?</h4>
+        <details><summary>Solution sketch</summary><div>Concentric circles of radius $1$, $2$, $3$. Level curves of $f$ are circles centered at the origin — $f$ is the squared distance from origin.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 2 ============ -->
+<section id="ch2" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">02</div>
+    <div>
+      <h2 class="chapter-title">The <em>Gradient</em></h2>
+      <div class="chapter-kicker">The direction of steepest ascent</div>
+    </div>
+  </div>
+
+  <p class="lead">Stand on a hillside. The ground around you slopes. The <strong>gradient</strong> at your feet is the arrow pointing in the direction of steepest uphill, and its length tells you how steep that direction is. The remarkable thing: this single arrow encodes <em>all</em> the directional information about the surface near you.</p>
+
+  <p>Formally, the gradient of a scalar field $f(x, y, z)$ is the vector field
+  $$\nabla f \;=\; \left(\frac{\partial f}{\partial x},\; \frac{\partial f}{\partial y},\; \frac{\partial f}{\partial z}\right).$$
+  In two dimensions we drop the last component. The symbol $\nabla$ ("nabla" or "del") is a vector of partial-derivative operators — a piece of bookkeeping that will pay off enormously.</p>
+
+  <div class="margin-note">The gradient is <em>perpendicular</em> to level curves. If $f$ is your altitude, walking along a contour line keeps you at constant height — and that direction is the one $\nabla f$ does not point in.</div>
+
+  <h3>A small example</h3>
+  <p>Let $f(x, y) = x^2 + y^2$. Then $\partial f / \partial x = 2x$ and $\partial f / \partial y = 2y$, so $\nabla f = (2x, 2y)$. At the point $(1, 0)$ the gradient is $(2, 0)$ — pointing radially outward, which makes sense: to climb the paraboloid $f = x^2 + y^2$ from $(1,0)$, you walk away from the origin.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 2.1 — Gradient field over level curves</span><span class="tag">Hover for slope</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-2"><canvas></canvas></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Scalar field $f(x,y)$</label>
+          <select id="field-2">
+            <option value="paraboloid" selected>x² + y²</option>
+            <option value="saddle">x² − y²</option>
+            <option value="hills">sin(x) cos(y)</option>
+            <option value="gaussian">exp(−x² − y²)</option>
+            <option value="tilted">x + 0.5y</option>
+          </select>
+        </div>
+        <div class="readout" id="readout-2">
+          <div class="label-mono">Cursor</div>
+          <div>x = <span class="value">—</span>, y = <span class="value">—</span></div>
+          <div class="label-mono" style="margin-top:8px">f at cursor</div>
+          <div>f = <span class="value">—</span></div>
+          <div class="label-mono" style="margin-top:8px">∇f at cursor</div>
+          <div>⟨<span class="value" id="gx">—</span>, <span class="value" id="gy">—</span>⟩</div>
+          <div class="label-mono" style="margin-top:8px">|∇f|</div>
+          <div><span class="value" id="gmag">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 2.1</strong> Contour lines (in blue) show level sets of $f$. Red arrows are $\nabla f$. Observe how arrows cross contours at right angles.</div>
+  </figure>
+
+  <p style="margin-top: 30px;">The 2D view above flattens the picture into contour lines. But $f$ really lives in three dimensions — its graph is a surface, and the gradient at every point tells you which tangent direction on that surface climbs fastest. The default view below shows $-\nabla f$ in blue: the direction a marble would roll. Toggle to see the true gradient $\nabla f$ in red — exact opposites, since uphill and downhill point opposite ways. <strong>Drag to rotate, scroll to zoom.</strong></p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 2.2 — The landscape itself, in 3D</span><span class="tag">Drag · scroll</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-2b" style="cursor: grab;"></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Surface $z = f(x, y)$</label>
+          <select id="field-2b">
+            <option value="paraboloid" selected>x² + y² (bowl)</option>
+            <option value="saddle">x² − y² (saddle)</option>
+            <option value="hills">sin(x) cos(y) (rolling hills)</option>
+            <option value="gaussian">exp(−x²−y²) (peak)</option>
+            <option value="ripple">Concentric ripple</option>
+            <option value="volcano">Volcano</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Show</label>
+          <select id="show-2b">
+            <option value="both" selected>Surface + arrows</option>
+            <option value="surface">Surface only</option>
+            <option value="arrows">Arrows only (floor)</option>
+            <option value="ball">Drop a ball (steepest descent)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Arrow direction</label>
+          <select id="dir-2b">
+            <option value="descent" selected>−∇f (downhill, ball direction)</option>
+            <option value="ascent">∇f (uphill, true gradient)</option>
+          </select>
+        </div>
+        <div class="readout">
+          <div class="label-mono">Interpretation</div>
+          <div style="font-family: 'Newsreader', serif; font-style: italic; color: var(--ink-soft); font-size: 15px; line-height: 1.5; margin-top: 6px;">
+            Arrows lie <em>on</em> the surface, tangent to it. With $-\nabla f$ (default), arrows point downhill — the direction a marble would roll. Flip to $\nabla f$ and they reverse: that's the true gradient, pointing toward steepest <em>ascent</em>.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 2.2</strong> Arrows lie tangent to the surface. Default direction is $-\nabla f$ (downhill, blue): they trace the path a marble would roll. Flip the toggle to see $\nabla f$ (uphill, red) — exact opposites.</div>
+  </figure>
+
+  <div class="key-idea">
+    <h4>Three things to remember</h4>
+    <p>(1) $\nabla f$ points toward steepest ascent. (2) $|\nabla f|$ is the rate of that ascent. (3) $\nabla f$ is perpendicular to level sets of $f$.</p>
+  </div>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Compute $\nabla f$ for $f(x,y,z) = x^2 y + y z^3$.</h4>
+        <details><summary>Solution sketch</summary><div>$\partial_x f = 2xy$, $\partial_y f = x^2 + z^3$, $\partial_z f = 3 y z^2$. So $\nabla f = (2xy,\; x^2 + z^3,\; 3yz^2)$.</div></details>
+      </li>
+      <li>
+        <h4>For $f(x,y) = e^{-(x^2 + y^2)}$, find the gradient and the point where the field's magnitude is largest.</h4>
+        <details><summary>Solution sketch</summary><div>$\nabla f = e^{-(x^2+y^2)}(-2x, -2y)$, so $|\nabla f| = 2\sqrt{x^2+y^2}\, e^{-(x^2+y^2)}$. Maximize over $r = \sqrt{x^2+y^2}$: $g(r) = 2r e^{-r^2}$, $g'(r) = (2 - 4r^2) e^{-r^2} = 0$ at $r = 1/\sqrt{2}$.</div></details>
+      </li>
+      <li>
+        <h4>Show that $\nabla f$ is perpendicular to the level curve $f = c$. (Hint: parametrize the level curve as $\mathbf{r}(t)$ and differentiate $f(\mathbf{r}(t)) = c$ using the chain rule.)</h4>
+        <details><summary>Solution sketch</summary><div>If $\mathbf{r}(t)$ stays on $f = c$, then $f(\mathbf{r}(t)) = c$. Differentiate: $\nabla f \cdot \mathbf{r}'(t) = 0$. Since $\mathbf{r}'(t)$ is tangent to the level curve and the dot product is zero, $\nabla f$ is perpendicular to it.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 3 ============ -->
+<section id="ch3" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">03</div>
+    <div>
+      <h2 class="chapter-title">Directional <em>Derivatives</em></h2>
+      <div class="chapter-kicker">How fast does $f$ change if I walk <em>that</em> way?</div>
+    </div>
+  </div>
+
+  <p class="lead">The gradient gives the steepest direction. But what if I want to know the slope in some <em>other</em> direction — say, due northeast? The answer is a single number called the <strong>directional derivative</strong>, and it falls out of the gradient through a single dot product.</p>
+
+  <p>If $\mathbf{u}$ is a unit vector, the rate of change of $f$ at the point $\mathbf{p}$ in the direction $\mathbf{u}$ is
+  $$D_{\mathbf{u}} f(\mathbf{p}) \;=\; \nabla f(\mathbf{p}) \cdot \mathbf{u}.$$
+  When $\mathbf{u}$ aligns with $\nabla f$ you recover $|\nabla f|$ — steepest ascent. When $\mathbf{u}$ is perpendicular to $\nabla f$ you get zero — that's the level curve direction.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 3.1 — Drag the cursor; rotate the direction</span><span class="tag">Interactive</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-3"><canvas></canvas></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Scalar field</label>
+          <select id="field-3">
+            <option value="paraboloid" selected>x² + y²</option>
+            <option value="saddle">x² − y²</option>
+            <option value="hills">sin(x) cos(y)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Direction angle θ</label>
+          <input type="range" id="theta-3" min="0" max="360" value="45">
+        </div>
+        <div class="readout" id="readout-3">
+          <div class="label-mono">Direction u</div>
+          <div>θ = <span class="value" id="theta-val">45°</span></div>
+          <div class="label-mono" style="margin-top:8px">D_u f at cursor</div>
+          <div><span class="value" id="dirderiv">—</span></div>
+          <div class="label-mono" style="margin-top:8px">∇f · u (check)</div>
+          <div><span class="value" id="dotcheck">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 3.1</strong> Move the cursor; rotate the direction slider. Watch $D_{\mathbf{u}} f$ peak when $\mathbf{u}$ aligns with $\nabla f$ and vanish at right angles.</div>
+  </figure>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Find $D_{\mathbf{u}} f$ at $(1, 2)$ for $f(x,y) = x^2 y$ in the direction $\mathbf{u} = (3, 4)/5$.</h4>
+        <details><summary>Solution sketch</summary><div>$\nabla f = (2xy, x^2) = (4, 1)$ at $(1, 2)$. Then $D_{\mathbf{u}} f = (4, 1) \cdot (3/5, 4/5) = 12/5 + 4/5 = 16/5$.</div></details>
+      </li>
+      <li>
+        <h4>At which point on the ellipse $x^2/4 + y^2 = 1$ does $f(x,y) = xy$ change fastest as you walk <em>along the ellipse</em>?</h4>
+        <details><summary>Solution sketch</summary><div>Along the ellipse, you move tangent to it; the rate of change of $f$ is $\nabla f \cdot \mathbf{T}$ where $\mathbf{T}$ is the unit tangent. This is maximized where $\nabla f$ is tangent to the ellipse, i.e. parallel — found via Lagrange multipliers or parametrize $x = 2\cos t, y = \sin t$ and maximize $f = 2\sin t \cos t = \sin 2t$, peak at $t = \pi/4$, giving $(\sqrt 2, \tfrac{1}{\sqrt 2})$.</div></details>
+      </li>
+      <li>
+        <h4>Show that the maximum value of $D_{\mathbf{u}} f$ over all unit $\mathbf{u}$ equals $|\nabla f|$, and the minimum equals $-|\nabla f|$.</h4>
+        <details><summary>Solution sketch</summary><div>$D_{\mathbf{u}} f = \nabla f \cdot \mathbf{u} = |\nabla f|\, |\mathbf{u}| \cos\theta = |\nabla f| \cos\theta$. Max at $\theta = 0$ (aligned), min at $\theta = \pi$ (anti-aligned).</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 4 ============ -->
+<section id="ch4" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">04</div>
+    <div>
+      <h2 class="chapter-title"><em>Divergence</em></h2>
+      <div class="chapter-kicker">Sources, sinks, and the breath of a field</div>
+    </div>
+  </div>
+
+  <p class="lead">Imagine the vector field $\mathbf{F}$ as the velocity of a fluid. Place a tiny imaginary balloon at a point. Does the fluid push <em>out</em> of the balloon faster than it flows in? Then the point is a <strong>source</strong>. The other way — net flow inward — and it's a <strong>sink</strong>. The number that measures this net outflow per unit volume is the <strong>divergence</strong>.</p>
+
+  <p>For $\mathbf{F} = (P, Q, R)$ in three dimensions,
+  $$\nabla \cdot \mathbf{F} \;=\; \frac{\partial P}{\partial x} + \frac{\partial Q}{\partial y} + \frac{\partial R}{\partial z}.$$
+  It's a <em>scalar</em>: positive where the field expands, negative where it contracts, zero where the flow is incompressible.</p>
+
+  <div class="margin-note">The notation $\nabla \cdot \mathbf{F}$ pretends $\nabla$ is a vector and $\cdot$ is a dot product. It is a mnemonic, but a remarkably good one — the answer always comes out right.</div>
+
+  <h3>Two flagship examples</h3>
+  <p>For the radial field $\mathbf{F} = (x, y)$, we have $\nabla \cdot \mathbf{F} = 1 + 1 = 2$ everywhere. The field expands uniformly — every point is a source. For the rotation $\mathbf{F} = (-y, x)$, we have $\partial_x(-y) + \partial_y(x) = 0$. A pure rotation has no divergence: fluid swirls around without compressing.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 4.1 — Divergence as a heat map</span><span class="tag">Hover for value</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-4"><canvas></canvas></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Vector field</label>
+          <select id="field-4">
+            <option value="radial" selected>Radial ⟨x, y⟩</option>
+            <option value="rotational">Rotation ⟨−y, x⟩</option>
+            <option value="saddle">Saddle ⟨x, −y⟩</option>
+            <option value="sink">Sink ⟨−x, −y⟩</option>
+            <option value="dipole">Dipole-like ⟨x², y⟩</option>
+            <option value="shear">Shear ⟨y, 0⟩</option>
+          </select>
+        </div>
+        <div class="readout" id="readout-4">
+          <div class="label-mono">Cursor</div>
+          <div>x = <span class="value">—</span>, y = <span class="value">—</span></div>
+          <div class="label-mono" style="margin-top:8px">∇·F at cursor</div>
+          <div><span class="value" id="div-val">—</span></div>
+          <div class="label-mono" style="margin-top:8px">Sign</div>
+          <div><span class="value" id="div-sign">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 4.1</strong> Background hue shows divergence: <span style="color:var(--red);font-weight:600">red</span> = source (positive), <span style="color:var(--blue);font-weight:600">blue</span> = sink (negative).</div>
+  </figure>
+
+  <p style="margin-top: 30px;">Divergence is most intuitive when you watch <em>actual particles</em> move with the flow. In the figure below, dots are released into a 3D vector field and carried along by it. Wherever divergence is positive, dots spread out and the air gets thin; wherever it's negative, they pile up.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 4.2 — Flow particles in a 3D field</span><span class="tag">Drag · scroll</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-4b" style="cursor: grab;"></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>3D vector field</label>
+          <select id="field-4b">
+            <option value="source3d" selected>Source ⟨x, y, z⟩ (div = 3)</option>
+            <option value="sink3d">Sink ⟨−x, −y, −z⟩ (div = −3)</option>
+            <option value="rotational3d">Rotation ⟨−y, x, 0⟩ (div = 0)</option>
+            <option value="dipole3d">Dipole-like (sources + sinks)</option>
+            <option value="shear3d">Shear ⟨y, 0, 0⟩ (div = 0)</option>
+            <option value="vortex3d">Vortex (incompressible)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Display</label>
+          <select id="show-4b">
+            <option value="particles" selected>Flowing particles</option>
+            <option value="arrows">Field arrows</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <div class="readout">
+          <div class="label-mono">What to look for</div>
+          <div style="font-family: 'Newsreader', serif; font-style: italic; color: var(--ink-soft); font-size: 15px; line-height: 1.5; margin-top: 6px;">
+            Watch the particles. If they thin out everywhere, divergence is positive. If they bunch up, negative. If their density stays constant — incompressible flow, divergence zero.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 4.2</strong> Particles are repeatedly recycled — when they leave the box or fall into a sink, they respawn at random. Their steady-state density tells you the sign of the divergence locally.</div>
+  </figure>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Compute $\nabla \cdot \mathbf{F}$ for $\mathbf{F}(x,y,z) = (x^2, xy, xyz)$.</h4>
+        <details><summary>Solution sketch</summary><div>$\partial_x(x^2) + \partial_y(xy) + \partial_z(xyz) = 2x + x + xy = 3x + xy = x(3 + y)$.</div></details>
+      </li>
+      <li>
+        <h4>The vector field $\mathbf{F} = (x, y)/(x^2 + y^2)$ models 2D flow from a point source. Show $\nabla \cdot \mathbf{F} = 0$ <em>away</em> from the origin, yet the total outward flux through any circle around the origin equals $2\pi$.</h4>
+        <details><summary>Solution sketch</summary><div>Direct computation: $\partial_x \frac{x}{x^2+y^2} = \frac{y^2 - x^2}{(x^2+y^2)^2}$; by symmetry $\partial_y \frac{y}{x^2+y^2} = \frac{x^2 - y^2}{(x^2+y^2)^2}$. They sum to zero away from origin. But on a circle of radius $r$, $\mathbf{F} \cdot \hat{\mathbf{n}} = 1/r$, and circumference is $2\pi r$, so flux is $2\pi$. The origin hides a "delta-function source.''</div></details>
+      </li>
+      <li>
+        <h4>If $f$ is any scalar field, prove $\nabla \cdot (\nabla f) = \nabla^2 f$, the Laplacian. Compute it for $f = x^2 + y^2 + z^2$.</h4>
+        <details><summary>Solution sketch</summary><div>$\nabla f = (\partial_x f, \partial_y f, \partial_z f)$, and divergence of that is $\partial_x^2 f + \partial_y^2 f + \partial_z^2 f$ — the Laplacian. For $f = x^2 + y^2 + z^2$: each second partial is $2$, sum $= 6$.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 5 ============ -->
+<section id="ch5" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">05</div>
+    <div>
+      <h2 class="chapter-title"><em>Curl</em></h2>
+      <div class="chapter-kicker">The local rotation of a field</div>
+    </div>
+  </div>
+
+  <p class="lead">Drop a tiny paddle-wheel into a flowing fluid. Does it spin? If yes, in which direction and how fast? The answer at every point is captured by the <strong>curl</strong> of the velocity field. Where divergence measures expansion, curl measures rotation.</p>
+
+  <p>In three dimensions,
+  $$\nabla \times \mathbf{F} \;=\; \left(\frac{\partial R}{\partial y} - \frac{\partial Q}{\partial z},\;\; \frac{\partial P}{\partial z} - \frac{\partial R}{\partial x},\;\; \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y}\right).$$
+  In two dimensions only the $z$-component survives:
+  $$(\nabla \times \mathbf{F})_z \;=\; \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y},$$
+  a single scalar telling you how the field rotates around each point. Counterclockwise rotation is positive; clockwise is negative.</p>
+
+  <div class="key-idea">
+    <h4>The trio so far</h4>
+    <p>Gradient acts on a scalar and gives a vector. Divergence acts on a vector and gives a scalar. Curl acts on a vector and gives a vector. All three are encoded by the single operator $\nabla$.</p>
+  </div>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 5.1 — Curl as a spinning paddle wheel</span><span class="tag">Hover for ω</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-5"><canvas></canvas></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Vector field</label>
+          <select id="field-5">
+            <option value="rotational" selected>Rotation ⟨−y, x⟩</option>
+            <option value="radial">Radial ⟨x, y⟩</option>
+            <option value="shear">Shear ⟨y, 0⟩</option>
+            <option value="vortex">Decaying vortex</option>
+            <option value="saddle">Saddle ⟨x, −y⟩</option>
+            <option value="mixed">Mixed ⟨y, −x + 0.5y⟩</option>
+          </select>
+        </div>
+        <div class="readout" id="readout-5">
+          <div class="label-mono">Cursor</div>
+          <div>x = <span class="value">—</span>, y = <span class="value">—</span></div>
+          <div class="label-mono" style="margin-top:8px">(∇×F)_z at cursor</div>
+          <div><span class="value" id="curl-val">—</span></div>
+          <div class="label-mono" style="margin-top:8px">Spin direction</div>
+          <div><span class="value" id="curl-dir">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 5.1</strong> Small green paddle-wheels visualize curl. Their spin rate equals the local curl; direction is signed.</div>
+  </figure>
+
+  <h3>Surprising example: pure shear</h3>
+  <p>Take $\mathbf{F} = (y, 0)$ — a horizontal flow that gets faster as $y$ grows. There is no visible swirl, but $(\nabla \times \mathbf{F})_z = 0 - 1 = -1$ everywhere. A paddle-wheel in this flow spins clockwise because the top of the wheel feels faster flow than the bottom. Curl detects shear, not just rotation in the colloquial sense.</p>
+
+  <p>In 3D, curl is itself a vector — its <em>direction</em> is the axis of rotation, given by the right-hand rule, and its <em>length</em> is the rate of spin. The figure below puts a tiny paddle wheel into a 3D flow; the wheel orients itself along the curl vector and spins at the curl's magnitude.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 5.2 — Curl in 3D: a vector with axis and magnitude</span><span class="tag">Drag · scroll</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-5b" style="cursor: grab;"></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>3D vector field</label>
+          <select id="field-5b">
+            <option value="zspin" selected>Rotation about z: ⟨−y, x, 0⟩</option>
+            <option value="xspin">Rotation about x: ⟨0, −z, y⟩</option>
+            <option value="yspin">Rotation about y: ⟨z, 0, −x⟩</option>
+            <option value="screw">Screw flow: ⟨−y, x, 1⟩</option>
+            <option value="shear3d">Shear ⟨y, 0, 0⟩</option>
+            <option value="radial3d">Radial (irrotational) ⟨x, y, z⟩</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Display</label>
+          <select id="show-5b">
+            <option value="wheels" selected>Paddle wheels + arrows</option>
+            <option value="curlvec">Curl vector field</option>
+            <option value="particles">Flowing particles</option>
+          </select>
+        </div>
+        <div class="readout">
+          <div class="label-mono">Reading the picture</div>
+          <div style="font-family: 'Newsreader', serif; font-style: italic; color: var(--ink-soft); font-size: 15px; line-height: 1.5; margin-top: 6px;">
+            Each paddle wheel orients along its local curl vector. Its spin rate is $|\nabla\times\mathbf{F}|$. Try rotating about each axis — the wheels point along $\hat z$, $\hat x$, $\hat y$ respectively.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 5.2</strong> The curl vector $\nabla \times \mathbf{F}$ points along the rotation axis (right-hand rule). The radial field is <em>irrotational</em>: a paddle wheel placed in it doesn't spin, no matter the orientation.</div>
+  </figure>
+
+  <h3>Why gradients can't curl</h3>
+  <p>Here is the theorem made tangible: $\nabla \times (\nabla f) = \mathbf{0}$ for any scalar field $f$. The figure below shows a real landscape — hills and valleys — with the gradient field $\nabla f$ drawn on the surface (red, uphill) and paddle wheels scattered throughout. Switch the field type to see the difference. <strong>Drag to rotate, scroll to zoom.</strong></p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 5.3 — Gradient = no spin, ever</span><span class="tag">Drag · scroll · animated</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-5c" style="cursor: grab;"></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Landscape $f(x, y)$</label>
+          <select id="landscape-5c">
+            <option value="hills" selected>Rolling hills sin(x)·cos(y)</option>
+            <option value="paraboloid">Bowl x² + y²</option>
+            <option value="saddle">Saddle x² − y²</option>
+            <option value="volcano">Volcano</option>
+            <option value="gaussian">Single peak</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Vector field on top</label>
+          <select id="fieldtype-5c">
+            <option value="gradient" selected>∇f — the gradient (irrotational)</option>
+            <option value="curlfield">A curl field (paddle wheels spin)</option>
+            <option value="mixed">∇f + curl field (mixed)</option>
+          </select>
+        </div>
+        <div class="readout">
+          <div class="label-mono">What to watch</div>
+          <div style="font-family: 'Newsreader', serif; font-style: italic; color: var(--ink-soft); font-size: 15px; line-height: 1.5; margin-top: 6px;">
+            On <strong>∇f</strong>, every paddle wheel sits dead still — no matter how complex the landscape. On the <strong>curl field</strong>, they spin. On <strong>mixed</strong>, only the curl part contributes to spin; the gradient part is invisible to paddle wheels.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 5.3</strong> A vivid statement of $\nabla \times (\nabla f) = \mathbf{0}$. Walk a tiny loop on any landscape and the heights gained and lost cancel — that's why a gradient field can never torque a paddle wheel.</div>
+  </figure>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Compute $\nabla \times \mathbf{F}$ for $\mathbf{F} = (y, -x, 0)$.</h4>
+        <details><summary>Solution sketch</summary><div>$P = y, Q = -x, R = 0$. Curl is $(\partial_y R - \partial_z Q,\, \partial_z P - \partial_x R,\, \partial_x Q - \partial_y P) = (0, 0, -1 - 1) = (0, 0, -2)$. Clockwise rotation in the $xy$-plane.</div></details>
+      </li>
+      <li>
+        <h4>For any twice-differentiable scalar $f$, prove $\nabla \times (\nabla f) = \mathbf{0}$.</h4>
+        <details><summary>Solution sketch</summary><div>Each component is of the form $\partial_y(\partial_z f) - \partial_z(\partial_y f) = 0$ by equality of mixed partials. Gradient fields are <em>irrotational</em>.</div></details>
+      </li>
+      <li>
+        <h4>For any vector field $\mathbf{F}$ with continuous second partials, prove $\nabla \cdot (\nabla \times \mathbf{F}) = 0$.</h4>
+        <details><summary>Solution sketch</summary><div>Expand: $\partial_x(\partial_y R - \partial_z Q) + \partial_y(\partial_z P - \partial_x R) + \partial_z(\partial_x Q - \partial_y P)$. Each mixed partial appears twice with opposite signs — total zero. Curls are <em>divergence-free</em>.</div></details>
+      </li>
+      <li>
+        <h4>Find a vector field $\mathbf{F}$ with $\nabla \times \mathbf{F} = (0, 0, 1)$. Is it unique?</h4>
+        <details><summary>Solution sketch</summary><div>Try $\mathbf{F} = (-y/2, x/2, 0)$: curl-$z$ is $1/2 - (-1/2) = 1$. Not unique — add any gradient field $\nabla \phi$, since its curl is zero.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 6 ============ -->
+<section id="ch6" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">06</div>
+    <div>
+      <h2 class="chapter-title">Line <em>Integrals</em></h2>
+      <div class="chapter-kicker">Adding things up along a path</div>
+    </div>
+  </div>
+
+  <p class="lead">If $f(x,y)$ is the density of a thin wire bent along a curve $C$, the wire's mass is $\int_C f\, ds$. If $\mathbf{F}$ is a force field and a particle traces $C$, the work done is $\int_C \mathbf{F} \cdot d\mathbf{r}$. Two flavors, both built by chopping the curve into infinitesimal pieces and summing.</p>
+
+  <p>To compute, parametrize $C$ as $\mathbf{r}(t)$ for $t \in [a, b]$. Then:
+  $$\int_C f\, ds \;=\; \int_a^b f(\mathbf{r}(t))\,|\mathbf{r}'(t)|\, dt, \qquad \int_C \mathbf{F} \cdot d\mathbf{r} \;=\; \int_a^b \mathbf{F}(\mathbf{r}(t)) \cdot \mathbf{r}'(t)\, dt.$$</p>
+
+  <h3>The fundamental theorem for line integrals</h3>
+  <p>If $\mathbf{F} = \nabla f$ for some scalar potential $f$ — we call $\mathbf{F}$ <strong>conservative</strong> — then for any curve $C$ from $A$ to $B$,
+  $$\int_C \nabla f \cdot d\mathbf{r} \;=\; f(B) - f(A).$$
+  The integral depends only on the endpoints! Path-independence is the hallmark of conservative fields. Gravity is conservative; friction is not.</p>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 6.1 — Work done along a path</span><span class="tag">Drag the path</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-6"><canvas></canvas></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Vector field</label>
+          <select id="field-6">
+            <option value="rotational" selected>⟨−y, x⟩ (non-conservative)</option>
+            <option value="radial">⟨x, y⟩ (conservative, f = (x²+y²)/2)</option>
+            <option value="uniform">⟨1, 0⟩ (conservative, f = x)</option>
+            <option value="saddle">⟨x, −y⟩ (conservative)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Path shape</label>
+          <select id="path-6">
+            <option value="line" selected>Straight line A→B</option>
+            <option value="arc">Arc A→B</option>
+            <option value="loop">Closed loop</option>
+          </select>
+        </div>
+        <div class="readout" id="readout-6">
+          <div class="label-mono">Endpoints</div>
+          <div>A, B as marked</div>
+          <div class="label-mono" style="margin-top:8px">∫ F · dr</div>
+          <div><span class="value" id="work-val">—</span></div>
+          <div class="label-mono" style="margin-top:8px">Path-independent?</div>
+          <div><span class="value" id="conservative">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 6.1</strong> Two endpoints, three paths. For conservative fields, the work integral is the same for all of them.</div>
+  </figure>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Evaluate $\int_C (x^2 + y)\, ds$ where $C$ is the segment from $(0,0)$ to $(1,2)$.</h4>
+        <details><summary>Solution sketch</summary><div>Parametrize $\mathbf{r}(t) = (t, 2t)$, $0 \le t \le 1$, $|\mathbf{r}'| = \sqrt 5$. Integral $= \sqrt 5 \int_0^1 (t^2 + 2t)\, dt = \sqrt 5\, (1/3 + 1) = 4\sqrt 5/3$.</div></details>
+      </li>
+      <li>
+        <h4>Compute $\oint_C (-y\, dx + x\, dy)$ where $C$ is the unit circle traversed counterclockwise.</h4>
+        <details><summary>Solution sketch</summary><div>Parametrize $x = \cos t, y = \sin t$, $dx = -\sin t\, dt$, $dy = \cos t\, dt$. Integrand becomes $\sin^2 t + \cos^2 t = 1$. Integral over $[0, 2\pi]$ is $2\pi$.</div></details>
+      </li>
+      <li>
+        <h4>Show that $\mathbf{F} = (2xy + y^3, x^2 + 3xy^2)$ is conservative. Find its potential $f$ and use it to evaluate $\int_C \mathbf{F} \cdot d\mathbf{r}$ from $(0,0)$ to $(1, 2)$.</h4>
+        <details><summary>Solution sketch</summary><div>Check $\partial Q/\partial x = 2x + 3y^2 = \partial P/\partial y$ — equal, so conservative. Integrate $\partial f/\partial x = 2xy + y^3$ to get $f = x^2 y + x y^3 + g(y)$; differentiate w.r.t. $y$ and match $\partial f/\partial y = x^2 + 3xy^2$, giving $g'(y) = 0$. So $f = x^2 y + xy^3$. Integral $= f(1,2) - f(0,0) = 2 + 8 = 10$.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 7 ============ -->
+<section id="ch7" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">07</div>
+    <div>
+      <h2 class="chapter-title">Green's <em>Theorem</em></h2>
+      <div class="chapter-kicker">Curl, but for the plane</div>
+    </div>
+  </div>
+
+  <p class="lead">Here is our first <em>bridge</em> — a theorem connecting a line integral around a curve to a double integral over the region inside it. Walk the boundary of a region, summing up the field's circulation; you get the same answer as summing curl over every interior point.</p>
+
+  <p>For a positively-oriented simple closed curve $C$ enclosing region $D$:
+  $$\oint_C P\, dx + Q\, dy \;=\; \iint_D \left( \frac{\partial Q}{\partial x} - \frac{\partial P}{\partial y} \right) dA.$$
+  The integrand on the right is just the $z$-component of curl. Boundary circulation equals integrated curl.</p>
+
+  <div class="margin-note">A delightful corollary: setting $P = -y/2, Q = x/2$ gives integrand $= 1$, so the area of $D$ equals $\tfrac{1}{2} \oint_C (x\, dy - y\, dx)$. The shoelace formula's continuous cousin.</div>
+
+  <h3>Why it works, in a sentence</h3>
+  <p>Imagine tiling $D$ with tiny squares. On each square, line integrate around its boundary; you get curl times area. Now sum across all squares — every interior edge is traversed twice, in opposite directions, and cancels. What remains is the line integral around the outer boundary $C$. Take the tile size to zero and the discrete sum becomes the double integral. Same principle drives Stokes' and the divergence theorem.</p>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Use Green's theorem to compute $\oint_C (x^2 y\, dx + xy^2\, dy)$ where $C$ is the boundary of the unit square traversed CCW.</h4>
+        <details><summary>Solution sketch</summary><div>$P = x^2 y, Q = xy^2$. $\partial Q/\partial x - \partial P/\partial y = y^2 - x^2$. Integrate over $[0,1]^2$: $\int_0^1 \int_0^1 (y^2 - x^2)\, dx\, dy = 1/3 - 1/3 = 0$.</div></details>
+      </li>
+      <li>
+        <h4>Find the area enclosed by the astroid $x = \cos^3 t,\; y = \sin^3 t$ for $t \in [0, 2\pi]$.</h4>
+        <details><summary>Solution sketch</summary><div>Area $= \tfrac12 \oint (x\, dy - y\, dx)$. With $dx = -3\cos^2 t \sin t\, dt$, $dy = 3 \sin^2 t \cos t\, dt$, the integrand simplifies to $3 \sin^2 t \cos^2 t\, dt = \tfrac{3}{4} \sin^2 2t\, dt$. Integrating over $[0, 2\pi]$ gives $3\pi/4$. Times $\tfrac12$: area $= 3\pi/8$.</div></details>
+      </li>
+      <li>
+        <h4>Why does Green's theorem fail if $C$ encloses the origin and $\mathbf{F} = (-y, x)/(x^2 + y^2)$?</h4>
+        <details><summary>Solution sketch</summary><div>The field is undefined at the origin; the partials don't exist there, so the region is not simply connected. The "curl is zero" away from origin, but the loop integral is $2\pi$. Green's theorem requires the field to be smooth on all of $D$.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 8 ============ -->
+<section id="ch8" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">08</div>
+    <div>
+      <h2 class="chapter-title">Flux &amp; Surface <em>Integrals</em></h2>
+      <div class="chapter-kicker">Counting field lines through a sheet</div>
+    </div>
+  </div>
+
+  <p class="lead">Hold a tennis racket in a flowing stream. Water rushes through the strings. The volume per second crossing the racket is the <strong>flux</strong> of the velocity field through the surface. In symbols:
+  $$\iint_S \mathbf{F} \cdot d\mathbf{S} \;=\; \iint_S \mathbf{F} \cdot \hat{\mathbf{n}}\, dA,$$
+  where $\hat{\mathbf{n}}$ is the unit normal. Only the component of $\mathbf{F}$ perpendicular to $S$ contributes — sideways flow slides past the strings without crossing.</p>
+
+  <p>For a surface parametrized by $\mathbf{r}(u, v)$, the vector $d\mathbf{S} = (\mathbf{r}_u \times \mathbf{r}_v)\, du\, dv$ does double duty: its direction is the normal, its magnitude is the area element.</p>
+
+  <h3>A canonical computation</h3>
+  <p>Find the outward flux of $\mathbf{F} = (x, y, z)$ through the unit sphere. By symmetry, $\hat{\mathbf{n}} = (x, y, z)$ on the sphere, so $\mathbf{F} \cdot \hat{\mathbf{n}} = x^2 + y^2 + z^2 = 1$. The flux is just the surface area: $4\pi$.</p>
+
+  <div class="key-idea">
+    <h4>Flux is signed</h4>
+    <p>Choose an "outward" direction for the normal. Positive flux means net outflow through the surface; negative means net inflow. Reverse the normal and the sign flips.</p>
+  </div>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Compute the flux of $\mathbf{F} = (0, 0, z)$ upward through the disk $z = 1$, $x^2 + y^2 \le 1$.</h4>
+        <details><summary>Solution sketch</summary><div>Normal is $(0,0,1)$. $\mathbf{F} \cdot \hat{\mathbf{n}} = z = 1$. Integrate $1$ over a disk of area $\pi$: flux $= \pi$.</div></details>
+      </li>
+      <li>
+        <h4>Find the flux of $\mathbf{F} = (x, y, 0)$ outward through the lateral surface of the cylinder $x^2 + y^2 = 1$, $0 \le z \le 2$.</h4>
+        <details><summary>Solution sketch</summary><div>Outward normal on the cylinder is $(x, y, 0)$, so $\mathbf{F} \cdot \hat{\mathbf{n}} = x^2 + y^2 = 1$. Lateral area $= 2\pi \cdot 1 \cdot 2 = 4\pi$. Flux $= 4\pi$.</div></details>
+      </li>
+      <li>
+        <h4>Show that for the field $\mathbf{F} = \mathbf{r}/|\mathbf{r}|^3$ (inverse-square law), the flux through <em>any</em> sphere centered at the origin equals $4\pi$, regardless of radius.</h4>
+        <details><summary>Solution sketch</summary><div>On a sphere of radius $R$, $|\mathbf{r}| = R$ and $\hat{\mathbf{n}} = \mathbf{r}/R$, so $\mathbf{F} \cdot \hat{\mathbf{n}} = 1/R^2$. Surface area $= 4\pi R^2$. Flux $= (1/R^2)(4\pi R^2) = 4\pi$. This is the seed of Gauss's law.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 9 ============ -->
+<section id="ch9" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">09</div>
+    <div>
+      <h2 class="chapter-title">Stokes &amp; <em>Divergence</em></h2>
+      <div class="chapter-kicker">The two grand theorems</div>
+    </div>
+  </div>
+
+  <p class="lead">Green's theorem was the warm-up. The full machinery extends it to three dimensions in two complementary ways.</p>
+
+  <h3>Stokes' theorem</h3>
+  <p>Replace the planar region by an oriented surface $S$ in $\mathbb{R}^3$ with boundary curve $\partial S$:
+  $$\oint_{\partial S} \mathbf{F} \cdot d\mathbf{r} \;=\; \iint_S (\nabla \times \mathbf{F}) \cdot d\mathbf{S}.$$
+  Circulation around the rim equals integrated curl through any surface that fills it in. Two surfaces sharing the same boundary give the same answer — the integrand only knows about the rim.</p>
+
+  <h3>The divergence theorem</h3>
+  <p>For a solid region $V$ with closed boundary $\partial V$:
+  $$\iint_{\partial V} \mathbf{F} \cdot d\mathbf{S} \;=\; \iiint_V (\nabla \cdot \mathbf{F})\, dV.$$
+  Net flux out of a closed surface equals total source strength inside. This is why a region with no sources cannot lose flux — it's a conservation law.</p>
+
+  <div class="key-idea">
+    <h4>The pattern</h4>
+    <p>Each "grand theorem" relates an integral on the boundary of a region to a different integral over the interior. The boundary operator on the left, the differential operator ($\nabla$, $\nabla \cdot$, $\nabla \times$) on the right. They're all special cases of one statement — Stokes' theorem on differential forms, which the next chapter previews.</p>
+  </div>
+
+  <figure class="figure">
+    <div class="figure-head"><span>Figure 9.1 — Divergence theorem in action</span><span class="tag">Resize the box</span></div>
+    <div class="figure-body">
+      <div class="figure-canvas" id="canvas-9"><canvas></canvas></div>
+      <div class="figure-controls">
+        <div class="control-group">
+          <label>Vector field</label>
+          <select id="field-9">
+            <option value="radial" selected>Radial ⟨x, y⟩ (div = 2)</option>
+            <option value="rotational">Rotation ⟨−y, x⟩ (div = 0)</option>
+            <option value="quadratic">⟨x², y²⟩ (div = 2x+2y)</option>
+            <option value="sink">Sink ⟨−x, −y⟩ (div = −2)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Box half-width</label>
+          <input type="range" id="size-9" min="20" max="180" value="100">
+        </div>
+        <div class="readout" id="readout-9">
+          <div class="label-mono">∬ ∇·F dA (interior)</div>
+          <div><span class="value" id="interior-9">—</span></div>
+          <div class="label-mono" style="margin-top:8px">∮ F·n dl (boundary)</div>
+          <div><span class="value" id="boundary-9">—</span></div>
+          <div class="label-mono" style="margin-top:8px">Difference</div>
+          <div><span class="value" id="diff-9">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption"><strong>Fig. 9.1</strong> Both numbers track in lockstep. Resize, change fields — they always agree (up to numerical error).</div>
+  </figure>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Use the divergence theorem to compute the outward flux of $\mathbf{F} = (x^3, y^3, z^3)$ through the unit sphere.</h4>
+        <details><summary>Solution sketch</summary><div>$\nabla \cdot \mathbf{F} = 3(x^2 + y^2 + z^2) = 3 r^2$ in spherical. Integrate over unit ball: $\int_0^{2\pi} \int_0^\pi \int_0^1 3 r^2 \cdot r^2 \sin\phi\, dr\, d\phi\, d\theta = 3 \cdot (1/5) \cdot 2 \cdot 2\pi = 12\pi/5$.</div></details>
+      </li>
+      <li>
+        <h4>Use Stokes' theorem to evaluate $\oint_C (y\, dx + z\, dy + x\, dz)$ where $C$ is the triangle with vertices $(1,0,0)$, $(0,1,0)$, $(0,0,1)$ traversed in that order.</h4>
+        <details><summary>Solution sketch</summary><div>$\mathbf{F} = (y, z, x)$; $\nabla \times \mathbf{F} = (-1, -1, -1)$. The triangle lies in the plane $x + y + z = 1$; oriented normal is $(1,1,1)/\sqrt 3$, area is $\sqrt 3 / 2$. Surface integral: $(-1,-1,-1) \cdot (1,1,1)/\sqrt 3 \cdot \sqrt 3 / 2 = -3/2$.</div></details>
+      </li>
+      <li>
+        <h4>Use the divergence theorem in reverse to compute $\iiint_V \nabla \cdot \mathbf{F}\, dV$ for $\mathbf{F} = (x, 0, 0)$ over the cube $[0,1]^3$ — first directly, then by flux.</h4>
+        <details><summary>Solution sketch</summary><div>Direct: $\nabla \cdot \mathbf{F} = 1$, integral $= 1$. Flux: only the faces $x = 0$ (normal $(-1,0,0)$, $\mathbf{F} = 0$, contribution $0$) and $x = 1$ (normal $(1,0,0)$, $\mathbf{F} \cdot \hat{\mathbf{n}} = 1$, area $1$, contribution $1$). Other four faces give zero. Total $= 1$. ✓</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 10 ============ -->
+<section id="ch10" class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">10</div>
+    <div>
+      <h2 class="chapter-title">The <em>Big Picture</em></h2>
+      <div class="chapter-kicker">Everything in one frame</div>
+    </div>
+  </div>
+
+  <p class="lead">All five "fundamental" theorems we've met — for ordinary integrals, line integrals, Green's, Stokes', divergence — say the same thing in different dimensions: <em>the integral of a derivative over a region equals the integral of the original function over the boundary</em>.</p>
+
+  <p>Symbolically: $\int_M d\omega = \int_{\partial M} \omega$. Here $M$ is a region, $\partial M$ its boundary, $\omega$ a "differential form," and $d$ a single unified derivative. Specializing to forms of different degrees recovers each theorem in turn.</p>
+
+  <table style="width:100%; border-collapse:collapse; margin: 30px 0; font-family: 'Newsreader', serif; font-size: 17px;">
+    <thead>
+      <tr style="border-bottom: 2px solid var(--ink);">
+        <th style="text-align:left; padding: 10px; font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-faded);">Theorem</th>
+        <th style="text-align:left; padding: 10px; font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-faded);">Boundary side</th>
+        <th style="text-align:left; padding: 10px; font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-faded);">Interior side</th>
+      </tr>
+    </thead>
+    <tbody style="color: var(--ink-soft);">
+      <tr style="border-bottom: 1px dotted var(--rule);"><td style="padding: 12px 10px;"><em>FTC</em></td><td style="padding: 12px 10px;">$f(b) - f(a)$</td><td style="padding: 12px 10px;">$\int_a^b f'(x)\, dx$</td></tr>
+      <tr style="border-bottom: 1px dotted var(--rule);"><td style="padding: 12px 10px;"><em>Gradient theorem</em></td><td style="padding: 12px 10px;">$f(B) - f(A)$</td><td style="padding: 12px 10px;">$\int_C \nabla f \cdot d\mathbf{r}$</td></tr>
+      <tr style="border-bottom: 1px dotted var(--rule);"><td style="padding: 12px 10px;"><em>Green's</em></td><td style="padding: 12px 10px;">$\oint_C P\, dx + Q\, dy$</td><td style="padding: 12px 10px;">$\iint_D (Q_x - P_y)\, dA$</td></tr>
+      <tr style="border-bottom: 1px dotted var(--rule);"><td style="padding: 12px 10px;"><em>Stokes'</em></td><td style="padding: 12px 10px;">$\oint_{\partial S} \mathbf{F} \cdot d\mathbf{r}$</td><td style="padding: 12px 10px;">$\iint_S (\nabla \times \mathbf{F}) \cdot d\mathbf{S}$</td></tr>
+      <tr><td style="padding: 12px 10px;"><em>Divergence</em></td><td style="padding: 12px 10px;">$\iint_{\partial V} \mathbf{F} \cdot d\mathbf{S}$</td><td style="padding: 12px 10px;">$\iiint_V (\nabla \cdot \mathbf{F})\, dV$</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Where this goes next</h3>
+  <p>Maxwell's equations are vector calculus rearranged: $\nabla \cdot \mathbf{E} = \rho/\varepsilon_0$ (charges as sources of the electric field), $\nabla \times \mathbf{B} = \mu_0 \mathbf{J} + \mu_0 \varepsilon_0 \partial_t \mathbf{E}$ (currents and changing fields drive magnetism). Fluid dynamics, electromagnetism, general relativity, gauge theory — all of physics from the 19th century forward sits on this scaffolding.</p>
+
+  <p>The mathematical generalization — manifolds, differential forms, de Rham cohomology — extends $\int_M d\omega = \int_{\partial M} \omega$ to spaces of any shape and any dimension. The objects you've just met (gradient, divergence, curl) are the three-dimensional shadow of a more general theory.</p>
+
+  <div class="homework">
+    <ol>
+      <li>
+        <h4>Verify all five theorems above in a special case of your choosing. For example: take $f(x) = x^2$ on $[0, 1]$ for FTC; $f(x,y) = x + y$ along a straight path for the gradient theorem; the unit disk for Green's; and so on.</h4>
+        <details><summary>Solution sketch</summary><div>FTC: $\int_0^1 2x\, dx = 1 = f(1) - f(0)$. Gradient: $\nabla f = (1,1)$, path from $(0,0)$ to $(1,1)$ — work $= 2$, $f(1,1) - f(0,0) = 2$. ✓ Green's: take $\mathbf{F} = (-y, x)$ on the unit disk — boundary integral is $2\pi$ (chapter 6 hw), interior integral of curl $= 2$ over area $\pi$ gives $2\pi$. ✓ Continue for the others.</div></details>
+      </li>
+      <li>
+        <h4>Maxwell mini-quiz: $\nabla \cdot \mathbf{B} = 0$. What does this say in words, using the divergence theorem? What does it forbid?</h4>
+        <details><summary>Solution sketch</summary><div>The magnetic field has zero divergence everywhere, so the magnetic flux out of any closed surface is zero. There are no magnetic monopoles — every field line that enters a region must exit.</div></details>
+      </li>
+      <li>
+        <h4>Final synthesis. Explain in your own words, in 100 words or less, why the divergence theorem is a "conservation law."</h4>
+        <details><summary>Solution sketch</summary><div>The divergence theorem says: whatever flows out of a closed surface must come from sources inside. If a quantity (mass, charge, fluid) is conserved — meaning it can't appear or disappear except via real sources/sinks — then the net flux through any boundary equals the net source strength enclosed. No flux without a source. This identification of "boundary flow" with "interior generation" is conservation written in calculus.</div></details>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="ornament">✦ ✦ ✦</div>
+  <div>End of Volume I</div>
+  <div class="colophon">Set in Fraunces and Newsreader. Mathematics rendered by MathJax. Visualizations drawn on the HTML canvas in real time. Made for the curious.</div>
+</footer>
+
+</div>
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+(function() {
+  'use strict';
+
+  // ============ FIELD DEFINITIONS ============
+  // All fields are functions of (x, y) returning {P, Q}
+  // x, y range over [-3, 3]
+  const fields = {
+    uniform:    (x, y) => ({ P: 1, Q: 0.3 }),
+    radial:     (x, y) => ({ P: x, Q: y }),
+    rotational: (x, y) => ({ P: -y, Q: x }),
+    saddle:     (x, y) => ({ P: x, Q: -y }),
+    shear:      (x, y) => ({ P: y, Q: 0 }),
+    sink:       (x, y) => ({ P: -x, Q: -y }),
+    dipole:     (x, y) => ({ P: x*x, Q: y }),
+    vortex:     (x, y) => {
+                  const r2 = x*x + y*y + 0.5;
+                  return { P: -y / r2, Q: x / r2 };
+                },
+    mixed:      (x, y) => ({ P: y, Q: -x + 0.5*y }),
+    quadratic:  (x, y) => ({ P: x*x, Q: y*y }),
+  };
+
+  const scalarFields = {
+    paraboloid: (x, y) => x*x + y*y,
+    saddle:     (x, y) => x*x - y*y,
+    hills:      (x, y) => Math.sin(x) * Math.cos(y),
+    gaussian:   (x, y) => Math.exp(-(x*x + y*y) * 0.5),
+    tilted:     (x, y) => x + 0.5 * y,
+  };
+
+  // Numerical gradient for scalar fields
+  function gradient(f, x, y, h = 0.001) {
+    return {
+      gx: (f(x + h, y) - f(x - h, y)) / (2 * h),
+      gy: (f(x, y + h) - f(x, y - h)) / (2 * h),
+    };
+  }
+
+  // Numerical divergence
+  function divergence(F, x, y, h = 0.001) {
+    const dpx = (F(x + h, y).P - F(x - h, y).P) / (2 * h);
+    const dqy = (F(x, y + h).Q - F(x, y - h).Q) / (2 * h);
+    return dpx + dqy;
+  }
+
+  // Numerical curl-z
+  function curlZ(F, x, y, h = 0.001) {
+    const dqx = (F(x + h, y).Q - F(x - h, y).Q) / (2 * h);
+    const dpy = (F(x, y + h).P - F(x, y - h).P) / (2 * h);
+    return dqx - dpy;
+  }
+
+  // ============ CANVAS UTILITIES ============
+  // Coordinate range for all visualizations
+  const RANGE = 3;
+
+  function setupCanvas(container) {
+    const canvas = container.querySelector('canvas');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return { canvas, ctx, w: rect.width, h: rect.height };
+  }
+
+  // World -> screen
+  function worldToScreen(x, y, w, h) {
+    return {
+      sx: (x + RANGE) / (2 * RANGE) * w,
+      sy: h - (y + RANGE) / (2 * RANGE) * h,
+    };
+  }
+
+  function screenToWorld(sx, sy, w, h) {
+    return {
+      x: (sx / w) * 2 * RANGE - RANGE,
+      y: ((h - sy) / h) * 2 * RANGE - RANGE,
+    };
+  }
+
+  // Draw axes and grid
+  function drawAxes(ctx, w, h) {
+    // Grid
+    ctx.strokeStyle = 'rgba(166, 61, 42, 0.08)';
+    ctx.lineWidth = 1;
+    for (let i = -RANGE; i <= RANGE; i++) {
+      if (i === 0) continue;
+      const { sx } = worldToScreen(i, 0, w, h);
+      const { sy } = worldToScreen(0, i, w, h);
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(w, sy); ctx.stroke();
+    }
+    // Axes
+    ctx.strokeStyle = 'rgba(26, 20, 16, 0.4)';
+    ctx.lineWidth = 1;
+    const { sy: y0 } = worldToScreen(0, 0, w, h);
+    const { sx: x0 } = worldToScreen(0, 0, w, h);
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0, h); ctx.stroke();
+  }
+
+  // Draw arrow at (sx, sy) with vector (vx, vy) in screen pixels
+  function drawArrow(ctx, sx, sy, vx, vy, color, lw = 1.5) {
+    const len = Math.sqrt(vx*vx + vy*vy);
+    if (len < 0.5) return;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + vx, sy + vy);
+    ctx.stroke();
+    // Head
+    const ang = Math.atan2(vy, vx);
+    const hs = Math.min(5, len * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(sx + vx, sy + vy);
+    ctx.lineTo(sx + vx - hs * Math.cos(ang - 0.5), sy + vy - hs * Math.sin(ang - 0.5));
+    ctx.lineTo(sx + vx - hs * Math.cos(ang + 0.5), sy + vy - hs * Math.sin(ang + 0.5));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Draw a vector field of arrows over a grid
+  function drawVectorField(ctx, w, h, fieldFn, opts = {}) {
+    const N = opts.N || 18;
+    const scale = opts.scale || 14;
+    const maxLen = opts.maxLen || 22;
+    const baseColor = opts.color || 'rgba(43, 72, 101, ';
+
+    // Find max magnitude for normalization
+    let maxMag = 0;
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = -RANGE + (i + 0.5) / N * 2 * RANGE;
+        const y = -RANGE + (j + 0.5) / N * 2 * RANGE;
+        const { P, Q } = fieldFn(x, y);
+        const m = Math.sqrt(P*P + Q*Q);
+        if (m > maxMag && isFinite(m)) maxMag = m;
+      }
+    }
+    if (maxMag === 0) maxMag = 1;
+
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = -RANGE + (i + 0.5) / N * 2 * RANGE;
+        const y = -RANGE + (j + 0.5) / N * 2 * RANGE;
+        const { P, Q } = fieldFn(x, y);
+        if (!isFinite(P) || !isFinite(Q)) continue;
+        const m = Math.sqrt(P*P + Q*Q);
+        const normalized = m / maxMag;
+        let vx = P * scale;
+        let vy = -Q * scale; // flip y for screen
+        const vlen = Math.sqrt(vx*vx + vy*vy);
+        if (vlen > maxLen) {
+          vx = vx * maxLen / vlen;
+          vy = vy * maxLen / vlen;
+        }
+        const { sx, sy } = worldToScreen(x, y, w, h);
+        const alpha = 0.35 + 0.6 * Math.min(1, normalized);
+        drawArrow(ctx, sx, sy, vx, vy, baseColor + alpha + ')', 1.2);
+      }
+    }
+  }
+
+  // Draw level curves (contours) using marching squares
+  function drawContours(ctx, w, h, scalarFn, opts = {}) {
+    const N = opts.N || 80;
+    const levels = opts.levels || 10;
+    const color = opts.color || 'rgba(43, 72, 101, 0.35)';
+
+    // Sample on a grid
+    const vals = [];
+    let minV = Infinity, maxV = -Infinity;
+    for (let i = 0; i <= N; i++) {
+      vals.push([]);
+      for (let j = 0; j <= N; j++) {
+        const x = -RANGE + i / N * 2 * RANGE;
+        const y = -RANGE + j / N * 2 * RANGE;
+        const v = scalarFn(x, y);
+        vals[i].push(v);
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+      }
+    }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+
+    for (let l = 1; l < levels; l++) {
+      const level = minV + (maxV - minV) * l / levels;
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+          // Corners of cell
+          const v00 = vals[i][j], v10 = vals[i+1][j];
+          const v11 = vals[i+1][j+1], v01 = vals[i][j+1];
+          // Compute marching squares index
+          let idx = 0;
+          if (v00 > level) idx |= 1;
+          if (v10 > level) idx |= 2;
+          if (v11 > level) idx |= 4;
+          if (v01 > level) idx |= 8;
+          if (idx === 0 || idx === 15) continue;
+
+          // Cell coords in world
+          const x0w = -RANGE + i / N * 2 * RANGE;
+          const x1w = -RANGE + (i+1) / N * 2 * RANGE;
+          const y0w = -RANGE + j / N * 2 * RANGE;
+          const y1w = -RANGE + (j+1) / N * 2 * RANGE;
+
+          const interp = (va, vb, a, b) => a + (level - va) / (vb - va) * (b - a);
+          // Edge crossings (world coords)
+          const eBottom = () => ({ x: interp(v00, v10, x0w, x1w), y: y0w });
+          const eRight  = () => ({ x: x1w, y: interp(v10, v11, y0w, y1w) });
+          const eTop    = () => ({ x: interp(v01, v11, x0w, x1w), y: y1w });
+          const eLeft   = () => ({ x: x0w, y: interp(v00, v01, y0w, y1w) });
+
+          const segs = [];
+          switch (idx) {
+            case 1: case 14: segs.push([eBottom(), eLeft()]); break;
+            case 2: case 13: segs.push([eBottom(), eRight()]); break;
+            case 3: case 12: segs.push([eLeft(), eRight()]); break;
+            case 4: case 11: segs.push([eRight(), eTop()]); break;
+            case 5: segs.push([eBottom(), eLeft()]); segs.push([eRight(), eTop()]); break;
+            case 6: case 9: segs.push([eBottom(), eTop()]); break;
+            case 7: case 8: segs.push([eLeft(), eTop()]); break;
+            case 10: segs.push([eBottom(), eRight()]); segs.push([eLeft(), eTop()]); break;
+          }
+          for (const seg of segs) {
+            const a = worldToScreen(seg[0].x, seg[0].y, w, h);
+            const b = worldToScreen(seg[1].x, seg[1].y, w, h);
+            ctx.beginPath();
+            ctx.moveTo(a.sx, a.sy);
+            ctx.lineTo(b.sx, b.sy);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  }
+
+  // Draw heat map (for divergence visualization)
+  function drawHeatmap(ctx, w, h, fn, opts = {}) {
+    const res = opts.res || 60;
+    const cellW = w / res;
+    const cellH = h / res;
+    // Find range
+    let maxAbs = 0;
+    for (let i = 0; i < res; i++) {
+      for (let j = 0; j < res; j++) {
+        const x = -RANGE + (i + 0.5) / res * 2 * RANGE;
+        const y = -RANGE + (j + 0.5) / res * 2 * RANGE;
+        const v = fn(x, y);
+        if (isFinite(v) && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+      }
+    }
+    // If the field is identically zero (or just floating-point noise),
+    // don't amplify the noise — bail out and leave the background clean.
+    if (maxAbs < 1e-6) return;
+
+    for (let i = 0; i < res; i++) {
+      for (let j = 0; j < res; j++) {
+        const x = -RANGE + (i + 0.5) / res * 2 * RANGE;
+        const y = -RANGE + (j + 0.5) / res * 2 * RANGE;
+        const v = fn(x, y);
+        if (!isFinite(v)) continue;
+        const norm = Math.max(-1, Math.min(1, v / maxAbs));
+        // Red for positive, blue for negative
+        let r, g, b;
+        if (norm > 0) {
+          r = 166; g = 61; b = 42; // red
+        } else {
+          r = 43; g = 72; b = 101; // blue
+        }
+        const alpha = Math.abs(norm) * 0.55;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        const { sx, sy } = worldToScreen(x, y, w, h);
+        ctx.fillRect(sx - cellW/2 - 1, sy - cellH/2 - 1, cellW + 2, cellH + 2);
+      }
+    }
+  }
+
+  // ============ FIGURE 1: Vector field viewer ============
+  function setupFig1() {
+    const container = document.getElementById('canvas-1');
+    if (!container) return;
+    const sel = document.getElementById('field-1');
+    const readout = document.getElementById('readout-1');
+    let cursor = null;
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      drawAxes(ctx, w, h);
+      const fn = fields[sel.value];
+      drawVectorField(ctx, w, h, fn, { color: 'rgba(43, 72, 101, ', scale: 16 });
+
+      // Cursor highlight
+      if (cursor) {
+        const { x, y } = cursor;
+        const { P, Q } = fn(x, y);
+        const { sx, sy } = worldToScreen(x, y, w, h);
+        ctx.fillStyle = 'rgba(166, 61, 42, 0.2)';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 10, 0, 2 * Math.PI);
+        ctx.fill();
+        const m = Math.sqrt(P*P + Q*Q);
+        const scale = Math.min(30 / (m + 0.1), 30);
+        drawArrow(ctx, sx, sy, P * scale, -Q * scale, '#a63d2a', 2.5);
+      }
+    }
+
+    container.addEventListener('mousemove', (e) => {
+      const rect = container.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      cursor = screenToWorld(sx, sy, rect.width, rect.height);
+      const fn = fields[sel.value];
+      const { P, Q } = fn(cursor.x, cursor.y);
+      readout.innerHTML = `
+        <div class="label-mono">Cursor</div>
+        <div>x = <span class="value">${cursor.x.toFixed(2)}</span>, y = <span class="value">${cursor.y.toFixed(2)}</span></div>
+        <div class="label-mono" style="margin-top:8px">Field value</div>
+        <div>P = <span class="value">${P.toFixed(2)}</span></div>
+        <div>Q = <span class="value">${Q.toFixed(2)}</span></div>`;
+      render();
+    });
+    container.addEventListener('mouseleave', () => { cursor = null; render(); });
+    sel.addEventListener('change', render);
+    window.addEventListener('resize', render);
+    render();
+  }
+
+  // ============ FIGURE 2: Gradient over contours ============
+  function setupFig2() {
+    const container = document.getElementById('canvas-2');
+    if (!container) return;
+    const sel = document.getElementById('field-2');
+    const readout = document.getElementById('readout-2');
+    let cursor = null;
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      drawAxes(ctx, w, h);
+      const f = scalarFields[sel.value];
+      // Contours
+      drawContours(ctx, w, h, f, { color: 'rgba(43, 72, 101, 0.5)', levels: 14 });
+      // Gradient arrows on coarser grid
+      drawVectorField(ctx, w, h, (x, y) => {
+        const g = gradient(f, x, y);
+        return { P: g.gx, Q: g.gy };
+      }, { N: 14, scale: 10, color: 'rgba(166, 61, 42, ', maxLen: 24 });
+
+      if (cursor) {
+        const { x, y } = cursor;
+        const g = gradient(f, x, y);
+        const { sx, sy } = worldToScreen(x, y, w, h);
+        ctx.fillStyle = 'rgba(184, 134, 44, 0.3)';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 10, 0, 2 * Math.PI);
+        ctx.fill();
+        const mag = Math.sqrt(g.gx*g.gx + g.gy*g.gy);
+        const scale = Math.min(40 / (mag + 0.05), 40);
+        drawArrow(ctx, sx, sy, g.gx * scale, -g.gy * scale, '#7d2c1e', 3);
+      }
+    }
+
+    container.addEventListener('mousemove', (e) => {
+      const rect = container.getBoundingClientRect();
+      cursor = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+      const f = scalarFields[sel.value];
+      const g = gradient(f, cursor.x, cursor.y);
+      const mag = Math.sqrt(g.gx*g.gx + g.gy*g.gy);
+      readout.innerHTML = `
+        <div class="label-mono">Cursor</div>
+        <div>x = <span class="value">${cursor.x.toFixed(2)}</span>, y = <span class="value">${cursor.y.toFixed(2)}</span></div>
+        <div class="label-mono" style="margin-top:8px">f at cursor</div>
+        <div>f = <span class="value">${f(cursor.x, cursor.y).toFixed(3)}</span></div>
+        <div class="label-mono" style="margin-top:8px">∇f at cursor</div>
+        <div>⟨<span class="value">${g.gx.toFixed(2)}</span>, <span class="value">${g.gy.toFixed(2)}</span>⟩</div>
+        <div class="label-mono" style="margin-top:8px">|∇f|</div>
+        <div><span class="value">${mag.toFixed(3)}</span></div>`;
+      render();
+    });
+    container.addEventListener('mouseleave', () => { cursor = null; render(); });
+    sel.addEventListener('change', render);
+    window.addEventListener('resize', render);
+    render();
+  }
+
+  // ============ FIGURE 3: Directional derivative ============
+  function setupFig3() {
+    const container = document.getElementById('canvas-3');
+    if (!container) return;
+    const sel = document.getElementById('field-3');
+    const thetaSlider = document.getElementById('theta-3');
+    let cursor = { x: 1, y: 0.5 };
+    let theta = 45 * Math.PI / 180;  // direction angle in radians
+    let dragging = null;  // 'cursor' or 'arrow' or null
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      drawAxes(ctx, w, h);
+      const f = scalarFields[sel.value];
+      drawContours(ctx, w, h, f, { color: 'rgba(43, 72, 101, 0.4)', levels: 12 });
+
+      const ux = Math.cos(theta);
+      const uy = Math.sin(theta);
+      const g = gradient(f, cursor.x, cursor.y);
+
+      const { sx, sy } = worldToScreen(cursor.x, cursor.y, w, h);
+      ctx.fillStyle = 'rgba(184, 134, 44, 0.3)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 12, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Gradient arrow (red)
+      const gmag = Math.sqrt(g.gx*g.gx + g.gy*g.gy);
+      const gscale = Math.min(45 / (gmag + 0.05), 45);
+      drawArrow(ctx, sx, sy, g.gx * gscale, -g.gy * gscale, '#a63d2a', 2.5);
+
+      // Direction arrow (green/teal) — draggable handle
+      const armLen = 55;
+      const ax = sx + ux * armLen;
+      const ay = sy - uy * armLen;
+      drawArrow(ctx, sx, sy, ux * armLen, -uy * armLen, '#2d5a4f', 2.5);
+      // Draggable knob at tip
+      ctx.fillStyle = '#2d5a4f';
+      ctx.beginPath();
+      ctx.arc(ax, ay, 6, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = '#fbf6e7';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Labels
+      ctx.fillStyle = '#a63d2a';
+      ctx.font = "italic 14px 'Fraunces', serif";
+      ctx.fillText('∇f', sx + g.gx * gscale + 8, sy - g.gy * gscale + 4);
+      ctx.fillStyle = '#2d5a4f';
+      ctx.fillText('u', ax + 10, ay + 4);
+
+      // Hint text at top
+      ctx.fillStyle = 'rgba(107, 93, 79, 0.7)';
+      ctx.font = "italic 11px 'Newsreader', serif";
+      ctx.fillText('drag the green dot to rotate u · drag the cursor to move point', 10, 16);
+
+      // Readout
+      const dd = g.gx * ux + g.gy * uy;
+      const thetaDeg = ((theta * 180 / Math.PI) % 360 + 360) % 360;
+      document.getElementById('theta-val').textContent = thetaDeg.toFixed(0) + '°';
+      document.getElementById('dirderiv').textContent = dd.toFixed(3);
+      document.getElementById('dotcheck').textContent = dd.toFixed(3);
+      // Sync slider
+      thetaSlider.value = thetaDeg;
+    }
+
+    function getMousePos(e) {
+      const rect = container.getBoundingClientRect();
+      return { sx: e.clientX - rect.left, sy: e.clientY - rect.top, w: rect.width, h: rect.height };
+    }
+
+    container.addEventListener('mousedown', (e) => {
+      const { sx, sy, w, h } = getMousePos(e);
+      const cs = worldToScreen(cursor.x, cursor.y, w, h);
+      const ux = Math.cos(theta), uy = Math.sin(theta);
+      const ax = cs.sx + ux * 55, ay = cs.sy - uy * 55;
+      // Check if near the arrow tip first
+      const dArrow = Math.hypot(sx - ax, sy - ay);
+      const dCursor = Math.hypot(sx - cs.sx, sy - cs.sy);
+      if (dArrow < 18 && dArrow <= dCursor) {
+        dragging = 'arrow';
+      } else {
+        dragging = 'cursor';
+        cursor = screenToWorld(sx, sy, w, h);
+      }
+      render();
+      e.preventDefault();
+    });
+
+    container.addEventListener('mousemove', (e) => {
+      const { sx, sy, w, h } = getMousePos(e);
+      if (dragging === 'cursor') {
+        cursor = screenToWorld(sx, sy, w, h);
+        render();
+      } else if (dragging === 'arrow') {
+        const cs = worldToScreen(cursor.x, cursor.y, w, h);
+        // Screen-space delta (y flipped)
+        const dx = sx - cs.sx;
+        const dy = cs.sy - sy;
+        theta = Math.atan2(dy, dx);
+        render();
+      } else {
+        // Just hovering — update cursor position for inspection feel
+        const cs = worldToScreen(cursor.x, cursor.y, w, h);
+        const ux = Math.cos(theta), uy = Math.sin(theta);
+        const ax = cs.sx + ux * 55, ay = cs.sy - uy * 55;
+        const dArrow = Math.hypot(sx - ax, sy - ay);
+        container.style.cursor = dArrow < 18 ? 'grab' : 'crosshair';
+      }
+    });
+
+    window.addEventListener('mouseup', () => { dragging = null; });
+    container.addEventListener('mouseleave', () => { /* keep state */ });
+
+    // Touch support
+    container.addEventListener('touchstart', (e) => {
+      if (!e.touches[0]) return;
+      const rect = container.getBoundingClientRect();
+      const sx = e.touches[0].clientX - rect.left;
+      const sy = e.touches[0].clientY - rect.top;
+      const cs = worldToScreen(cursor.x, cursor.y, rect.width, rect.height);
+      const ux = Math.cos(theta), uy = Math.sin(theta);
+      const ax = cs.sx + ux * 55, ay = cs.sy - uy * 55;
+      const dArrow = Math.hypot(sx - ax, sy - ay);
+      const dCursor = Math.hypot(sx - cs.sx, sy - cs.sy);
+      if (dArrow < 25 && dArrow <= dCursor) {
+        dragging = 'arrow';
+      } else {
+        dragging = 'cursor';
+        cursor = screenToWorld(sx, sy, rect.width, rect.height);
+      }
+      render();
+      e.preventDefault();
+    }, { passive: false });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!e.touches[0] || !dragging) return;
+      const rect = container.getBoundingClientRect();
+      const sx = e.touches[0].clientX - rect.left;
+      const sy = e.touches[0].clientY - rect.top;
+      if (dragging === 'cursor') {
+        cursor = screenToWorld(sx, sy, rect.width, rect.height);
+      } else if (dragging === 'arrow') {
+        const cs = worldToScreen(cursor.x, cursor.y, rect.width, rect.height);
+        const dx = sx - cs.sx;
+        const dy = cs.sy - sy;
+        theta = Math.atan2(dy, dx);
+      }
+      render();
+      e.preventDefault();
+    }, { passive: false });
+
+    container.addEventListener('touchend', () => { dragging = null; });
+
+    sel.addEventListener('change', render);
+    thetaSlider.addEventListener('input', () => {
+      theta = parseFloat(thetaSlider.value) * Math.PI / 180;
+      render();
+    });
+    window.addEventListener('resize', render);
+    render();
+  }
+
+  // ============ FIGURE 4: Divergence heatmap ============
+  function setupFig4() {
+    const container = document.getElementById('canvas-4');
+    if (!container) return;
+    const sel = document.getElementById('field-4');
+    const readout = document.getElementById('readout-4');
+    let cursor = null;
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      const fn = fields[sel.value];
+      drawHeatmap(ctx, w, h, (x, y) => divergence(fn, x, y), { res: 60 });
+      drawAxes(ctx, w, h);
+      drawVectorField(ctx, w, h, fn, { color: 'rgba(26, 20, 16, ', scale: 14, N: 16 });
+
+      if (cursor) {
+        const { sx, sy } = worldToScreen(cursor.x, cursor.y, w, h);
+        ctx.strokeStyle = '#1a1410';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 10, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+    }
+
+    container.addEventListener('mousemove', (e) => {
+      const rect = container.getBoundingClientRect();
+      cursor = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+      const fn = fields[sel.value];
+      const d = divergence(fn, cursor.x, cursor.y);
+      const sign = d > 0.05 ? 'source (+)' : d < -0.05 ? 'sink (−)' : 'neutral';
+      readout.innerHTML = `
+        <div class="label-mono">Cursor</div>
+        <div>x = <span class="value">${cursor.x.toFixed(2)}</span>, y = <span class="value">${cursor.y.toFixed(2)}</span></div>
+        <div class="label-mono" style="margin-top:8px">∇·F at cursor</div>
+        <div><span class="value">${d.toFixed(3)}</span></div>
+        <div class="label-mono" style="margin-top:8px">Sign</div>
+        <div><span class="value">${sign}</span></div>`;
+      render();
+    });
+    container.addEventListener('mouseleave', () => { cursor = null; render(); });
+    sel.addEventListener('change', render);
+    window.addEventListener('resize', render);
+    render();
+  }
+
+  // ============ FIGURE 5: Curl with paddle wheels ============
+  function setupFig5() {
+    const container = document.getElementById('canvas-5');
+    if (!container) return;
+    const sel = document.getElementById('field-5');
+    const readout = document.getElementById('readout-5');
+    let cursor = null;
+    let phase = 0;
+
+    function drawPaddle(ctx, sx, sy, omega, rotation) {
+      // Skip wheels where there's effectively no rotation — don't clutter.
+      if (Math.abs(omega) < 0.05) return;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(rotation);
+      const positive = omega > 0;
+      ctx.strokeStyle = positive ? '#2d5a4f' : '#7d2c1e';
+      ctx.lineWidth = 1.2;
+      ctx.fillStyle = positive ? 'rgba(45, 90, 79, 0.55)' : 'rgba(125, 44, 30, 0.55)';
+      // Four paddles, smaller so the field is still legible behind them
+      const r = 7;
+      const wHalf = 1.2;
+      for (let i = 0; i < 4; i++) {
+        ctx.save();
+        ctx.rotate(i * Math.PI / 2);
+        ctx.fillRect(-wHalf, -r, wHalf * 2, r);
+        ctx.strokeRect(-wHalf, -r, wHalf * 2, r);
+        ctx.restore();
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, 2, 0, 2 * Math.PI);
+      ctx.fillStyle = '#1a1410';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      drawAxes(ctx, w, h);
+      const fn = fields[sel.value];
+      drawVectorField(ctx, w, h, fn, { color: 'rgba(43, 72, 101, ', scale: 14, N: 16 });
+
+      // Paddle wheels on coarser grid
+      const N = 7;
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+          const x = -RANGE + (i + 0.5) / N * 2 * RANGE;
+          const y = -RANGE + (j + 0.5) / N * 2 * RANGE;
+          const omega = curlZ(fn, x, y);
+          const { sx, sy } = worldToScreen(x, y, w, h);
+          // Canvas rotate() goes clockwise for positive angles (y flipped).
+          // Negate so positive curl ω visibly spins counterclockwise on screen.
+          drawPaddle(ctx, sx, sy, omega, -phase * omega * 0.5);
+        }
+      }
+
+      if (cursor) {
+        const { sx, sy } = worldToScreen(cursor.x, cursor.y, w, h);
+        ctx.strokeStyle = '#1a1410';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 14, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+    }
+
+    container.addEventListener('mousemove', (e) => {
+      const rect = container.getBoundingClientRect();
+      cursor = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
+      const fn = fields[sel.value];
+      const c = curlZ(fn, cursor.x, cursor.y);
+      const dir = c > 0.05 ? 'counterclockwise (+)' : c < -0.05 ? 'clockwise (−)' : 'none';
+      readout.innerHTML = `
+        <div class="label-mono">Cursor</div>
+        <div>x = <span class="value">${cursor.x.toFixed(2)}</span>, y = <span class="value">${cursor.y.toFixed(2)}</span></div>
+        <div class="label-mono" style="margin-top:8px">(∇×F)_z at cursor</div>
+        <div><span class="value">${c.toFixed(3)}</span></div>
+        <div class="label-mono" style="margin-top:8px">Spin direction</div>
+        <div><span class="value">${dir}</span></div>`;
+    });
+    container.addEventListener('mouseleave', () => { cursor = null; });
+    sel.addEventListener('change', render);
+    window.addEventListener('resize', render);
+
+    // Animate paddles
+    function animate() {
+      phase += 0.04;
+      render();
+      requestAnimationFrame(animate);
+    }
+    animate();
+  }
+
+  // ============ FIGURE 6: Line integrals / work ============
+  function setupFig6() {
+    const container = document.getElementById('canvas-6');
+    if (!container) return;
+    const fieldSel = document.getElementById('field-6');
+    const pathSel = document.getElementById('path-6');
+    const readout = document.getElementById('readout-6');
+
+    const A = { x: -2, y: -1 };
+    const B = { x: 2, y: 1.5 };
+
+    function getPath(type) {
+      const pts = [];
+      const N = 200;
+      if (type === 'line') {
+        for (let i = 0; i <= N; i++) {
+          const t = i / N;
+          pts.push({ x: A.x + t * (B.x - A.x), y: A.y + t * (B.y - A.y) });
+        }
+      } else if (type === 'arc') {
+        // semi-circular arc bulging up
+        const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+        const dx = B.x - A.x, dy = B.y - A.y;
+        const len = Math.sqrt(dx*dx + dy*dy);
+        const nx = -dy / len, ny = dx / len;
+        const r = len / 2;
+        for (let i = 0; i <= N; i++) {
+          const t = i / N;
+          const theta = Math.PI * (1 - t);
+          const lx = -Math.cos(theta) * r;
+          const ly = Math.sin(theta) * r;
+          pts.push({ x: mx + lx * (dx/len) + ly * nx, y: my + lx * (dy/len) + ly * ny });
+        }
+      } else { // loop: ellipse around midpoint, returning to start
+        const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+        const a = 2.5, b = 1.5;
+        for (let i = 0; i <= N; i++) {
+          const t = i / N;
+          pts.push({ x: mx + a * Math.cos(2 * Math.PI * t), y: my + b * Math.sin(2 * Math.PI * t) });
+        }
+      }
+      return pts;
+    }
+
+    function lineIntegral(F, pts) {
+      let sum = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const dx = pts[i].x - pts[i-1].x;
+        const dy = pts[i].y - pts[i-1].y;
+        const mx = (pts[i].x + pts[i-1].x) / 2;
+        const my = (pts[i].y + pts[i-1].y) / 2;
+        const { P, Q } = F(mx, my);
+        sum += P * dx + Q * dy;
+      }
+      return sum;
+    }
+
+    function isConservative(name) {
+      return name !== 'rotational';
+    }
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      drawAxes(ctx, w, h);
+      const fn = fields[fieldSel.value];
+      drawVectorField(ctx, w, h, fn, { color: 'rgba(43, 72, 101, ', scale: 14, N: 16 });
+
+      // Draw path
+      const pts = getPath(pathSel.value);
+      ctx.strokeStyle = '#a63d2a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const p0 = worldToScreen(pts[0].x, pts[0].y, w, h);
+      ctx.moveTo(p0.sx, p0.sy);
+      for (let i = 1; i < pts.length; i++) {
+        const p = worldToScreen(pts[i].x, pts[i].y, w, h);
+        ctx.lineTo(p.sx, p.sy);
+      }
+      ctx.stroke();
+
+      // Direction arrows along path
+      ctx.fillStyle = '#a63d2a';
+      for (let i = 20; i < pts.length; i += 40) {
+        const a = pts[i-1], b = pts[i+1] || pts[i];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len = Math.sqrt(dx*dx + dy*dy);
+        if (len < 0.001) continue;
+        const sp = worldToScreen(pts[i].x, pts[i].y, w, h);
+        const ax = dx / len * 8, ay = -dy / len * 8;
+        ctx.save();
+        ctx.translate(sp.sx, sp.sy);
+        ctx.rotate(Math.atan2(ay, ax));
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-6, -4);
+        ctx.lineTo(-6, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Endpoints
+      const sA = worldToScreen(A.x, A.y, w, h);
+      const sB = worldToScreen(B.x, B.y, w, h);
+      ctx.fillStyle = '#1a1410';
+      ctx.beginPath(); ctx.arc(sA.sx, sA.sy, 5, 0, 2*Math.PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(sB.sx, sB.sy, 5, 0, 2*Math.PI); ctx.fill();
+      ctx.fillStyle = '#1a1410';
+      ctx.font = "bold 14px 'Fraunces', serif";
+      ctx.fillText('A', sA.sx - 14, sA.sy + 4);
+      ctx.fillText('B', sB.sx + 9, sB.sy + 4);
+
+      // Compute work
+      const work = lineIntegral(fn, pts);
+      document.getElementById('work-val').textContent = work.toFixed(3);
+      document.getElementById('conservative').textContent = isConservative(fieldSel.value) ? 'Yes — path-independent' : 'No — depends on path';
+    }
+
+    fieldSel.addEventListener('change', render);
+    pathSel.addEventListener('change', render);
+    window.addEventListener('resize', render);
+    render();
+  }
+
+  // ============ FIGURE 9: Divergence theorem demo ============
+  function setupFig9() {
+    const container = document.getElementById('canvas-9');
+    if (!container) return;
+    const sel = document.getElementById('field-9');
+    const slider = document.getElementById('size-9');
+
+    function render() {
+      const { ctx, w, h } = setupCanvas(container);
+      ctx.clearRect(0, 0, w, h);
+      const fn = fields[sel.value];
+      drawHeatmap(ctx, w, h, (x, y) => divergence(fn, x, y), { res: 50 });
+      drawAxes(ctx, w, h);
+      drawVectorField(ctx, w, h, fn, { color: 'rgba(26, 20, 16, ', scale: 14, N: 14 });
+
+      // Box centered at origin
+      const halfPx = parseFloat(slider.value);
+      const cx = w / 2, cy = h / 2;
+      const sxL = cx - halfPx, sxR = cx + halfPx;
+      const syT = cy - halfPx, syB = cy + halfPx;
+      // Box in world coords
+      const half = (halfPx / w) * 2 * RANGE;
+      ctx.strokeStyle = '#a63d2a';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 3]);
+      ctx.strokeRect(sxL, syT, halfPx * 2, halfPx * 2);
+      ctx.setLineDash([]);
+
+      // Compute interior integral (∬ div F dA)
+      let interior = 0;
+      const Nint = 40;
+      const stepW = (2 * half) / Nint;
+      for (let i = 0; i < Nint; i++) {
+        for (let j = 0; j < Nint; j++) {
+          const x = -half + (i + 0.5) * stepW;
+          const y = -half + (j + 0.5) * stepW;
+          interior += divergence(fn, x, y) * stepW * stepW;
+        }
+      }
+
+      // Compute boundary integral (∮ F·n dl) on the box
+      let boundary = 0;
+      const Nedge = 100;
+      // Right edge: x = half, n = (1, 0)
+      for (let k = 0; k < Nedge; k++) {
+        const y = -half + (k + 0.5) * (2 * half / Nedge);
+        boundary += fn(half, y).P * (2 * half / Nedge);
+      }
+      // Left edge: x = -half, n = (-1, 0)
+      for (let k = 0; k < Nedge; k++) {
+        const y = -half + (k + 0.5) * (2 * half / Nedge);
+        boundary += -fn(-half, y).P * (2 * half / Nedge);
+      }
+      // Top edge: y = half, n = (0, 1)
+      for (let k = 0; k < Nedge; k++) {
+        const x = -half + (k + 0.5) * (2 * half / Nedge);
+        boundary += fn(x, half).Q * (2 * half / Nedge);
+      }
+      // Bottom edge: y = -half, n = (0, -1)
+      for (let k = 0; k < Nedge; k++) {
+        const x = -half + (k + 0.5) * (2 * half / Nedge);
+        boundary += -fn(x, -half).Q * (2 * half / Nedge);
+      }
+
+      document.getElementById('interior-9').textContent = interior.toFixed(3);
+      document.getElementById('boundary-9').textContent = boundary.toFixed(3);
+      document.getElementById('diff-9').textContent = (interior - boundary).toFixed(4);
+    }
+
+    sel.addEventListener('change', render);
+    slider.addEventListener('input', render);
+    window.addEventListener('resize', render);
+    render();
+  }
+
+  // ============================================================
+  // ===================== 3D FIGURES (Three.js) ================
+  // ============================================================
+
+  // --- Generic 3D scene helper with mouse-orbit + zoom ---
+  function make3DScene(container, opts = {}) {
+    const rect = container.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xfbf6e7);
+
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+    const radius = opts.radius || 8;
+    let azimuth = opts.azimuth ?? Math.PI / 4;
+    let elevation = opts.elevation ?? Math.PI / 6;
+    let dist = radius;
+
+    function updateCamera() {
+      camera.position.x = dist * Math.cos(elevation) * Math.sin(azimuth);
+      camera.position.y = dist * Math.sin(elevation);
+      camera.position.z = dist * Math.cos(elevation) * Math.cos(azimuth);
+      camera.lookAt(0, 0, 0);
+    }
+    updateCamera();
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(w, h);
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    // Lights — three-point setup so concave surfaces don't read inverted
+    const ambient = new THREE.AmbientLight(0xfff5e0, 0.55);
+    scene.add(ambient);
+    const keyLight = new THREE.DirectionalLight(0xfff5e0, 0.65);
+    keyLight.position.set(5, 10, 7);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0xb8862c, 0.35);
+    fillLight.position.set(-5, 4, -3);
+    scene.add(fillLight);
+    // Up-light from below so bowl interiors are lit and read as concave
+    const bounce = new THREE.DirectionalLight(0xf4ecd8, 0.4);
+    bounce.position.set(0, -8, 2);
+    scene.add(bounce);
+
+    // Mouse orbit
+    let dragging = false, lastX = 0, lastY = 0;
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      container.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    window.addEventListener('mouseup', () => {
+      dragging = false;
+      container.style.cursor = 'grab';
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      azimuth -= dx * 0.008;
+      elevation = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, elevation + dy * 0.008));
+      updateCamera();
+    });
+    renderer.domElement.addEventListener('wheel', (e) => {
+      dist *= (1 + e.deltaY * 0.001);
+      dist = Math.max(2, Math.min(30, dist));
+      updateCamera();
+      e.preventDefault();
+    }, { passive: false });
+    // Touch
+    let touchStart = null, touchPinch = null;
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchPinch = Math.hypot(dx, dy);
+      }
+      e.preventDefault();
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && touchStart) {
+        const dx = e.touches[0].clientX - touchStart.x;
+        const dy = e.touches[0].clientY - touchStart.y;
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        azimuth -= dx * 0.008;
+        elevation = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, elevation + dy * 0.008));
+        updateCamera();
+      } else if (e.touches.length === 2 && touchPinch) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const newPinch = Math.hypot(dx, dy);
+        dist *= touchPinch / newPinch;
+        dist = Math.max(2, Math.min(30, dist));
+        touchPinch = newPinch;
+        updateCamera();
+      }
+      e.preventDefault();
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchend', () => {
+      touchStart = null; touchPinch = null;
+    });
+
+    // Resize
+    function onResize() {
+      const r = container.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      camera.aspect = r.width / r.height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(r.width, r.height);
+    }
+    window.addEventListener('resize', onResize);
+
+    return { scene, camera, renderer, updateCamera, onResize };
+  }
+
+  // Helper: make an arrow with a given length and color
+  function makeArrow(dir, origin, length, color) {
+    const arrow = new THREE.ArrowHelper(dir.clone().normalize(), origin, length, color, length * 0.3, length * 0.2);
+    return arrow;
+  }
+
+  // ============ FIGURE 2.2: 3D gradient landscape ============
+  const scalarFields3D = {
+    paraboloid: (x, y) => 0.3 * (x*x + y*y),
+    saddle:     (x, y) => 0.3 * (x*x - y*y),
+    hills:      (x, y) => Math.sin(x) * Math.cos(y),
+    gaussian:   (x, y) => 2 * Math.exp(-(x*x + y*y) * 0.5),
+    ripple:     (x, y) => {
+                  const r = Math.sqrt(x*x + y*y);
+                  return Math.cos(r * 2) * Math.exp(-r * 0.3);
+                },
+    volcano:    (x, y) => {
+                  const r2 = x*x + y*y;
+                  return 2 * Math.exp(-r2 * 0.2) * (r2 * 0.3 - 0.5);
+                },
+  };
+
+  function setupFig2B() {
+    const container = document.getElementById('canvas-2b');
+    if (!container || typeof THREE === 'undefined') return;
+    const sel = document.getElementById('field-2b');
+    const showSel = document.getElementById('show-2b');
+
+    const { scene, camera, renderer } = make3DScene(container, { radius: 9, elevation: Math.PI / 5 });
+
+    const RANGE3D = 3;
+    const N = 50;
+    let surface, arrowGroup, ball, ballTrail;
+
+    function gradient3D(f, x, y, h = 0.001) {
+      return { gx: (f(x+h, y) - f(x-h, y)) / (2*h), gy: (f(x, y+h) - f(x, y-h)) / (2*h) };
+    }
+
+    function rebuild() {
+      // Clear previous
+      if (surface) { scene.remove(surface); surface.geometry.dispose(); surface.material.dispose(); }
+      if (arrowGroup) { scene.remove(arrowGroup); }
+      if (ball) { scene.remove(ball); }
+      if (ballTrail) { scene.remove(ballTrail); ballTrail.geometry.dispose(); }
+      ball = null; ballTrail = null;
+
+      const f = scalarFields3D[sel.value];
+      const mode = showSel.value;
+
+      // Build surface
+      const geom = new THREE.PlaneGeometry(2*RANGE3D, 2*RANGE3D, N, N);
+      const pos = geom.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+      let zmin = Infinity, zmax = -Infinity;
+      const zvals = [];
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);  // plane is in xy
+        const z = f(x, y);
+        zvals.push(z);
+        if (z < zmin) zmin = z;
+        if (z > zmax) zmax = z;
+      }
+      for (let i = 0; i < pos.count; i++) {
+        pos.setZ(i, zvals[i]);
+        const t = (zvals[i] - zmin) / (zmax - zmin + 1e-9);
+        // Elevation palette: deep teal (low) → cream (mid) → red (high)
+        // So even with bad lighting, you can read "up" from color alone.
+        let r, g, b;
+        if (t < 0.5) {
+          // Teal → cream
+          const u = t * 2;
+          r = 0.18 + (0.96 - 0.18) * u;
+          g = 0.35 + (0.93 - 0.35) * u;
+          b = 0.31 + (0.85 - 0.31) * u;
+        } else {
+          // Cream → red
+          const u = (t - 0.5) * 2;
+          r = 0.96 + (0.65 - 0.96) * u;
+          g = 0.93 + (0.24 - 0.93) * u;
+          b = 0.85 + (0.16 - 0.85) * u;
+        }
+        colors[i*3] = r;
+        colors[i*3+1] = g;
+        colors[i*3+2] = b;
+      }
+      geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geom.computeVertexNormals();
+
+      // Rotate so plane lies in xz (y up)
+      geom.rotateX(-Math.PI / 2);
+
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        side: THREE.DoubleSide,
+        flatShading: false,
+        roughness: 0.75,
+        metalness: 0.0,
+      });
+      surface = new THREE.Mesh(geom, mat);
+      surface.visible = (mode === 'surface' || mode === 'both' || mode === 'ball');
+      scene.add(surface);
+
+      // Contour rings on the surface — horizontal slices at fixed heights.
+      // These read instantly as "topographic lines" and make uphill unambiguous.
+      const contourGroup = new THREE.Group();
+      const numContours = 10;
+      const contourMat = new THREE.LineBasicMaterial({ color: 0x1a1410, transparent: true, opacity: 0.35 });
+      for (let l = 1; l < numContours; l++) {
+        const level = zmin + (zmax - zmin) * l / numContours;
+        // Marching squares in the original (pre-rotation) xy grid
+        const segs = [];
+        const M = N;
+        // Sample (re-sample) for contour extraction
+        const grid = [];
+        for (let i = 0; i <= M; i++) {
+          grid.push([]);
+          for (let j = 0; j <= M; j++) {
+            const x = -RANGE3D + i / M * 2 * RANGE3D;
+            const y = -RANGE3D + j / M * 2 * RANGE3D;
+            grid[i].push(f(x, y));
+          }
+        }
+        for (let i = 0; i < M; i++) {
+          for (let j = 0; j < M; j++) {
+            const v00 = grid[i][j], v10 = grid[i+1][j];
+            const v11 = grid[i+1][j+1], v01 = grid[i][j+1];
+            let idx = 0;
+            if (v00 > level) idx |= 1;
+            if (v10 > level) idx |= 2;
+            if (v11 > level) idx |= 4;
+            if (v01 > level) idx |= 8;
+            if (idx === 0 || idx === 15) continue;
+            const x0w = -RANGE3D + i / M * 2 * RANGE3D;
+            const x1w = -RANGE3D + (i+1) / M * 2 * RANGE3D;
+            const y0w = -RANGE3D + j / M * 2 * RANGE3D;
+            const y1w = -RANGE3D + (j+1) / M * 2 * RANGE3D;
+            const interp = (va, vb, a, b) => a + (level - va) / (vb - va) * (b - a);
+            const eB = () => [interp(v00, v10, x0w, x1w), y0w];
+            const eR = () => [x1w, interp(v10, v11, y0w, y1w)];
+            const eT = () => [interp(v01, v11, x0w, x1w), y1w];
+            const eL = () => [x0w, interp(v00, v01, y0w, y1w)];
+            const pairs = [];
+            switch (idx) {
+              case 1: case 14: pairs.push([eB(), eL()]); break;
+              case 2: case 13: pairs.push([eB(), eR()]); break;
+              case 3: case 12: pairs.push([eL(), eR()]); break;
+              case 4: case 11: pairs.push([eR(), eT()]); break;
+              case 5: pairs.push([eB(), eL()]); pairs.push([eR(), eT()]); break;
+              case 6: case 9: pairs.push([eB(), eT()]); break;
+              case 7: case 8: pairs.push([eL(), eT()]); break;
+              case 10: pairs.push([eB(), eR()]); pairs.push([eL(), eT()]); break;
+            }
+            for (const pair of pairs) {
+              // After surface rotateX(-π/2): orig (x, y, z) → world (x, z, y). Lift slightly above the surface.
+              segs.push(new THREE.Vector3(pair[0][0], level + 0.005, pair[0][1]));
+              segs.push(new THREE.Vector3(pair[1][0], level + 0.005, pair[1][1]));
+            }
+          }
+        }
+        if (segs.length > 0) {
+          const lineGeom = new THREE.BufferGeometry().setFromPoints(segs);
+          contourGroup.add(new THREE.LineSegments(lineGeom, contourMat));
+        }
+      }
+      contourGroup.visible = surface.visible;
+      scene.add(contourGroup);
+      surface.userData.contours = contourGroup;
+
+      // Gradient arrows ON the surface — tangent to it, pointing along ±∇f.
+      // This makes the relationship between slope and arrow direction immediate.
+      arrowGroup = new THREE.Group();
+      const dirSel = document.getElementById('dir-2b');
+      const sign = (dirSel && dirSel.value === 'ascent') ? +1 : -1;
+      const NA = 13;
+      for (let i = 0; i < NA; i++) {
+        for (let j = 0; j < NA; j++) {
+          const x = -RANGE3D + 0.4 + i * (2*RANGE3D - 0.8) / (NA - 1);
+          const y = -RANGE3D + 0.4 + j * (2*RANGE3D - 0.8) / (NA - 1);
+          const { gx, gy } = gradient3D(f, x, y);
+          const mag = Math.sqrt(gx*gx + gy*gy);
+          if (mag < 0.01) continue;
+          // Tangent vector to the surface in the direction of ±∇f (projected from 3D back to surface tangent).
+          // The surface is z = f(x,y); a tangent vector along the gradient direction in (x,y) lifts to
+          // (gx, gy, gx² + gy²) — i.e. the (x,y) component is ∇f and the z component is ∇f·∇f.
+          // Normalize and orient by `sign`.
+          const dx = sign * gx;
+          const dy = sign * gy;
+          const dz = sign * (gx*gx + gy*gy);
+          // After surface rotateX(-π/2), (x,y,z) → world (x, z, y). So direction (dx, dy, dz)
+          // in original coords becomes (dx, dz, dy) in world coords.
+          const z = f(x, y);
+          const len = Math.min(0.8, 0.25 + mag * 0.18);
+          // Lift slightly above the surface so the arrow doesn't z-fight
+          const lift = 0.03;
+          const arrow = makeArrow(
+            new THREE.Vector3(dx, dz, dy),
+            new THREE.Vector3(x, z + lift, y),
+            len,
+            sign > 0 ? 0xa63d2a : 0x2b4865  // red for ascent, blue for descent
+          );
+          arrowGroup.add(arrow);
+        }
+      }
+      arrowGroup.visible = (mode === 'arrows' || mode === 'both');
+      scene.add(arrowGroup);
+
+      // (No separate floor plane — arrows now live on the surface itself.)
+
+      // Ball mode
+      if (mode === 'ball') {
+        // Drop ball at a sensible starting point
+        const startX = 2.0, startY = 2.0;
+        ball = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15, 16, 16),
+          new THREE.MeshStandardMaterial({ color: 0xb8862c, roughness: 0.3, metalness: 0.6 })
+        );
+        ball.userData = { x: startX, y: startY, vx: 0, vy: 0, trail: [] };
+        ball.position.set(startX, f(startX, startY) + 0.15, startY);
+        scene.add(ball);
+      }
+    }
+
+    function animate() {
+      if (ball) {
+        const f = scalarFields3D[sel.value];
+        const { gx, gy } = gradient3D(f, ball.userData.x, ball.userData.y);
+        // Gradient descent
+        const step = 0.02;
+        ball.userData.x -= gx * step;
+        ball.userData.y -= gy * step;
+        // Clamp
+        ball.userData.x = Math.max(-RANGE3D, Math.min(RANGE3D, ball.userData.x));
+        ball.userData.y = Math.max(-RANGE3D, Math.min(RANGE3D, ball.userData.y));
+        const z = f(ball.userData.x, ball.userData.y);
+        ball.position.set(ball.userData.x, z + 0.15, ball.userData.y);
+
+        ball.userData.trail.push(new THREE.Vector3(ball.userData.x, z + 0.05, ball.userData.y));
+        if (ball.userData.trail.length > 300) ball.userData.trail.shift();
+        if (ball.userData.trail.length > 1) {
+          if (ballTrail) { scene.remove(ballTrail); ballTrail.geometry.dispose(); }
+          const trailGeom = new THREE.BufferGeometry().setFromPoints(ball.userData.trail);
+          ballTrail = new THREE.Line(trailGeom, new THREE.LineBasicMaterial({ color: 0xb8862c }));
+          scene.add(ballTrail);
+        }
+
+        // Reset ball if stuck
+        if (Math.abs(gx) < 0.005 && Math.abs(gy) < 0.005) {
+          if (Math.random() < 0.01) {
+            ball.userData.x = (Math.random() - 0.5) * 2 * RANGE3D * 0.8;
+            ball.userData.y = (Math.random() - 0.5) * 2 * RANGE3D * 0.8;
+            ball.userData.trail = [];
+          }
+        }
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    sel.addEventListener('change', rebuild);
+    showSel.addEventListener('change', rebuild);
+    const dirSel = document.getElementById('dir-2b');
+    if (dirSel) dirSel.addEventListener('change', rebuild);
+    rebuild();
+    animate();
+  }
+
+  // ============ FIGURE 4.2: 3D divergence flow ============
+  const vectorFields3D = {
+    source3d:     (x, y, z) => [x*0.5, y*0.5, z*0.5],
+    sink3d:       (x, y, z) => [-x*0.5, -y*0.5, -z*0.5],
+    rotational3d: (x, y, z) => [-y, x, 0],
+    dipole3d:     (x, y, z) => {
+                    // Two sources and a sink
+                    const ax = x - 1.5, ay = y, az = z;
+                    const bx = x + 1.5, by = y, bz = z;
+                    const ra = Math.pow(ax*ax + ay*ay + az*az + 0.3, 1.5);
+                    const rb = Math.pow(bx*bx + by*by + bz*bz + 0.3, 1.5);
+                    return [ax/ra - bx/rb, ay/ra - by/rb, az/ra - bz/rb];
+                  },
+    shear3d:      (x, y, z) => [y, 0, 0],
+    vortex3d:     (x, y, z) => {
+                    const r2 = x*x + z*z + 0.5;
+                    return [-z / r2, 0, x / r2];
+                  },
+    zspin:        (x, y, z) => [-y, x, 0],
+    xspin:        (x, y, z) => [0, -z, y],
+    yspin:        (x, y, z) => [z, 0, -x],
+    screw:        (x, y, z) => [-y, x, 1],
+    radial3d:     (x, y, z) => [x, y, z],
+  };
+
+  function divergence3D(F, x, y, z, h = 0.001) {
+    const fx1 = F(x+h, y, z)[0], fx2 = F(x-h, y, z)[0];
+    const fy1 = F(x, y+h, z)[1], fy2 = F(x, y-h, z)[1];
+    const fz1 = F(x, y, z+h)[2], fz2 = F(x, y, z-h)[2];
+    return (fx1-fx2)/(2*h) + (fy1-fy2)/(2*h) + (fz1-fz2)/(2*h);
+  }
+
+  function curl3D(F, x, y, z, h = 0.001) {
+    const Ry = (F(x, y+h, z)[2] - F(x, y-h, z)[2]) / (2*h);
+    const Qz = (F(x, y, z+h)[1] - F(x, y, z-h)[1]) / (2*h);
+    const Pz = (F(x, y, z+h)[0] - F(x, y, z-h)[0]) / (2*h);
+    const Rx = (F(x+h, y, z)[2] - F(x-h, y, z)[2]) / (2*h);
+    const Qx = (F(x+h, y, z)[1] - F(x-h, y, z)[1]) / (2*h);
+    const Py = (F(x, y+h, z)[0] - F(x, y-h, z)[0]) / (2*h);
+    return [Ry - Qz, Pz - Rx, Qx - Py];
+  }
+
+  function setupFig4B() {
+    const container = document.getElementById('canvas-4b');
+    if (!container || typeof THREE === 'undefined') return;
+    const sel = document.getElementById('field-4b');
+    const showSel = document.getElementById('show-4b');
+
+    const { scene, camera, renderer } = make3DScene(container, { radius: 11, elevation: Math.PI / 6 });
+
+    const RANGE3D = 3;
+    let particles = [];
+    let particleSystem = null;
+    let arrowGroup = null;
+    const NPART = 400;
+
+    function makeBox() {
+      const box = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(2*RANGE3D, 2*RANGE3D, 2*RANGE3D)),
+        new THREE.LineBasicMaterial({ color: 0x1a1410, transparent: true, opacity: 0.3 })
+      );
+      scene.add(box);
+      return box;
+    }
+    const box = makeBox();
+
+    // Axes
+    const axMat = new THREE.LineBasicMaterial({ color: 0xa63d2a, transparent: true, opacity: 0.4 });
+    const xA = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-RANGE3D, 0, 0), new THREE.Vector3(RANGE3D, 0, 0)]), axMat);
+    const yA = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -RANGE3D, 0), new THREE.Vector3(0, RANGE3D, 0)]), axMat);
+    const zA = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -RANGE3D), new THREE.Vector3(0, 0, RANGE3D)]), axMat);
+    scene.add(xA); scene.add(yA); scene.add(zA);
+
+    function randomInBox() {
+      return {
+        x: (Math.random() - 0.5) * 2 * RANGE3D * 0.9,
+        y: (Math.random() - 0.5) * 2 * RANGE3D * 0.9,
+        z: (Math.random() - 0.5) * 2 * RANGE3D * 0.9,
+        age: Math.random() * 100,
+      };
+    }
+
+    function rebuild() {
+      if (particleSystem) { scene.remove(particleSystem); particleSystem.geometry.dispose(); particleSystem.material.dispose(); }
+      if (arrowGroup) { scene.remove(arrowGroup); }
+      arrowGroup = null;
+      particleSystem = null;
+
+      const mode = showSel.value;
+
+      // Particles
+      if (mode === 'particles' || mode === 'both') {
+        particles = [];
+        for (let i = 0; i < NPART; i++) particles.push(randomInBox());
+        const geom = new THREE.BufferGeometry();
+        const pos = new Float32Array(NPART * 3);
+        const col = new Float32Array(NPART * 3);
+        for (let i = 0; i < NPART; i++) {
+          pos[i*3] = particles[i].x;
+          pos[i*3+1] = particles[i].y;
+          pos[i*3+2] = particles[i].z;
+          col[i*3] = 0.65; col[i*3+1] = 0.24; col[i*3+2] = 0.16;
+        }
+        geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        const mat = new THREE.PointsMaterial({ size: 0.09, vertexColors: true, sizeAttenuation: true });
+        particleSystem = new THREE.Points(geom, mat);
+        scene.add(particleSystem);
+      }
+
+      // Arrows
+      if (mode === 'arrows' || mode === 'both') {
+        arrowGroup = new THREE.Group();
+        const F = vectorFields3D[sel.value];
+        const NA = 6;
+        // Find max magnitude
+        let maxMag = 0;
+        for (let i = 0; i < NA; i++) for (let j = 0; j < NA; j++) for (let k = 0; k < NA; k++) {
+          const x = -RANGE3D + (i + 0.5) / NA * 2 * RANGE3D;
+          const y = -RANGE3D + (j + 0.5) / NA * 2 * RANGE3D;
+          const z = -RANGE3D + (k + 0.5) / NA * 2 * RANGE3D;
+          const [u,v,w] = F(x,y,z);
+          const m = Math.sqrt(u*u+v*v+w*w);
+          if (isFinite(m) && m > maxMag) maxMag = m;
+        }
+        if (maxMag < 1e-9) maxMag = 1;
+        for (let i = 0; i < NA; i++) for (let j = 0; j < NA; j++) for (let k = 0; k < NA; k++) {
+          const x = -RANGE3D + (i + 0.5) / NA * 2 * RANGE3D;
+          const y = -RANGE3D + (j + 0.5) / NA * 2 * RANGE3D;
+          const z = -RANGE3D + (k + 0.5) / NA * 2 * RANGE3D;
+          const [u,v,w] = F(x,y,z);
+          const m = Math.sqrt(u*u+v*v+w*w);
+          if (!isFinite(m) || m < 1e-6) continue;
+          const len = Math.min(0.8, (m / maxMag) * 0.8 + 0.1);
+          const arrow = makeArrow(new THREE.Vector3(u,v,w), new THREE.Vector3(x,y,z), len, 0x2b4865);
+          arrowGroup.add(arrow);
+        }
+        scene.add(arrowGroup);
+      }
+    }
+
+    function step() {
+      if (particleSystem && (showSel.value === 'particles' || showSel.value === 'both')) {
+        const F = vectorFields3D[sel.value];
+        const pos = particleSystem.geometry.attributes.position;
+        const dt = 0.015;
+        for (let i = 0; i < NPART; i++) {
+          const p = particles[i];
+          let [u, v, w] = F(p.x, p.y, p.z);
+          // Speed limit to keep things visible
+          const m = Math.sqrt(u*u + v*v + w*w);
+          if (m > 5) { u *= 5/m; v *= 5/m; w *= 5/m; }
+          p.x += u * dt;
+          p.y += v * dt;
+          p.z += w * dt;
+          p.age++;
+          // Respawn if out of box or very old
+          if (Math.abs(p.x) > RANGE3D || Math.abs(p.y) > RANGE3D || Math.abs(p.z) > RANGE3D || p.age > 600) {
+            const np = randomInBox();
+            p.x = np.x; p.y = np.y; p.z = np.z; p.age = 0;
+          }
+          pos.array[i*3] = p.x;
+          pos.array[i*3+1] = p.y;
+          pos.array[i*3+2] = p.z;
+        }
+        pos.needsUpdate = true;
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(step);
+    }
+
+    sel.addEventListener('change', rebuild);
+    showSel.addEventListener('change', rebuild);
+    rebuild();
+    step();
+  }
+
+  // ============ FIGURE 5.2: 3D curl ============
+  function setupFig5B() {
+    const container = document.getElementById('canvas-5b');
+    if (!container || typeof THREE === 'undefined') return;
+    const sel = document.getElementById('field-5b');
+    const showSel = document.getElementById('show-5b');
+
+    const { scene, camera, renderer } = make3DScene(container, { radius: 10, elevation: Math.PI / 5 });
+
+    const RANGE3D = 2.5;
+    let group = null;
+    let particles = null;
+    let particleData = [];
+    const NPART = 350;
+
+    // Box outline
+    const box = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(2*RANGE3D, 2*RANGE3D, 2*RANGE3D)),
+      new THREE.LineBasicMaterial({ color: 0x1a1410, transparent: true, opacity: 0.25 })
+    );
+    scene.add(box);
+
+    // Axis indicators
+    const axLen = RANGE3D + 0.4;
+    const axMat = new THREE.LineBasicMaterial({ color: 0x6b5d4f, transparent: true, opacity: 0.5 });
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-axLen,0,0), new THREE.Vector3(axLen,0,0)]), axMat));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,-axLen,0), new THREE.Vector3(0,axLen,0)]), axMat));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,-axLen), new THREE.Vector3(0,0,axLen)]), axMat));
+
+    function makePaddleWheel(curlVec) {
+      const wheel = new THREE.Group();
+      const len = Math.min(0.7, Math.sqrt(curlVec[0]**2 + curlVec[1]**2 + curlVec[2]**2) * 0.4 + 0.2);
+      // 4 blades
+      const bladeMat = new THREE.MeshStandardMaterial({ color: 0x2d5a4f, side: THREE.DoubleSide, roughness: 0.7 });
+      const hubMat = new THREE.MeshStandardMaterial({ color: 0x1a1410 });
+      for (let i = 0; i < 4; i++) {
+        const blade = new THREE.Mesh(new THREE.PlaneGeometry(len * 0.6, len), bladeMat);
+        blade.rotation.y = i * Math.PI / 2;
+        blade.position.y = 0;
+        wheel.add(blade);
+      }
+      // Hub (axle along y)
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, len * 1.3, 8), hubMat);
+      wheel.add(hub);
+      // Orient so y-axis of wheel = curl direction
+      const curlMag = Math.sqrt(curlVec[0]**2 + curlVec[1]**2 + curlVec[2]**2);
+      if (curlMag > 1e-6) {
+        const up = new THREE.Vector3(0, 1, 0);
+        const target = new THREE.Vector3(curlVec[0], curlVec[1], curlVec[2]).normalize();
+        const quat = new THREE.Quaternion().setFromUnitVectors(up, target);
+        wheel.quaternion.copy(quat);
+      }
+      wheel.userData = { spinRate: curlMag, phase: 0 };
+      return wheel;
+    }
+
+    function rebuild() {
+      if (group) { scene.remove(group); }
+      group = new THREE.Group();
+      if (particles) { scene.remove(particles); particles.geometry.dispose(); particles.material.dispose(); particles = null; }
+
+      const F = vectorFields3D[sel.value];
+      const mode = showSel.value;
+
+      if (mode === 'wheels') {
+        // Field arrows (faint)
+        const NA = 4;
+        for (let i = 0; i < NA; i++) for (let j = 0; j < NA; j++) for (let k = 0; k < NA; k++) {
+          const x = -RANGE3D + (i + 0.5) / NA * 2 * RANGE3D;
+          const y = -RANGE3D + (j + 0.5) / NA * 2 * RANGE3D;
+          const z = -RANGE3D + (k + 0.5) / NA * 2 * RANGE3D;
+          const [u,v,w] = F(x,y,z);
+          const m = Math.sqrt(u*u+v*v+w*w);
+          if (!isFinite(m) || m < 1e-6) continue;
+          const arrow = makeArrow(new THREE.Vector3(u,v,w), new THREE.Vector3(x,y,z), 0.5, 0x2b4865);
+          arrow.children.forEach(c => { if (c.material) { c.material.transparent = true; c.material.opacity = 0.35; }});
+          group.add(arrow);
+        }
+        // Paddle wheels on coarser grid
+        const NW = 3;
+        for (let i = 0; i < NW; i++) for (let j = 0; j < NW; j++) for (let k = 0; k < NW; k++) {
+          const x = -RANGE3D + (i + 0.5) / NW * 2 * RANGE3D;
+          const y = -RANGE3D + (j + 0.5) / NW * 2 * RANGE3D;
+          const z = -RANGE3D + (k + 0.5) / NW * 2 * RANGE3D;
+          const c = curl3D(F, x, y, z);
+          const wheel = makePaddleWheel(c);
+          wheel.position.set(x, y, z);
+          group.add(wheel);
+        }
+      } else if (mode === 'curlvec') {
+        // Curl vector field
+        const NA = 6;
+        for (let i = 0; i < NA; i++) for (let j = 0; j < NA; j++) for (let k = 0; k < NA; k++) {
+          const x = -RANGE3D + (i + 0.5) / NA * 2 * RANGE3D;
+          const y = -RANGE3D + (j + 0.5) / NA * 2 * RANGE3D;
+          const z = -RANGE3D + (k + 0.5) / NA * 2 * RANGE3D;
+          const c = curl3D(F, x, y, z);
+          const m = Math.sqrt(c[0]*c[0]+c[1]*c[1]+c[2]*c[2]);
+          if (!isFinite(m) || m < 1e-4) continue;
+          const len = Math.min(0.9, m * 0.3 + 0.2);
+          const arrow = makeArrow(new THREE.Vector3(c[0], c[1], c[2]), new THREE.Vector3(x,y,z), len, 0x2d5a4f);
+          group.add(arrow);
+        }
+      } else if (mode === 'particles') {
+        // Flowing particles
+        particleData = [];
+        for (let i = 0; i < NPART; i++) {
+          particleData.push({
+            x: (Math.random() - 0.5) * 2 * RANGE3D * 0.9,
+            y: (Math.random() - 0.5) * 2 * RANGE3D * 0.9,
+            z: (Math.random() - 0.5) * 2 * RANGE3D * 0.9,
+            age: Math.random() * 100,
+          });
+        }
+        const geom = new THREE.BufferGeometry();
+        const pos = new Float32Array(NPART * 3);
+        for (let i = 0; i < NPART; i++) {
+          pos[i*3] = particleData[i].x;
+          pos[i*3+1] = particleData[i].y;
+          pos[i*3+2] = particleData[i].z;
+        }
+        geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({ color: 0x2d5a4f, size: 0.08, sizeAttenuation: true });
+        particles = new THREE.Points(geom, mat);
+        scene.add(particles);
+      }
+      scene.add(group);
+    }
+
+    function animate() {
+      const F = vectorFields3D[sel.value];
+
+      // Spin wheels
+      if (group) {
+        group.children.forEach(child => {
+          if (child.userData && typeof child.userData.spinRate === 'number') {
+            // Spin about local y (which we oriented along curl)
+            const axis = new THREE.Vector3(0, 1, 0);
+            child.rotateOnAxis(axis, child.userData.spinRate * 0.02);
+          }
+        });
+      }
+
+      // Move particles
+      if (particles) {
+        const pos = particles.geometry.attributes.position;
+        const dt = 0.015;
+        for (let i = 0; i < NPART; i++) {
+          const p = particleData[i];
+          let [u, v, w] = F(p.x, p.y, p.z);
+          const m = Math.sqrt(u*u+v*v+w*w);
+          if (m > 5) { u *= 5/m; v *= 5/m; w *= 5/m; }
+          p.x += u * dt;
+          p.y += v * dt;
+          p.z += w * dt;
+          p.age++;
+          if (Math.abs(p.x) > RANGE3D || Math.abs(p.y) > RANGE3D || Math.abs(p.z) > RANGE3D || p.age > 400) {
+            p.x = (Math.random() - 0.5) * 2 * RANGE3D * 0.9;
+            p.y = (Math.random() - 0.5) * 2 * RANGE3D * 0.9;
+            p.z = (Math.random() - 0.5) * 2 * RANGE3D * 0.9;
+            p.age = 0;
+          }
+          pos.array[i*3] = p.x;
+          pos.array[i*3+1] = p.y;
+          pos.array[i*3+2] = p.z;
+        }
+        pos.needsUpdate = true;
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    sel.addEventListener('change', rebuild);
+    showSel.addEventListener('change', rebuild);
+    rebuild();
+    animate();
+  }
+
+  // ============ FIGURE 5.3: Gradient on landscape with paddle wheels ============
+  // Shows ∇×(∇f) = 0 viscerally: paddle wheels on hills don't spin under ∇f.
+  function setupFig5C() {
+    const container = document.getElementById('canvas-5c');
+    if (!container || typeof THREE === 'undefined') return;
+    const landSel = document.getElementById('landscape-5c');
+    const typeSel = document.getElementById('fieldtype-5c');
+
+    const { scene, camera, renderer } = make3DScene(container, { radius: 11, elevation: Math.PI / 4.5 });
+
+    const RANGE3D = 3;
+    const N = 60;
+    let surface = null;
+    let contourGroup = null;
+    let arrowGroup = null;
+    let wheelGroup = null;
+    let wheels = []; // {mesh, spinRate, axis}
+
+    function gradient3D(f, x, y, h = 0.001) {
+      return { gx: (f(x+h, y) - f(x-h, y)) / (2*h), gy: (f(x, y+h) - f(x, y-h)) / (2*h) };
+    }
+
+    // Compute the 2D scalar curl ∂Q/∂x − ∂P/∂y for a planar field on the (x,y) plane.
+    // For 3D paddle wheels living on the surface, we treat the field as (P, Q, 0)
+    // and the curl points along world-y (vertical), with sign = scalar curl.
+    function scalarCurl2D(field2D, x, y, h = 0.001) {
+      const Qx = (field2D(x+h, y)[1] - field2D(x-h, y)[1]) / (2*h);
+      const Py = (field2D(x, y+h)[0] - field2D(x, y-h)[0]) / (2*h);
+      return Qx - Py;
+    }
+
+    // A non-gradient curl field that lives on the (x,y) plane: simple rotation.
+    function curlField(x, y) {
+      return [-y * 0.4, x * 0.4];
+    }
+
+    function gradientField(f, x, y) {
+      const { gx, gy } = gradient3D(f, x, y);
+      return [gx, gy];
+    }
+
+    function rebuild() {
+      // Cleanup
+      if (surface) { scene.remove(surface); surface.geometry.dispose(); surface.material.dispose(); surface = null; }
+      if (contourGroup) { scene.remove(contourGroup); contourGroup = null; }
+      if (arrowGroup) { scene.remove(arrowGroup); arrowGroup = null; }
+      if (wheelGroup) { scene.remove(wheelGroup); wheelGroup = null; }
+      wheels = [];
+
+      const f = scalarFields3D[landSel.value];
+      const type = typeSel.value;
+
+      // Choose the vector field laid on top
+      const fieldOnSurface = (x, y) => {
+        if (type === 'gradient') return gradientField(f, x, y);
+        if (type === 'curlfield') return curlField(x, y);
+        // mixed: ∇f + curl field
+        const g = gradientField(f, x, y);
+        const c = curlField(x, y);
+        return [g[0] + c[0], g[1] + c[1]];
+      };
+
+      // ---- Build landscape ----
+      const geom = new THREE.PlaneGeometry(2*RANGE3D, 2*RANGE3D, N, N);
+      const pos = geom.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+      let zmin = Infinity, zmax = -Infinity;
+      const zvals = [];
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = f(x, y);
+        zvals.push(z);
+        if (z < zmin) zmin = z;
+        if (z > zmax) zmax = z;
+      }
+      for (let i = 0; i < pos.count; i++) {
+        pos.setZ(i, zvals[i]);
+        const t = (zvals[i] - zmin) / (zmax - zmin + 1e-9);
+        let r, g, b;
+        if (t < 0.5) {
+          const u = t * 2;
+          r = 0.18 + (0.96 - 0.18) * u;
+          g = 0.35 + (0.93 - 0.35) * u;
+          b = 0.31 + (0.85 - 0.31) * u;
+        } else {
+          const u = (t - 0.5) * 2;
+          r = 0.96 + (0.65 - 0.96) * u;
+          g = 0.93 + (0.24 - 0.93) * u;
+          b = 0.85 + (0.16 - 0.85) * u;
+        }
+        colors[i*3] = r; colors[i*3+1] = g; colors[i*3+2] = b;
+      }
+      geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geom.computeVertexNormals();
+      geom.rotateX(-Math.PI / 2);
+
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true, side: THREE.DoubleSide, flatShading: false,
+        roughness: 0.75, metalness: 0.0,
+      });
+      surface = new THREE.Mesh(geom, mat);
+      scene.add(surface);
+
+      // ---- Contour rings ----
+      contourGroup = new THREE.Group();
+      const contourMat = new THREE.LineBasicMaterial({ color: 0x1a1410, transparent: true, opacity: 0.3 });
+      const numContours = 10;
+      for (let l = 1; l < numContours; l++) {
+        const level = zmin + (zmax - zmin) * l / numContours;
+        const segs = [];
+        const M = N;
+        const grid = [];
+        for (let i = 0; i <= M; i++) {
+          grid.push([]);
+          for (let j = 0; j <= M; j++) {
+            const x = -RANGE3D + i / M * 2 * RANGE3D;
+            const y = -RANGE3D + j / M * 2 * RANGE3D;
+            grid[i].push(f(x, y));
+          }
+        }
+        for (let i = 0; i < M; i++) {
+          for (let j = 0; j < M; j++) {
+            const v00 = grid[i][j], v10 = grid[i+1][j];
+            const v11 = grid[i+1][j+1], v01 = grid[i][j+1];
+            let idx = 0;
+            if (v00 > level) idx |= 1;
+            if (v10 > level) idx |= 2;
+            if (v11 > level) idx |= 4;
+            if (v01 > level) idx |= 8;
+            if (idx === 0 || idx === 15) continue;
+            const x0w = -RANGE3D + i / M * 2 * RANGE3D;
+            const x1w = -RANGE3D + (i+1) / M * 2 * RANGE3D;
+            const y0w = -RANGE3D + j / M * 2 * RANGE3D;
+            const y1w = -RANGE3D + (j+1) / M * 2 * RANGE3D;
+            const interp = (va, vb, a, b) => a + (level - va) / (vb - va) * (b - a);
+            const eB = () => [interp(v00, v10, x0w, x1w), y0w];
+            const eR = () => [x1w, interp(v10, v11, y0w, y1w)];
+            const eT = () => [interp(v01, v11, x0w, x1w), y1w];
+            const eL = () => [x0w, interp(v00, v01, y0w, y1w)];
+            const pairs = [];
+            switch (idx) {
+              case 1: case 14: pairs.push([eB(), eL()]); break;
+              case 2: case 13: pairs.push([eB(), eR()]); break;
+              case 3: case 12: pairs.push([eL(), eR()]); break;
+              case 4: case 11: pairs.push([eR(), eT()]); break;
+              case 5: pairs.push([eB(), eL()]); pairs.push([eR(), eT()]); break;
+              case 6: case 9: pairs.push([eB(), eT()]); break;
+              case 7: case 8: pairs.push([eL(), eT()]); break;
+              case 10: pairs.push([eB(), eR()]); pairs.push([eL(), eT()]); break;
+            }
+            for (const pair of pairs) {
+              segs.push(new THREE.Vector3(pair[0][0], level + 0.005, pair[0][1]));
+              segs.push(new THREE.Vector3(pair[1][0], level + 0.005, pair[1][1]));
+            }
+          }
+        }
+        if (segs.length) {
+          const lg = new THREE.BufferGeometry().setFromPoints(segs);
+          contourGroup.add(new THREE.LineSegments(lg, contourMat));
+        }
+      }
+      scene.add(contourGroup);
+
+      // ---- Surface-tangent arrows for the field ----
+      arrowGroup = new THREE.Group();
+      const NA = 11;
+      for (let i = 0; i < NA; i++) {
+        for (let j = 0; j < NA; j++) {
+          const x = -RANGE3D + 0.4 + i * (2*RANGE3D - 0.8) / (NA - 1);
+          const y = -RANGE3D + 0.4 + j * (2*RANGE3D - 0.8) / (NA - 1);
+          const [P, Q] = fieldOnSurface(x, y);
+          const mag = Math.sqrt(P*P + Q*Q);
+          if (mag < 0.02) continue;
+          // For tangent arrows: when the field IS the gradient, the natural "uphill"
+          // tangent direction is (P, Q, ∇f · (P,Q)/|∇f|·|∇f|... ) — simpler:
+          // we want a tangent vector to z=f at (x,y) whose (x,y) projection is (P,Q).
+          // That tangent is (P, Q, P*fx + Q*fy), where (fx,fy) = ∇f.
+          const { gx, gy } = gradient3D(f, x, y);
+          const dz = P * gx + Q * gy;
+          const z = f(x, y);
+          // After surface rotation: (P, Q, dz) → world (P, dz, Q)
+          const len = Math.min(0.7, 0.2 + mag * 0.25);
+          // Color by field type
+          let color;
+          if (type === 'gradient') color = 0xa63d2a;       // red — pure gradient
+          else if (type === 'curlfield') color = 0x2d5a4f; // teal — curl part
+          else color = 0xb8862c;                            // gold — mixed
+          const arrow = makeArrow(
+            new THREE.Vector3(P, dz, Q),
+            new THREE.Vector3(x, z + 0.04, y),
+            len, color
+          );
+          arrowGroup.add(arrow);
+        }
+      }
+      scene.add(arrowGroup);
+
+      // ---- Paddle wheels resting ON the surface ----
+      wheelGroup = new THREE.Group();
+      const NW = 5;
+      for (let i = 0; i < NW; i++) {
+        for (let j = 0; j < NW; j++) {
+          const x = -RANGE3D + 0.6 + i * (2*RANGE3D - 1.2) / (NW - 1);
+          const y = -RANGE3D + 0.6 + j * (2*RANGE3D - 1.2) / (NW - 1);
+          const z = f(x, y);
+          // Scalar curl at this point (2D curl of fieldOnSurface in xy)
+          const omega = scalarCurl2D(fieldOnSurface, x, y);
+          // Build wheel oriented with axis pointing along world-y (vertical)
+          // — that's the natural axis for a flat-on-xy paddle wheel.
+          const wheel = new THREE.Group();
+          const bladeColor = Math.abs(omega) < 0.02 ? 0x6b5d4f : (omega > 0 ? 0x2d5a4f : 0x7d2c1e);
+          const bladeMat = new THREE.MeshStandardMaterial({
+            color: bladeColor, side: THREE.DoubleSide,
+            roughness: 0.5, metalness: 0.1,
+            transparent: true, opacity: 0.9
+          });
+          const hubMat = new THREE.MeshStandardMaterial({ color: 0x1a1410 });
+          const bladeR = 0.22;
+          const bladeH = 0.32;
+          for (let k = 0; k < 4; k++) {
+            const blade = new THREE.Mesh(new THREE.PlaneGeometry(bladeR, bladeH), bladeMat);
+            blade.rotation.y = k * Math.PI / 2;
+            wheel.add(blade);
+          }
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, bladeH * 1.25, 8), hubMat);
+          wheel.add(hub);
+          // Position on surface — lift by half blade height so it stands on the surface
+          wheel.position.set(x, z + bladeH / 2 + 0.02, y);
+          wheelGroup.add(wheel);
+          wheels.push({ mesh: wheel, spinRate: omega });
+        }
+      }
+      scene.add(wheelGroup);
+    }
+
+    function animate() {
+      for (const w of wheels) {
+        if (Math.abs(w.spinRate) > 0.005) {
+          // Spin about local y (the wheel axle)
+          w.mesh.rotateOnAxis(new THREE.Vector3(0, 1, 0), w.spinRate * 0.03);
+        }
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    landSel.addEventListener('change', rebuild);
+    typeSel.addEventListener('change', rebuild);
+    rebuild();
+    animate();
+  }
+
+  // Initialize after fonts load to get correct sizes
+  function init() {
+    setupFig1();
+    setupFig2();
+    setupFig2B();
+    setupFig3();
+    setupFig4();
+    setupFig4B();
+    setupFig5();
+    setupFig5B();
+    setupFig5C();
+    setupFig6();
+    setupFig9();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+</body>
+</html>

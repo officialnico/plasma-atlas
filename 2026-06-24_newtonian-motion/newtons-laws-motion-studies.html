@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Three Laws of Motion — Motion Studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --plate:#15120d;
+    --plate-2:#1f1a13;
+    --edge:#322a1e;
+    --bone:#ece5d6;
+    --bone-dim:#9a8f78;
+    --force:#f0a33a;   /* forces — hot amber */
+    --vel:#6fb6ac;     /* velocity — cool teal */
+    --serif:'Spectral',Georgia,serif;
+    --sans:'Archivo',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--plate);
+    color:var(--bone);
+    font-family:var(--sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(120% 80% at 50% -10%, rgba(240,163,58,0.06), transparent 60%);
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:0 24px;}
+
+  /* ---------- masthead ---------- */
+  header{padding:88px 0 52px;border-bottom:1px solid var(--edge);}
+  .eyebrow{
+    font-family:var(--sans);font-weight:600;font-size:11px;letter-spacing:0.34em;
+    text-transform:uppercase;color:var(--bone-dim);margin:0 0 26px;
+  }
+  h1{
+    font-family:var(--serif);font-weight:300;font-size:clamp(40px,8vw,76px);
+    line-height:1.02;letter-spacing:-0.015em;margin:0 0 26px;
+  }
+  h1 em{font-style:italic;color:var(--force);}
+  .lede{
+    font-family:var(--serif);font-size:clamp(17px,2.4vw,20px);font-weight:300;
+    color:var(--bone);max-width:62ch;margin:0;
+  }
+  .lede b{font-weight:500;color:var(--force);font-style:normal;}
+
+  /* ---------- a law section ---------- */
+  .law{padding:56px 0;border-bottom:1px solid var(--edge);}
+  .law-head{display:flex;align-items:baseline;gap:20px;flex-wrap:wrap;margin-bottom:8px;}
+  .numeral{
+    font-family:var(--serif);font-style:italic;font-weight:300;
+    font-size:clamp(34px,6vw,56px);line-height:1;color:var(--force);
+    flex:0 0 auto;
+  }
+  .law-titles{flex:1 1 240px;}
+  .lex{font-family:var(--serif);font-style:italic;font-weight:400;font-size:20px;color:var(--bone-dim);}
+  .name{
+    display:block;font-family:var(--sans);font-weight:700;font-size:13px;
+    letter-spacing:0.22em;text-transform:uppercase;margin-top:4px;color:var(--bone);
+  }
+  .statement{
+    font-family:var(--serif);font-weight:300;font-size:clamp(18px,2.6vw,23px);
+    line-height:1.5;max-width:60ch;margin:18px 0 28px;color:var(--bone);
+  }
+
+  /* ---------- plate (canvas) ---------- */
+  .plate-frame{
+    position:relative;background:var(--plate-2);border:1px solid var(--edge);
+    border-radius:3px;overflow:hidden;
+  }
+  .plate-frame::after{
+    content:attr(data-tag);position:absolute;top:10px;right:14px;
+    font-family:var(--sans);font-size:10px;letter-spacing:0.2em;text-transform:uppercase;
+    color:var(--bone-dim);opacity:0.7;pointer-events:none;
+  }
+  canvas{display:block;width:100%;height:248px;}
+
+  /* ---------- controls ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:24px 30px;align-items:flex-end;margin-top:22px;}
+  .ctrl{display:flex;flex-direction:column;gap:7px;min-width:150px;}
+  .ctrl label{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--bone-dim);font-weight:600;}
+  .ctrl .val{font-variant-numeric:tabular-nums;color:var(--bone);font-weight:600;font-size:13px;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--edge);
+    border-radius:2px;outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--bone);border:2px solid var(--plate-2);box-shadow:0 0 0 1px var(--bone-dim);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px;height:15px;border-radius:50%;background:var(--bone);border:2px solid var(--plate-2);cursor:pointer;
+  }
+  button{
+    font-family:var(--sans);font-weight:600;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;
+    color:var(--plate);background:var(--bone);border:none;border-radius:2px;
+    padding:11px 18px;cursor:pointer;transition:transform .08s ease, background .15s ease;
+  }
+  button:hover{background:var(--force);}
+  button:active{transform:translateY(1px);}
+  button.ghost{background:transparent;color:var(--bone);box-shadow:inset 0 0 0 1px var(--edge);}
+  button.ghost:hover{background:transparent;color:var(--force);box-shadow:inset 0 0 0 1px var(--force);}
+  button.on{background:var(--force);color:var(--plate);}
+  button:focus-visible{outline:2px solid var(--force);outline-offset:2px;}
+  input:focus-visible{outline:2px solid var(--force);outline-offset:3px;}
+
+  /* ---------- readout instrument ---------- */
+  .readout{
+    display:flex;flex-wrap:wrap;gap:0;margin-top:22px;
+    border:1px solid var(--edge);border-radius:3px;overflow:hidden;
+  }
+  .cell{flex:1 1 120px;padding:13px 16px;border-right:1px solid var(--edge);}
+  .cell:last-child{border-right:none;}
+  .cell .k{font-size:9.5px;letter-spacing:0.18em;text-transform:uppercase;color:var(--bone-dim);font-weight:600;}
+  .cell .v{font-variant-numeric:tabular-nums;font-weight:700;font-size:17px;margin-top:3px;}
+  .cell .v.force{color:var(--force);}
+  .cell .v.vel{color:var(--vel);}
+  .cell .v.idle{color:var(--bone-dim);font-weight:400;}
+
+  .takeaway{
+    font-family:var(--serif);font-style:italic;font-weight:300;font-size:16px;
+    color:var(--bone-dim);margin:22px 0 0;max-width:62ch;
+  }
+  .takeaway b{font-style:normal;font-weight:500;color:var(--bone);}
+
+  .legend{display:flex;gap:22px;margin-top:18px;font-size:11px;color:var(--bone-dim);letter-spacing:0.04em;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .swatch{width:18px;height:3px;border-radius:2px;}
+
+  footer{padding:48px 0 80px;color:var(--bone-dim);font-size:13px;}
+  footer .rule{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--bone);margin-bottom:10px;}
+
+  @media (max-width:560px){
+    header{padding:60px 0 40px;}
+    .law{padding:44px 0;}
+    .controls{gap:20px;}
+    .ctrl{min-width:130px;flex:1 1 130px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Philosophiæ Naturalis · Motion Studies</p>
+    <h1>The Three Laws<br>of <em>Motion</em></h1>
+    <p class="lede">Each plate below is a strobed exposure: every moving body drops a ghost at a fixed beat of time, the way Marey and Muybridge once photographed motion. <b>Equal spacing means steady speed; widening gaps mean acceleration.</b> Read the laws by reading the gaps — starting with a heavy block coasting through empty space.</p>
+  </header>
+
+  <!-- ===================== FIRST LAW ===================== -->
+  <section class="law">
+    <div class="law-head">
+      <div class="numeral">I.</div>
+      <div class="law-titles">
+        <span class="lex">Lex Prima</span>
+        <span class="name">Inertia</span>
+      </div>
+    </div>
+    <p class="statement">A body keeps its state of rest, or of uniform motion in a straight line, unless a force is impressed upon it. No force, no change — and the force that hurts you is born only in the collision.</p>
+
+    <div class="plate-frame" data-tag="Plate I — coasting mass">
+      <canvas id="cv1"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label>Block mass <span class="val" id="m1v">1,200 kg</span></label>
+        <input type="range" id="m1" min="100" max="5000" step="50" value="1200">
+      </div>
+      <button class="ghost" id="youBtn">Step into its path</button>
+      <button class="ghost" id="play1">Pause</button>
+    </div>
+
+    <div class="readout">
+      <div class="cell"><div class="k">Speed</div><div class="v vel" id="r1speed">100 km/h</div></div>
+      <div class="cell"><div class="k">Momentum p = mv</div><div class="v" id="r1p">—</div></div>
+      <div class="cell"><div class="k">Net force while coasting</div><div class="v idle">0 N</div></div>
+      <div class="cell"><div class="k">Contact force on you</div><div class="v force idle" id="r1F">— waiting</div></div>
+    </div>
+
+    <p class="takeaway">While it coasts, the net force is exactly <b>zero</b> — yet it is far from harmless. Step in front and its motion must change in the width of your body, manufacturing an enormous force out of nothing. <b>Inertia resists the change, not the motion.</b></p>
+  </section>
+
+  <!-- ===================== SECOND LAW ===================== -->
+  <section class="law">
+    <div class="law-head">
+      <div class="numeral">II.</div>
+      <div class="law-titles">
+        <span class="lex">Lex Secunda</span>
+        <span class="name">F = m a</span>
+      </div>
+    </div>
+    <p class="statement">The change of motion is proportional to the force impressed. For the same push, the heavier body accelerates less — its gaps open more slowly across the plate.</p>
+
+    <div class="plate-frame" data-tag="Plate II — equal push">
+      <canvas id="cv2"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label>Mass <span class="val" id="m2v">2.0 kg</span></label>
+        <input type="range" id="m2" min="1" max="8" step="0.5" value="2">
+      </div>
+      <div class="ctrl">
+        <label>Force <span class="val" id="f2v">24 N</span></label>
+        <input type="range" id="f2" min="4" max="40" step="1" value="24">
+      </div>
+      <button id="launch2">Launch</button>
+      <button class="ghost on" id="cmp2">Compare ×3 mass</button>
+    </div>
+
+    <div class="readout">
+      <div class="cell"><div class="k">Force F</div><div class="v force" id="r2F">24 N</div></div>
+      <div class="cell"><div class="k">Mass m</div><div class="v" id="r2m">2.0 kg</div></div>
+      <div class="cell"><div class="k">Acceleration a = F / m</div><div class="v vel" id="r2a">12.0 m/s²</div></div>
+      <div class="cell"><div class="k">Heavier puck (×3)</div><div class="v idle" id="r2b">4.0 m/s²</div></div>
+    </div>
+
+    <p class="takeaway">Same amber force on both. The light puck pulls ahead because acceleration is force <b>divided by mass</b> — triple the mass, a third of the acceleration. This is the same reluctance that swings a heavy particle onto a wider orbit.</p>
+  </section>
+
+  <!-- ===================== THIRD LAW ===================== -->
+  <section class="law">
+    <div class="law-head">
+      <div class="numeral">III.</div>
+      <div class="law-titles">
+        <span class="lex">Lex Tertia</span>
+        <span class="name">Action &amp; Reaction</span>
+      </div>
+    </div>
+    <p class="statement">To every action there is an equal and opposite reaction. The astronaut pushes the crate exactly as hard as the crate pushes back — but the lighter one flies off faster.</p>
+
+    <div class="plate-frame" data-tag="Plate III — push-off in free space">
+      <canvas id="cv3"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label>Crate mass <span class="val" id="m3v">200 kg</span></label>
+        <input type="range" id="m3" min="80" max="400" step="10" value="200">
+      </div>
+      <button id="push3">Push off</button>
+    </div>
+
+    <div class="readout">
+      <div class="cell"><div class="k">Force on astronaut</div><div class="v force" id="r3Fa">← equal</div></div>
+      <div class="cell"><div class="k">Force on crate</div><div class="v force" id="r3Fb">equal →</div></div>
+      <div class="cell"><div class="k">Astronaut speed</div><div class="v vel" id="r3va">—</div></div>
+      <div class="cell"><div class="k">Crate speed</div><div class="v vel" id="r3vc">—</div></div>
+    </div>
+
+    <p class="takeaway">The two amber arrows are always the same length — forces come in equal, opposite pairs. The <b>velocities</b> differ because mass differs: momentum splits so that m·v matches on both sides. Laws two and three, working together.</p>
+  </section>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--force)"></span>Force</span>
+    <span><span class="swatch" style="background:var(--vel)"></span>Velocity</span>
+    <span><span class="swatch" style="background:var(--bone)"></span>Strobe ghost · fixed time beat</span>
+  </div>
+
+  <footer>
+    <div class="rule">“A body in motion stays in motion” is not a promise of safety.</div>
+    Drag the sliders, press the triggers, and watch the gaps. Force lives in the interaction — never in the coasting.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const C = {
+    plate:'#1f1a13', bone:'#ece5d6', boneDim:'#9a8f78',
+    grid:'rgba(236,229,214,0.05)', edge:'#322a1e',
+    force:'#f0a33a', vel:'#6fb6ac'
+  };
+  const SUP = {'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+  function sup(n){ return String(n).split('').map(c=>SUP[c]||c).join(''); }
+  function fmtForce(n){
+    if(n>=1e4){ const e=Math.floor(Math.log10(n)); const m=n/Math.pow(10,e); return m.toFixed(1)+'×10'+sup(e)+' N'; }
+    return Math.round(n).toLocaleString('en-US')+' N';
+  }
+
+  // ---- canvas setup ----
+  function fit(cv){
+    const r = cv.getBoundingClientRect();
+    cv.width = Math.max(1, Math.round(r.width*DPR));
+    cv.height = Math.max(1, Math.round(r.height*DPR));
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    return {W:r.width, H:r.height, ctx};
+  }
+  function plate(ctx,W,H){
+    ctx.fillStyle = C.plate; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+    const s = 28;
+    ctx.beginPath();
+    for(let x=s;x<W;x+=s){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
+    for(let y=s;y<H;y+=s){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+    ctx.stroke();
+  }
+  function arrow(ctx,x,y,dx,dy,color,w){
+    const len = Math.hypot(dx,dy); if(len < 1) return;
+    const ux=dx/len, uy=dy/len, h=Math.min(9, Math.max(5, len*0.4));
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w||3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+dx-ux*h*0.6, y+dy-uy*h*0.6); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x+dx, y+dy);
+    ctx.lineTo(x+dx-ux*h - uy*h*0.55, y+dy-uy*h + ux*h*0.55);
+    ctx.lineTo(x+dx-ux*h + uy*h*0.55, y+dy-uy*h - ux*h*0.55);
+    ctx.closePath(); ctx.fill();
+  }
+  // generic strobe buffer
+  function Strobe(interval, max){ return {interval, max, t:0, pts:[]}; }
+  function strobePush(s, dt, x, y){
+    s.t += dt;
+    if(s.t >= s.interval){ s.t = 0; s.pts.push({x,y}); if(s.pts.length>s.max) s.pts.shift(); }
+  }
+  function strobeReset(s){ s.pts.length=0; s.t=0; }
+
+  const el = id => document.getElementById(id);
+
+  /* ================= DEMO 1 — First Law ================= */
+  const D1 = (function(){
+    const cv = el('cv1'); let G = fit(cv);
+    const V_REAL = 27.78;           // 100 km/h in m/s
+    const vpx = 118;                // pixel speed
+    let mass = 1200;
+    let running = !reduce;
+    let youOn = false;
+    let collided = false, contactF = 0;
+    let bw=58, bh=40, x=-60, y=0;
+    let figureKnock = 0;            // animation offset after hit
+    const strobe = Strobe(0.085, 13);
+
+    function resetRun(){ x = -bw - 10; strobeReset(strobe); collided=false; contactF=0; figureKnock=0; }
+    function layout(){ G = fit(cv); y = G.H*0.56; if(x===0) x=-bw-10; }
+    y = G.H*0.56;
+
+    function step(dt){
+      x += vpx*dt;
+      strobePush(strobe, dt, x, y);
+      const figX = G.W*0.72;
+      if(youOn && !collided && x+bw*0.5 >= figX){
+        collided = true;
+        const d = 0.3;                       // stop distance through a body (m)
+        const a = (V_REAL*V_REAL)/(2*d);
+        contactF = mass*a;
+        figureKnock = 1;
+      }
+      if(figureKnock>0){ figureKnock += dt*9; }
+      if(x > G.W + bw){ resetRun(); }
+    }
+    function draw(){
+      const ctx=G.ctx; plate(ctx,G.W,G.H);
+      // baseline
+      ctx.strokeStyle=C.edge; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(0,y+bh*0.5+2); ctx.lineTo(G.W,y+bh*0.5+2); ctx.stroke();
+      // figure (you)
+      const figX = G.W*0.72;
+      if(youOn){
+        const off = figureKnock>0 ? Math.min(figureKnock*22, 120) : 0;
+        const fade = figureKnock>0 ? Math.max(0, 1-figureKnock*0.25) : 0.85;
+        drawFigure(ctx, figX+off, y+bh*0.5+2, fade, figureKnock>0?figureKnock*0.5:0);
+      }
+      // strobe ghosts
+      for(let i=0;i<strobe.pts.length;i++){
+        const p=strobe.pts[i]; const a=((i+1)/strobe.pts.length)*0.42;
+        ctx.fillStyle=`rgba(236,229,214,${a})`;
+        ctx.fillRect(p.x-bw/2, p.y-bh/2, bw, bh);
+      }
+      // block
+      ctx.fillStyle=C.bone;
+      ctx.fillRect(x-bw/2, y-bh/2, bw, bh);
+      ctx.fillStyle='rgba(21,18,13,0.5)';
+      for(let i=1;i<4;i++){ ctx.fillRect(x-bw/2, y-bh/2+i*bh/4, bw, 1); }
+      ctx.fillRect(x, y-bh/2, 1, bh);
+      // velocity arrow
+      arrow(ctx, x+bw/2+4, y, 34, 0, C.vel, 3);
+      // contact spark
+      if(collided && figureKnock>0 && figureKnock<1.4){
+        ctx.strokeStyle=C.force; ctx.lineWidth=2; ctx.globalAlpha=Math.max(0,1-figureKnock);
+        for(let k=0;k<7;k++){ const ang=(k/7)*Math.PI*2; ctx.beginPath();
+          ctx.moveTo(figX, y); ctx.lineTo(figX+Math.cos(ang)*22, y+Math.sin(ang)*22); ctx.stroke(); }
+        ctx.globalAlpha=1;
+      }
+      // labels
+      ctx.fillStyle=C.boneDim; ctx.font='600 10px Archivo, sans-serif';
+      ctx.fillText('100 km/h · constant', x-bw/2, y-bh/2-9);
+    }
+    function drawFigure(ctx,cx,by,alpha,tilt){
+      ctx.save(); ctx.translate(cx,by); ctx.rotate(tilt*0.4);
+      ctx.strokeStyle=`rgba(111,182,172,${alpha})`; ctx.fillStyle=`rgba(111,182,172,${alpha})`;
+      ctx.lineWidth=2.5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(0,-46,6,0,Math.PI*2); ctx.fill();           // head
+      ctx.beginPath(); ctx.moveTo(0,-40); ctx.lineTo(0,-16); ctx.stroke(); // body
+      ctx.beginPath(); ctx.moveTo(0,-34); ctx.lineTo(-11,-24); ctx.moveTo(0,-34); ctx.lineTo(11,-24); ctx.stroke(); // arms
+      ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(-9,0); ctx.moveTo(0,-16); ctx.lineTo(9,0); ctx.stroke();        // legs
+      ctx.restore();
+    }
+    function readouts(){
+      el('r1p').textContent = (mass*V_REAL).toLocaleString('en-US',{maximumFractionDigits:0})+' kg·m/s';
+      const f = el('r1F');
+      if(collided){ f.textContent = fmtForce(contactF); f.classList.remove('idle'); }
+      else { f.textContent = youOn ? '— waiting' : '— step in'; f.classList.add('idle'); }
+    }
+    // controls
+    el('m1').addEventListener('input', e=>{ mass=+e.target.value; el('m1v').textContent=mass.toLocaleString('en-US')+' kg'; });
+    el('youBtn').addEventListener('click', e=>{
+      youOn=!youOn; e.target.classList.toggle('on',youOn);
+      e.target.textContent = youOn?'Clear the path':'Step into its path';
+      collided=false; contactF=0; figureKnock=0;
+    });
+    el('play1').addEventListener('click', e=>{
+      running=!running; e.target.textContent=running?'Pause':'Play';
+    });
+    if(reduce){ el('play1').textContent='Play'; }
+    return {step:(dt)=>{ if(running) step(dt); }, draw, readouts, layout, get running(){return running;} };
+  })();
+
+  /* ================= DEMO 2 — Second Law ================= */
+  const D2 = (function(){
+    const cv=el('cv2'); let G=fit(cv);
+    const PPM=10, SIM=0.55;
+    let mass=2, force=24, compare=true, running=false;
+    let a={x:0,v:0}, b={x:0,v:0}, r=14;
+    const sa=Strobe(0.10,12), sb=Strobe(0.10,12);
+    let ya, yb;
+    function layout(){ G=fit(cv); ya=G.H*0.40; yb=G.H*0.70; }
+    layout();
+    function reset(){ a.x=r+10; a.v=0; b.x=r+10; b.v=0; strobeReset(sa); strobeReset(sb); }
+    reset();
+    function launch(){ reset(); running=true; }
+    function step(dt){
+      if(!running) return;
+      const d=dt*SIM;
+      const accA=force/mass; a.v+=accA*d; a.x+=a.v*PPM*d; strobePush(sa,dt,a.x,ya);
+      if(compare){ const accB=force/(mass*3); b.v+=accB*d; b.x+=b.v*PPM*d; strobePush(sb,dt,b.x,yb); }
+      const edge=G.W-r-6;
+      if(a.x>=edge && (!compare || b.x>=edge)){ running=false; }
+      if(a.x>edge) a.x=edge;
+      if(b.x>edge) b.x=edge;
+    }
+    function puck(ctx,strobe,x,y,col,label){
+      for(let i=0;i<strobe.pts.length;i++){ const p=strobe.pts[i]; const al=((i+1)/strobe.pts.length)*0.4;
+        ctx.fillStyle=`rgba(236,229,214,${al})`; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); }
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=C.plate; ctx.font='700 10px Archivo'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(label,x,y); ctx.textAlign='start'; ctx.textBaseline='alphabetic';
+      arrow(ctx, x+r+3, y, 30, 0, C.force, 3); // force (constant)
+    }
+    function draw(){
+      const ctx=G.ctx; plate(ctx,G.W,G.H);
+      puck(ctx,sa,a.x,ya,C.bone,'m');
+      if(compare) puck(ctx,sb,b.x,yb,'rgba(236,229,214,0.5)','3m');
+      // start line
+      ctx.strokeStyle=C.edge; ctx.setLineDash([3,4]); ctx.beginPath();
+      ctx.moveTo(r+10,18); ctx.lineTo(r+10,G.H-12); ctx.stroke(); ctx.setLineDash([]);
+    }
+    function readouts(){
+      el('r2F').textContent=force+' N';
+      el('r2m').textContent=mass.toFixed(1)+' kg';
+      el('r2a').textContent=(force/mass).toFixed(1)+' m/s²';
+      const rb=el('r2b');
+      if(compare){ rb.textContent=(force/(mass*3)).toFixed(1)+' m/s²'; rb.classList.remove('idle'); }
+      else { rb.textContent='off'; rb.classList.add('idle'); }
+    }
+    el('m2').addEventListener('input',e=>{ mass=+e.target.value; el('m2v').textContent=mass.toFixed(1)+' kg'; });
+    el('f2').addEventListener('input',e=>{ force=+e.target.value; el('f2v').textContent=force+' N'; });
+    el('launch2').addEventListener('click',launch);
+    el('cmp2').addEventListener('click',e=>{ compare=!compare; e.target.classList.toggle('on',compare); });
+    return {step, draw, readouts, layout};
+  })();
+
+  /* ================= DEMO 3 — Third Law ================= */
+  const D3 = (function(){
+    const cv=el('cv3'); let G=fit(cv);
+    const M_AST=80;
+    let mCrate=200, phase='ready'; // ready -> contact -> apart
+    let cx, y, gap=0, contactT=0;
+    let ast={x:0,v:0,w:30,h:38}, crate={x:0,v:0,size:46};
+    const J=520;          // impulse magnitude (kg m/s)
+    const VSCALE=10;      // px per (m/s)
+    const sa=Strobe(0.09,12), sc=Strobe(0.09,12);
+    function layout(){ G=fit(cv); cx=G.W*0.5; y=G.H*0.55; if(phase==='ready') place(); }
+    function place(){ ast.x=cx-26; crate.x=cx+26; ast.v=0; crate.v=0; gap=0; strobeReset(sa); strobeReset(sc); }
+    layout(); place();
+    function push(){
+      place(); phase='contact'; contactT=0;
+      ast.v = -(J/M_AST)*VSCALE;       // px/s leftward
+      crate.v = (J/mCrate)*VSCALE;      // px/s rightward
+    }
+    function step(dt){
+      if(phase==='contact'){ contactT+=dt; if(contactT>0.45) phase='apart'; }
+      if(phase==='contact'||phase==='apart'){
+        ast.x+=ast.v*dt; crate.x+=crate.v*dt;
+        strobePush(sa,dt,ast.x,y); strobePush(sc,dt,crate.x,y);
+        if(ast.x<-60 && crate.x>G.W+60){ phase='ready'; place(); }
+      }
+    }
+    function draw(){
+      const ctx=G.ctx; plate(ctx,G.W,G.H);
+      // strobes
+      for(let i=0;i<sa.pts.length;i++){ const p=sa.pts[i]; const al=((i+1)/sa.pts.length)*0.38;
+        ctx.fillStyle=`rgba(236,229,214,${al})`; ctx.beginPath(); ctx.arc(p.x,p.y-20,5,0,Math.PI*2); ctx.fill(); }
+      for(let i=0;i<sc.pts.length;i++){ const p=sc.pts[i]; const al=((i+1)/sc.pts.length)*0.38; const s=crate.size;
+        ctx.fillStyle=`rgba(236,229,214,${al})`; ctx.fillRect(p.x-s/2,p.y-s/2,s,s); }
+      // crate
+      const s=crate.size;
+      ctx.fillStyle=C.bone; ctx.fillRect(crate.x-s/2,y-s/2,s,s);
+      ctx.strokeStyle='rgba(21,18,13,0.45)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(crate.x-s/2,y-s/2); ctx.lineTo(crate.x+s/2,y+s/2);
+      ctx.moveTo(crate.x+s/2,y-s/2); ctx.lineTo(crate.x-s/2,y+s/2); ctx.stroke();
+      ctx.fillStyle=C.boneDim; ctx.font='600 9px Archivo'; ctx.textAlign='center';
+      ctx.fillText(mCrate+' kg', crate.x, y+s/2+13); ctx.textAlign='start';
+      // astronaut (figure)
+      drawAstro(ctx, ast.x, y);
+      // force arrows during contact
+      if(phase==='contact'){
+        const L=42;
+        arrow(ctx, ast.x+ast.w*0.5, y-26, -L, 0, C.force, 3.5);
+        arrow(ctx, crate.x-s*0.5, y-26, L, 0, C.force, 3.5);
+        ctx.fillStyle=C.force; ctx.font='italic 600 11px Spectral'; ctx.textAlign='center';
+        ctx.fillText('F', ast.x-6, y-34); ctx.fillText('F', crate.x+6, y-34); ctx.textAlign='start';
+      } else if(phase==='apart'){
+        if(ast.v!==0) arrow(ctx, ast.x-14, y, ast.v*0.10, 0, C.vel, 3);
+        if(crate.v!==0) arrow(ctx, crate.x+s*0.5+3, y, crate.v*0.10, 0, C.vel, 3);
+      }
+    }
+    function drawAstro(ctx,cx,by){
+      ctx.save(); ctx.translate(cx,by);
+      ctx.strokeStyle=C.bone; ctx.fillStyle=C.bone; ctx.lineWidth=2.5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(0,-24,7,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0,-17); ctx.lineTo(0,6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-11); ctx.lineTo(13,-6); ctx.moveTo(0,-11); ctx.lineTo(-9,-3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,6); ctx.lineTo(-8,20); ctx.moveTo(0,6); ctx.lineTo(8,20); ctx.stroke();
+      ctx.fillStyle=C.boneDim; ctx.font='600 9px Archivo'; ctx.textAlign='center';
+      ctx.fillText('80 kg', 0, 33); ctx.textAlign='start';
+      ctx.restore();
+    }
+    function readouts(){
+      const va=(J/M_AST), vc=(J/mCrate);
+      if(phase==='ready'){ el('r3va').textContent='—'; el('r3vc').textContent='—';
+        el('r3Fa').textContent='← equal'; el('r3Fb').textContent='equal →'; }
+      else { el('r3va').textContent=va.toFixed(1)+' m/s'; el('r3vc').textContent=vc.toFixed(2)+' m/s';
+        el('r3Fa').textContent='F'; el('r3Fb').textContent='F'; }
+    }
+    el('m3').addEventListener('input',e=>{ mCrate=+e.target.value; el('m3v').textContent=mCrate+' kg'; if(phase==='ready') place(); });
+    el('push3').addEventListener('click',push);
+    return {step, draw, readouts, layout};
+  })();
+
+  // ---- master loop ----
+  const demos=[D1,D2,D3];
+  let last=performance.now();
+  function frame(now){
+    let dt=(now-last)/1000; last=now; if(dt>0.05) dt=0.05;
+    for(const d of demos){ d.step(dt); d.draw(); d.readouts(); }
+    requestAnimationFrame(frame);
+  }
+  function relayout(){ for(const d of demos) d.layout(); }
+  window.addEventListener('resize', relayout);
+  // ensure fonts/layout settled
+  requestAnimationFrame(()=>{ relayout(); requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

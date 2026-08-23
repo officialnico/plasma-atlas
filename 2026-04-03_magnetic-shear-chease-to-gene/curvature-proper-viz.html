@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curvature — Visualized Properly</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070d;--s1:#0b1222;--bdr:#17253f;--tx:#dfe8f5;
+  --dim:#5a7094;--mut:#2f4468;--cyan:#1fd6e8;--green:#3ee886;
+  --amber:#f5c042;--red:#ef6461;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:920px;margin:0 auto;padding:20px 14px 60px;}
+.head{text-align:center;margin-bottom:20px;}
+.head h1{font-size:clamp(22px,5vw,36px);font-weight:800;letter-spacing:-1px;margin-bottom:6px;}
+.head h1 span{color:var(--red);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:540px;margin:0 auto;line-height:1.5;}
+
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:16px;overflow:hidden;margin-bottom:14px;}
+.vbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--bdr);}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--mut);}
+canvas{display:block;width:100%;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.cg{flex:1;min-width:120px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bdr);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--red);cursor:pointer;box-shadow:0 0 8px rgba(239,100,97,.3);}
+.btn{background:rgba(239,100,97,.08);border:1px solid rgba(239,100,97,.2);color:var(--red);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:8px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;}
+
+/* Color bar */
+.colorbar{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:16px;padding:8px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;}
+.colorbar .bar{width:200px;height:12px;border-radius:6px;background:linear-gradient(90deg,#3ee886,#2a6040,#1a2030,#6a2828,#ef6461);}
+.colorbar span{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dim);}
+
+.expl{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+.expl h3{font-size:13px;font-weight:700;margin-bottom:6px;}
+.expl h3.hr{color:var(--red);}.expl h3.hg{color:var(--green);}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:6px;}
+.expl b{color:var(--tx);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="head">
+    <h1>Where the Field Lines <span>Bend</span></h1>
+    <p>Curvature painted directly onto the geometry. Red = bad (bends outward, drives turbulence). Green = good (bends inward, stabilizes).</p>
+  </div>
+
+  <div class="ctrls">
+    <div class="cg">
+      <div class="cg-l">Elongation</div>
+      <div class="cg-r"><input type="range" id="sE" min="1" max="2" step="0.05" value="1.4"><span class="cg-v" id="vE" style="color:var(--amber)">1.4</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Triangularity</div>
+      <div class="cg-r"><input type="range" id="sT" min="-0.3" max="0.5" step="0.05" value="0.2"><span class="cg-v" id="vT" style="color:var(--cyan)">0.2</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Speed</div>
+      <div class="cg-r"><input type="range" id="sSpd" min="0" max="2" step="0.1" value="0.5"><span class="cg-v" id="vSpd" style="color:var(--dim)">0.5</span></div>
+    </div>
+    <div class="cg" style="flex:0;display:flex;align-items:flex-end;gap:4px;">
+      <button class="btn" id="bPlay">⏸</button>
+      <button class="btn" id="bReset" style="color:var(--cyan);border-color:rgba(31,214,232,.2);background:rgba(31,214,232,.06);">↺</button>
+    </div>
+  </div>
+
+  <div class="colorbar">
+    <span>GOOD (inboard)</span>
+    <div class="bar"></div>
+    <span>BAD (outboard)</span>
+  </div>
+
+  <!-- Main 3D torus -->
+  <div class="viz">
+    <div class="vbar">
+      <span class="vbar-t">3D TORUS — CURVATURE MAPPED TO COLOR · DRAG TO ROTATE</span>
+    </div>
+    <canvas id="c3D" style="height:400px;cursor:grab;"></canvas>
+  </div>
+
+  <!-- Cross-section with bent field lines -->
+  <div class="viz">
+    <div class="vbar">
+      <span class="vbar-t">CROSS-SECTION — FIELD LINE BENDING DIRECTION</span>
+    </div>
+    <canvas id="cCross" style="height:400px;"></canvas>
+  </div>
+
+  <!-- κ(θ) profile synced with moving dot -->
+  <div class="viz">
+    <div class="vbar">
+      <span class="vbar-t">κ ALONG THE FIELD LINE — SYNCED WITH DOT POSITION</span>
+    </div>
+    <canvas id="cProf" style="height:220px;"></canvas>
+  </div>
+
+  <div class="expl">
+    <h3 class="hr">Reading the visualization</h3>
+    <p><b>3D torus (top):</b> The color on the surface IS the curvature. Bright red on the outboard side = strong bad curvature. Green on the inboard = good curvature. The moving dot traces a field line — watch how it passes through red (danger) and green (safety) zones as it spirals.</p>
+    <p><b>Cross-section (middle):</b> Actual curved field line segments showing which way they bend. On the right (outboard) the lines curve <b>away</b> from the center — that's the instability. On the left (inboard) they curve <b>toward</b> the center — that's the stabilizing region. The little circles show the "center of curvature" — the point the field line is bending around.</p>
+    <p><b>Profile (bottom):</b> κ value as the field line goes around poloidally. Above zero = bad, below = good. The dot moves in sync with the field line above so you can see exactly where you are on the profile.</p>
+  </div>
+
+  <div class="expl">
+    <h3 style="color:var(--amber);">Try this</h3>
+    <p>Crank <b>elongation</b> up to 2.0 — watch the red region on the outboard side get smaller and less intense. That's why tokamaks are elongated: it reduces bad curvature.</p>
+    <p>Set <b>triangularity to negative</b> (−0.3) — the cross-section flips to a reversed-D shape, and the curvature distribution changes dramatically. This is the idea behind negative triangularity tokamaks.</p>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let elong=1.4, tri=0.2, spd=0.5, playing=true;
+let phi=0; // field line toroidal position
+let camRx=0.55, camRy=-0.3;
+let dragging=false, dX=0, dY=0, dRx=0, dRy=0;
+
+const qVal=2.5; // fixed q for the traced field line
+
+function kappa(theta){
+  // Curvature model: positive=bad (outboard), negative=good (inboard)
+  const base=Math.cos(theta + tri*Math.sin(theta));
+  return base / elong;
+}
+
+function kappaColor(k){
+  // k: -1 to +1, map to green..dark..red
+  const t=(k+1)/2; // 0=green, 0.5=dark, 1=red
+  let r,g,b;
+  if(t<0.5){
+    const f=t/0.5;
+    r=Math.round(62*(1-f)+20*f);
+    g=Math.round(232*(1-f)+40*f);
+    b=Math.round(134*(1-f)+30*f);
+  } else {
+    const f=(t-0.5)/0.5;
+    r=Math.round(20*(1-f)+239*f);
+    g=Math.round(40*(1-f)+80*f);
+    b=Math.round(30*(1-f)+70*f);
+  }
+  return {r,g,b};
+}
+
+// Surface point with shaping
+function surfPt(theta,rFrac,R,rMax){
+  const r=rMax*rFrac;
+  const x=r*Math.cos(theta+tri*Math.sin(theta));
+  const y=r*elong*Math.sin(theta);
+  return {x,y};
+}
+
+// ============ CANVASES ============
+const c3D=document.getElementById('c3D');
+const cCr=document.getElementById('cCross');
+const cPr=document.getElementById('cProf');
+const ctx3=c3D.getContext('2d');
+const ctxC=cCr.getContext('2d');
+const ctxP=cPr.getContext('2d');
+let w3,h3,wC,hC,wP,hP,dpr;
+
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  [c3D,cCr,cPr].forEach(c=>{
+    const r=c.getBoundingClientRect();
+    c.width=r.width*dpr;c.height=r.height*dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  });
+  let r=c3D.getBoundingClientRect(); w3=r.width;h3=r.height;
+  r=cCr.getBoundingClientRect(); wC=r.width;hC=r.height;
+  r=cPr.getBoundingClientRect(); wP=r.width;hP=r.height;
+}
+
+// ============ 3D TORUS ============
+function proj(x,y,z){
+  let x1=x*Math.cos(camRy)-z*Math.sin(camRy);
+  let z1=x*Math.sin(camRy)+z*Math.cos(camRy);
+  let y1=y*Math.cos(camRx)-z1*Math.sin(camRx);
+  let z2=y*Math.sin(camRx)+z1*Math.cos(camRx);
+  const fov=520,d=fov/(fov+z2+240);
+  return{x:w3/2+x1*d, y:h3/2+y1*d, z:z2, d};
+}
+
+function torusXYZ(R,rMax,rFrac,phiT,theta){
+  const sp=surfPt(theta,rFrac,R,rMax);
+  return{
+    x:(R+sp.x)*Math.cos(phiT),
+    y:sp.y,
+    z:(R+sp.x)*Math.sin(phiT)
+  };
+}
+
+function draw3D(){
+  ctx3.clearRect(0,0,w3,h3);
+  const R=130,rMax=50;
+
+  // Draw torus surface patches colored by curvature
+  const nPhi=60, nTh=24;
+  const patches=[];
+
+  for(let i=0;i<nPhi;i++){
+    const ph0=(i/nPhi)*Math.PI*2;
+    const ph1=((i+1)/nPhi)*Math.PI*2;
+    for(let j=0;j<nTh;j++){
+      const th0=(j/nTh)*Math.PI*2;
+      const th1=((j+1)/nTh)*Math.PI*2;
+      const thMid=(th0+th1)/2;
+
+      const k=kappa(thMid);
+      const col=kappaColor(k);
+
+      // Four corners
+      const p00=torusXYZ(R,rMax,0.85,ph0,th0);
+      const p10=torusXYZ(R,rMax,0.85,ph1,th0);
+      const p11=torusXYZ(R,rMax,0.85,ph1,th1);
+      const p01=torusXYZ(R,rMax,0.85,ph0,th1);
+
+      const s00=proj(p00.x,p00.y,p00.z);
+      const s10=proj(p10.x,p10.y,p10.z);
+      const s11=proj(p11.x,p11.y,p11.z);
+      const s01=proj(p01.x,p01.y,p01.z);
+
+      const avgZ=(s00.z+s10.z+s11.z+s01.z)/4;
+      const avgD=(s00.d+s10.d+s11.d+s01.d)/4;
+
+      patches.push({s00,s10,s11,s01,col,avgZ,avgD});
+    }
+  }
+
+  // Sort back to front
+  patches.sort((a,b)=>a.avgZ-b.avgZ);
+
+  patches.forEach(p=>{
+    const alpha=0.25+0.55*Math.max(0,Math.min(1,(p.avgD-0.35)/0.5));
+    ctx3.beginPath();
+    ctx3.moveTo(p.s00.x,p.s00.y);
+    ctx3.lineTo(p.s10.x,p.s10.y);
+    ctx3.lineTo(p.s11.x,p.s11.y);
+    ctx3.lineTo(p.s01.x,p.s01.y);
+    ctx3.closePath();
+    ctx3.fillStyle=`rgba(${p.col.r},${p.col.g},${p.col.b},${alpha})`;
+    ctx3.fill();
+  });
+
+  // Field line on the surface
+  const fieldPts=[];
+  const totalPhi=phi;
+  const steps=Math.min(Math.floor(totalPhi*20),1200);
+  for(let i=0;i<=steps;i++){
+    const ph=i/20;
+    if(ph>totalPhi) break;
+    const th=ph/qVal;
+    const p3=torusXYZ(R,rMax,0.86,ph,th);
+    const s=proj(p3.x,p3.y,p3.z);
+    const k=kappa(th);
+    fieldPts.push({...s,k});
+  }
+
+  // Draw field line with curvature coloring
+  for(let i=1;i<fieldPts.length;i++){
+    const p0=fieldPts[i-1],p1=fieldPts[i];
+    const age=1-i/fieldPts.length;
+    const dA=0.3+0.7*Math.max(0,Math.min(1,(p1.d-0.3)/0.55));
+    const fA=1-age*0.3;
+    const a=Math.max(0.08,dA*fA);
+    const col=kappaColor(p1.k);
+
+    ctx3.beginPath();ctx3.moveTo(p0.x,p0.y);ctx3.lineTo(p1.x,p1.y);
+    ctx3.strokeStyle=`rgba(${col.r},${col.g},${col.b},${Math.min(1,a+0.3)})`;
+    ctx3.lineWidth=2.5*p1.d;
+    ctx3.stroke();
+  }
+
+  // Head dot
+  if(fieldPts.length>0){
+    const hd=fieldPts[fieldPts.length-1];
+    const hcol=kappaColor(hd.k);
+    ctx3.beginPath();ctx3.arc(hd.x,hd.y,6*hd.d,0,Math.PI*2);
+    ctx3.fillStyle=`rgb(${hcol.r},${hcol.g},${hcol.b})`;ctx3.fill();
+    ctx3.beginPath();ctx3.arc(hd.x,hd.y,14*hd.d,0,Math.PI*2);
+    const gr=ctx3.createRadialGradient(hd.x,hd.y,0,hd.x,hd.y,14*hd.d);
+    gr.addColorStop(0,`rgba(${hcol.r},${hcol.g},${hcol.b},0.4)`);
+    gr.addColorStop(1,`rgba(${hcol.r},${hcol.g},${hcol.b},0)`);
+    ctx3.fillStyle=gr;ctx3.fill();
+  }
+}
+
+// ============ CROSS-SECTION ============
+function drawCross(){
+  ctxC.clearRect(0,0,wC,hC);
+  const cx=wC/2, cy=hC/2;
+  const maxR=Math.min(wC,hC)*0.36;
+
+  // Background gradient showing good/bad regions
+  // Left half (inboard) = subtle green, right half = subtle red
+  const bgL=ctxC.createLinearGradient(cx-maxR*1.5,cy,cx+maxR*1.5,cy);
+  bgL.addColorStop(0,'rgba(62,232,134,0.03)');
+  bgL.addColorStop(0.4,'rgba(62,232,134,0.01)');
+  bgL.addColorStop(0.5,'transparent');
+  bgL.addColorStop(0.6,'rgba(239,100,97,0.01)');
+  bgL.addColorStop(1,'rgba(239,100,97,0.03)');
+  ctxC.fillStyle=bgL;ctxC.fillRect(0,0,wC,hC);
+
+  // Ghost flux surfaces
+  for(let si=1;si<=6;si++){
+    const f=si/6, rr=maxR*f;
+    ctxC.beginPath();
+    for(let j=0;j<=64;j++){
+      const th=(j/64)*Math.PI*2;
+      const sp=surfPt(th,f,0,maxR);
+      const px=cx+sp.x, py=cy-sp.y;
+      j===0?ctxC.moveTo(px,py):ctxC.lineTo(px,py);
+    }
+    ctxC.closePath();
+    ctxC.strokeStyle=`rgba(31,214,232,${0.03+0.01*f})`;
+    ctxC.lineWidth=0.6;
+    ctxC.stroke();
+  }
+
+  // Draw curved field line segments on the main surface
+  // Show actual bent arcs with curvature centers
+  const rFrac=0.7;
+  const nSegs=36;
+
+  for(let i=0;i<nSegs;i++){
+    const th0=(i/nSegs)*Math.PI*2;
+    const th1=((i+0.5)/nSegs)*Math.PI*2;
+    const th2=((i+1)/nSegs)*Math.PI*2;
+    const thMid=(th0+th2)/2;
+
+    const sp0=surfPt(th0,rFrac,0,maxR);
+    const sp1=surfPt(th1,rFrac,0,maxR);
+    const sp2=surfPt(th2,rFrac,0,maxR);
+
+    const k=kappa(thMid);
+    const absK=Math.abs(k);
+    const col=kappaColor(k);
+
+    // Draw the arc segment
+    ctxC.beginPath();
+    ctxC.moveTo(cx+sp0.x,cy-sp0.y);
+    ctxC.quadraticCurveTo(cx+sp1.x,cy-sp1.y, cx+sp2.x,cy-sp2.y);
+    const alpha=0.4+absK*0.5;
+    ctxC.strokeStyle=`rgba(${col.r},${col.g},${col.b},${alpha})`;
+    ctxC.lineWidth=3;
+    ctxC.stroke();
+
+    // Curvature arrow: perpendicular to surface, length = |κ|
+    // Points outward if bad (k>0), inward if good (k<0)
+    const spM=surfPt(thMid,rFrac,0,maxR);
+    const mx=cx+spM.x, my=cy-spM.y;
+
+    // Normal direction (outward from center)
+    const dx=spM.x, dy=-spM.y;
+    const dist=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=dx/dist, ny=dy/dist;
+
+    const arrowLen=absK*28;
+    if(arrowLen>3){
+      const dir=k>0?1:-1;
+      const ax=mx+nx*dir*arrowLen;
+      const ay=my+ny*dir*arrowLen;
+
+      ctxC.beginPath();ctxC.moveTo(mx,my);ctxC.lineTo(ax,ay);
+      ctxC.strokeStyle=`rgba(${col.r},${col.g},${col.b},${alpha*0.6})`;
+      ctxC.lineWidth=1.5;
+      ctxC.stroke();
+
+      // Arrow head
+      const headLen=5;
+      const angle=Math.atan2(ay-my,ax-mx);
+      ctxC.beginPath();
+      ctxC.moveTo(ax,ay);
+      ctxC.lineTo(ax-headLen*Math.cos(angle-0.4),ay-headLen*Math.sin(angle-0.4));
+      ctxC.lineTo(ax-headLen*Math.cos(angle+0.4),ay-headLen*Math.sin(angle+0.4));
+      ctxC.closePath();
+      ctxC.fillStyle=`rgba(${col.r},${col.g},${col.b},${alpha*0.6})`;
+      ctxC.fill();
+    }
+  }
+
+  // Field line dot position (poloidal)
+  const thetaDot = phi/qVal;
+  const spDot=surfPt(thetaDot,rFrac,0,maxR);
+  const dotX=cx+spDot.x, dotY=cy-spDot.y;
+  const kDot=kappa(thetaDot);
+  const dotCol=kappaColor(kDot);
+
+  // Glow
+  ctxC.beginPath();ctxC.arc(dotX,dotY,20,0,Math.PI*2);
+  const gr=ctxC.createRadialGradient(dotX,dotY,0,dotX,dotY,20);
+  gr.addColorStop(0,`rgba(${dotCol.r},${dotCol.g},${dotCol.b},0.5)`);
+  gr.addColorStop(1,`rgba(${dotCol.r},${dotCol.g},${dotCol.b},0)`);
+  ctxC.fillStyle=gr;ctxC.fill();
+  // Dot
+  ctxC.beginPath();ctxC.arc(dotX,dotY,6,0,Math.PI*2);
+  ctxC.fillStyle=`rgb(${dotCol.r},${dotCol.g},${dotCol.b})`;ctxC.fill();
+  ctxC.beginPath();ctxC.arc(dotX,dotY,6,0,Math.PI*2);
+  ctxC.strokeStyle='rgba(255,255,255,0.5)';ctxC.lineWidth=1.5;ctxC.stroke();
+
+  // Labels
+  ctxC.font='700 12px "JetBrains Mono",monospace';
+  ctxC.textAlign='center';ctxC.textBaseline='middle';
+
+  ctxC.fillStyle='rgba(239,100,97,0.6)';
+  ctxC.fillText('BAD κ',cx+maxR*0.95+30,cy-20);
+  ctxC.font='300 10px "DM Sans",sans-serif';
+  ctxC.fillText('curves outward',cx+maxR*0.95+30,cy-4);
+  ctxC.fillText('→ κ and ∇p aligned',cx+maxR*0.95+30,cy+10);
+  ctxC.fillText('→ unstable',cx+maxR*0.95+30,cy+24);
+
+  ctxC.font='700 12px "JetBrains Mono",monospace';
+  ctxC.fillStyle='rgba(62,232,134,0.6)';
+  ctxC.fillText('GOOD κ',cx-maxR*0.95-30,cy-20);
+  ctxC.font='300 10px "DM Sans",sans-serif';
+  ctxC.fillText('curves inward',cx-maxR*0.95-30,cy-4);
+  ctxC.fillText('→ κ opposes ∇p',cx-maxR*0.95-30,cy+10);
+  ctxC.fillText('→ stable',cx-maxR*0.95-30,cy+24);
+
+  // Pressure gradient indicator
+  ctxC.font='500 9px "JetBrains Mono",monospace';
+  ctxC.fillStyle='rgba(245,192,66,0.4)';
+  ctxC.textAlign='center';
+  ctxC.fillText('∇p (pressure drops outward)',cx,hC-14);
+
+  // Arrow
+  ctxC.beginPath();
+  ctxC.moveTo(cx-40,hC-30);ctxC.lineTo(cx+40,hC-30);
+  ctxC.strokeStyle='rgba(245,192,66,0.2)';ctxC.lineWidth=1.5;ctxC.stroke();
+  // Arrowheads both ends pointing out
+  ctxC.beginPath();ctxC.moveTo(cx-40,hC-30);ctxC.lineTo(cx-34,hC-33);ctxC.lineTo(cx-34,hC-27);ctxC.closePath();
+  ctxC.fillStyle='rgba(245,192,66,0.2)';ctxC.fill();
+  ctxC.beginPath();ctxC.moveTo(cx+40,hC-30);ctxC.lineTo(cx+34,hC-33);ctxC.lineTo(cx+34,hC-27);ctxC.closePath();
+  ctxC.fill();
+
+  ctxC.font='500 9px "JetBrains Mono",monospace';
+  ctxC.fillStyle='rgba(100,116,139,0.3)';
+  ctxC.fillText('AXIS',cx,cy);
+}
+
+// ============ PROFILE ============
+function drawProf(){
+  ctxP.clearRect(0,0,wP,hP);
+  ctxP.fillStyle='#0b1222';
+  ctxP.fillRect(0,0,wP,hP);
+
+  const pad={l:44,r:16,t:20,b:34};
+  const w=wP-pad.l-pad.r, h=hP-pad.t-pad.b;
+  const zeroY=pad.t+h/2;
+
+  // Zero line
+  ctxP.strokeStyle='rgba(100,116,139,0.15)';
+  ctxP.lineWidth=1;ctxP.setLineDash([4,4]);
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);ctxP.lineTo(pad.l+w,zeroY);ctxP.stroke();
+  ctxP.setLineDash([]);
+
+  // Shade regions
+  ctxP.fillStyle='rgba(239,100,97,0.04)';ctxP.fillRect(pad.l,pad.t,w,h/2);
+  ctxP.fillStyle='rgba(62,232,134,0.04)';ctxP.fillRect(pad.l,zeroY,w,h/2);
+
+  // Region labels
+  ctxP.font='300 8px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(239,100,97,0.3)';ctxP.textAlign='left';
+  ctxP.fillText('BAD κ > 0',pad.l+3,pad.t+10);
+  ctxP.fillStyle='rgba(62,232,134,0.3)';
+  ctxP.fillText('GOOD κ < 0',pad.l+3,pad.t+h-4);
+
+  // X axis labels
+  ctxP.font='8px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.25)';
+  ctxP.textAlign='center';ctxP.textBaseline='top';
+  ['outboard','top','inboard','bottom','outboard'].forEach((lbl,i)=>{
+    ctxP.fillText(lbl,pad.l+(w/4)*i,pad.t+h+4);
+  });
+  ctxP.font='9px "JetBrains Mono",monospace';
+  ctxP.fillText('← poloidal position →',pad.l+w/2,pad.t+h+18);
+
+  // Plot κ(θ) with color gradient fill
+  const maxK=1;
+  const N=200;
+
+  // Positive fill (bad)
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);
+  for(let i=0;i<=N;i++){
+    const th=(i/N)*Math.PI*2;
+    const k=kappa(th);
+    const px=pad.l+(i/N)*w;
+    const py=zeroY-((Math.max(0,k))/maxK)*(h/2)*0.85;
+    ctxP.lineTo(px,py);
+  }
+  ctxP.lineTo(pad.l+w,zeroY);ctxP.closePath();
+  ctxP.fillStyle='rgba(239,100,97,0.12)';ctxP.fill();
+
+  // Negative fill (good)
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);
+  for(let i=0;i<=N;i++){
+    const th=(i/N)*Math.PI*2;
+    const k=kappa(th);
+    const px=pad.l+(i/N)*w;
+    const py=zeroY-((Math.min(0,k))/maxK)*(h/2)*0.85;
+    ctxP.lineTo(px,py);
+  }
+  ctxP.lineTo(pad.l+w,zeroY);ctxP.closePath();
+  ctxP.fillStyle='rgba(62,232,134,0.12)';ctxP.fill();
+
+  // Line with color segments
+  for(let i=0;i<N;i++){
+    const th0=(i/N)*Math.PI*2;
+    const th1=((i+1)/N)*Math.PI*2;
+    const k0=kappa(th0), k1=kappa(th1);
+    const col=kappaColor((k0+k1)/2);
+    const px0=pad.l+(i/N)*w;
+    const px1=pad.l+((i+1)/N)*w;
+    const py0=zeroY-(k0/maxK)*(h/2)*0.85;
+    const py1=zeroY-(k1/maxK)*(h/2)*0.85;
+    ctxP.beginPath();ctxP.moveTo(px0,py0);ctxP.lineTo(px1,py1);
+    ctxP.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;
+    ctxP.lineWidth=2.5;ctxP.stroke();
+  }
+
+  // Moving dot synced with field line
+  const thetaDot=((phi/qVal)%(Math.PI*2)+Math.PI*2)%(Math.PI*2);
+  const kDot=kappa(thetaDot);
+  const dotFrac=thetaDot/(Math.PI*2);
+  const dotX=pad.l+dotFrac*w;
+  const dotY=zeroY-(kDot/maxK)*(h/2)*0.85;
+  const dotCol=kappaColor(kDot);
+
+  // Vertical line
+  ctxP.strokeStyle='rgba(255,255,255,0.08)';
+  ctxP.lineWidth=1;ctxP.setLineDash([3,3]);
+  ctxP.beginPath();ctxP.moveTo(dotX,pad.t);ctxP.lineTo(dotX,pad.t+h);ctxP.stroke();
+  ctxP.setLineDash([]);
+
+  // Glow
+  ctxP.beginPath();ctxP.arc(dotX,dotY,12,0,Math.PI*2);
+  const gr=ctxP.createRadialGradient(dotX,dotY,0,dotX,dotY,12);
+  gr.addColorStop(0,`rgba(${dotCol.r},${dotCol.g},${dotCol.b},0.5)`);
+  gr.addColorStop(1,`rgba(${dotCol.r},${dotCol.g},${dotCol.b},0)`);
+  ctxP.fillStyle=gr;ctxP.fill();
+  // Dot
+  ctxP.beginPath();ctxP.arc(dotX,dotY,5,0,Math.PI*2);
+  ctxP.fillStyle=`rgb(${dotCol.r},${dotCol.g},${dotCol.b})`;ctxP.fill();
+  ctxP.strokeStyle='rgba(255,255,255,0.4)';ctxP.lineWidth=1.5;
+  ctxP.beginPath();ctxP.arc(dotX,dotY,5,0,Math.PI*2);ctxP.stroke();
+
+  // Value tooltip
+  ctxP.font='600 10px "JetBrains Mono",monospace';
+  ctxP.fillStyle=`rgb(${dotCol.r},${dotCol.g},${dotCol.b})`;
+  ctxP.textAlign=dotFrac>0.8?'right':'left';
+  const tx=dotFrac>0.8?dotX-10:dotX+10;
+  ctxP.fillText(`κ = ${kDot>0?'+':''}${kDot.toFixed(2)}`,tx,dotY-12);
+}
+
+// ============ LOOP ============
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  const dt=(ts-lastT)/1000;lastT=ts;
+  if(playing) phi+=dt*spd*1.5;
+  draw3D(); drawCross(); drawProf();
+  requestAnimationFrame(frame);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sE').addEventListener('input',e=>{elong=parseFloat(e.target.value);document.getElementById('vE').textContent=elong.toFixed(1);});
+document.getElementById('sT').addEventListener('input',e=>{tri=parseFloat(e.target.value);document.getElementById('vT').textContent=tri.toFixed(1);});
+document.getElementById('sSpd').addEventListener('input',e=>{spd=parseFloat(e.target.value);document.getElementById('vSpd').textContent=spd.toFixed(1);});
+document.getElementById('bPlay').addEventListener('click',()=>{playing=!playing;document.getElementById('bPlay').textContent=playing?'⏸':'▶';});
+document.getElementById('bReset').addEventListener('click',()=>{phi=0;});
+
+// 3D drag
+c3D.addEventListener('mousedown',e=>{dragging=true;dX=e.clientX;dY=e.clientY;dRx=camRx;dRy=camRy;});
+window.addEventListener('mousemove',e=>{if(!dragging)return;camRy=dRy+(e.clientX-dX)*0.005;camRx=Math.max(-1.2,Math.min(1.2,dRx+(e.clientY-dY)*0.005));});
+window.addEventListener('mouseup',()=>{dragging=false;});
+c3D.addEventListener('touchstart',e=>{dragging=true;dX=e.touches[0].clientX;dY=e.touches[0].clientY;dRx=camRx;dRy=camRy;},{passive:true});
+c3D.addEventListener('touchmove',e=>{if(!dragging)return;e.preventDefault();camRy=dRy+(e.touches[0].clientX-dX)*0.005;camRx=Math.max(-1.2,Math.min(1.2,dRx+(e.touches[0].clientY-dY)*0.005));},{passive:false});
+c3D.addEventListener('touchend',()=>{dragging=false;});
+
+window.addEventListener('resize',resize);
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

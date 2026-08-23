@@ -1,0 +1,553 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jacobian viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  flux: "#2d5a8e",
+  fluxBright: "#4a90d9",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+};
+
+function fluxSurface(psiNorm, theta, shafranov = 0.25) {
+  const r0 = 2.0;
+  const a = 0.7 * psiNorm;
+  const kappa = 1.6;
+  const delta = 0.35;
+  const shift = shafranov * (1 - psiNorm * psiNorm);
+  const R = r0 + shift + a * Math.cos(theta + delta * Math.sin(theta));
+  const Z = kappa * a * Math.sin(theta);
+  return { R, Z };
+}
+
+function computeJacobian(psiNorm, theta) {
+  const eps = 0.005;
+  const pPlus = fluxSurface(psiNorm + eps, theta);
+  const pMinus = fluxSurface(psiNorm - eps, theta);
+  const dRdpsi = (pPlus.R - pMinus.R) / (2 * eps);
+  const dZdpsi = (pPlus.Z - pMinus.Z) / (2 * eps);
+
+  const tPlus = fluxSurface(psiNorm, theta + eps);
+  const tMinus = fluxSurface(psiNorm, theta - eps);
+  const dRdth = (tPlus.R - tMinus.R) / (2 * eps);
+  const dZdth = (tPlus.Z - tMinus.Z) / (2 * eps);
+
+  const J = Math.abs(dRdpsi * dZdth - dZdpsi * dRdth);
+  return { J, dRdpsi, dZdpsi, dRdth, dZdth };
+}
+
+function jacobianColor(J, minJ, maxJ) {
+  const t = (J - minJ) / (maxJ - minJ + 0.001);
+  const r = Math.round(40 + 215 * t);
+  const g = Math.round(80 + 100 * (1 - Math.abs(t - 0.5) * 2));
+  const b = Math.round(220 - 180 * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+const STEPS = [
+  {
+    id: "surfaces",
+    title: "1. Flux Surfaces in (R,Z)",
+    desc: "The equilibrium gives us smooth, nested flux surfaces. Each surface is labeled by ψ. Everything looks continuous here.",
+  },
+  {
+    id: "grid",
+    title: "2. The (ψ,θ) Grid",
+    desc: "But computationally, we sample at discrete (ψ,θ) points. Each grid cell maps to a real-space area. Notice the cells aren't equal sized — the outboard side (right) is stretched wider.",
+  },
+  {
+    id: "jacobian-cells",
+    title: "3. Jacobian = Cell Area",
+    desc: "The Jacobian measures how much real (R,Z) area each coordinate cell (dψ,dθ) covers. Blue = small area (compressed). Red = large area (stretched). The outboard side has bigger J because flux surfaces are farther apart there.",
+  },
+  {
+    id: "jacobian-theta",
+    title: "4. J(θ) on One Surface",
+    desc: "Sweeping θ around a single flux surface, J varies smoothly — it peaks at θ=0 (outboard midplane) and dips at θ=π (inboard). This is the 1D array GENE gets. It IS smooth, not jagged — just like the surfaces themselves.",
+  },
+  {
+    id: "jacobian-psi",
+    title: "5. J Across Surfaces",
+    desc: "J also varies with ψ (radially). Outer surfaces have larger J because they cover more real-space area. This shows J at the outboard midplane (θ=0) as a function of ψ.",
+  },
+];
+
+function JacobianViz() {
+  const [step, setStep] = useState(0);
+  const [animPhase, setAnimPhase] = useState(0);
+  const [thetaSweep, setThetaSweep] = useState(0);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const startRef = useRef(Date.now());
+
+  const chosenPsi = 0.6;
+  const nSurfaces = 8;
+
+  useEffect(() => {
+    startRef.current = Date.now();
+    const tick = () => {
+      const t = (Date.now() - startRef.current) / 1000;
+      setAnimPhase(t);
+      if (step === 3) {
+        setThetaSweep((t * 0.7) % (2 * Math.PI));
+      }
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [step]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const toX = (R) => ((R - 0.8) / 2.6) * W;
+    const toY = (Z) => H / 2 - (Z / 1.8) * (H / 2);
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid dots
+    ctx.fillStyle = C.border + "30";
+    for (let gx = 0; gx < W; gx += 25) {
+      for (let gy = 0; gy < H; gy += 25) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Compute J range for coloring
+    let minJ = Infinity, maxJ = -Infinity;
+    for (let i = 1; i <= nSurfaces; i++) {
+      for (let j = 0; j < 24; j++) {
+        const th = (j / 24) * 2 * Math.PI;
+        const { J } = computeJacobian(i / nSurfaces, th);
+        minJ = Math.min(minJ, J);
+        maxJ = Math.max(maxJ, J);
+      }
+    }
+
+    const nTheta = 100;
+    const nThetaGrid = step >= 1 ? 16 : 0;
+
+    // Steps 2+ : draw grid cells as parallelograms
+    if (step >= 1) {
+      for (let si = 1; si <= nSurfaces; si++) {
+        const psi = si / nSurfaces;
+        const psiNext = (si + 1) / nSurfaces;
+        if (si === nSurfaces) continue;
+
+        for (let ti = 0; ti < nThetaGrid; ti++) {
+          const th0 = (ti / nThetaGrid) * 2 * Math.PI;
+          const th1 = ((ti + 1) / nThetaGrid) * 2 * Math.PI;
+
+          const p00 = fluxSurface(psi, th0);
+          const p10 = fluxSurface(psiNext, th0);
+          const p11 = fluxSurface(psiNext, th1);
+          const p01 = fluxSurface(psi, th1);
+
+          ctx.beginPath();
+          ctx.moveTo(toX(p00.R), toY(p00.Z));
+          ctx.lineTo(toX(p10.R), toY(p10.Z));
+          ctx.lineTo(toX(p11.R), toY(p11.Z));
+          ctx.lineTo(toX(p01.R), toY(p01.Z));
+          ctx.closePath();
+
+          if (step >= 2) {
+            const thMid = (th0 + th1) / 2;
+            const psiMid = (psi + psiNext) / 2;
+            const { J } = computeJacobian(psiMid, thMid);
+            const col = jacobianColor(J, minJ, maxJ);
+            ctx.fillStyle = col + "90";
+            ctx.fill();
+          } else {
+            ctx.fillStyle = C.surface + "40";
+            ctx.fill();
+          }
+
+          ctx.strokeStyle = step >= 2 ? C.border + "60" : C.border + "40";
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw flux surfaces
+    for (let i = 1; i <= nSurfaces; i++) {
+      const psi = i / nSurfaces;
+      const isChosen = step >= 3 && Math.abs(psi - chosenPsi) < 0.08;
+
+      ctx.beginPath();
+      for (let j = 0; j <= nTheta; j++) {
+        const th = (j / nTheta) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(psi, th);
+        if (j === 0) ctx.moveTo(toX(R), toY(Z));
+        else ctx.lineTo(toX(R), toY(Z));
+      }
+      ctx.closePath();
+
+      if (isChosen) {
+        ctx.strokeStyle = C.accent;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = C.accent;
+        ctx.shadowBlur = 10;
+      } else {
+        const alpha = step >= 2 ? 0.3 : 0.6;
+        ctx.strokeStyle = C.fluxBright + Math.round(alpha * 255).toString(16).padStart(2, "0");
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 0;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Magnetic axis
+    const { R: axR, Z: axZ } = fluxSurface(0, 0);
+    ctx.beginPath();
+    ctx.arc(toX(axR), toY(axZ), 3, 0, Math.PI * 2);
+    ctx.fillStyle = C.textDim;
+    ctx.fill();
+
+    // Step 3: sweep indicator
+    if (step === 3) {
+      const { R, Z } = fluxSurface(chosenPsi, thetaSweep);
+      ctx.beginPath();
+      ctx.arc(toX(R), toY(Z), 6, 0, Math.PI * 2);
+      ctx.fillStyle = C.highlight;
+      ctx.shadowColor = C.highlight;
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Show local parallelogram at sweep point
+      const { dRdpsi, dZdpsi, dRdth, dZdth, J } = computeJacobian(chosenPsi, thetaSweep);
+      const scale = 0.12;
+      const cx = toX(R), cy = toY(Z);
+      const px = dRdpsi * scale * (W / 2.6);
+      const py = -dZdpsi * scale * (H / 3.6);
+      const qx = dRdth * scale * (W / 2.6);
+      const qy = -dZdth * scale * (H / 3.6);
+
+      const col = jacobianColor(J, minJ, maxJ);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + px, cy + py);
+      ctx.lineTo(cx + px + qx, cy + py + qy);
+      ctx.lineTo(cx + qx, cy + qy);
+      ctx.closePath();
+      ctx.fillStyle = col + "80";
+      ctx.fill();
+      ctx.strokeStyle = C.textBright;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // J value label
+      ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textBright;
+      ctx.fillText(`J = ${J.toFixed(3)}`, cx + px + qx + 8, cy + py + qy);
+
+      // Sweep trail
+      ctx.beginPath();
+      const nTrail = 50;
+      for (let i = 0; i < nTrail; i++) {
+        const th = thetaSweep - (i / nTrail) * 1.0;
+        const pt = fluxSurface(chosenPsi, th);
+        if (i === 0) ctx.moveTo(toX(pt.R), toY(pt.Z));
+        else ctx.lineTo(toX(pt.R), toY(pt.Z));
+      }
+      ctx.strokeStyle = C.highlight + "50";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // Step 2/3: outboard/inboard labels
+    if (step >= 2 && step <= 3) {
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.warm;
+      const obPt = fluxSurface(1.0, 0);
+      ctx.fillText("outboard", toX(obPt.R) + 8, toY(obPt.Z));
+      ctx.fillText("(big J)", toX(obPt.R) + 8, toY(obPt.Z) + 12);
+      ctx.fillStyle = C.cool;
+      const ibPt = fluxSurface(1.0, Math.PI);
+      ctx.fillText("inboard", toX(ibPt.R) - 55, toY(ibPt.Z));
+      ctx.fillText("(small J)", toX(ibPt.R) - 55, toY(ibPt.Z) + 12);
+    }
+
+    // Color legend for step 2+
+    if (step >= 2) {
+      const lx = 10, ly = H - 30, lw = 100, lh = 10;
+      const grad = ctx.createLinearGradient(lx, 0, lx + lw, 0);
+      grad.addColorStop(0, jacobianColor(minJ, minJ, maxJ));
+      grad.addColorStop(0.5, jacobianColor((minJ + maxJ) / 2, minJ, maxJ));
+      grad.addColorStop(1, jacobianColor(maxJ, minJ, maxJ));
+      ctx.fillStyle = grad;
+      ctx.fillRect(lx, ly, lw, lh);
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(lx, ly, lw, lh);
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      ctx.fillText("small J", lx, ly - 3);
+      ctx.fillText("large J", lx + lw - 30, ly - 3);
+    }
+  }, [step, animPhase, thetaSweep]);
+
+  // J(theta) chart
+  const renderJTheta = () => {
+    if (step < 3) return null;
+    const nPts = 80;
+    const data = [];
+    for (let i = 0; i < nPts; i++) {
+      const th = (i / nPts) * 2 * Math.PI;
+      const { J } = computeJacobian(chosenPsi, th);
+      data.push({ theta: th, J });
+    }
+
+    const w = 280, h = 110, pad = 30;
+    const maxJ = Math.max(...data.map(d => d.J));
+    const minJ = Math.min(...data.map(d => d.J));
+    const range = maxJ - minJ || 1;
+    const scY = (v) => pad + (h - 2 * pad) * (1 - (v - minJ) / range);
+    const scX = (i) => pad + ((w - 2 * pad) * i) / (nPts - 1);
+
+    const sweepIdx = Math.floor((thetaSweep / (2 * Math.PI)) * nPts) % nPts;
+
+    const pathD = data
+      .map((d, i) => `${i === 0 ? "M" : "L"}${scX(i).toFixed(1)},${scY(d.J).toFixed(1)}`)
+      .join(" ");
+
+    // Gradient fill under curve
+    const fillD = pathD + ` L${scX(nPts - 1).toFixed(1)},${(h - pad).toFixed(1)} L${pad},${(h - pad).toFixed(1)} Z`;
+
+    return (
+      <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 4px", marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", marginBottom: 2 }}>
+          J(θ) on ψ = {chosenPsi} surface
+        </div>
+        <svg width={w} height={h} style={{ display: "block", margin: "0 auto" }}>
+          <defs>
+            <linearGradient id="jgrad" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0%" stopColor={C.cool} stopOpacity="0.15" />
+              <stop offset="25%" stopColor={C.warm} stopOpacity="0.25" />
+              <stop offset="50%" stopColor={C.cool} stopOpacity="0.15" />
+              <stop offset="75%" stopColor={C.warm} stopOpacity="0.25" />
+              <stop offset="100%" stopColor={C.cool} stopOpacity="0.15" />
+            </linearGradient>
+          </defs>
+          <line x1={pad} x2={w - pad} y1={h - pad} y2={h - pad} stroke={C.border} strokeWidth={0.5} />
+          <line x1={pad} x2={pad} y1={pad} y2={h - pad} stroke={C.border} strokeWidth={0.5} />
+          <path d={fillD} fill="url(#jgrad)" />
+          <path d={pathD} fill="none" stroke={C.accent} strokeWidth={2} />
+          {step === 3 && sweepIdx < nPts && (
+            <>
+              <line x1={scX(sweepIdx)} x2={scX(sweepIdx)} y1={pad} y2={h - pad} stroke={C.highlight} strokeWidth={1} strokeDasharray="3,3" />
+              <circle cx={scX(sweepIdx)} cy={scY(data[sweepIdx].J)} r={4} fill={C.highlight} />
+            </>
+          )}
+          {/* Labels */}
+          <text x={pad - 3} y={scY(maxJ) + 3} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace" textAnchor="end">
+            {maxJ.toFixed(2)}
+          </text>
+          <text x={pad - 3} y={scY(minJ) + 3} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace" textAnchor="end">
+            {minJ.toFixed(2)}
+          </text>
+          <text x={pad} y={h - pad + 14} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">0</text>
+          <text x={w / 2 - 5} y={h - pad + 14} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">π</text>
+          <text x={w - pad - 8} y={h - pad + 14} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">2π</text>
+          {/* Annotations */}
+          <text x={scX(0) + 2} y={scY(data[0].J) - 6} fill={C.warm} fontSize={8} fontFamily="'IBM Plex Mono', monospace">outboard</text>
+          <text x={scX(Math.floor(nPts / 2)) - 15} y={scY(data[Math.floor(nPts / 2)].J) + 14} fill={C.cool} fontSize={8} fontFamily="'IBM Plex Mono', monospace">inboard</text>
+          <text x={pad + 2} y={pad - 4} fill={C.textDim} fontSize={9} fontFamily="'IBM Plex Mono', monospace">J</text>
+          <text x={w / 2 - 5} y={h - 2} fill={C.textDim} fontSize={9} fontFamily="'IBM Plex Mono', monospace">θ</text>
+        </svg>
+        <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", marginTop: 2, lineHeight: 1.5 }}>
+          smooth — not jagged. just sampled at grid points, same as the surfaces.
+        </div>
+      </div>
+    );
+  };
+
+  // J(psi) chart
+  const renderJPsi = () => {
+    if (step < 4) return null;
+    const nPts = 40;
+    const data = [];
+    for (let i = 1; i <= nPts; i++) {
+      const psi = i / nPts;
+      const { J } = computeJacobian(psi, 0); // at outboard midplane
+      data.push({ psi, J });
+    }
+
+    const w = 280, h = 110, pad = 30;
+    const maxJ = Math.max(...data.map(d => d.J));
+    const minJ = 0;
+    const range = maxJ - minJ || 1;
+    const scY = (v) => pad + (h - 2 * pad) * (1 - (v - minJ) / range);
+    const scX = (i) => pad + ((w - 2 * pad) * i) / (nPts - 1);
+
+    const pathD = data
+      .map((d, i) => `${i === 0 ? "M" : "L"}${scX(i).toFixed(1)},${scY(d.J).toFixed(1)}`)
+      .join(" ");
+
+    const fillD = pathD + ` L${scX(nPts - 1).toFixed(1)},${(h - pad).toFixed(1)} L${pad},${(h - pad).toFixed(1)} Z`;
+
+    // Find chosen psi index
+    const chosenIdx = Math.round(chosenPsi * nPts) - 1;
+
+    return (
+      <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 4px", marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", marginBottom: 2 }}>
+          J(ψ) at outboard midplane (θ=0)
+        </div>
+        <svg width={w} height={h} style={{ display: "block", margin: "0 auto" }}>
+          <defs>
+            <linearGradient id="jpsigrad" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0%" stopColor={C.purple} stopOpacity="0.1" />
+              <stop offset="100%" stopColor={C.warm} stopOpacity="0.3" />
+            </linearGradient>
+          </defs>
+          <line x1={pad} x2={w - pad} y1={h - pad} y2={h - pad} stroke={C.border} strokeWidth={0.5} />
+          <line x1={pad} x2={pad} y1={pad} y2={h - pad} stroke={C.border} strokeWidth={0.5} />
+          <path d={fillD} fill="url(#jpsigrad)" />
+          <path d={pathD} fill="none" stroke={C.purple} strokeWidth={2} />
+          {chosenIdx >= 0 && chosenIdx < nPts && (
+            <>
+              <line x1={scX(chosenIdx)} x2={scX(chosenIdx)} y1={pad} y2={h - pad} stroke={C.accent} strokeWidth={1} strokeDasharray="3,3" />
+              <circle cx={scX(chosenIdx)} cy={scY(data[chosenIdx].J)} r={4} fill={C.accent} />
+              <text x={scX(chosenIdx) + 6} y={scY(data[chosenIdx].J) - 4} fill={C.accent} fontSize={8} fontFamily="'IBM Plex Mono', monospace">
+                ψ={chosenPsi}
+              </text>
+            </>
+          )}
+          <text x={pad - 3} y={scY(maxJ) + 3} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace" textAnchor="end">
+            {maxJ.toFixed(2)}
+          </text>
+          <text x={pad - 3} y={h - pad + 3} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace" textAnchor="end">0</text>
+          <text x={pad} y={h - pad + 14} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">core</text>
+          <text x={w - pad - 18} y={h - pad + 14} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">edge</text>
+          <text x={pad + 2} y={pad - 4} fill={C.textDim} fontSize={9} fontFamily="'IBM Plex Mono', monospace">J</text>
+          <text x={w / 2 - 3} y={h - 2} fill={C.textDim} fontSize={9} fontFamily="'IBM Plex Mono', monospace">ψ</text>
+        </svg>
+        <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", marginTop: 2, lineHeight: 1.5 }}>
+          J grows toward the edge — outer surfaces cover more real-space area per (dψ,dθ)
+        </div>
+      </div>
+    );
+  };
+
+  const currentStep = STEPS[step];
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: C.textBright, margin: 0, letterSpacing: "0.04em" }}>
+            The Jacobian, Visualized
+          </h1>
+          <div style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>
+            why J varies around & across flux surfaces
+          </div>
+        </div>
+
+        {/* Step indicators */}
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 12 }}>
+          {STEPS.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)} style={{
+              width: 36, height: 4, borderRadius: 2, border: "none",
+              background: i === step ? C.accent : i < step ? C.accentDim : C.surface,
+              cursor: "pointer", transition: "all 0.3s",
+            }} />
+          ))}
+        </div>
+
+        {/* Canvas */}
+        <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
+          <canvas ref={canvasRef} width={500} height={400} style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        {/* Info */}
+        <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 6 }}>
+            {currentStep.title}
+          </div>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.6 }}>
+            {currentStep.desc}
+          </div>
+
+          {step === 2 && (
+            <div style={{ marginTop: 10, padding: "8px 10px", background: C.surface, borderRadius: 6, fontSize: 11, color: C.textDim, lineHeight: 1.7 }}>
+              J = |∂R/∂ψ · ∂Z/∂θ − ∂Z/∂ψ · ∂R/∂θ|
+              <br />
+              It's the cross product of the two tangent vectors — literally the area of the parallelogram formed by a (dψ, dθ) step.
+            </div>
+          )}
+
+          {step === 3 && (
+            <div style={{ marginTop: 10, padding: "8px 10px", background: C.surface, borderRadius: 6, fontSize: 11, color: C.textDim, lineHeight: 1.7 }}>
+              The parallelogram traveling with the red dot changes size as θ sweeps.
+              <br />
+              <span style={{ color: C.warm }}>Outboard (θ≈0)</span>: surfaces spread apart → big parallelogram → big J
+              <br />
+              <span style={{ color: C.cool }}>Inboard (θ≈π)</span>: surfaces squeezed together → small parallelogram → small J
+            </div>
+          )}
+
+          {renderJTheta()}
+          {renderJPsi()}
+        </div>
+
+        {/* Nav */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} style={{
+            padding: "8px 20px", borderRadius: 6, border: `1px solid ${C.border}`,
+            background: step === 0 ? C.surface : C.bgPanel,
+            color: step === 0 ? C.textDim : C.text,
+            cursor: step === 0 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>← Back</button>
+          <button onClick={() => setStep(Math.min(STEPS.length - 1, step + 1))} disabled={step === STEPS.length - 1} style={{
+            padding: "8px 20px", borderRadius: 6,
+            border: `1px solid ${step === STEPS.length - 1 ? C.border : C.accent}`,
+            background: step === STEPS.length - 1 ? C.surface : C.accentDim,
+            color: step === STEPS.length - 1 ? C.textDim : C.accent,
+            cursor: step === STEPS.length - 1 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(JacobianViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

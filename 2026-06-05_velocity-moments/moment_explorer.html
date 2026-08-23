@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velocity moments, collisionality & the cascade — zero to hero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Spectral:ital,wght@0,300;0,400;0,500;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070b10; --bg2:#0b121b; --panel:#0d151f; --panel2:#101a26;
+    --ink:#e9f0f5; --muted:#7d93a6; --faint:#3a4a5a; --line:#1a2734;
+    --cyan:#39e2cf;        /* streaming / phase mixing */
+    --amber:#ffb454;       /* collisions */
+    --rose:#ff6b81;        /* trapped / danger */
+    --violet:#9d8cff;      /* laguerre / mu */
+    --grid:rgba(57,226,207,.06);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Spectral",Georgia,serif;font-weight:400;line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(57,226,207,.05), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(157,140,255,.04), transparent 60%);
+  }
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;line-height:1.08;letter-spacing:-.01em}
+  a{color:var(--cyan)}
+  /* header */
+  header{padding:13vh 0 8vh;position:relative;overflow:hidden}
+  .kicker{font-family:"JetBrains Mono",monospace;font-size:12.5px;letter-spacing:.32em;
+    text-transform:uppercase;color:var(--cyan);margin-bottom:22px}
+  header h1{font-size:clamp(38px,6.4vw,76px);font-weight:900;margin:0 0 18px;max-width:15ch}
+  header h1 em{font-style:italic;font-weight:400;color:var(--cyan)}
+  .lede{font-size:clamp(18px,2.2vw,23px);color:#c4d2dd;max-width:60ch;font-weight:300}
+  .lede b{color:var(--ink);font-weight:500}
+  .scrollcue{margin-top:46px;font-family:"JetBrains Mono",monospace;font-size:12px;
+    letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
+  .scrollcue span{display:inline-block;animation:bob 1.8s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+  /* sections */
+  section{padding:7vh 0;border-top:1px solid var(--line)}
+  .step{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.3em;
+    color:var(--violet);text-transform:uppercase;margin-bottom:10px}
+  section h2{font-size:clamp(26px,3.6vw,40px);margin:0 0 18px;max-width:20ch}
+  .body p{max-width:64ch;color:#cdd9e2;margin:0 0 16px}
+  .body p.small{font-size:15px;color:var(--muted);max-width:66ch}
+  .tag{color:var(--cyan)} .tagA{color:var(--amber)} .tagR{color:var(--rose)} .tagV{color:var(--violet)}
+  /* panels */
+  .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line);border-radius:14px;padding:22px;margin:26px 0;
+    box-shadow:0 24px 60px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.03)}
+  .panel h3{font-size:18px;margin:0 0 4px}
+  .panel .cap{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);
+    letter-spacing:.04em;margin-bottom:16px}
+  canvas{display:block;width:100%;border-radius:8px;background:
+    linear-gradient(180deg,#060a0f,#080d13)}
+  .controls{display:flex;flex-wrap:wrap;gap:20px 30px;margin-top:18px;align-items:flex-end}
+  .ctl{flex:1 1 200px;min-width:180px}
+  .ctl label{display:flex;justify-content:space-between;font-family:"JetBrains Mono",monospace;
+    font-size:12px;color:var(--muted);margin-bottom:7px;letter-spacing:.02em}
+  .ctl label b{color:var(--ink);font-weight:600}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:3px;
+    background:var(--line);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--cyan);border:2px solid #07101a;box-shadow:0 0 0 3px rgba(57,226,207,.18),0 2px 8px rgba(0,0,0,.6)}
+  input[type=range].amber::-webkit-slider-thumb{background:var(--amber);box-shadow:0 0 0 3px rgba(255,180,84,.18)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border:2px solid #07101a;border-radius:50%;background:var(--cyan)}
+  input[type=range].amber::-moz-range-thumb{background:var(--amber)}
+  .readouts{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}
+  .ro{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 16px;flex:1 1 130px}
+  .ro .k{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+  .ro .v{font-family:"JetBrains Mono",monospace;font-size:26px;font-weight:600;margin-top:4px;color:var(--cyan)}
+  .ro.warn .v{color:var(--rose)} .ro.ok .v{color:var(--cyan)} .ro.amber .v{color:var(--amber)}
+  .ro .u{font-size:13px;color:var(--muted);font-weight:400}
+  button.toggle{font-family:"JetBrains Mono",monospace;font-size:13px;background:var(--panel2);
+    color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 15px;cursor:pointer;
+    transition:.15s}
+  button.toggle:hover{border-color:var(--cyan)}
+  button.toggle.on{background:rgba(57,226,207,.12);border-color:var(--cyan);color:var(--cyan)}
+  button.toggle.rose.on{background:rgba(255,107,129,.12);border-color:var(--rose);color:var(--rose)}
+  .pill{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:11px;padding:3px 9px;
+    border-radius:20px;border:1px solid var(--line);color:var(--muted);margin-right:6px}
+  .eq{font-family:"JetBrains Mono",monospace;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:14px 18px;color:var(--ink);font-size:15px;margin:18px 0;overflow-x:auto}
+  .eq b{color:var(--cyan)} .eq .a{color:var(--amber)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  table.cbc{width:100%;border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:13.5px;margin-top:6px}
+  table.cbc td{padding:9px 6px;border-bottom:1px solid var(--line)}
+  table.cbc td:first-child{color:var(--muted)} table.cbc td:nth-child(2){color:var(--cyan);text-align:right;width:90px}
+  table.cbc td:last-child{color:var(--ink)}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+  footer{padding:8vh 0 12vh;border-top:1px solid var(--line);color:var(--muted)}
+  footer .big{font-family:"Fraunces",serif;font-size:clamp(22px,3vw,30px);color:var(--ink);max-width:24ch;margin-bottom:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);margin-top:12px}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap reveal">
+    <div class="kicker">velocity-space moments · a working intuition</div>
+    <h1>What it means for the <em>moment count</em> to climb as collisionality falls</h1>
+    <p class="lede">A gyrokinetic plasma is described by a distribution of particle velocities. You can store that distribution as a stack of <b>moments</b> — and how many you need is set by a tug-of-war between <span class="tag">phase mixing</span> and <span class="tagA">collisions</span>. This page builds the idea from scratch, ends at the result that decides whether a Hermite–Laguerre code is fast, and explains why you can measure it in a tokamak. Everything here is live; the headline plot solves the real model.</p>
+    <div class="scrollcue"><span>↓ scroll</span></div>
+  </div>
+</header>
+
+<!-- ============ 1. MOMENTS ============ -->
+<section>
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step">01 · the object</div>
+   <h2>A distribution, stored as moments</h2>
+   <p>At each point in space the plasma has a velocity distribution <span class="mono">f(v)</span> — how many particles move at each speed. It’s usually a bump (a Maxwellian) centred on the mean flow. A <b>moment</b> of that distribution is just a <i>weighted average</i> of the bump, and the first few are quantities you already know:</p>
+   <div class="eq" style="line-height:2">
+     <b>g₀</b> = ∫ f dv &nbsp;→&nbsp; <span class="tag">density</span> &nbsp;(how many particles)<br>
+     <b>g₁</b> = ∫ v·f dv &nbsp;→&nbsp; <span class="tag">flow</span> &nbsp;(average velocity)<br>
+     <b>g₂</b> = ∫ v²·f dv &nbsp;→&nbsp; <span class="tag">temperature</span> &nbsp;(the spread)<br>
+     <b>g₃</b> = ∫ v³·f dv &nbsp;→&nbsp; <span class="tag">heat flux</span> &nbsp;(lopsidedness)
+   </div>
+   <p>The pattern: the <i>n</i>th moment weights the curve by <span class="mono">vⁿ</span> before integrating. Low moments capture the gross shape (where it sits, how wide); higher moments pick up finer and finer <i>wrinkles</i>. Crucially, the full list of moments contains the same information as the curve itself — so a code can store <b>the coefficients instead of the curve</b>. It’s the velocity-space analogue of a frequency spectrum: a smooth tone is a few low frequencies; a sharp click needs many high ones. A smooth Maxwellian needs a handful of moments; a distribution with sharp velocity structure needs many. <b>“Moment count” = how far up the ladder you keep before truncating</b> — and that number sets the code’s speed.</p>
+
+   <div class="panel" style="margin:22px 0 6px;background:linear-gradient(180deg,#13110a,#0b0d12);border-color:#3a2f17">
+     <h3 style="color:var(--amber)">⚠ two different things both called “moment”</h3>
+     <p class="small" style="margin:8px 0 0">This word does two unrelated jobs in gyrokinetics — easy to collide:</p>
+     <div class="grid2" style="margin-top:12px">
+       <div><div class="pill" style="border-color:#3a2f17;color:var(--amber)">magnetic moment μ</div><p class="small" style="margin:8px 0 0">A property of <b>one particle</b>: <span class="mono">μ = ½mv⊥²/B</span>, its perpendicular gyration energy. It’s a velocity-space <i>coordinate</i> — a physics quantity about magnetism.</p></div>
+       <div><div class="pill" style="border-color:#1a2734;color:var(--cyan)">moment of f</div><p class="small" style="margin:8px 0 0">A <b>coefficient</b> describing the whole distribution’s shape (the list above). Nothing to do with magnetism. This is the “moment count” one.</p></div>
+     </div>
+     <p class="small" style="margin:12px 0 0">They’re false friends. The only link is bookkeeping: when we expand <span class="mono">f</span>, the perpendicular direction happens to use polynomials <i>in the variable μ</i> (next section). So μ is an <i>axis</i>; the moments are <i>coefficients along it</i>.</p>
+   </div>
+  </div>
+  <div class="panel reveal">
+   <h3>Build f(v) from N moments</h3>
+   <div class="cap">drag “feature sharpness” to add fine velocity structure · drag N to truncate the expansion</div>
+   <canvas id="cMoment" height="300"></canvas>
+   <div class="legend">
+     <span><i style="background:#c4d2dd"></i>true f(v)</span>
+     <span><i style="background:var(--cyan)"></i>reconstructed from N moments</span>
+     <span><i style="background:var(--violet)"></i>|moment| spectrum (right axis)</span>
+   </div>
+   <div class="controls">
+     <div class="ctl"><label>feature sharpness <b id="lShp">0.0</b></label><input id="sShp" type="range" min="0" max="100" value="12"></div>
+     <div class="ctl"><label>moments kept&nbsp; N <b id="lN">8</b></label><input id="sN" type="range" min="1" max="60" value="8"></div>
+   </div>
+   <div class="readouts">
+     <div class="ro ok"><div class="k">reconstruction error</div><div class="v" id="rErr">—</div></div>
+     <div class="ro"><div class="k">moments for &lt;1% error</div><div class="v" id="rNeed" style="color:var(--violet)">—</div></div>
+   </div>
+   <p class="small" style="margin-top:14px">Smooth distribution → a few moments nail it. Sharpen the feature and the spectrum extends to high moment number, and you need far more terms to keep the error down. That “number you need” is the whole game.</p>
+  </div>
+ </div>
+</section>
+
+<!-- ============ 2. TWO DIRECTIONS / LAGUERRE ============ -->
+<section>
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step">02 · two directions, two bases</div>
+   <h2>Hermite and Laguerre: the same trick, in the two directions of velocity space</h2>
+   <p>Here’s the piece that makes Laguerre click. After gyrokinetics averages away the fast spiral around the field line, a particle’s velocity needs <b>two</b> coordinates, and they have different shapes:</p>
+   <p><b><span class="tag">v∥</span> — motion along the field.</b> Runs from −∞ to +∞. Its equilibrium shape is a <b>Gaussian</b> (a bell curve), because thermal motion along the field goes both ways.</p>
+   <p><b><span class="tagV">μ</span> — perpendicular gyration energy.</b> Runs from 0 to +∞ (you can’t have negative energy). Its equilibrium shape is a <b>decaying exponential</b>, not a bell curve.</p>
+   <p>So velocity space is a <i>half-plane</i>: a two-sided bell-curve axis crossed with a one-sided exponential axis. That asymmetry is the whole reason you don’t use one polynomial family for both.</p>
+   <div class="eq" style="line-height:1.9">matched basis = pick the polynomial family whose built-in weight already has the right shape<br>
+     <span class="tag">v∥</span> is Gaussian → <b>Hermite</b> (weight e<sup>−v²</sup>) &nbsp;·&nbsp; a Maxwellian in v∥ = <b>1</b> Hermite term<br>
+     <span class="tagV">μ</span> is exponential → <b>Laguerre</b> (weight e<sup>−x</sup> on [0,∞)) &nbsp;·&nbsp; a Maxwellian in μ = <b>1</b> Laguerre term
+   </div>
+   <p>Laguerre isn’t exotic — it’s the <i>identical idea</i> to Hermite (expand in the family matched to the equilibrium), just for the half-line/exponential direction instead of the whole-line/Gaussian one. <b>Hermite : v∥ &nbsp;::&nbsp; Laguerre : μ.</b> You build the full distribution from a grid of products — one Hermite piece × one Laguerre piece — so the velocity cost is <span class="mono">L × M</span> coefficients (L up the Hermite ladder, M up the Laguerre ladder).</p>
+   <p>And <b>why it matters here:</b> trapping lives in μ. Whether a particle is caught in a magnetic well depends on its pitch — μ relative to the field strength — so a trapped-particle feature is a sharp feature <i>in the μ direction</i>. A sharp μ feature needs many <b>Laguerre</b> terms, exactly as a sharp v∥ feature needs many Hermite terms. The asymmetry that makes Laguerre the worry: the Hermite (v∥) direction gets smeared by turbulent stirring, but nothing rescues the Laguerre (μ) direction, and in the core collisions are too weak to help.</p>
+  </div>
+  <div class="panel reveal">
+   <h3>The two axes — and what a μ feature costs in Laguerre</h3>
+   <div class="cap">left: the matched equilibrium shapes · right: add a trapped–passing feature in μ and watch Laguerre moments climb</div>
+   <div class="grid2">
+     <canvas id="cAxes" height="280"></canvas>
+     <canvas id="cLag" height="280"></canvas>
+   </div>
+   <div class="legend">
+     <span><i style="background:var(--cyan)"></i>v∥ Gaussian → Hermite</span>
+     <span><i style="background:var(--violet)"></i>μ exponential → Laguerre</span>
+     <span><i style="background:var(--rose)"></i>trapped–passing feature</span>
+   </div>
+   <div class="controls">
+     <div class="ctl" style="flex:2 1 260px"><label>trapped–passing feature in μ <b id="lLag">off</b></label><input id="sLag" class="amber" type="range" min="0" max="100" value="0"></div>
+   </div>
+   <div class="readouts">
+     <div class="ro" style="--c:var(--violet)"><div class="k">Laguerre moments M for &lt;1%</div><div class="v" id="rLagM" style="color:var(--violet)">—</div></div>
+     <div class="ro"><div class="k">rescued by turbulence?</div><div class="v" id="rResc" style="font-size:18px">—</div></div>
+   </div>
+   <p class="small" id="lagNote" style="margin-top:14px"></p>
+  </div>
+ </div>
+</section>
+
+<!-- ============ 3. PHASE MIXING ============ -->
+<section>
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step">03 · the source of structure</div>
+   <h2>Phase mixing manufactures fine velocity structure — for free</h2>
+   <p>Particles with different velocities stream along the field at different speeds. A smooth perturbation gets sheared in the position–velocity plane into ever-thinner filaments — the velocity-space analogue of stirring cream into coffee. In moment language, this is a <span class="tag">cascade</span>: free energy injected at low moments marches steadily up the ladder. The front reaches moment number <span class="mono">n ≈ (k∥ v_th t)²</span> — it never stops on its own.</p>
+   <p class="small">Left: the perturbation in (parallel position <span class="mono">z</span>, velocity <span class="mono">v</span>) shearing into stripes. Right: its moment spectrum climbing. Left alone, a spectral code would need unbounded moments — which is exactly why something has to arrest it.</p>
+  </div>
+  <div class="panel reveal">
+   <h3>Free streaming → the Hermite cascade</h3>
+   <div class="cap" id="pmCap">t = 0 · cascade front at moment ≈ 0</div>
+   <div class="grid2">
+     <canvas id="cPhase" height="260"></canvas>
+     <canvas id="cCascade" height="260"></canvas>
+   </div>
+   <div class="controls">
+     <button class="toggle on" id="pmPlay">⏸ pause</button>
+     <div class="ctl" style="flex:2 1 300px"><label>time <b id="lT">0.0</b></label><input id="sT" type="range" min="0" max="100" value="0"></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- ============ 3. HEADLINE ============ -->
+<section id="headline">
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step" style="color:var(--amber)">04 · the headline result</div>
+   <h2>Collisions arrest the cascade — and as collisionality drops, the cutoff climbs</h2>
+   <p><span class="tagA">Collisions</span> smooth velocity space. They damp moment <span class="mono">n</span> at a rate that grows with <span class="mono">n</span>, so they preferentially kill the fine structure at the top of the ladder. The cascade pushing energy up and collisions removing it at the top reach a <b>steady balance</b>, with a cutoff moment <span class="mono">m_c</span>: above it, the spectrum collapses and you can safely truncate.</p>
+   <div class="eq">m_c &nbsp;~&nbsp; ( k∥·v_th / <span class="a">ν</span> )<sup>2/3</sup> &nbsp;&nbsp;—&nbsp;&nbsp; spectrum decays as <b>n<sup>−1/2</sup></b> below the cutoff &nbsp;[Zocco–Schekochihin ’11 · Schekochihin+ ’16]</div>
+   <p>Lower collisionality <span class="mono">ν</span> means collisions only bite higher up, so <b><span class="tagA">m_c rises</span></b> — you must keep more moments. <b>This is what “the moment count behaves as collisionality drops” means.</b> The plot below solves the real steady cascade (a complex tridiagonal system, the same one used to validate this scaling to 1.5%); drag collisionality and watch the cutoff move.</p>
+  </div>
+  <div class="panel reveal">
+   <h3>The steady Hermite spectrum vs collisionality</h3>
+   <div class="cap">solving (i·k·v · streaming + ν·n · collisions) g = source · log–log free energy per moment</div>
+   <canvas id="cSpectrum" height="320"></canvas>
+   <div class="legend">
+     <span><i style="background:var(--cyan)"></i>free energy |gₙ|²</span>
+     <span><i style="background:var(--faint)"></i>n<sup>−1/2</sup> phase-mixing law</span>
+     <span><i style="background:var(--amber)"></i>collisional cutoff m_c</span>
+   </div>
+   <div class="controls">
+     <div class="ctl" style="flex:3 1 360px">
+       <label>collisionality &nbsp;ν&nbsp; <b id="lNu">edge / collisional</b></label>
+       <input id="sNu" class="amber" type="range" min="0" max="100" value="22">
+       <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono';font-size:10.5px;color:var(--faint);margin-top:6px">
+         <span>◀ collisional (edge)</span><span>core</span><span>collisionless (deep core) ▶</span>
+       </div>
+     </div>
+   </div>
+   <div class="readouts">
+     <div class="ro amber"><div class="k">transits per collision&nbsp; R = kv/ν</div><div class="v" id="rR">—</div></div>
+     <div class="ro warn"><div class="k">cutoff moment m_c</div><div class="v" id="rMc">—</div></div>
+     <div class="ro"><div class="k">vs a velocity grid</div><div class="v" id="rEcon">—</div></div>
+   </div>
+   <p class="small" id="econNote" style="margin-top:14px"></p>
+  </div>
+ </div>
+</section>
+
+<!-- ============ 4. TRAPPED / TEM ============ -->
+<section>
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step" style="color:var(--rose)">05 · why trapped-electron turbulence is the worst case</div>
+   <h2>Trapped electrons live at low collisionality — the bad corner</h2>
+   <p>The magnetic field strength varies along a field line, forming <b>wells</b>. A particle with too little parallel velocity can’t climb out — it’s <span class="tagR">trapped</span>, bouncing back and forth. Trapped electrons drive <b>trapped-electron-mode (TEM)</b> turbulence, a dominant transport channel in optimized stellarators.</p>
+   <p>Two things make TEM the stress test for a moment code. First, collisions <i>de-trap</i> particles, so trapping (and TEM) is strongest at <b>low collisionality</b> — exactly where <span class="tagA">m_c</span> is already high (§3). Second, the trapped–passing boundary is a sharp feature in velocity space, sitting in the <span class="tagV">μ / Laguerre</span> direction — extra structure that the smooth basis must resolve, and which collisions are too weak to smear. Low collisionality therefore hits the moment count <i>twice</i>.</p>
+  </div>
+  <div class="panel reveal">
+   <h3>A magnetic well: who’s trapped?</h3>
+   <div class="cap">particles below the trapping speed bounce inside the well · collisions knock them across the boundary</div>
+   <canvas id="cTrap" height="300"></canvas>
+   <div class="controls">
+     <div class="ctl" style="flex:3 1 340px"><label>collisionality &nbsp;ν&nbsp; <b id="lTrap">low → trapping intact</b></label><input id="sTrap" class="amber" type="range" min="0" max="100" value="18"></div>
+   </div>
+   <div class="readouts">
+     <div class="ro warn"><div class="k">trapped fraction</div><div class="v" id="rTrap">—</div></div>
+     <div class="ro"><div class="k">TEM drive</div><div class="v" id="rTEM" style="color:var(--rose)">—</div></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- ============ 5. GEOMETRY ============ -->
+<section>
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step">06 · the transferable part</div>
+   <h2>Why the collisionality scaling is geometry-independent</h2>
+   <p>The cutoff <span class="mono">m_c ~ (k∥v_th/ν)<sup>2/3</sup></span> is built from <b>local</b> quantities: a parallel streaming rate <span class="mono">k∥v_th</span> and a collision rate <span class="mono">ν</span>. Both exist in any magnetised plasma. The competition between cascade and collisions runs the same way whether the field lines close into a tokamak or wind around a stellarator — it doesn’t know the global shape of the device.</p>
+   <p>What geometry <i>does</i> change is the supporting cast: the well structure, the drift resonances, the trapped fraction, and therefore the <span class="tagV">μ / Laguerre</span> increment and some prefactors. Those shift the curve a little; they don’t change its <b>slope in collisionality</b>. So you can measure the dominant effect — how the moment count scales as ν drops — in cheap tokamak geometry, and only the stellarator-specific increment needs the real 3-D field.</p>
+   <p class="small">Toggle the geometry: the collisionality scaling barely moves (same local physics); the panel notes what genuinely differs.</p>
+  </div>
+  <div class="panel reveal">
+   <h3>m_c vs collisionality — tokamak vs stellarator</h3>
+   <div class="cap">same slope set by local streaming-vs-collisions · geometry shifts the prefactor, not the law</div>
+   <canvas id="cGeo" height="300"></canvas>
+   <div class="controls">
+     <button class="toggle on" id="gTok">tokamak (CBC)</button>
+     <button class="toggle rose" id="gStel">stellarator (W7-X-like)</button>
+   </div>
+   <p class="small" id="geoNote" style="margin-top:6px"></p>
+  </div>
+ </div>
+</section>
+
+<!-- ============ 6. CBC ============ -->
+<section>
+ <div class="wrap">
+  <div class="reveal body">
+   <div class="step">07 · the reference case</div>
+   <h2>What a CBC is</h2>
+   <p>The <b>Cyclone Base Case</b> (CBC) is a standardised tokamak plasma — a fixed set of geometry and gradient parameters defined in a multi-code study by Dimits and collaborators in 2000. It’s the <i>“hello world”</i> of gyrokinetics: a simple circular tokamak flux surface, ion-temperature-gradient-driven, that essentially every code runs to check it agrees with the others. Because everyone uses the identical inputs, CBC results compare apples-to-apples — it’s the canonical correctness benchmark.</p>
+   <p class="small">For the moment-count question, a CBC run with kinetic electrons and a collisionality scan tests the geometry-independent mechanism in the cheapest, most-trusted setting — which is precisely what a CPU Hermite–Laguerre code (GYACOMO) can do, before any stellarator-specific work.</p>
+  </div>
+  <div class="panel reveal">
+   <h3>Cyclone Base Case · canonical parameters</h3>
+   <div class="cap">Dimits et al., Phys. Plasmas 7, 969 (2000) · circular concentric (s–α) geometry</div>
+   <table class="cbc">
+     <tr><td>R / L_T &nbsp;(ion temp. gradient)</td><td>6.9</td><td>the instability drive</td></tr>
+     <tr><td>R / L_n &nbsp;(density gradient)</td><td>2.2</td><td>weak density gradient</td></tr>
+     <tr><td>safety factor &nbsp;q</td><td>1.4</td><td>field-line pitch</td></tr>
+     <tr><td>magnetic shear &nbsp;ŝ</td><td>0.80</td><td>how pitch varies radially</td></tr>
+     <tr><td>inverse aspect ratio &nbsp;r/R</td><td>0.18</td><td>thin torus</td></tr>
+     <tr><td>T_i / T_e</td><td>1.0</td><td>equal temperatures</td></tr>
+     <tr><td>primary instability</td><td>ITG</td><td>ion-temperature-gradient mode</td></tr>
+   </table>
+   <p class="small" style="margin-top:14px">Swap the adiabatic electrons for kinetic ones and add a density/T_e gradient and you can drive TEM in the same trusted geometry — the base case for the collisionality scan.</p>
+  </div>
+ </div>
+</section>
+
+<footer>
+ <div class="wrap reveal">
+   <div class="big">The one number: as ν falls, m_c climbs as (kv/ν)<sup>2/3</sup>. If it climbs into the tens, a Hermite–Laguerre code’s speed advantage erodes.</div>
+   <p class="body" style="max-width:64ch;color:var(--muted)">That scaling is local, so the dominant effect is measurable in a CBC with a CPU code. Trapped-electron turbulence sits at low ν and adds a μ/Laguerre feature with no collisional smoothing — the worst corner. The stellarator-specific increment on top is what needs the 3-D geometry. Everything on this page is computed in-browser; the headline spectrum is a real steady-state solve of the Hermite cascade.</p>
+   <p class="mono" style="font-size:12px;color:var(--faint);margin-top:24px">interactive explainer · phase-mixing / collisional-cutoff model after Zocco &amp; Schekochihin 2011, Schekochihin et al. 2016</p>
+ </div>
+</footer>
+
+<script>
+/* ---------- shared canvas helpers ---------- */
+function fit(cv){const r=cv.getBoundingClientRect();const d=Math.min(window.devicePixelRatio||1,2);
+  cv.width=r.width*d;cv.height=cv.clientHeight*d;const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);
+  return {x,w:r.width,h:cv.clientHeight};}
+function grid(x,w,h){x.strokeStyle='rgba(57,226,207,.06)';x.lineWidth=1;
+  for(let i=0;i<=10;i++){const gx=i/10*w;x.beginPath();x.moveTo(gx,0);x.lineTo(gx,h);x.stroke();}
+  for(let i=0;i<=6;i++){const gy=i/6*h;x.beginPath();x.moveTo(0,gy);x.lineTo(w,gy);x.stroke();}}
+
+/* ---------- complex helpers + Thomas solver (the real cascade model) ---------- */
+function cdiv(ar,ai,br,bi){const d=br*br+bi*bi;return [(ar*br+ai*bi)/d,(ai*br-ar*bi)/d];}
+function cmul(ar,ai,br,bi){return [ar*br-ai*bi,ar*bi+ai*br];}
+// Solve A g = S for the steady Hermite cascade. ζ=k*v_th=1, collisions ν.
+// diag_n = ν n ; A[n,n-1]=i ζ √n (sub) ; A[n,n+1]=i ζ √(n+1) (super) ; source at low n.
+function hermiteSpectrum(nu, M){
+  const zeta=1.0;
+  const br=new Float64Array(M), bi=new Float64Array(M); // diag
+  const ar=new Float64Array(M), ai=new Float64Array(M); // sub a[n] mult g[n-1]
+  const cr=new Float64Array(M), ci=new Float64Array(M); // super c[n] mult g[n+1]
+  const dr=new Float64Array(M), di=new Float64Array(M); // rhs
+  for(let n=0;n<M;n++){
+    br[n]=nu*n + (n===0?1e-9:0); bi[n]=0;
+    if(n>=1){ai[n]=zeta*Math.sqrt(n);}           // i ζ √n  -> imaginary
+    if(n<=M-2){ci[n]=zeta*Math.sqrt(n+1);}
+    dr[n]=(n<3)?1:0;
+  }
+  // forward sweep
+  const cpr=new Float64Array(M), cpi=new Float64Array(M);
+  const dpr=new Float64Array(M), dpi=new Float64Array(M);
+  let t=cdiv(cr[0],ci[0],br[0],bi[0]); cpr[0]=t[0];cpi[0]=t[1];
+  t=cdiv(dr[0],di[0],br[0],bi[0]); dpr[0]=t[0];dpi[0]=t[1];
+  for(let n=1;n<M;n++){
+    const acp=cmul(ar[n],ai[n],cpr[n-1],cpi[n-1]);
+    const mr=br[n]-acp[0], mi=bi[n]-acp[1];
+    t=cdiv(cr[n],ci[n],mr,mi); cpr[n]=t[0];cpi[n]=t[1];
+    const adp=cmul(ar[n],ai[n],dpr[n-1],dpi[n-1]);
+    t=cdiv(dr[n]-adp[0],di[n]-adp[1],mr,mi); dpr[n]=t[0];dpi[n]=t[1];
+  }
+  // back sub -> store |g|^2
+  const W=new Float64Array(M);
+  let gr=dpr[M-1], gi=dpi[M-1]; W[M-1]=gr*gr+gi*gi;
+  for(let n=M-2;n>=0;n--){
+    const cg=cmul(cpr[n],cpi[n],gr,gi);
+    gr=dpr[n]-cg[0]; gi=dpi[n]-cg[1]; W[n]=gr*gr+gi*gi;
+  }
+  return W;
+}
+function cutoff(W){ // m_c: where W*sqrt(n) drops a decade below low-n inertial level
+  const ref=5; if(W.length<=ref) return W.length;
+  const level=W[ref]*Math.sqrt(ref)/10;
+  for(let n=ref;n<W.length;n++){ if(W[n]*Math.sqrt(n)<level) return n; }
+  return W.length;
+}
+
+/* ---------- Hermite functions (for section 1 reconstruction) ---------- */
+function hermiteFuncs(v, N){ // orthonormal ψ_n(v), returns array length N
+  const psi=new Array(N); const p0=Math.PI**-0.25*Math.exp(-v*v/2);
+  psi[0]=p0; if(N>1)psi[1]=Math.SQRT2*v*p0;
+  for(let n=1;n<N-1;n++) psi[n+1]=v*Math.sqrt(2/(n+1))*psi[n]-Math.sqrt(n/(n+1))*psi[n-1];
+  return psi;
+}
+
+/* ================= 1. MOMENTS ================= */
+(function(){
+  const cv=document.getElementById('cMoment');
+  const sShp=document.getElementById('sShp'),sN=document.getElementById('sN');
+  const lShp=document.getElementById('lShp'),lN=document.getElementById('lN');
+  const rErr=document.getElementById('rErr'),rNeed=document.getElementById('rNeed');
+  const Nv=400, vmax=5; const vs=[],dv=2*vmax/Nv;
+  for(let i=0;i<Nv;i++) vs.push(-vmax+i*dv);
+  function ftrue(v,shp){ // smooth bump + a sharpening feature
+    const base=Math.exp(-(v-0.3)*(v-0.3)/(2*1.1*1.1));
+    const w=0.9-0.8*shp; const feat=shp*1.1*Math.exp(-(v+1.1)*(v+1.1)/(2*w*w));
+    return base+feat;
+  }
+  function draw(){
+    const shp=+sShp.value/100, Nkeep=+sN.value;
+    lShp.textContent=shp.toFixed(2); lN.textContent=Nkeep;
+    const Mmax=60;
+    // project onto Hermite funcs
+    const c=new Float64Array(Mmax);
+    const ft=vs.map(v=>ftrue(v,shp));
+    for(let i=0;i<Nv;i++){const psi=hermiteFuncs(vs[i],Mmax);for(let n=0;n<Mmax;n++)c[n]+=ft[i]*psi[n]*dv;}
+    // reconstruction with Nkeep, and error
+    let err2=0,norm2=0; const recon=new Float64Array(Nv);
+    for(let i=0;i<Nv;i++){const psi=hermiteFuncs(vs[i],Mmax);let s=0;for(let n=0;n<Nkeep;n++)s+=c[n]*psi[n];recon[i]=s;
+      err2+=(ft[i]-s)*(ft[i]-s)*dv; norm2+=ft[i]*ft[i]*dv;}
+    const relerr=Math.sqrt(err2/norm2);
+    // moments needed for <1%
+    let need=Mmax;
+    {const tail=new Float64Array(Mmax+1);for(let n=Mmax-1;n>=0;n--)tail[n]=tail[n+1]+c[n]*c[n];
+     const tot=tail[0];for(let n=1;n<=Mmax;n++){if(tail[n]/tot<1e-4){need=n;break;}}}
+    rErr.textContent=(relerr*100<0.05?'<0.05':(relerr*100).toFixed(1))+'%';
+    rErr.parentElement.className='ro '+(relerr<0.01?'ok':'warn');
+    rNeed.textContent=need;
+    // ---- render
+    const {x,w,h}=fit(cv); x.clearRect(0,0,w,h); grid(x,w,h);
+    const padL=6,padR=Math.min(220,w*0.32);
+    const plotW=w-padL-padR;
+    let fmax=0; for(let i=0;i<Nv;i++)fmax=Math.max(fmax,ft[i],recon[i]); fmax*=1.1;
+    const X=v=>padL+(v+vmax)/(2*vmax)*plotW, Y=f=>h-12-(f/fmax)*(h-24);
+    // true
+    x.strokeStyle='#c4d2dd';x.lineWidth=2.4;x.beginPath();
+    for(let i=0;i<Nv;i++){const px=X(vs[i]),py=Y(ft[i]);i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();
+    // reconstruction
+    x.strokeStyle='#39e2cf';x.lineWidth=2;x.setLineDash([5,4]);x.beginPath();
+    for(let i=0;i<Nv;i++){const px=X(vs[i]),py=Y(recon[i]);i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();x.setLineDash([]);
+    x.fillStyle='#7d93a6';x.font='11px JetBrains Mono';x.fillText('f(v∥)',padL+4,14);
+    // moment bars (right)
+    const bx0=w-padR+18, bw=(padR-26)/Math.min(40,Mmax);
+    let cmax=0;for(let n=0;n<40;n++)cmax=Math.max(cmax,Math.abs(c[n]));
+    x.fillStyle='#7d93a6';x.fillText('moment |gₙ|',bx0,14);
+    for(let n=0;n<40;n++){const bh=Math.abs(c[n])/cmax*(h-40);
+      x.fillStyle = n<Nkeep ? '#9d8cff' : '#2b3a4a';
+      x.fillRect(bx0+n*bw, h-12-bh, Math.max(1,bw-1), bh);}
+    x.strokeStyle='rgba(157,140,255,.4)';x.setLineDash([3,3]);
+    const cutx=bx0+Nkeep*bw;x.beginPath();x.moveTo(cutx,18);x.lineTo(cutx,h-12);x.stroke();x.setLineDash([]);
+  }
+  [sShp,sN].forEach(s=>s.addEventListener('input',draw));
+  window.addEventListener('resize',()=>requestAnimationFrame(draw));
+  window.__m1=draw;
+})();
+
+/* ================= 2. PHASE MIXING ================= */
+(function(){
+  const cP=document.getElementById('cPhase'),cC=document.getElementById('cCascade');
+  const sT=document.getElementById('sT'),lT=document.getElementById('lT'),cap=document.getElementById('pmCap');
+  const btn=document.getElementById('pmPlay');
+  let playing=true, tt=0;
+  const k=1.4;
+  function poisson(n,lam){ // |g_n|^2 ∝ lam^n e^{-lam}/n!
+    let logp=-lam+n*Math.log(lam+1e-9); let lf=0;for(let i=2;i<=n;i++)lf+=Math.log(i);
+    return Math.exp(logp-lf);
+  }
+  function draw(){
+    const t=tt/100*7; lT.textContent=t.toFixed(1);
+    const lam=(k*t)*(k*t);
+    cap.textContent='t = '+t.toFixed(1)+' · cascade front at moment ≈ '+Math.round(lam);
+    // phase space (z,v): Re cos(k z - k v t) * gaussian(v)
+    {const {x,w,h}=fit(cP);x.clearRect(0,0,w,h);
+     const cols=120,rows=70;const cw=w/cols,ch=h/rows;
+     for(let j=0;j<rows;j++){const v=(j/rows-0.5)*8;const g=Math.exp(-v*v/8);
+       for(let i=0;i<cols;i++){const z=i/cols*2*Math.PI;
+         const val=Math.cos(k*z*4 - k*v*t)*g;
+         const a=(val+1)/2;
+         x.fillStyle='rgba('+Math.round(8+a*30)+','+Math.round(20+a*200)+','+Math.round(30+a*185)+','+(0.25+0.75*g)+')';
+         x.fillRect(i*cw,j*ch,cw+0.6,ch+0.6);}}
+     x.fillStyle='#7d93a6';x.font='11px JetBrains Mono';x.fillText('phase space  (z, v)',8,16);
+     x.fillText('finer stripes in v →',8,h-8);}
+    // cascade spectrum (poisson moving up)
+    {const {x,w,h}=fit(cC);x.clearRect(0,0,w,h);grid(x,w,h);
+     const Nb=60;let pk=0;const vals=[];for(let n=0;n<Nb;n++){const p=poisson(n,Math.max(0.001,lam));vals.push(p);pk=Math.max(pk,p);}
+     pk=Math.max(pk,1e-6);
+     const bw=w/Nb;
+     for(let n=0;n<Nb;n++){const bh=vals[n]/pk*(h-30);
+       x.fillStyle='#39e2cf';x.globalAlpha=0.85;x.fillRect(n*bw,h-14-bh,Math.max(1,bw-1),bh);x.globalAlpha=1;}
+     x.fillStyle='#7d93a6';x.font='11px JetBrains Mono';x.fillText('moment number n →',8,h-2);
+     x.fillText('free energy per moment',8,16);}
+  }
+  function loop(){if(playing){tt=(tt+0.6)%100;sT.value=tt;}draw();requestAnimationFrame(loop);}
+  sT.addEventListener('input',()=>{playing=false;btn.classList.remove('on');btn.textContent='▶ play';tt=+sT.value;});
+  btn.addEventListener('click',()=>{playing=!playing;btn.classList.toggle('on',playing);btn.textContent=playing?'⏸ pause':'▶ play';});
+  loop();
+})();
+
+/* ================= 3. HEADLINE SPECTRUM ================= */
+(function(){
+  const cv=document.getElementById('cSpectrum');
+  const sNu=document.getElementById('sNu'),lNu=document.getElementById('lNu');
+  const rR=document.getElementById('rR'),rMc=document.getElementById('rMc'),rEcon=document.getElementById('rEcon');
+  const note=document.getElementById('econNote');
+  // slider 0..100 -> nu log from 1 (collisional) to 3e-3 (collisionless)
+  function nuOf(s){return Math.pow(10, 0 + (s/100)*(Math.log10(3e-3)-0));}
+  function regimeLabel(s){return s<28?'edge / collisional':s<55?'mid':s<78?'core':'deep core / ~collisionless';}
+  function draw(){
+    const s=+sNu.value, nu=nuOf(s), R=1/nu;
+    lNu.textContent=regimeLabel(s);
+    const mcEst=Math.pow(R,2/3);
+    const M=Math.min(1600,Math.max(200,Math.round(9*mcEst)));
+    const W=hermiteSpectrum(nu,M);
+    const mc=cutoff(W);
+    rR.textContent=R<10?R.toFixed(1):Math.round(R);
+    rMc.textContent=mc>=M?('>'+M):mc;
+    // economy vs a 32-pt vpar grid (illustrative)
+    const grid=32; const ratio=grid/Math.max(1,mc);
+    rEcon.textContent=(ratio>=1?ratio.toFixed(1)+'× cheaper':(1/ratio).toFixed(1)+'× costlier');
+    rEcon.parentElement.className='ro '+(ratio>=1.5?'ok':ratio>=1?'amber':'warn');
+    note.innerHTML = ratio>=1.5
+      ? 'Comfortably economical: the cutoff is well below a velocity grid — the spectral basis wins.'
+      : ratio>=1
+      ? 'Getting tight: the cutoff is approaching velocity-grid resolution — the speed margin is shrinking.'
+      : '<span style="color:var(--rose)">Economy lost in v∥:</span> the moment count now exceeds an equivalent grid. In turbulence, nonlinear echo steepens the spectrum and helps the Hermite axis — but not the μ/Laguerre (trapped) axis.';
+    // render log-log
+    const {x,w,h}=fit(cv);x.clearRect(0,0,w,h);grid_ll(x,w,h);
+    const padL=44,padB=26,padT=14,padR=12;
+    const X=n=>padL+(Math.log10(Math.max(1,n))/Math.log10(M))*(w-padL-padR);
+    const wmax=W[1]||W[0], wmin=wmax*1e-8;
+    const Y=val=>{const lv=Math.log10(Math.max(val,wmin)/wmax);return padT+(-lv/8)*(h-padT-padB);};
+    // n^-1/2 guide
+    x.strokeStyle='#3a4a5a';x.setLineDash([5,4]);x.lineWidth=1.4;x.beginPath();
+    for(let n=2;n<M;n++){const g=W[5]*Math.sqrt(5)/Math.sqrt(n);const px=X(n),py=Y(g);n===2?x.moveTo(px,py):x.lineTo(px,py);}x.stroke();x.setLineDash([]);
+    // spectrum
+    x.strokeStyle='#39e2cf';x.lineWidth=2.4;x.beginPath();
+    for(let n=1;n<M;n++){const px=X(n),py=Y(W[n]);n===1?x.moveTo(px,py):x.lineTo(px,py);}x.stroke();
+    // glow
+    x.strokeStyle='rgba(57,226,207,.25)';x.lineWidth=6;x.stroke();
+    // cutoff marker
+    if(mc<M){const mx=X(mc);x.strokeStyle='#ffb454';x.lineWidth=2;x.setLineDash([4,4]);
+      x.beginPath();x.moveTo(mx,padT);x.lineTo(mx,h-padB);x.stroke();x.setLineDash([]);
+      x.fillStyle='#ffb454';x.font='12px JetBrains Mono';x.fillText('m_c ≈ '+mc,Math.min(mx+6,w-70),padT+14);}
+    // axes labels
+    x.fillStyle='#7d93a6';x.font='11px JetBrains Mono';
+    x.fillText('moment number n  (log)',w/2-60,h-6);
+    x.save();x.translate(12,h/2+50);x.rotate(-Math.PI/2);x.fillText('free energy |gₙ|²  (log)',0,0);x.restore();
+  }
+  function grid_ll(x,w,h){x.strokeStyle='rgba(57,226,207,.05)';x.lineWidth=1;
+    for(let i=0;i<=8;i++){const gy=14+i/8*(h-40);x.beginPath();x.moveTo(40,gy);x.lineTo(w,gy);x.stroke();}}
+  sNu.addEventListener('input',()=>requestAnimationFrame(draw));
+  window.addEventListener('resize',()=>requestAnimationFrame(draw));
+  window.__m3=draw;
+})();
+
+/* ================= 4. TRAPPED / TEM ================= */
+(function(){
+  const cv=document.getElementById('cTrap');
+  const sT=document.getElementById('sTrap'),lT=document.getElementById('lTrap');
+  const rTrap=document.getElementById('rTrap'),rTEM=document.getElementById('rTEM');
+  function draw(){
+    const s=+sT.value; const nuNorm=s/100; // 0 low collisionality .. 1 high
+    lT.textContent = s<30?'low → trapping intact':s<65?'rising':'high → de-trapping';
+    // trapped fraction falls as collisionality rises (de-trapping)
+    const baseTrap=0.42; const trapped=baseTrap*(1-0.85*nuNorm);
+    rTrap.textContent=(trapped*100).toFixed(0)+'%';
+    rTrap.parentElement.className='ro '+(trapped>0.3?'warn':'amber');
+    const tem = trapped>0.32?'strong':trapped>0.18?'moderate':'weak';
+    rTEM.textContent=tem;
+    const {x,w,h}=fit(cv);x.clearRect(0,0,w,h);grid(x,w,h);
+    // |B| along field line: wells
+    const X=z=>z/(2*Math.PI)*w, midB=h*0.5;
+    x.strokeStyle='#9d8cff';x.lineWidth=2.5;x.beginPath();
+    const Bof=z=>1+0.45*Math.cos(z*3); // 3 wells
+    for(let i=0;i<=300;i++){const z=i/300*2*Math.PI;const B=Bof(z);const py=midB-(B-1)*h*0.34;
+      i?x.lineTo(X(z),py):x.moveTo(X(z),py);}x.stroke();
+    x.fillStyle='#9d8cff';x.font='11px JetBrains Mono';x.fillText('|B| along field line',8,16);
+    // particles
+    const Np=70;
+    for(let p=0;p<Np;p++){
+      const z=(p/Np*2*Math.PI + (p*1.7)%1)% (2*Math.PI);
+      const B=Bof(z);
+      // pitch: random; trapped if low vpar (here represent by vertical pos)
+      const r=((p*7919)%1000)/1000;
+      const isTrap = r < trapped;
+      const py = isTrap ? midB-(B-1)*h*0.34 - 6 - r*18 : 26 + r*22;
+      x.fillStyle = isTrap ? '#ff6b81' : '#39e2cf';
+      x.globalAlpha = isTrap?0.95:0.6;
+      x.beginPath();x.arc(X(z),py,isTrap?3.4:2.6,0,7);x.fill();
+    }
+    x.globalAlpha=1;
+    x.fillStyle='#ff6b81';x.fillText('● trapped (bounce in wells)',8,h-22);
+    x.fillStyle='#39e2cf';x.fillText('● passing (free streaming)',8,h-6);
+  }
+  sT.addEventListener('input',()=>requestAnimationFrame(draw));
+  window.addEventListener('resize',()=>requestAnimationFrame(draw));
+  window.__m4=draw;
+})();
+
+/* ================= 5. GEOMETRY ================= */
+(function(){
+  const cv=document.getElementById('cGeo');
+  const bT=document.getElementById('gTok'),bS=document.getElementById('gStel');
+  const note=document.getElementById('geoNote');
+  let tok=true, stel=false;
+  function draw(){
+    const {x,w,h}=fit(cv);x.clearRect(0,0,w,h);grid(x,w,h);
+    const padL=44,padB=26,padT=14,padR=14;
+    // x: log10 R from 1..3.2 ; y: m_c
+    const Rmin=1,Rmax=3.4; // log10
+    const X=lr=>padL+(lr-Rmin)/(Rmax-Rmin)*(w-padL-padR);
+    const mcMax=200; const Y=mc=>h-padB-(mc/mcMax)*(h-padT-padB);
+    function curve(pref,color,dash){
+      x.strokeStyle=color;x.lineWidth=2.6;x.setLineDash(dash||[]);x.beginPath();
+      for(let i=0;i<=120;i++){const lr=Rmin+i/120*(Rmax-Rmin);const R=Math.pow(10,lr);
+        const mc=pref*Math.pow(R,2/3);const px=X(lr),py=Y(Math.min(mc,mcMax));i?x.lineTo(px,py):x.moveTo(px,py);}
+      x.stroke();x.setLineDash([]);
+    }
+    if(tok) curve(1.0,'#39e2cf');
+    if(stel) curve(1.18,'#ff6b81',[6,4]); // ~same slope, slightly higher prefactor + μ increment
+    // axes
+    x.fillStyle='#7d93a6';x.font='11px JetBrains Mono';
+    x.fillText('lower collisionality  (R = kv/ν, log) →',w/2-90,h-6);
+    x.save();x.translate(12,h/2+30);x.rotate(-Math.PI/2);x.fillText('cutoff moment  m_c',0,0);x.restore();
+    // legend
+    if(tok){x.fillStyle='#39e2cf';x.fillText('— tokamak (CBC): m_c ∝ R^2/3',w-260,30);}
+    if(stel){x.fillStyle='#ff6b81';x.fillText('-- stellarator: same slope, +μ increment',w-300,48);}
+    note.innerHTML = (tok&&stel)
+      ? 'Same slope in collisionality — the local cascade-vs-collisions law is identical. The stellarator curve sits a touch higher (well structure + a <span class="tagV">μ/Laguerre</span> increment), but the <b>scaling you measure transfers</b>.'
+      : tok ? 'Tokamak: the clean local law m_c ∝ (kv/ν)^2/3. Toggle the stellarator to compare.'
+      : 'Stellarator: same slope, slightly higher — the extra cost is the μ/trapped increment, not a different collisionality law.';
+  }
+  bT.addEventListener('click',()=>{tok=!tok;bT.classList.toggle('on',tok);draw();});
+  bS.addEventListener('click',()=>{stel=!stel;bS.classList.toggle('on',stel);draw();});
+  window.addEventListener('resize',()=>requestAnimationFrame(draw));
+  window.__m5=draw;
+})();
+
+/* ================= 2. TWO DIRECTIONS / LAGUERRE ================= */
+(function(){
+  // orthonormal Laguerre L_n under weight e^{-x}: L0=1, L1=1-x, (n+1)L_{n+1}=(2n+1-x)L_n - n L_{n-1}
+  function lagFuncs(x,N){const L=new Array(N);L[0]=1;if(N>1)L[1]=1-x;
+    for(let n=1;n<N-1;n++)L[n+1]=((2*n+1-x)*L[n]-n*L[n-1])/(n+1);return L;}
+  // ---- axes diagram (static) ----
+  function drawAxes(){
+    const cv=document.getElementById('cAxes');const {x,w,h}=fit(cv);x.clearRect(0,0,w,h);grid(x,w,h);
+    const midY=h*0.5;
+    // v|| Gaussian (full line, cyan), top half
+    x.strokeStyle='#39e2cf';x.lineWidth=2.4;x.beginPath();
+    for(let i=0;i<=200;i++){const t=i/200;const v=(t-0.5)*7;const g=Math.exp(-v*v/2);
+      const px=t*w;const py=midY-8-g*(h*0.32);i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();
+    x.fillStyle='#39e2cf';x.font='12px JetBrains Mono';x.fillText('v∥  (−∞ … +∞)  → Gaussian → Hermite',10,18);
+    // axis line
+    x.strokeStyle='#1a2734';x.beginPath();x.moveTo(0,midY);x.lineTo(w,midY);x.stroke();
+    // mu exponential (half line, violet), bottom half from center-left
+    x.strokeStyle='#9d8cff';x.lineWidth=2.4;x.beginPath();
+    for(let i=0;i<=200;i++){const t=i/200;const xv=t*8;const g=Math.exp(-xv);
+      const px=t*w;const py=midY+8+g*(h*0.30);i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();
+    x.fillStyle='#9d8cff';x.fillText('μ  (0 … +∞)  → exponential → Laguerre',10,h-10);
+    x.fillStyle='#7d93a6';x.fillText('0',4,midY+16);
+  }
+  // ---- Laguerre projection interactive ----
+  const sLag=document.getElementById('sLag'),lLag=document.getElementById('lLag');
+  const rLagM=document.getElementById('rLagM'),rResc=document.getElementById('rResc'),note=document.getElementById('lagNote');
+  const Nx=600,xmax=16,dx=xmax/Nx,Mmax=48;const xc=2.5;
+  function drawLag(){
+    const s=+sLag.value;const amp=s/100*2.2;const delta=0.95-0.72*(s/100);
+    lLag.textContent = s<2?'off (pure Maxwellian)':s<45?'soft':s<80?'sharp':'very sharp';
+    const g=i=>{const xv=(i+0.5)*dx;return 1+amp*0.5*(1+Math.tanh((xv-xc)/delta));};
+    // project
+    const c=new Float64Array(Mmax);
+    for(let i=0;i<Nx;i++){const xv=(i+0.5)*dx;const L=lagFuncs(xv,Mmax);const wgt=Math.exp(-xv)*dx;const gv=g(i);
+      for(let n=0;n<Mmax;n++)c[n]+=gv*L[n]*wgt;}
+    // M for <1% via coefficient tail
+    const tail=new Float64Array(Mmax+1);for(let n=Mmax-1;n>=0;n--)tail[n]=tail[n+1]+c[n]*c[n];
+    let M=Mmax;for(let n=1;n<=Mmax;n++){if(tail[n]/tail[0]<1e-4){M=n;break;}}
+    rLagM.textContent=(M>=Mmax?('≥'+Mmax):M);
+    rLagM.parentElement.className='ro '+(M<=6?'ok':M<=14?'amber':'warn');
+    rResc.textContent = s<2?'n/a' : 'no — μ has none';
+    rResc.style.color = s<2?'var(--muted)':'var(--rose)';
+    note.innerHTML = s<2
+      ? 'A pure Maxwellian shape in μ is captured by a <b>single</b> Laguerre moment — maximally economical.'
+      : M<=6 ? 'A soft μ feature still costs only a few Laguerre moments.'
+      : 'The trapped–passing feature is forcing the Laguerre count up to <b style="color:var(--violet)">'+M+'</b>. Unlike the Hermite (v∥) axis, turbulent stirring does <b style="color:var(--rose)">not</b> smear μ structure, and core collisions are too weak to — so this climb has no brake. This is why the project’s binding risk is the Laguerre axis.';
+    // render
+    const cv=document.getElementById('cLag');const {x,w,h}=fit(cv);x.clearRect(0,0,w,h);grid(x,w,h);
+    const padL=6,padR=Math.min(150,w*0.30),plotW=w-padL-padR;
+    let gmax=0;for(let i=0;i<Nx;i++)gmax=Math.max(gmax,g(i));gmax*=1.12;
+    const X=xv=>padL+xv/xmax*plotW,Y=v=>h-14-(v/gmax)*(h-28);
+    // feature shading
+    if(s>=2){x.fillStyle='rgba(255,107,129,.08)';x.fillRect(X(xc),14,X(xmax)-X(xc),h-28);}
+    x.strokeStyle = s<2?'#9d8cff':'#ff8fa0';x.lineWidth=2.4;x.beginPath();
+    for(let i=0;i<Nx;i++){const xv=(i+0.5)*dx;i?x.lineTo(X(xv),Y(g(i))):x.moveTo(X(xv),Y(g(i)));}x.stroke();
+    x.fillStyle='#7d93a6';x.font='11px JetBrains Mono';x.fillText('shape in μ →',padL+4,14);
+    if(s>=2){x.fillStyle='#ff6b81';x.fillText('trapped–passing',X(xc)+4,h-18);}
+    // laguerre bars
+    const bx0=w-padR+14,nb=Math.min(28,Mmax),bw=(padR-20)/nb;
+    let cm=0;for(let n=0;n<nb;n++)cm=Math.max(cm,Math.abs(c[n]));cm=Math.max(cm,1e-9);
+    x.fillStyle='#7d93a6';x.fillText('Laguerre |cₘ|',bx0,14);
+    for(let n=0;n<nb;n++){const bh=Math.abs(c[n])/cm*(h-40);x.fillStyle=n<M?'#9d8cff':'#2b3a4a';
+      x.fillRect(bx0+n*bw,h-14-bh,Math.max(1,bw-1),bh);}
+  }
+  sLag.addEventListener('input',()=>requestAnimationFrame(drawLag));
+  window.addEventListener('resize',()=>{requestAnimationFrame(drawAxes);requestAnimationFrame(drawLag);});
+  window.__m2=()=>{drawAxes();drawLag();};
+})();
+
+/* ---------- reveal on scroll + initial draws ---------- */
+const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');
+  // trigger first paint of canvases when their section appears
+  ['__m1','__m2','__m3','__m4','__m5'].forEach(fn=>window[fn]&&window[fn]());}});},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+// header reveal immediately
+document.querySelector('header .reveal').classList.add('in');
+setTimeout(()=>{['__m1','__m2','__m3','__m4','__m5'].forEach(fn=>window[fn]&&window[fn]());},120);
+</script>
+</body>
+</html>

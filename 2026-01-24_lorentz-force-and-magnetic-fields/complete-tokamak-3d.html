@@ -1,0 +1,1032 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>complete tokamak 3d</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const CompleteTokamak3D = () => {
+  const canvasRef = useRef(null);
+  
+  // Camera controls
+  const [rotationX, setRotationX] = useState(-25);
+  const [rotationY, setRotationY] = useState(35);
+  const [zoom, setZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+  
+  // Physics controls
+  const [time, setTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  
+  // Field controls
+  const [toroidalStrength, setToroidalStrength] = useState(1);
+  const [poloidalStrength, setPoloidalStrength] = useState(0.3);
+  const [solenoidCurrent, setSolenoidCurrent] = useState(50);
+  const [prevSolenoidCurrent, setPrevSolenoidCurrent] = useState(50);
+  const [inducedEField, setInducedEField] = useState(0);
+  
+  // Display toggles - Coils/Hardware
+  const [showToroidalCoils, setShowToroidalCoils] = useState(true);
+  const [showPoloidalCoils, setShowPoloidalCoils] = useState(true);
+  const [showSolenoid, setShowSolenoid] = useState(true);
+  const [showTorus, setShowTorus] = useState(true);
+  
+  // Display toggles - Fields
+  const [showToroidalField, setShowToroidalField] = useState(true);
+  const [showPoloidalField, setShowPoloidalField] = useState(true);
+  const [showSolenoidField, setShowSolenoidField] = useState(true);
+  const [showElectricField, setShowElectricField] = useState(true);
+  const [showHelicalFieldLine, setShowHelicalFieldLine] = useState(true);
+  
+  // Display toggles - Particle
+  const [showParticle, setShowParticle] = useState(true);
+  const [showParticleVectors, setShowParticleVectors] = useState(true);
+  
+  // View options
+  const [cutawayView, setCutawayView] = useState(false);
+  
+  // Particle state
+  const [particlePos, setParticlePos] = useState({ toroidal: 0, poloidal: 0, r: 0.5 });
+  const [particleVel, setParticleVel] = useState(1);
+  
+  // Torus parameters
+  const R = 150; // Major radius
+  const r = 50;  // Minor radius
+
+  // Plasma current - driven by solenoid, creates poloidal field
+  const [plasmaCurrent, setPlasmaCurrent] = useState(1);
+  
+  // Effective field strengths (hardware must be ON for field to exist)
+  const effectiveToroidal = showToroidalCoils ? toroidalStrength : 0;
+  // Poloidal field depends on BOTH poloidal coils AND plasma current (which needs solenoid)
+  const effectivePoloidal = showPoloidalCoils ? poloidalStrength * plasmaCurrent : 0;
+  const effectiveSolenoidCurrent = showSolenoid ? solenoidCurrent : 0;
+
+  // Track solenoid changes for induced E field
+  useEffect(() => {
+    const dI = effectiveSolenoidCurrent - prevSolenoidCurrent;
+    
+    // Induced E field from changing flux
+    setInducedEField(prev => {
+      const induced = -dI * 0.5;
+      const decayed = prev * 0.9;
+      return decayed + induced;
+    });
+    
+    setPrevSolenoidCurrent(effectiveSolenoidCurrent);
+  }, [effectiveSolenoidCurrent]);
+  
+  // Plasma current dynamics - runs continuously
+  // Solenoid maintains plasma current, without it the current decays
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlasmaCurrent(prev => {
+        if (showSolenoid && solenoidCurrent > 10) {
+          // Solenoid on: plasma current maintained / builds up
+          const target = Math.min(1, solenoidCurrent / 50);
+          return prev + (target - prev) * 0.1;
+        } else {
+          // Solenoid off: plasma current decays due to resistive losses
+          // This is why real tokamaks can't run steady-state with just a solenoid!
+          // Decay ~5% per tick = noticeable drop
+          return prev * 0.95;
+        }
+      });
+    }, 50); // Run faster for visible effect
+    
+    return () => clearInterval(interval);
+  }, [showSolenoid, solenoidCurrent]);
+
+  // Animation loop
+  useEffect(() => {
+    if (!isPlaying) return;
+    
+    const interval = setInterval(() => {
+      setTime(t => t + 0.016 * speed);
+      
+      // Update particle position based on EFFECTIVE fields (hardware must be on)
+      // Note: effectivePoloidal = poloidalStrength * plasmaCurrent
+      setParticlePos(pos => {
+        const toroidalSpeed = 0.3 * particleVel * effectiveToroidal;
+        const poloidalSpeed = 0.9 * particleVel * effectivePoloidal;
+        
+        // If no toroidal field, particle drifts outward (escapes)
+        let newR = pos.r;
+        if (effectiveToroidal < 0.1) {
+          newR = pos.r + 0.01 * speed; // Drifts outward without confinement
+          if (newR > 1.2) newR = 0.5; // Reset when hits "wall"
+        } else if (effectivePoloidal < 0.1) {
+          // Toroidal only: vertical drift (simulated as radial wobble growing)
+          newR = pos.r + 0.005 * speed * Math.sign(Math.sin(pos.toroidal));
+          if (newR > 1.1 || newR < 0.1) newR = 0.5; // Reset when hits wall
+        } else {
+          // Both fields: stable confinement with small wobble
+          newR = 0.5 + 0.2 * Math.sin(pos.poloidal);
+        }
+        
+        return {
+          toroidal: pos.toroidal + toroidalSpeed * 0.016 * speed,
+          poloidal: pos.poloidal + poloidalSpeed * 0.016 * speed,
+          r: newR
+        };
+      });
+      
+      // E field affects particle velocity (only if solenoid is on)
+      const effectiveEField = showSolenoid ? inducedEField : 0;
+      setParticleVel(v => {
+        const accel = effectiveEField * 0.01;
+        return Math.max(0.1, Math.min(3, v + accel));
+      });
+    }, 16);
+    
+    return () => clearInterval(interval);
+  }, [isPlaying, speed, effectiveToroidal, effectivePoloidal, particleVel, inducedEField, showSolenoid, plasmaCurrent]);
+
+  // 3D projection
+  const project3D = useCallback((x, y, z) => {
+    const radX = (rotationX * Math.PI) / 180;
+    const radY = (rotationY * Math.PI) / 180;
+    
+    // Rotate around Y
+    let x1 = x * Math.cos(radY) - z * Math.sin(radY);
+    let z1 = x * Math.sin(radY) + z * Math.cos(radY);
+    let y1 = y;
+    
+    // Rotate around X
+    let y2 = y1 * Math.cos(radX) - z1 * Math.sin(radX);
+    let z2 = y1 * Math.sin(radX) + z1 * Math.cos(radX);
+    
+    const perspective = 600;
+    const scale = (perspective / (perspective + z2)) * zoom;
+    
+    return {
+      x: 400 + x1 * scale,
+      y: 300 + y2 * scale,
+      z: z2,
+      scale
+    };
+  }, [rotationX, rotationY, zoom]);
+
+  // Get point on torus
+  const getTorusPoint = useCallback((theta, phi, majorR = R, minorR = r, rFactor = 1) => {
+    const actualR = minorR * rFactor;
+    const x = (majorR + actualR * Math.cos(phi)) * Math.cos(theta);
+    const y = actualR * Math.sin(phi);
+    const z = (majorR + actualR * Math.cos(phi)) * Math.sin(theta);
+    return { x, y, z };
+  }, []);
+
+  // Draw arrow in 3D
+  const drawArrow3D = useCallback((ctx, start, end, color, headSize = 8) => {
+    const startProj = project3D(start.x, start.y, start.z);
+    const endProj = project3D(end.x, end.y, end.z);
+    
+    // Depth-based alpha
+    const alpha = Math.max(0.2, Math.min(1, 0.5 + startProj.z / 400));
+    
+    ctx.strokeStyle = color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(startProj.x, startProj.y);
+    ctx.lineTo(endProj.x, endProj.y);
+    ctx.stroke();
+    
+    // Arrowhead
+    const angle = Math.atan2(endProj.y - startProj.y, endProj.x - startProj.x);
+    ctx.fillStyle = color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+    ctx.beginPath();
+    ctx.moveTo(endProj.x, endProj.y);
+    ctx.lineTo(endProj.x - headSize * Math.cos(angle - Math.PI/6), endProj.y - headSize * Math.sin(angle - Math.PI/6));
+    ctx.lineTo(endProj.x - headSize * Math.cos(angle + Math.PI/6), endProj.y - headSize * Math.sin(angle + Math.PI/6));
+    ctx.closePath();
+    ctx.fill();
+  }, [project3D]);
+
+  // Main render
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, width, height);
+
+    // === DRAW SOLENOID (Central column) ===
+    if (showSolenoid) {
+      const solenoidRadius = 25;
+      const solenoidHeight = 180;
+      
+      // Draw solenoid body
+      ctx.strokeStyle = `rgba(255, 100, 100, ${0.3 + effectiveSolenoidCurrent/200})`;
+      ctx.lineWidth = 2;
+      
+      // Draw as series of ellipses with current direction arrows
+      for (let y = -solenoidHeight/2; y <= solenoidHeight/2; y += 15) {
+        const p1 = project3D(-solenoidRadius, y, 0);
+        const p2 = project3D(solenoidRadius, y, 0);
+        const p3 = project3D(0, y, -solenoidRadius);
+        const p4 = project3D(0, y, solenoidRadius);
+        
+        ctx.beginPath();
+        ctx.ellipse((p1.x + p2.x)/2, (p1.y + p2.y)/2, 
+                    Math.abs(p2.x - p1.x)/2, 
+                    Math.abs(p4.y - p3.y)/2 * 0.3, 
+                    0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      
+      // Add current direction arrows around solenoid coils
+      if (effectiveSolenoidCurrent > 5) {
+        const numCoilArrows = 6;
+        for (let i = 0; i < numCoilArrows; i++) {
+          const y = -solenoidHeight/2 + 20 + i * (solenoidHeight - 40) / (numCoilArrows - 1);
+          
+          // Draw arrows at 4 positions around each coil ring
+          for (let j = 0; j < 4; j++) {
+            const angle = (j / 4) * Math.PI * 2 + Math.PI / 8;
+            const x = solenoidRadius * Math.cos(angle);
+            const z = solenoidRadius * Math.sin(angle);
+            
+            // Tangent direction (current flows around)
+            const arrowLen = 12;
+            const tangentAngle = angle + Math.PI / 2;
+            const endX = x + arrowLen * Math.cos(tangentAngle);
+            const endZ = z + arrowLen * Math.sin(tangentAngle);
+            
+            drawArrow3D(ctx, {x, y, z}, {x: endX, y, z: endZ}, 'rgb(255, 150, 100)');
+          }
+        }
+      }
+    }
+    
+    // === DRAW SOLENOID B FIELD ===
+    if (showSolenoidField && effectiveSolenoidCurrent > 5) {
+      const solenoidHeight = 180;
+      const fieldStrength = effectiveSolenoidCurrent / 100;
+      ctx.strokeStyle = `rgba(100, 200, 255, ${fieldStrength * 0.7})`;
+      ctx.fillStyle = `rgba(100, 200, 255, ${fieldStrength * 0.7})`;
+      
+      for (let x = -10; x <= 10; x += 10) {
+        for (let z = -10; z <= 10; z += 10) {
+          if (x*x + z*z < 200) {
+            const start = { x, y: solenoidHeight/2, z };
+            const end = { x, y: -solenoidHeight/2 - 20, z };
+            drawArrow3D(ctx, start, end, `rgb(100, 200, 255)`);
+          }
+        }
+      }
+    }
+
+    // === DRAW TORUS WIREFRAME ===
+    if (showTorus) {
+      ctx.strokeStyle = 'rgba(100, 100, 150, 0.3)';
+      ctx.lineWidth = 1;
+      
+      const thetaStart = cutawayView ? Math.PI * 0.1 : 0;
+      const thetaEnd = cutawayView ? Math.PI * 1.9 : Math.PI * 2;
+      
+      // Toroidal circles
+      for (let phi = 0; phi < Math.PI * 2; phi += Math.PI / 8) {
+        ctx.beginPath();
+        for (let theta = thetaStart; theta <= thetaEnd; theta += 0.1) {
+          const p = getTorusPoint(theta, phi);
+          const proj = project3D(p.x, p.y, p.z);
+          if (theta === thetaStart) ctx.moveTo(proj.x, proj.y);
+          else ctx.lineTo(proj.x, proj.y);
+        }
+        ctx.stroke();
+      }
+      
+      // Poloidal circles
+      for (let theta = thetaStart; theta < thetaEnd; theta += Math.PI / 6) {
+        ctx.beginPath();
+        for (let phi = 0; phi <= Math.PI * 2; phi += 0.1) {
+          const p = getTorusPoint(theta, phi);
+          const proj = project3D(p.x, p.y, p.z);
+          if (phi === 0) ctx.moveTo(proj.x, proj.y);
+          else ctx.lineTo(proj.x, proj.y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    // === DRAW TOROIDAL FIELD COILS ===
+    if (showToroidalCoils) {
+      const numCoils = 12;
+      for (let i = 0; i < numCoils; i++) {
+        const theta = (i / numCoils) * Math.PI * 2;
+        
+        if (cutawayView && theta > Math.PI * 0.1 && theta < Math.PI * 0.5) continue;
+        
+        ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        
+        for (let phi = 0; phi <= Math.PI * 2; phi += 0.1) {
+          const coilR = r + 20;
+          const p = getTorusPoint(theta, phi, R, coilR);
+          const proj = project3D(p.x, p.y, p.z);
+          if (phi === 0) ctx.moveTo(proj.x, proj.y);
+          else ctx.lineTo(proj.x, proj.y);
+        }
+        ctx.stroke();
+        
+        // Add direction arrows on each coil (current flows around the coil)
+        const numArrowsOnCoil = 4;
+        for (let j = 0; j < numArrowsOnCoil; j++) {
+          const phi = (j / numArrowsOnCoil) * Math.PI * 2;
+          const coilR = r + 20;
+          const p = getTorusPoint(theta, phi, R, coilR);
+          
+          // Arrow in poloidal direction (around the coil)
+          const arrowLen = 15;
+          const tangentPhi = phi + Math.PI / 2; // Tangent to the coil circle
+          const arrow = {
+            x: p.x + (-Math.sin(tangentPhi) * Math.cos(theta)) * arrowLen,
+            y: p.y + (Math.cos(tangentPhi)) * arrowLen,
+            z: p.z + (-Math.sin(tangentPhi) * Math.sin(theta)) * arrowLen
+          };
+          
+          drawArrow3D(ctx, p, arrow, 'rgb(255, 100, 100)');
+        }
+      }
+    }
+
+    // === DRAW TOROIDAL FIELD ===
+    if (showToroidalField && effectiveToroidal > 0) {
+      const numArrows = 16;
+      const arrowLength = 25 * effectiveToroidal;
+      
+      for (let i = 0; i < numArrows; i++) {
+        const theta = (i / numArrows) * Math.PI * 2;
+        
+        if (cutawayView && theta > 0 && theta < Math.PI * 0.5) continue;
+        
+        for (let rFactor of [0.3, 0.7]) {
+          const p = getTorusPoint(theta, 0, R, r, rFactor);
+          
+          // Toroidal direction is tangent to the major circle
+          const tangent = {
+            x: -Math.sin(theta) * arrowLength,
+            y: 0,
+            z: Math.cos(theta) * arrowLength
+          };
+          
+          const end = { x: p.x + tangent.x, y: p.y + tangent.y, z: p.z + tangent.z };
+          drawArrow3D(ctx, p, end, 'rgb(170, 85, 255)');
+        }
+      }
+    }
+
+    // === DRAW POLOIDAL FIELD ===
+    if (showPoloidalField && effectivePoloidal > 0) {
+      const numPositions = 8;
+      const arrowLength = 20 * effectivePoloidal;
+      
+      for (let i = 0; i < numPositions; i++) {
+        const theta = (i / numPositions) * Math.PI * 2;
+        
+        if (cutawayView && theta > 0 && theta < Math.PI * 0.5) continue;
+        
+        for (let j = 0; j < 4; j++) {
+          const phi = (j / 4) * Math.PI * 2;
+          const p = getTorusPoint(theta, phi, R, r, 0.6);
+          
+          // Poloidal direction is tangent to the minor circle
+          const tangentPhi = phi + Math.PI / 2;
+          const tangent = {
+            x: -Math.sin(tangentPhi) * Math.cos(theta) * arrowLength,
+            y: Math.cos(tangentPhi) * arrowLength,
+            z: -Math.sin(tangentPhi) * Math.sin(theta) * arrowLength
+          };
+          
+          const end = { x: p.x + tangent.x, y: p.y + tangent.y, z: p.z + tangent.z };
+          drawArrow3D(ctx, p, end, 'rgb(85, 170, 255)');
+        }
+      }
+    }
+
+    // === DRAW INDUCED ELECTRIC FIELD ===
+    if (showElectricField && showSolenoid && Math.abs(inducedEField) > 0.5) {
+      const eStrength = Math.abs(inducedEField) / 10;
+      const eDir = inducedEField > 0 ? 1 : -1;
+      const numArrows = 8;
+      const arrowLength = 30 * eStrength;
+      
+      for (let i = 0; i < numArrows; i++) {
+        const theta = (i / numArrows) * Math.PI * 2;
+        const p = getTorusPoint(theta, 0, R, r, 0.5);
+        
+        // E field is toroidal (drives current around)
+        const tangent = {
+          x: -Math.sin(theta) * arrowLength * eDir,
+          y: 0,
+          z: Math.cos(theta) * arrowLength * eDir
+        };
+        
+        const end = { x: p.x + tangent.x, y: p.y + tangent.y, z: p.z + tangent.z };
+        drawArrow3D(ctx, p, end, 'rgb(255, 220, 50)');
+      }
+    }
+
+    // === DRAW HELICAL FIELD LINE ===
+    if (showHelicalFieldLine && effectiveToroidal > 0) {
+      ctx.strokeStyle = effectivePoloidal > 0 ? 'rgba(100, 255, 150, 0.6)' : 'rgba(170, 85, 255, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      const twist = effectivePoloidal / Math.max(0.1, effectiveToroidal) * 3;
+      
+      for (let t = 0; t <= Math.PI * 8; t += 0.05) {
+        const theta = t;
+        const phi = t * twist;
+        
+        if (cutawayView && theta % (Math.PI * 2) > 0 && theta % (Math.PI * 2) < Math.PI * 0.5) continue;
+        
+        const p = getTorusPoint(theta, phi, R, r, 0.5);
+        const proj = project3D(p.x, p.y, p.z);
+        
+        if (t === 0) ctx.moveTo(proj.x, proj.y);
+        else ctx.lineTo(proj.x, proj.y);
+      }
+      ctx.stroke();
+    }
+
+    // === DRAW PARTICLE ===
+    if (showParticle) {
+      const p = getTorusPoint(particlePos.toroidal, particlePos.poloidal, R, r, particlePos.r);
+      const proj = project3D(p.x, p.y, p.z);
+      
+      // Glow
+      const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, 20 * proj.scale);
+      gradient.addColorStop(0, 'rgba(255, 100, 100, 0.8)');
+      gradient.addColorStop(1, 'rgba(255, 100, 100, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(proj.x, proj.y, 20 * proj.scale, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Particle
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(proj.x, proj.y, 8 * proj.scale, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${12 * proj.scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('+', proj.x, proj.y);
+      
+      // Velocity vector
+      if (showParticleVectors) {
+        const velScale = 30 * particleVel;
+        
+        // Velocity is along the helical field line
+        const theta = particlePos.toroidal;
+        const phi = particlePos.poloidal;
+        
+        // Toroidal component (only if toroidal coils on)
+        const vTor = {
+          x: -Math.sin(theta) * velScale * effectiveToroidal,
+          y: 0,
+          z: Math.cos(theta) * velScale * effectiveToroidal
+        };
+        
+        // Poloidal component (only if poloidal coils on)
+        const vPol = {
+          x: -Math.sin(phi + Math.PI/2) * Math.cos(theta) * velScale * effectivePoloidal,
+          y: Math.cos(phi + Math.PI/2) * velScale * effectivePoloidal,
+          z: -Math.sin(phi + Math.PI/2) * Math.sin(theta) * velScale * effectivePoloidal
+        };
+        
+        const vel = {
+          x: p.x + vTor.x + vPol.x,
+          y: p.y + vTor.y + vPol.y,
+          z: p.z + vTor.z + vPol.z
+        };
+        
+        drawArrow3D(ctx, p, vel, 'rgb(0, 255, 255)');
+        
+        // Force vector (perpendicular to v and B) - only meaningful if fields exist
+        if (effectiveToroidal > 0 || effectivePoloidal > 0) {
+          const forceScale = 20;
+          const force = {
+            x: p.x + Math.cos(phi) * forceScale * (effectiveToroidal + effectivePoloidal),
+            y: p.y - Math.sin(theta) * forceScale * 0.5 * effectiveToroidal,
+            z: p.z + Math.sin(phi) * forceScale * (effectiveToroidal + effectivePoloidal)
+          };
+          drawArrow3D(ctx, p, force, 'rgb(0, 255, 100)');
+        }
+      }
+    }
+
+    // === DRAW OUTER POLOIDAL COILS ===
+    if (showPoloidalCoils) {
+      // Top coil
+      ctx.strokeStyle = 'rgba(100, 150, 255, 0.6)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (let theta = 0; theta <= Math.PI * 2; theta += 0.1) {
+        const coilR = R + r + 30;
+        const x = coilR * Math.cos(theta);
+        const z = coilR * Math.sin(theta);
+        const y = 80;
+        const proj = project3D(x, y, z);
+        if (theta === 0) ctx.moveTo(proj.x, proj.y);
+        else ctx.lineTo(proj.x, proj.y);
+      }
+      ctx.stroke();
+      
+      // Top coil direction arrows
+      for (let i = 0; i < 8; i++) {
+        const theta = (i / 8) * Math.PI * 2;
+        const coilR = R + r + 30;
+        const x = coilR * Math.cos(theta);
+        const z = coilR * Math.sin(theta);
+        const y = 80;
+        
+        // Tangent direction (around the coil)
+        const arrowLen = 18;
+        const tangentTheta = theta + Math.PI / 2;
+        const endX = x + arrowLen * Math.cos(tangentTheta);
+        const endZ = z + arrowLen * Math.sin(tangentTheta);
+        
+        drawArrow3D(ctx, {x, y, z}, {x: endX, y, z: endZ}, 'rgb(100, 150, 255)');
+      }
+      
+      // Bottom coil
+      ctx.strokeStyle = 'rgba(100, 150, 255, 0.6)';
+      ctx.beginPath();
+      for (let theta = 0; theta <= Math.PI * 2; theta += 0.1) {
+        const coilR = R + r + 30;
+        const x = coilR * Math.cos(theta);
+        const z = coilR * Math.sin(theta);
+        const y = -80;
+        const proj = project3D(x, y, z);
+        if (theta === 0) ctx.moveTo(proj.x, proj.y);
+        else ctx.lineTo(proj.x, proj.y);
+      }
+      ctx.stroke();
+      
+      // Bottom coil direction arrows (opposite direction)
+      for (let i = 0; i < 8; i++) {
+        const theta = (i / 8) * Math.PI * 2;
+        const coilR = R + r + 30;
+        const x = coilR * Math.cos(theta);
+        const z = coilR * Math.sin(theta);
+        const y = -80;
+        
+        // Tangent direction (around the coil - opposite to top)
+        const arrowLen = 18;
+        const tangentTheta = theta - Math.PI / 2;
+        const endX = x + arrowLen * Math.cos(tangentTheta);
+        const endZ = z + arrowLen * Math.sin(tangentTheta);
+        
+        drawArrow3D(ctx, {x, y, z}, {x: endX, y, z: endZ}, 'rgb(100, 150, 255)');
+      }
+    }
+
+    // === INTERACTIVE LEGEND (clickable) ===
+    const legendX = 15;
+    let legendY = 20;
+    const lineHeight = 18;
+    
+    // Background for legend
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(5, 5, 175, 380);
+    ctx.strokeStyle = '#444';
+    ctx.strokeRect(5, 5, 175, 380);
+    
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'left';
+    
+    // Helper to draw checkbox
+    const drawCheckbox = (x, y, checked, color) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y - 8, 10, 10);
+      if (checked) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x + 2, y - 6, 6, 6);
+      }
+    };
+    
+    // Hardware section
+    ctx.fillStyle = '#ff9999';
+    ctx.font = 'bold 11px Arial';
+    ctx.fillText('🧲 HARDWARE (click to toggle)', legendX, legendY);
+    legendY += lineHeight;
+    
+    ctx.font = '11px Arial';
+    
+    // Toroidal coils
+    drawCheckbox(legendX, legendY, showToroidalCoils, '#ff6464');
+    ctx.fillStyle = showToroidalCoils ? '#ff6464' : '#666';
+    ctx.fillText('Toroidal coils', legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // Poloidal coils
+    drawCheckbox(legendX, legendY, showPoloidalCoils, '#6496ff');
+    ctx.fillStyle = showPoloidalCoils ? '#6496ff' : '#666';
+    ctx.fillText('Poloidal coils', legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // Solenoid
+    drawCheckbox(legendX, legendY, showSolenoid, '#ff9664');
+    ctx.fillStyle = showSolenoid ? '#ff9664' : '#666';
+    ctx.fillText('Solenoid', legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // Torus wireframe
+    drawCheckbox(legendX, legendY, showTorus, '#888');
+    ctx.fillStyle = showTorus ? '#888' : '#444';
+    ctx.fillText('Torus wireframe', legendX + 16, legendY);
+    legendY += lineHeight + 8;
+    
+    // Fields section
+    ctx.fillStyle = '#aa88ff';
+    ctx.font = 'bold 11px Arial';
+    ctx.fillText('⚡ FIELDS', legendX, legendY);
+    legendY += lineHeight;
+    
+    ctx.font = '11px Arial';
+    
+    // B toroidal
+    const torFieldActive = showToroidalField && effectiveToroidal > 0;
+    drawCheckbox(legendX, legendY, showToroidalField, '#aa55ff');
+    ctx.fillStyle = torFieldActive ? '#aa55ff' : (showToroidalField ? '#664488' : '#666');
+    ctx.fillText('B toroidal' + (!showToroidalCoils ? ' (no coils)' : ''), legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // B poloidal
+    const polFieldActive = showPoloidalField && effectivePoloidal > 0.05;
+    drawCheckbox(legendX, legendY, showPoloidalField, '#55aaff');
+    ctx.fillStyle = polFieldActive ? '#55aaff' : (showPoloidalField ? '#446688' : '#666');
+    const polLabel = !showPoloidalCoils ? ' (no coils)' : plasmaCurrent < 0.1 ? ' (no I_p!)' : '';
+    ctx.fillText('B poloidal' + polLabel, legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // B solenoid
+    const solFieldActive = showSolenoidField && effectiveSolenoidCurrent > 5;
+    drawCheckbox(legendX, legendY, showSolenoidField, '#64c8ff');
+    ctx.fillStyle = solFieldActive ? '#64c8ff' : (showSolenoidField ? '#446688' : '#666');
+    ctx.fillText('B solenoid' + (!showSolenoid ? ' (off)' : ''), legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // E induced
+    const eFieldActive = showElectricField && showSolenoid && Math.abs(inducedEField) > 0.5;
+    drawCheckbox(legendX, legendY, showElectricField, '#ffdc32');
+    ctx.fillStyle = eFieldActive ? '#ffdc32' : (showElectricField ? '#887744' : '#666');
+    ctx.fillText('E induced' + (!showSolenoid ? ' (no sol.)' : ''), legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // Helical line
+    const helixActive = showHelicalFieldLine && effectiveToroidal > 0;
+    drawCheckbox(legendX, legendY, showHelicalFieldLine, '#64ff96');
+    ctx.fillStyle = helixActive ? '#64ff96' : (showHelicalFieldLine ? '#448866' : '#666');
+    ctx.fillText('Helical field line', legendX + 16, legendY);
+    legendY += lineHeight + 8;
+    
+    // Particle section
+    ctx.fillStyle = '#ff8888';
+    ctx.font = 'bold 11px Arial';
+    ctx.fillText('🔴 PARTICLE', legendX, legendY);
+    legendY += lineHeight;
+    
+    ctx.font = '11px Arial';
+    
+    // Particle
+    drawCheckbox(legendX, legendY, showParticle, '#ff6b6b');
+    ctx.fillStyle = showParticle ? '#ff6b6b' : '#666';
+    ctx.fillText('Particle', legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // Vectors
+    drawCheckbox(legendX, legendY, showParticleVectors, '#00ffff');
+    ctx.fillStyle = showParticleVectors ? '#00ffff' : '#666';
+    ctx.fillText('Velocity + Force', legendX + 16, legendY);
+    legendY += lineHeight;
+    
+    // Cutaway
+    drawCheckbox(legendX, legendY, cutawayView, '#aaa');
+    ctx.fillStyle = cutawayView ? '#aaa' : '#666';
+    ctx.fillText('Cutaway view', legendX + 16, legendY);
+    legendY += lineHeight;
+
+    // === INFO PANEL ===
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(width - 200, 10, 190, 160);
+    ctx.strokeStyle = '#444';
+    ctx.strokeRect(width - 200, 10, 190, 160);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Particle v: ${particleVel.toFixed(2)}`, width - 190, 28);
+    
+    // Show effective field strengths with hardware status
+    ctx.fillStyle = showToroidalCoils ? '#aa55ff' : '#666';
+    ctx.fillText(`B_tor: ${effectiveToroidal.toFixed(2)}${!showToroidalCoils ? ' (OFF)' : ''}`, width - 190, 46);
+    
+    // Poloidal depends on plasma current
+    ctx.fillStyle = effectivePoloidal > 0.05 ? '#55aaff' : '#666';
+    ctx.fillText(`B_pol: ${effectivePoloidal.toFixed(2)}${!showPoloidalCoils ? ' (no coils)' : plasmaCurrent < 0.1 ? ' (no I_p)' : ''}`, width - 190, 64);
+    
+    // Plasma current - the key link between solenoid and poloidal field
+    ctx.fillStyle = plasmaCurrent > 0.5 ? '#ff9' : plasmaCurrent > 0.1 ? '#994' : '#666';
+    ctx.fillText(`I_plasma: ${(plasmaCurrent * 100).toFixed(0)}%${!showSolenoid ? ' (decaying!)' : ''}`, width - 190, 82);
+    
+    ctx.fillStyle = showSolenoid ? '#64c8ff' : '#666';
+    ctx.fillText(`Solenoid: ${effectiveSolenoidCurrent.toFixed(0)} A${!showSolenoid ? ' (OFF)' : ''}`, width - 190, 100);
+    
+    ctx.fillStyle = '#ffdc32';
+    ctx.fillText(`E_induced: ${(showSolenoid ? inducedEField : 0).toFixed(2)}`, width - 190, 118);
+    
+    // Confinement status
+    ctx.font = 'bold 11px monospace';
+    if (effectiveToroidal > 0.1 && effectivePoloidal > 0.05) {
+      ctx.fillStyle = '#5f5';
+      ctx.fillText('✓ CONFINED', width - 190, 140);
+    } else if (effectiveToroidal > 0.1 && plasmaCurrent < 0.1) {
+      ctx.fillStyle = '#f55';
+      ctx.fillText('✗ NO PLASMA CURRENT', width - 190, 140);
+    } else if (effectiveToroidal > 0.1) {
+      ctx.fillStyle = '#fa0';
+      ctx.fillText('⚠ LOSING CONFINEMENT', width - 190, 140);
+    } else {
+      ctx.fillStyle = '#f55';
+      ctx.fillText('✗ NO CONFINEMENT', width - 190, 140);
+    }
+    
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#888';
+    ctx.fillText('Solenoid drives I_plasma → B_pol', width - 190, 156);
+
+  }, [time, rotationX, rotationY, zoom, toroidalStrength, poloidalStrength,
+      effectiveToroidal, effectivePoloidal, effectiveSolenoidCurrent, plasmaCurrent,
+      solenoidCurrent, inducedEField, particlePos, particleVel, 
+      showToroidalCoils, showPoloidalCoils, showSolenoid,
+      showToroidalField, showPoloidalField, showSolenoidField, showElectricField, 
+      showParticle, showParticleVectors, showHelicalFieldLine, showTorus, cutawayView,
+      project3D, getTorusPoint, drawArrow3D]);
+
+  const [isOverLegend, setIsOverLegend] = useState(false);
+  
+  // Mouse handlers
+  const handleMouseDown = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    // Check if clicking on legend items (left side, y < 400)
+    if (x < 180 && y < 400) {
+      // Calculate which legend item was clicked
+      let itemY = 20;
+      const lineHeight = 18;
+      
+      // Hardware section
+      itemY += lineHeight; // "HARDWARE:" label
+      
+      // Toroidal coils
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowToroidalCoils(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // Poloidal coils
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowPoloidalCoils(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // Solenoid
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowSolenoid(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // Torus
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowTorus(prev => !prev);
+        return;
+      }
+      itemY += lineHeight + 8;
+      
+      // Fields section
+      itemY += lineHeight; // "FIELDS:" label
+      
+      // B toroidal
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowToroidalField(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // B poloidal
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowPoloidalField(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // B solenoid
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowSolenoidField(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // E induced
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowElectricField(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // Helical line
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowHelicalFieldLine(prev => !prev);
+        return;
+      }
+      itemY += lineHeight + 8;
+      
+      // Particle section
+      itemY += lineHeight; // "PARTICLE:" label
+      
+      // Particle
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowParticle(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // Vectors
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setShowParticleVectors(prev => !prev);
+        return;
+      }
+      itemY += lineHeight;
+      
+      // Cutaway
+      if (y >= itemY - 10 && y < itemY + 8) {
+        setCutawayView(prev => !prev);
+        return;
+      }
+      
+      return; // Don't start dragging if clicking legend
+    }
+    
+    setIsDragging(true);
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    // Check if over legend
+    setIsOverLegend(x < 180 && y < 400);
+    
+    if (!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    setRotationY(prev => prev + dx * 0.5);
+    setRotationX(prev => Math.max(-89, Math.min(89, prev + dy * 0.5)));
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+  
+  const handleWheel = (e) => {
+    e.preventDefault();
+    setZoom(prev => Math.max(0.5, Math.min(2, prev - e.deltaY * 0.001)));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-2">
+      <h1 className="text-xl font-bold text-center mb-1">
+        Complete Tokamak Field Visualization
+      </h1>
+      <p className="text-center text-gray-400 text-sm mb-2">
+        Drag to rotate • Scroll to zoom • Adjust all fields independently
+      </p>
+      
+      <div className="flex flex-col xl:flex-row gap-2 max-w-7xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={600}
+            className={`bg-gray-800 rounded-lg w-full ${isOverLegend ? 'cursor-pointer' : 'cursor-move'}`}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+          />
+        </div>
+        
+        <div className="w-full xl:w-72 space-y-2 text-sm">
+          {/* Playback */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2">Playback</h3>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className={`flex-1 py-1 rounded ${isPlaying ? 'bg-yellow-600' : 'bg-green-600'}`}
+              >
+                {isPlaying ? '⏸' : '▶'}
+              </button>
+              <button
+                onClick={() => { setParticlePos({ toroidal: 0, poloidal: 0, r: 0.5 }); setTime(0); }}
+                className="flex-1 py-1 rounded bg-gray-700"
+              >
+                ↺ Reset
+              </button>
+            </div>
+            <label className="text-xs text-gray-400">Speed: {speed.toFixed(1)}x</label>
+            <input type="range" min="0.1" max="3" step="0.1" value={speed}
+              onChange={e => setSpeed(Number(e.target.value))} className="w-full" />
+          </div>
+          
+          {/* Field Strengths */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2">Field Strengths</h3>
+            
+            <label className="text-xs text-purple-400">Toroidal B: {toroidalStrength.toFixed(2)}</label>
+            <input type="range" min="0" max="2" step="0.1" value={toroidalStrength}
+              onChange={e => setToroidalStrength(Number(e.target.value))} 
+              className="w-full accent-purple-500" />
+            
+            <label className="text-xs text-blue-400 mt-1 block">Poloidal B: {poloidalStrength.toFixed(2)}</label>
+            <input type="range" min="0" max="1" step="0.05" value={poloidalStrength}
+              onChange={e => setPoloidalStrength(Number(e.target.value))} 
+              className="w-full accent-blue-500" />
+            
+            <label className="text-xs text-red-400 mt-1 block">Solenoid I: {solenoidCurrent.toFixed(0)} A</label>
+            <input type="range" min="0" max="100" step="1" value={solenoidCurrent}
+              onChange={e => setSolenoidCurrent(Number(e.target.value))} 
+              className="w-full accent-red-500" />
+            <p className="text-xs text-gray-500">Drag quickly to see induced E field!</p>
+          </div>
+          
+          {/* Hardware / Coils */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2 text-gray-400 text-xs">💡 Click legend on canvas to toggle elements</h3>
+          </div>
+          
+          
+          {/* View presets */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2">View Presets</h3>
+            <div className="grid grid-cols-2 gap-1">
+              <button onClick={() => { setRotationX(-25); setRotationY(35); }}
+                className="py-1 bg-gray-700 rounded text-xs">3/4 View</button>
+              <button onClick={() => { setRotationX(-90); setRotationY(0); }}
+                className="py-1 bg-gray-700 rounded text-xs">Top</button>
+              <button onClick={() => { setRotationX(0); setRotationY(0); }}
+                className="py-1 bg-gray-700 rounded text-xs">Front</button>
+              <button onClick={() => { setRotationX(0); setRotationY(90); }}
+                className="py-1 bg-gray-700 rounded text-xs">Side</button>
+            </div>
+          </div>
+          
+          {/* What to try */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2">Try This</h3>
+            <ul className="text-xs text-gray-400 space-y-1">
+              <li>• Set poloidal to 0 → field lines are flat circles</li>
+              <li>• Increase poloidal → field lines twist into helix</li>
+              <li>• Drag solenoid slider fast → yellow E field appears</li>
+              <li>• E field speeds up/slows particle</li>
+              <li>• Toggle cutaway to see inside</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CompleteTokamak3D));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

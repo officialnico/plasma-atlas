@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a crowd comes undone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,400&family=Spline+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0a14; --bg2:#14121f; --panel:#161423;
+    --ink:#ECE7DC; --muted:#9a93a8; --faint:#6a6478;
+    --amber:#F6A23B; --magenta:#E04A72; --teal:#5DCAA5; --violet:#8F86E6;
+    --line:rgba(236,231,220,.12);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Spline Sans",sans-serif; font-size:18px; line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(rgba(143,134,230,.07) 1px, transparent 1px);
+    background-size:34px 34px;
+  }
+  .glow{position:fixed; inset:-20% -10% auto -10%; height:60vh; pointer-events:none; z-index:0;
+    background:radial-gradient(50% 60% at 30% 20%, rgba(224,74,114,.16), transparent 70%),
+               radial-gradient(45% 55% at 80% 10%, rgba(246,162,59,.13), transparent 70%);
+    filter:blur(20px); animation:drift 22s ease-in-out infinite alternate;}
+  @keyframes drift{to{transform:translateX(6%) translateY(3%)}}
+  .wrap{position:relative; z-index:1; max-width:760px; margin:0 auto; padding:0 24px 120px}
+  header.hero{min-height:88vh; display:flex; flex-direction:column; justify-content:center; padding:60px 0 30px}
+  .kicker{font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.22em; text-transform:uppercase; color:var(--amber); margin-bottom:22px}
+  h1{font-family:"Fraunces",serif; font-weight:300; font-size:clamp(44px,9vw,86px); line-height:.98; margin:0 0 24px; letter-spacing:-.01em}
+  h1 em{font-style:italic; color:var(--amber)}
+  .lede{font-size:clamp(19px,2.6vw,23px); color:var(--ink); max-width:34ch}
+  .lede .q{color:var(--muted)}
+  .scrollcue{margin-top:54px; font-family:"JetBrains Mono",monospace; font-size:12px; letter-spacing:.2em; color:var(--faint); display:flex; align-items:center; gap:10px}
+  .scrollcue .bar{width:1px; height:34px; background:linear-gradient(var(--amber),transparent); animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+  section{padding:64px 0; border-top:1px solid var(--line)}
+  .step{font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.18em; color:var(--violet); text-transform:uppercase; margin-bottom:16px}
+  h2{font-family:"Fraunces",serif; font-weight:400; font-size:clamp(28px,4.6vw,40px); line-height:1.08; margin:0 0 22px; letter-spacing:-.01em}
+  p{margin:0 0 20px; color:#d8d2c8}
+  p.sub{color:var(--muted); font-size:16px}
+  strong{color:var(--ink); font-weight:500}
+  .hl{color:var(--amber)}
+  .hl2{color:var(--teal)}
+
+  .reveal{opacity:0; transform:translateY(26px); transition:opacity .8s ease, transform .8s ease}
+  .reveal.in{opacity:1; transform:none}
+
+  .stage{background:#0d0c1c; border:1px solid var(--line); border-radius:18px; padding:14px; margin:30px 0}
+  .stage canvas{display:block; width:100%; height:auto; border-radius:10px}
+  .caplbl{font-family:"JetBrains Mono",monospace; font-size:11.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin:2px 2px 8px; display:flex; justify-content:space-between; align-items:center}
+  .legend{display:flex; align-items:center; gap:8px}
+  .legend i{display:inline-block; width:90px; height:8px; border-radius:5px;
+    background:linear-gradient(90deg,#2a1a4a,#5a1a74,#9e2276,#e04a48,#f69634,#fff6e1)}
+
+  .twin{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  @media(max-width:620px){.twin{grid-template-columns:1fr}}
+  .tile{background:#0d0c1c; border:1px solid var(--line); border-radius:14px; padding:12px}
+  .tile h4{margin:0 0 8px; font-family:"JetBrains Mono",monospace; font-weight:400; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--teal)}
+  .tile canvas{display:block; width:100%; height:auto; border-radius:8px}
+
+  .controls{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:8px; padding:4px 2px}
+  button.ui{font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.05em; color:var(--ink);
+    background:var(--bg2); border:1px solid var(--line); border-radius:10px; padding:9px 14px; cursor:pointer; transition:.15s; display:inline-flex; align-items:center; gap:7px}
+  button.ui:hover{border-color:var(--amber); color:var(--amber)}
+  button.ui.on{background:rgba(246,162,59,.14); border-color:var(--amber); color:var(--amber)}
+  .play{width:46px; height:46px; justify-content:center; font-size:16px; border-radius:50%}
+  input[type=range]{-webkit-appearance:none; appearance:none; height:4px; background:rgba(236,231,220,.18); border-radius:4px; flex:1; min-width:120px; cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--amber); cursor:pointer; border:none}
+  input[type=range]::-moz-range-thumb{width:18px; height:18px; border-radius:50%; background:var(--amber); border:none; cursor:pointer}
+  .clock{font-family:"JetBrains Mono",monospace; font-size:14px; color:var(--ink); min-width:78px}
+  .regime{font-family:"JetBrains Mono",monospace; font-size:13px; color:var(--faint)}
+  .regime b{color:var(--teal); font-weight:400}
+
+  blockquote{margin:30px 0; padding:18px 22px; border-left:2px solid var(--amber); background:var(--bg2); border-radius:0 12px 12px 0;
+    font-family:"Fraunces",serif; font-style:italic; font-size:21px; color:var(--ink); line-height:1.5}
+
+  pre{background:#0d0c1c; border:1px solid var(--line); border-radius:14px; padding:20px 22px; overflow-x:auto; margin:24px 0;
+    font-family:"JetBrains Mono",monospace; font-size:14.5px; line-height:1.7; color:#d8d2c8}
+  pre .c{color:var(--faint)} pre .k{color:var(--magenta)} pre .v{color:var(--teal)} pre .n{color:var(--amber)}
+  .gloss{display:grid; grid-template-columns:auto 1fr; gap:8px 16px; margin:16px 0; font-size:15.5px}
+  .gloss code{font-family:"JetBrains Mono",monospace; color:var(--amber); white-space:nowrap}
+  .gloss span{color:var(--muted)}
+
+  footer{border-top:1px solid var(--line); padding:46px 0 10px; color:var(--faint); font-size:14px; font-family:"JetBrains Mono",monospace}
+  footer a{color:var(--teal); text-decoration:none}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">free streaming · explained plainly</div>
+  <h1>How a crowd<br>comes <em>undone</em></h1>
+  <p class="lede">Start a pack of runners bunched together. Don't let anyone speed up or slow down. <span class="q">What happens to the crowd?</span></p>
+  <div class="scrollcue"><span class="bar"></span> scroll</div>
+</header>
+
+<section>
+  <div class="reveal">
+    <div class="step">01 — two facts about a runner</div>
+    <h2>Where you are, and how fast you're going</h2>
+    <p>That's all we track about each runner. Their <span class="hl2">position</span> on the loop, and their <span class="hl">speed</span>. Nobody pushes anyone, there are no hills, no finish line — once they're moving, they just keep their speed. We call that <strong>free</strong> streaming: free of any force.</p>
+    <p class="sub">Fast runners sit near the top of the chart you'll see next. Slow (or backward) runners sit near the bottom. Color tells you speed: deep purple is slow, hot orange is fast.</p>
+  </div>
+</section>
+
+<section>
+  <div class="reveal">
+    <div class="step">02 — press play</div>
+    <h2>The pack smears around the track</h2>
+    <p>On the <span class="hl2">left</span> is the actual track, seen from above — every dot is a runner. On the <span class="hl">right</span> is how a physicist draws the same moment: a chart where left–right is <em>position</em> and up–down is <em>speed</em>. Brighter means more runners crowded there.</p>
+    <p>Hit play. Watch the bright clump on the right tilt and stretch into thin diagonal streaks, while on the left the runners fan out around the loop. Same story, two pictures.</p>
+
+    <div class="twin">
+      <div class="tile"><h4>the track (from above)</h4><canvas id="track" width="320" height="320"></canvas></div>
+      <div class="tile"><h4>physicist's chart</h4><canvas id="dens" width="320" height="320"></canvas></div>
+    </div>
+
+    <div class="stage" style="padding:10px 14px 4px; background:transparent; border:none">
+      <div class="controls">
+        <button class="ui play" id="play" aria-label="play / pause">⏸</button>
+        <input type="range" id="t" min="0" max="6" step="0.01" value="0" aria-label="time">
+        <span class="clock" id="clock">time 0.0</span>
+        <button class="ui" id="ring">show the taffy ring</button>
+        <button class="ui" id="reset" aria-label="reset">↺</button>
+      </div>
+      <p class="regime" style="margin:10px 2px 0">right now the pack is: <b id="regime">bunched up</b></p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="reveal">
+    <div class="step">03 — the taffy rule</div>
+    <h2>It stretches, but never shrinks</h2>
+    <p>Turn on <span class="hl">show the taffy ring</span> and watch the little outlined blob on the chart. It tilts and pulls into a long thin shape — but its <strong>area never changes</strong>. Like a piece of taffy: pull it long and skinny and you still have exactly as much taffy.</p>
+    <p>That's a real law (physicists name it after a man called Liouville), and it has a practical payoff: <strong>no runners are ever created or destroyed</strong>. The crowd only rearranges. In the original code, that's why the "is mass conserved?" check passes perfectly.</p>
+    <blockquote>Nothing is lost. The clump just gets spread so thin you stop noticing it.</blockquote>
+  </div>
+</section>
+
+<section>
+  <div class="reveal">
+    <div class="step">04 — the payoff</div>
+    <h2>Stand at the rail and count heads</h2>
+    <p>Forget speeds for a second. Just walk the track and count how many runners are at each spot. At the start they're all piled in one place — a tall spike. As time goes on, that spike <span class="hl2">flattens out</span> until runners are sprinkled evenly all the way around.</p>
+    <p class="sub">The strip below is exactly that head-count, updating with the animation above. The bump sags and spreads. The runners didn't vanish — they're just hidden in a fan of different speeds now.</p>
+    <div class="stage">
+      <div class="caplbl"><span>head-count at each spot on the track</span></div>
+      <canvas id="marg" width="640" height="120"></canvas>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="reveal">
+    <div class="step">05 — the computer's shortcut</div>
+    <h2>Spin a dial instead of moving everyone</h2>
+    <p>Here's the only "trick" worth knowing. A computer could move millions of runners one tiny step at a time — slow and clumsy. Instead it represents the crowd as a row of <span class="hl">spinning dials</span>, and fast-forwarding time just means <strong>spinning each dial</strong>.</p>
+    <p>The rule for how fast a dial spins is dead simple: <strong>a runner's dial spins at a rate set by their speed</strong>. The runner standing still (middle dial) never turns. Faster runners spin faster; backward runners spin the other way. That's it.</p>
+    <div class="stage">
+      <div class="caplbl"><span>one dial per speed · faster runner → faster spin</span></div>
+      <canvas id="wheel" width="640" height="150"></canvas>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="reveal">
+    <div class="step">06 — the missing line</div>
+    <h2>Now the code reads like a sentence</h2>
+    <p>The blank in your exercise was just "spin every dial by the right amount." In code:</p>
+<pre><span class="c"># spin each speed's dial by (speed × time-step)</span>
+phase = np.<span class="k">exp</span>(<span class="n">-1j</span> * kx[:, <span class="v">None</span>] * v[<span class="v">None</span>, :] * dt)</pre>
+    <div class="gloss">
+      <code>np.exp(-1j * … )</code><span>= "spin a dial" (this is the dial, in math costume)</span>
+      <code>v</code><span>= the speed — how fast that dial spins</span>
+      <code>dt</code><span>= how much time we're fast-forwarding</span>
+      <code>kx</code><span>= which "wavelength" of the crowd we're spinning (the code handles a whole set at once)</span>
+      <code>[:, None] / [None, :]</code><span>= a tidy way to pair every wavelength with every speed in one grid</span>
+    </div>
+    <p>Multiply the crowd by these dials, spin, and you've jumped time forward — exactly matching the slow runner-by-runner version the test compares against. Same answer, far faster.</p>
+  </div>
+</section>
+
+<section>
+  <div class="reveal">
+    <div class="step">the whole thing, in one line</div>
+    <h2>A bunched crowd, left to drift, spreads itself thin — and a computer fakes that by spinning dials.</h2>
+    <p class="sub">That's free streaming. Everything heavier (the Vlasov equation, Fourier transforms, Liouville's theorem) is just careful names for the runners you just watched.</p>
+  </div>
+</section>
+
+<footer>
+  built from the same physics as your exercise · drag the slider, toggle the ring, replay anytime
+</footer>
+
+</div>
+
+<p class="sr">Animated explainer: a bunched group of runners on a circular track, all moving at constant individual speeds, gradually spreads out evenly around the loop; a paired position-versus-speed chart shows the dense cluster shearing into thin diagonal filaments; a head-count strip shows the spatial density flattening; and a row of dials illustrates that faster runners correspond to faster-spinning phases.</p>
+
+<script>
+(function(){
+  const L=Math.PI*2, Vm=3, GX=2048;
+
+  const stops=[[0,42,26,74],[0.16,90,26,116],[0.40,158,34,118],[0.62,224,74,72],[0.80,246,150,52],[0.92,250,200,110],[1,255,246,225]];
+  const lut=new Uint8ClampedArray(256*3);
+  for(let i=0;i<256;i++){const x=i/255;let a=stops[0],b=stops[stops.length-1];
+    for(let s=0;s<stops.length-1;s++){if(x>=stops[s][0]&&x<=stops[s+1][0]){a=stops[s];b=stops[s+1];break;}}
+    const f=(x-a[0])/((b[0]-a[0])||1);
+    lut[i*3]=a[1]+(b[1]-a[1])*f; lut[i*3+1]=a[2]+(b[2]-a[2])*f; lut[i*3+2]=a[3]+(b[3]-a[3])*f;}
+  function speedColor(v){let n=(v+Vm)/(2*Vm); n=n<0?0:n>1?1:n; const i=(n*255|0)*3; return 'rgb('+lut[i]+','+lut[i+1]+','+lut[i+2]+')';}
+
+  const gxf=new Float32Array(GX);
+  for(let i=0;i<GX;i++){const x=(i+0.5)/GX*L; gxf[i]=Math.exp(-((x-Math.PI)*(x-Math.PI))/0.3);}
+
+  let seed=20240607; function rnd(){seed=(seed*1664525+1013904223)>>>0; return seed/4294967296;}
+  function randn(){let u=0,v=0; while(u===0)u=rnd(); while(v===0)v=rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(6.283185*v);}
+
+  const dens=document.getElementById('dens'), dctx=dens.getContext('2d');
+  const DW=dens.width, DH=dens.height;
+  const gv=new Float32Array(DH); let sumGv=0;
+  for(let r=0;r<DH;r++){const v=Vm-(r+0.5)/DH*2*Vm; gv[r]=Math.exp(-v*v/2); sumGv+=gv[r];}
+  const dimg=dctx.createImageData(DW,DH); const dd=dimg.data; for(let i=3;i<dd.length;i+=4) dd[i]=255;
+
+  const NP=80, rx=new Float32Array(NP), rv=new Float32Array(NP);
+  for(let i=0;i<NP;i++){const th=i/NP*L; rx[i]=Math.PI+0.20*Math.cos(th); rv[i]=1.0+0.55*Math.sin(th);}
+
+  const NR=420, tpos=new Float32Array(NR), tspd=new Float32Array(NR), trad=new Float32Array(NR);
+  for(let i=0;i<NR;i++){ tpos[i]=Math.PI+randn()*Math.sqrt(0.15); let s=randn(); if(s>Vm)s=Vm; if(s<-Vm)s=-Vm; tspd[i]=s; trad[i]=0.66+rnd()*0.26; }
+
+  const track=document.getElementById('track'), tctx=track.getContext('2d');
+  const marg=document.getElementById('marg'), mctx=marg.getContext('2d');
+  const MW=marg.width, MH=marg.height; const margArr=new Float32Array(MW);
+  const wheel=document.getElementById('wheel'), wctx=wheel.getContext('2d');
+
+  const slider=document.getElementById('t'), clock=document.getElementById('clock'),
+        regime=document.getElementById('regime'), playBtn=document.getElementById('play'),
+        ringBtn=document.getElementById('ring'), resetBtn=document.getElementById('reset');
+  const st={t:0, playing:true, ring:false};
+
+  function drawDens(t){
+    for(let r=0;r<DH;r++){
+      const v=Vm-(r+0.5)/DH*2*Vm, shift=v*t, gvv=gv[r], off=r*DW*4;
+      for(let c=0;c<DW;c++){
+        const x=(c+0.5)/DW*L; let xs=(x-shift)%L; if(xs<0)xs+=L;
+        const de=gxf[(xs/L*GX)|0]*gvv;
+        const li=(Math.pow(de,0.62)*255)|0, ci=(li>255?255:li)*3, o=off+c*4;
+        dd[o]=lut[ci]; dd[o+1]=lut[ci+1]; dd[o+2]=lut[ci+2];
+      }
+    }
+    dctx.putImageData(dimg,0,0);
+    if(st.ring){
+      dctx.fillStyle='rgba(236,231,220,.95)';
+      for(let i=0;i<NP;i++){const v=rv[i]; let x=(rx[i]+v*t)%L; if(x<0)x+=L;
+        const X=x/L*DW, Y=(Vm-v)/(2*Vm)*DH; dctx.beginPath(); dctx.arc(X,Y,2,0,6.283); dctx.fill();}
+    }
+  }
+
+  function drawTrack(t){
+    const w=track.width,h=track.height,cx=w/2,cy=h/2,R=Math.min(w,h)*0.40;
+    tctx.clearRect(0,0,w,h);
+    tctx.beginPath(); tctx.arc(cx,cy,R,0,6.283); tctx.strokeStyle='rgba(236,231,220,.14)'; tctx.lineWidth=R*0.30; tctx.stroke();
+    const sa=Math.PI;
+    tctx.beginPath(); tctx.arc(cx+Math.cos(sa)*R, cy+Math.sin(sa)*R, 3,0,6.283); tctx.fillStyle='rgba(246,162,59,.5)'; tctx.fill();
+    for(let i=0;i<NR;i++){
+      const a=tpos[i]+tspd[i]*t, r=R*trad[i];
+      const X=cx+Math.cos(a)*r, Y=cy+Math.sin(a)*r;
+      tctx.beginPath(); tctx.arc(X,Y,1.9,0,6.283); tctx.fillStyle=speedColor(tspd[i]); tctx.globalAlpha=.92; tctx.fill();
+    }
+    tctx.globalAlpha=1;
+  }
+
+  function drawMarg(t){
+    margArr.fill(0);
+    for(let c=0;c<MW;c++){
+      const x=(c+0.5)/MW*L; let s=0;
+      for(let r=0;r<DH;r++){const v=Vm-(r+0.5)/DH*2*Vm; let xs=(x-v*t)%L; if(xs<0)xs+=L; s+=gxf[(xs/L*GX)|0]*gv[r];}
+      margArr[c]=s;
+    }
+    mctx.clearRect(0,0,MW,MH);
+    mctx.beginPath(); mctx.moveTo(0,MH);
+    for(let c=0;c<MW;c++){const y=MH-(margArr[c]/sumGv)*(MH-10)-4; mctx.lineTo(c,y);}
+    mctx.lineTo(MW,MH); mctx.closePath(); mctx.fillStyle='rgba(93,202,165,.16)'; mctx.fill();
+    mctx.beginPath();
+    for(let c=0;c<MW;c++){const y=MH-(margArr[c]/sumGv)*(MH-10)-4; c?mctx.lineTo(c,y):mctx.moveTo(c,y);}
+    mctx.strokeStyle='#5DCAA5'; mctx.lineWidth=2; mctx.stroke();
+  }
+
+  function drawWheel(t){
+    const w=wheel.width,h=wheel.height; wctx.clearRect(0,0,w,h);
+    const vs=[-2,-1,0,1,2], R=34, cy=h/2-6;
+    for(let i=0;i<vs.length;i++){
+      const cx=(i+0.5)/vs.length*w, a=-vs[i]*t, col=speedColor(vs[i]);
+      wctx.beginPath(); wctx.arc(cx,cy,R,0,6.283); wctx.strokeStyle='rgba(236,231,220,.2)'; wctx.lineWidth=1.2; wctx.stroke();
+      wctx.beginPath(); wctx.moveTo(cx,cy); wctx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);
+      wctx.strokeStyle=col; wctx.lineWidth=3; wctx.lineCap='round'; wctx.stroke();
+      wctx.beginPath(); wctx.arc(cx+Math.cos(a)*R,cy+Math.sin(a)*R,4,0,6.283); wctx.fillStyle=col; wctx.fill();
+      wctx.fillStyle='rgba(154,147,168,.9)'; wctx.font='12px "JetBrains Mono", monospace'; wctx.textAlign='center';
+      wctx.fillText(vs[i]===0?'still':(vs[i]>0?'fast +'+vs[i]:'back '+vs[i]), cx, cy+R+22);
+    }
+  }
+
+  function render(){
+    const t=st.t;
+    drawDens(t); drawTrack(t); drawMarg(t); drawWheel(t);
+    clock.textContent='time '+t.toFixed(1);
+    regime.textContent = t<0.4?'bunched up': t<1.4?'starting to spread': t<3?'fanning out':'spread thin all around';
+  }
+  function syncPlay(){ playBtn.textContent = st.playing?'⏸':'▶'; }
+
+  let last=0;
+  function loop(ts){
+    if(ts-last>=33){ last=ts;
+      if(st.playing){ st.t+=0.05; if(st.t>6) st.t=0; slider.value=st.t; }
+      render();
+    }
+    requestAnimationFrame(loop);
+  }
+  slider.addEventListener('input',()=>{ st.t=parseFloat(slider.value); st.playing=false; syncPlay(); render(); });
+  playBtn.addEventListener('click',()=>{ st.playing=!st.playing; syncPlay(); });
+  ringBtn.addEventListener('click',()=>{ st.ring=!st.ring; ringBtn.classList.toggle('on',st.ring); render(); });
+  resetBtn.addEventListener('click',()=>{ st.t=0; st.playing=false; slider.value=0; syncPlay(); render(); });
+
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');});},{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  syncPlay(); render(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

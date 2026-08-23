@@ -1,0 +1,412 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>local vs neighbors</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+  yellow: "#fff176",
+};
+
+function fluxSurface(psiNorm, theta) {
+  const r0 = 2.0, kappa = 1.6, delta = 0.35, shaf = 0.25;
+  const a = 0.7 * psiNorm;
+  const shift = shaf * (1 - psiNorm * psiNorm);
+  return {
+    R: r0 + shift + a * Math.cos(theta + delta * Math.sin(theta)),
+    Z: kappa * a * Math.sin(theta),
+  };
+}
+
+const ZOOMS = [
+  { label: "Full", zoom: 350, cx: 2.1, cy: 0.0 },
+  { label: "Region", zoom: 800, cx: 2.3, cy: 0.25 },
+  { label: "Close", zoom: 1600, cx: 2.35, cy: 0.33 },
+  { label: "Detail", zoom: 3000, cx: 2.37, cy: 0.36 },
+];
+
+const PHASES = [
+  {
+    title: "1. One point on one surface",
+    desc: "We want the metric coefficients at this specific point. They will describe the geometry right here and nowhere else.",
+  },
+  {
+    title: "2. Peek at the neighbors",
+    desc: "To compute \u2207\u03c8, we reach into the neighboring surfaces \u2014 one just inside, one just outside. We read their \u03c8 values and measure the difference.",
+  },
+  {
+    title: "3. Compute the gradient",
+    desc: "From the difference in \u03c8 across the two neighbors, we get \u2207\u03c8 at our point. This tells us how tightly packed the surfaces are here.",
+  },
+  {
+    title: "4. The result lives at the point",
+    desc: "g_xx, g_xy, g_yy, and J are all properties of THIS point. The neighbors were inputs to the calculation. The output is purely local.",
+  },
+];
+
+function ComputeVsDescribe() {
+  const [phase, setPhase] = useState(0);
+  const [anim, setAnim] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState(2);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+
+  useEffect(() => {
+    const start = Date.now();
+    const tick = () => {
+      setAnim((Date.now() - start) / 1000);
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  const chosenPsi = 0.5;
+  const chosenTheta = 0.4;
+  const innerPsi = 0.42;
+  const outerPsi = 0.58;
+  const currentZoom = ZOOMS[zoomLevel];
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const centerX = W * 0.5, centerY = H * 0.45;
+    const zoom = currentZoom.zoom;
+    const focusR = currentZoom.cx;
+    const focusZ = currentZoom.cy;
+
+    const toX = (R) => centerX + (R - focusR) * zoom;
+    const toY = (Z) => centerY - (Z - focusZ) * zoom;
+
+    const nTh = 300;
+
+    // Background surfaces at far zoom
+    if (zoomLevel <= 1) {
+      for (let si = 1; si <= 8; si++) {
+        const psi = si / 8;
+        if (Math.abs(psi - chosenPsi) < 0.02) continue;
+        if (Math.abs(psi - innerPsi) < 0.02) continue;
+        if (Math.abs(psi - outerPsi) < 0.02) continue;
+        ctx.beginPath();
+        for (let j = 0; j <= nTh; j++) {
+          const th = (j / nTh) * 2 * Math.PI;
+          const { R, Z } = fluxSurface(psi, th);
+          if (j === 0) ctx.moveTo(toX(R), toY(Z));
+          else ctx.lineTo(toX(R), toY(Z));
+        }
+        ctx.closePath();
+        ctx.strokeStyle = C.border + "30";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+
+    // Three key surfaces
+    const surfaces = [
+      { psi: innerPsi, label: "\u03c8 \u2212 \u03b4 (inner)", color: C.yellow, dash: [6, 6], showPhase: 1 },
+      { psi: chosenPsi, label: "\u03c8\u2080 (our surface)", color: C.accent, dash: [], showPhase: 0 },
+      { psi: outerPsi, label: "\u03c8 + \u03b4 (outer)", color: C.yellow, dash: [6, 6], showPhase: 1 },
+    ];
+
+    surfaces.forEach((s) => {
+      if (phase < s.showPhase) return;
+
+      ctx.beginPath();
+      for (let j = 0; j <= nTh; j++) {
+        const th = (j / nTh) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(s.psi, th);
+        if (j === 0) ctx.moveTo(toX(R), toY(Z));
+        else ctx.lineTo(toX(R), toY(Z));
+      }
+
+      if (s.psi === chosenPsi) {
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = s.color;
+        ctx.shadowBlur = 15;
+      } else {
+        ctx.strokeStyle = s.color + "80";
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 0;
+        ctx.setLineDash(s.dash);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.setLineDash([]);
+
+      // Label
+      const labelTh = s.psi === chosenPsi ? chosenTheta + 0.5 : chosenTheta + 0.6;
+      const { R: lR, Z: lZ } = fluxSurface(s.psi, labelTh);
+      const lx = toX(lR), ly = toY(lZ);
+      if (lx > 10 && lx < W - 10 && ly > 10 && ly < H - 10) {
+        ctx.font = s.psi === chosenPsi ? "bold 13px 'IBM Plex Mono', monospace" : "11px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = s.color;
+        ctx.fillText(s.label, lx + 10, ly);
+      }
+    });
+
+    // Neighbor connections
+    const { R: ptR, Z: ptZ } = fluxSurface(chosenPsi, chosenTheta);
+    const ptX = toX(ptR), ptY = toY(ptZ);
+
+    if (phase >= 1) {
+      const { R: inR, Z: inZ } = fluxSurface(innerPsi, chosenTheta);
+      const { R: outR, Z: outZ } = fluxSurface(outerPsi, chosenTheta);
+      const inX = toX(inR), inY = toY(inZ);
+      const outX = toX(outR), outY = toY(outZ);
+
+      // Dashed lines
+      [{ x: inX, y: inY }, { x: outX, y: outY }].forEach((nb) => {
+        ctx.beginPath();
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(nb.x, nb.y);
+        ctx.strokeStyle = C.yellow + "70";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Neighbor dots
+      [{ x: inX, y: inY, psi: innerPsi }, { x: outX, y: outY, psi: outerPsi }].forEach((nb) => {
+        ctx.beginPath();
+        ctx.arc(nb.x, nb.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = C.yellow;
+        ctx.shadowColor = C.yellow;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.yellow;
+        const side = nb.x < ptX ? -85 : 12;
+        ctx.fillText(`\u03c8 = ${nb.psi.toFixed(2)}`, nb.x + side, nb.y - 12);
+      });
+
+      // Animated particles
+      for (let i = 0; i < 4; i++) {
+        const t = ((anim * 0.7 + i / 4) % 1);
+        const alpha = 0.15 + 0.85 * Math.sin(t * Math.PI);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = C.yellow;
+
+        [{ x: inX, y: inY }, { x: outX, y: outY }].forEach((nb) => {
+          const px = nb.x + (ptX - nb.x) * t;
+          const py = nb.y + (ptY - nb.y) * t;
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Gradient arrow
+    if (phase >= 2) {
+      const { R: inR, Z: inZ } = fluxSurface(innerPsi, chosenTheta);
+      const { R: outR, Z: outZ } = fluxSurface(outerPsi, chosenTheta);
+      const dR = outR - inR, dZ = outZ - inZ;
+      const mag = Math.sqrt(dR * dR + dZ * dZ);
+      const arrLen = Math.min(80, zoom * 0.05);
+      const arrX = (dR / mag) * arrLen;
+      const arrY = -(dZ / mag) * arrLen;
+
+      ctx.beginPath();
+      ctx.moveTo(ptX, ptY);
+      ctx.lineTo(ptX + arrX, ptY + arrY);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      const a1 = Math.atan2(arrY, arrX);
+      ctx.beginPath();
+      ctx.moveTo(ptX + arrX, ptY + arrY);
+      ctx.lineTo(ptX + arrX - 12 * Math.cos(a1 - 0.35), ptY + arrY - 12 * Math.sin(a1 - 0.35));
+      ctx.moveTo(ptX + arrX, ptY + arrY);
+      ctx.lineTo(ptX + arrX - 12 * Math.cos(a1 + 0.35), ptY + arrY - 12 * Math.sin(a1 + 0.35));
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.font = "bold 13px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green;
+      ctx.fillText("\u2207\u03c8", ptX + arrX + 8, ptY + arrY - 8);
+    }
+
+    // Result glow
+    if (phase >= 3) {
+      const pulse = 0.5 + 0.5 * Math.sin(anim * 2);
+      ctx.beginPath();
+      ctx.arc(ptX, ptY, 28 + 8 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = C.accent + "10";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ptX, ptY, 18 + 4 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = C.accent + "18";
+      ctx.fill();
+
+      const boxX = ptX + 20, boxY = ptY + 22;
+      ctx.fillStyle = C.surface + "e0";
+      ctx.strokeStyle = C.accent + "60";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, 155, 74, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.accent;
+      ctx.fillText("RESULT (local):", boxX + 8, boxY + 16);
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green;
+      ctx.fillText("g_xx = |\u2207\u03c8|\u00b2", boxX + 8, boxY + 34);
+      ctx.fillStyle = C.orange;
+      ctx.fillText("g_yy = |\u2207\u03b8|\u00b2", boxX + 8, boxY + 50);
+      ctx.fillStyle = C.yellow;
+      ctx.fillText("g_xy = \u2207\u03c8\u00b7\u2207\u03b8", boxX + 8, boxY + 66);
+    }
+
+    // Main point
+    ctx.beginPath();
+    ctx.arc(ptX, ptY, phase >= 3 ? 10 : 8, 0, Math.PI * 2);
+    ctx.fillStyle = C.highlight;
+    ctx.shadowColor = C.highlight;
+    ctx.shadowBlur = 15;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (phase < 3) {
+      ctx.font = "bold 12px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.highlight;
+      ctx.fillText("our point", ptX + 15, ptY + 5);
+    }
+  }, [phase, anim, zoomLevel]);
+
+  const current = PHASES[phase];
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: C.textBright, margin: 0 }}>
+            Computed From Neighbors, Lives at the Point
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            inputs are nonlocal — output is local
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 8 }}>
+          {PHASES.map((_, i) => (
+            <button key={i} onClick={() => setPhase(i)} style={{
+              width: 44, height: 4, borderRadius: 2, border: "none",
+              background: i === phase ? C.accent : i < phase ? C.accentDim : C.surface,
+              cursor: "pointer",
+            }} />
+          ))}
+        </div>
+
+        {/* Zoom */}
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 10 }}>
+          {ZOOMS.map((z, i) => (
+            <button key={i} onClick={() => setZoomLevel(i)} style={{
+              padding: "5px 10px", borderRadius: 5, fontSize: 10,
+              border: `1px solid ${i === zoomLevel ? C.accent : C.border}`,
+              background: i === zoomLevel ? C.accentDim : C.bgPanel,
+              color: i === zoomLevel ? C.accent : C.textDim,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+              {["Full", "Region", "Close", "Detail"][i]}
+            </button>
+          ))}
+        </div>
+
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, overflow: "hidden", marginBottom: 12,
+        }}>
+          <canvas ref={canvasRef} width={500} height={450}
+            style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14, marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 6 }}>
+            {current.title}
+          </div>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.6 }}>
+            {current.desc}
+          </div>
+          {phase === 3 && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px", background: C.surface,
+              borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.8,
+            }}>
+              Like measuring the slope of a hill:
+              <br /><span style={{ color: C.yellow }}>look uphill & downhill</span> → inputs from neighbors
+              <br /><span style={{ color: C.green }}>compute steepness</span> → gradient ∇ψ
+              <br /><span style={{ color: C.highlight }}>steepness belongs to where you stand</span> → local result
+              <br /><br />
+              <span style={{ color: C.accent }}>The metric coefficients are the result, not the inputs.</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button onClick={() => setPhase(Math.max(0, phase - 1))} disabled={phase === 0} style={{
+            padding: "8px 20px", borderRadius: 6, border: `1px solid ${C.border}`,
+            background: phase === 0 ? C.surface : C.bgPanel,
+            color: phase === 0 ? C.textDim : C.text,
+            cursor: phase === 0 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>← Back</button>
+          <button onClick={() => setPhase(Math.min(3, phase + 1))} disabled={phase === 3} style={{
+            padding: "8px 20px", borderRadius: 6,
+            border: `1px solid ${phase === 3 ? C.border : C.accent}`,
+            background: phase === 3 ? C.surface : C.accentDim,
+            color: phase === 3 ? C.textDim : C.accent,
+            cursor: phase === 3 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ComputeVsDescribe));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

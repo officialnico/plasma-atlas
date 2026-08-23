@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The flux tube — why 16 points is enough</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  p { margin-bottom:1rem; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+
+  h2 {
+    color:#e2e5ed;
+    font-size:1.1rem;
+    font-weight:600;
+    margin:1.8rem 0 0.5rem;
+    padding-top:1rem;
+    border-top:1px solid #252a36;
+  }
+  h2 .num {
+    font-family:'IBM Plex Mono',monospace;
+    color:#f0a050;
+    font-size:0.85rem;
+    margin-right:0.6rem;
+  }
+
+  .stage {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    overflow:hidden;
+    margin:1rem 0 1.5rem;
+    position:relative;
+  }
+  .stage-tag {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 4px;
+  }
+  .stage canvas { width:100%; display:block; }
+  #scene-tube { width:100%; height:440px; cursor:grab; }
+  #scene-tube:active { cursor:grabbing; }
+
+  .ctrl {
+    display:flex; gap:8px; padding:10px 14px;
+    border-top:1px solid #252a36;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .ctrl button {
+    padding:6px 14px;
+    border-radius:4px;
+    border:1px solid #252a36;
+    background:transparent;
+    color:#8a8f9f;
+    font-size:0.78rem;
+    cursor:pointer;
+    font-family:'DM Sans',sans-serif;
+    transition:all 0.15s;
+  }
+  .ctrl button.on {
+    border-color:#f0a050;
+    color:#f0a050;
+    background:rgba(240,160,80,0.1);
+  }
+
+  .hint {
+    position:absolute;
+    top:42px; right:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.62rem;
+    color:#6b7084;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    pointer-events:none;
+    background:rgba(12,14,19,0.7);
+    padding:4px 8px;
+    border-radius:3px;
+    border:1px solid #252a36;
+  }
+
+  .note {
+    background:#12151c;
+    border-left:3px solid #5cb8f0;
+    border-radius:0 4px 4px 0;
+    padding:0.9rem 1.1rem;
+    margin:1.2rem 0;
+    font-size:0.92rem;
+  }
+  .note-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#5cb8f0;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+
+  .scale-box {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:6px;
+    padding:14px;
+    margin:1rem 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.78rem;
+    line-height:1.9;
+    color:#8a8f9f;
+  }
+  .scale-box .label {
+    color:#f0a050;
+    font-size:0.65rem;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:6px;
+  }
+  .scale-box .row {
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    gap:14px;
+    align-items:center;
+  }
+  .scale-box .name { color:#e2e5ed; }
+  .scale-box .val { color:#5cb8f0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>16 points? Really?</h1>
+<p class="sub">The flux tube trick — and why a tiny periodic box is all GENE needs</p>
+
+<p>You caught something real. A field line in a typical tokamak has irrational pitch — it never closes on itself. If you tried to follow one all the way around and resolve every wiggle, you'd need millions of points. But GENE doesn't do that.</p>
+
+<h2><span class="num">01</span>The flux tube</h2>
+
+<p>GENE picks a tiny pencil-shaped region — a <strong>flux tube</strong> — that hugs one field line for just one poloidal turn. That's the entire simulation domain. Everything else on the flux surface is assumed to look statistically the same.</p>
+
+<div class="stage">
+  <div class="stage-tag">The flux tube on the torus — it's tiny</div>
+  <canvas id="scene-tube"></canvas>
+  <div class="hint">drag to rotate</div>
+  <div class="ctrl">
+    <button id="b-zoom" class="on">show flux tube</button>
+    <button id="b-lines">field lines on whole surface</button>
+  </div>
+</div>
+
+<div class="scale-box">
+  <div class="label">Typical scales (ITER-class tokamak)</div>
+  <div class="row"><span class="name">major radius R</span><span></span><span class="val">~ 6 m</span></div>
+  <div class="row"><span class="name">minor radius a</span><span></span><span class="val">~ 2 m</span></div>
+  <div class="row"><span class="name">flux tube length (along B)</span><span></span><span class="val">~ 30 m</span></div>
+  <div class="row"><span class="name">flux tube width (in x)</span><span></span><span class="val">~ 0.05 m (5 cm)</span></div>
+  <div class="row"><span class="name">flux tube width (in y)</span><span></span><span class="val">~ 0.05 m</span></div>
+  <div class="row"><span class="name">turbulence eddy size</span><span></span><span class="val">~ 0.005 m (5 mm)</span></div>
+</div>
+
+<p>So the tube is ~5 cm × 5 cm wide and ~30 m long. The eddies inside it are ~5 mm. You only need enough gridpoints to resolve a few eddies in each direction — that's where the small numbers come from. <code>nky0=16</code> means you're tracking sine waves with wavelengths from the box size (5 cm) down to about 5 mm. Plenty for the physics.</p>
+
+<h2><span class="num">02</span>Periodic boundaries</h2>
+
+<p>The flux tube is assumed periodic in y. Whatever wiggle exits the right side re-enters from the left. This is a <em>physics assumption</em>: the turbulence is statistically the same everywhere along y, so a small periodic box represents the whole flux surface.</p>
+
+<div class="stage">
+  <div class="stage-tag">Eddies wrapping around the periodic y boundary</div>
+  <canvas id="c-periodic" height="280"></canvas>
+</div>
+
+<p>Watch the eddies. They drift in y, and when they hit the right edge they appear on the left. Same physics, just relabeled. From the simulation's perspective, the box is infinite in y, tiled with copies of itself — but you only ever store one copy.</p>
+
+<h2><span class="num">03</span>Resolution: how many points do you actually need?</h2>
+
+<p>The eddies are ~5 mm. The box is ~5 cm. So you need maybe 10–32 gridpoints in y to resolve them. That's where numbers like <code>nky0 = 16</code> or <code>nky0 = 32</code> come from. You're not resolving the whole torus — you're resolving the eddies inside a small box that's representative of the surface.</p>
+
+<div class="stage">
+  <div class="stage-tag">A typical flux tube cross-section — how 16 modes capture the eddies</div>
+  <canvas id="c-eddies" height="320"></canvas>
+</div>
+
+<div class="note">
+  <span class="note-label">The full picture</span>
+  <p style="margin-bottom:0.6rem">The torus is huge. The flux tube is a tiny representative slice of it. The flux tube is periodic in x and y by physics assumption (the surface is statistically uniform there). It's "periodic with a twist" in z because after one poloidal turn the field line doesn't quite return to where it started.</p>
+  <p style="margin-bottom:0">So GENE's "16 points" doesn't mean 16 points around the whole torus — it means 16 points across a 5 cm-wide periodic box that <em>stands in</em> for the whole surface. Multiply that by the assumption of statistical homogeneity and you get a simulation that's millions of times cheaper than the full thing.</p>
+</div>
+
+<p>This is also why full-flux-surface or "global" GENE simulations are way more expensive — they drop the periodic-box assumption and resolve the entire surface, which means orders of magnitude more gridpoints. Most everyday GENE work is flux-tube simulation precisely because of this trick.</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  const C = {
+    bg:0x0c0e13,
+    blue:0x5cb8f0,
+    red:0xfb7185,
+    green:0x4ade80,
+    orange:0xf0a050,
+    purple:0xa388f0,
+    dim:0x6b7084,
+    border:0x252a36
+  };
+
+  const R = 3.0;
+  const a = 1.0;
+  const q = 3.14159; // irrational! never closes
+
+  // ── 3D flux tube scene ──
+  (function(){
+    const canvas = document.getElementById('scene-tube');
+    const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(C.bg, 1);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(C.bg, 8, 18);
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const key = new THREE.DirectionalLight(0xfff0d8, 0.6);
+    key.position.set(4, 6, 4);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x5cb8f0, 0.35);
+    rim.position.set(-5, -2, -3);
+    scene.add(rim);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // Translucent torus
+    const torusGeo = new THREE.TorusGeometry(R, a, 32, 64);
+    torusGeo.rotateX(Math.PI / 2);
+    const torusMat = new THREE.MeshPhongMaterial({
+      color: 0x1a2030,
+      emissive: 0x080c14,
+      specular: 0x5cb8f0,
+      shininess: 25,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    group.add(new THREE.Mesh(torusGeo, torusMat));
+
+    const wireGeo = new THREE.TorusGeometry(R, a, 10, 24);
+    wireGeo.rotateX(Math.PI / 2);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x252a36,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.3
+    });
+    group.add(new THREE.Mesh(wireGeo, wireMat));
+
+    function fieldLinePoint(phi, theta_offset) {
+      const theta = phi / q + theta_offset;
+      return new THREE.Vector3(
+        (R + a * Math.cos(theta)) * Math.cos(phi),
+        a * Math.sin(theta),
+        (R + a * Math.cos(theta)) * Math.sin(phi)
+      );
+    }
+
+    // Faded field lines on whole surface (toggleable)
+    const fieldLinesGroup = new THREE.Group();
+    fieldLinesGroup.visible = false;
+    const N_LINES = 8;
+    for (let n = 0; n < N_LINES; n++) {
+      const offset = (n / N_LINES) * Math.PI * 2;
+      const pts = [];
+      for (let s = 0; s <= 600; s++) {
+        const phi = (s / 600) * Math.PI * 2 * 6; // 6 toroidal turns
+        pts.push(fieldLinePoint(phi, offset));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color: C.blue,
+        transparent: true,
+        opacity: 0.25
+      });
+      fieldLinesGroup.add(new THREE.Line(geo, mat));
+    }
+    group.add(fieldLinesGroup);
+
+    // The flux tube — short pencil following one field line for ~1 poloidal turn
+    const fluxTubeGroup = new THREE.Group();
+
+    // Reference field line through the tube
+    const tubeStart = -Math.PI; // poloidal angle to start
+    const tubeEnd = Math.PI;   // poloidal angle to end
+    // Length in phi: dtheta/dphi = 1/q, so dphi = q * dtheta
+    const phiStart = tubeStart * q;
+    const phiEnd = tubeEnd * q;
+
+    const refPts = [];
+    for (let s = 0; s <= 200; s++) {
+      const phi = phiStart + (s / 200) * (phiEnd - phiStart);
+      refPts.push(fieldLinePoint(phi, 0));
+    }
+    const refGeo = new THREE.BufferGeometry().setFromPoints(refPts);
+    const refMat = new THREE.LineBasicMaterial({
+      color: C.green,
+      transparent: true,
+      opacity: 0.95,
+      linewidth: 2
+    });
+    fluxTubeGroup.add(new THREE.Line(refGeo, refMat));
+
+    // Build a thin tube around the reference field line
+    // The tube has a small cross section in (x, y) — we'll show a square cross section
+    const tubeRadius = 0.05; // small box
+
+    // Use TubeGeometry for visualization
+    class FluxTubeCurve extends THREE.Curve {
+      constructor() { super(); }
+      getPoint(t) {
+        const phi = phiStart + t * (phiEnd - phiStart);
+        return fieldLinePoint(phi, 0);
+      }
+    }
+    const curve = new FluxTubeCurve();
+    const tubeGeo = new THREE.TubeGeometry(curve, 80, tubeRadius, 12, false);
+    const tubeMat = new THREE.MeshPhongMaterial({
+      color: 0xf0a050,
+      emissive: 0x4a3018,
+      specular: 0xfff0d8,
+      shininess: 30,
+      transparent: true,
+      opacity: 0.7,
+      side: THREE.DoubleSide
+    });
+    fluxTubeGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+    // Outer wireframe of the flux tube for clarity
+    const tubeWireGeo = new THREE.TubeGeometry(curve, 40, tubeRadius * 1.05, 6, false);
+    const tubeWireMat = new THREE.MeshBasicMaterial({
+      color: 0xf0a050,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.5
+    });
+    fluxTubeGroup.add(new THREE.Mesh(tubeWireGeo, tubeWireMat));
+
+    group.add(fluxTubeGroup);
+
+    // Magnetic axis
+    {
+      const pts = [];
+      for (let i = 0; i <= 100; i++) {
+        const phi = (i / 100) * Math.PI * 2;
+        pts.push(new THREE.Vector3(R * Math.cos(phi), 0, R * Math.sin(phi)));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineDashedMaterial({
+        color: 0x6b7084,
+        dashSize: 0.12,
+        gapSize: 0.08,
+        transparent: true,
+        opacity: 0.5
+      });
+      const axis = new THREE.Line(geo, mat);
+      axis.computeLineDistances();
+      group.add(axis);
+    }
+
+    // Toggles
+    document.getElementById('b-zoom').addEventListener('click', (e) => {
+      fluxTubeGroup.visible = !fluxTubeGroup.visible;
+      e.target.classList.toggle('on', fluxTubeGroup.visible);
+    });
+    document.getElementById('b-lines').addEventListener('click', (e) => {
+      fieldLinesGroup.visible = !fieldLinesGroup.visible;
+      e.target.classList.toggle('on', fieldLinesGroup.visible);
+    });
+
+    // Camera
+    let rotX = 0.4, rotY = 0.6;
+    let targetRotX = 0.4, targetRotY = 0.6;
+    let zoom = 1.0, targetZoom = 1.0;
+    let isDragging = false;
+    let lastX = 0, lastY = 0;
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      targetRotY += (e.clientX - lastX) * 0.005;
+      targetRotX += (e.clientY - lastY) * 0.005;
+      targetRotX = Math.max(-1.3, Math.min(1.3, targetRotX));
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    window.addEventListener('mouseup', () => isDragging = false);
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      targetZoom *= (1 + e.deltaY * 0.001);
+      targetZoom = Math.max(0.5, Math.min(2.5, targetZoom));
+    }, {passive:false});
+
+    let lastTouchDist = 0;
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+      }
+    });
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1 && isDragging) {
+        targetRotY += (e.touches[0].clientX - lastX) * 0.005;
+        targetRotX += (e.touches[0].clientY - lastY) * 0.005;
+        targetRotX = Math.max(-1.3, Math.min(1.3, targetRotX));
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (lastTouchDist > 0) {
+          targetZoom *= lastTouchDist / dist;
+          targetZoom = Math.max(0.5, Math.min(2.5, targetZoom));
+        }
+        lastTouchDist = dist;
+      }
+    }, {passive:false});
+    canvas.addEventListener('touchend', () => {
+      isDragging = false;
+      lastTouchDist = 0;
+    });
+
+    function resize() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+
+    function animate() {
+      rotX += (targetRotX - rotX) * 0.1;
+      rotY += (targetRotY - rotY) * 0.1;
+      zoom += (targetZoom - zoom) * 0.1;
+
+      const dist = 8 * zoom;
+      camera.position.x = dist * Math.sin(rotY) * Math.cos(rotX);
+      camera.position.y = dist * Math.sin(rotX);
+      camera.position.z = dist * Math.cos(rotY) * Math.cos(rotX);
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    canvas.style.height = '440px';
+    resize();
+    animate();
+    window.addEventListener('resize', resize);
+  })();
+
+  // ── 2D periodic-y eddies ──
+  (function(){
+    const cv = document.getElementById('c-periodic');
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth, H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H + 'px';
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 50, padR = 50, padT = 40, padB = 40;
+      const boxW = W - padL - padR;
+      const boxH = H - padT - padB;
+
+      // Show three copies of the box: ghost-left, real-center, ghost-right
+      const totalW = boxW * 3;
+      const startX = padL - boxW;
+
+      // Background: gradient suggesting plasma
+      for (let i = 0; i < boxW * 3; i += 2) {
+        ctx.fillStyle = 'rgba(120, 60, 80, 0.05)';
+        ctx.fillRect(startX + i, padT, 2, boxH);
+      }
+
+      // Draw eddies — shifted in time
+      const N_EDDIES = 8;
+      const drift = t * 30;
+      for (let i = -2; i < N_EDDIES + 2; i++) {
+        for (let j = 0; j < 3; j++) {
+          const baseY = padT + (j + 0.5) * boxH / 3;
+          const eddyX = (i * boxW / N_EDDIES + drift) % boxW;
+          const eddyXWrapped = eddyX < 0 ? eddyX + boxW : eddyX;
+
+          // Three copies of each eddy: in left ghost, center real, right ghost
+          for (let copy = -1; copy <= 1; copy++) {
+            const px = padL + eddyXWrapped + copy * boxW;
+            const py = baseY + Math.sin(t * 1.2 + i * 0.7 + j) * 8;
+
+            // Skip if way outside
+            if (px < startX - 30 || px > startX + totalW + 30) continue;
+
+            const isGhost = (px < padL) || (px > padL + boxW);
+            const radius = 14;
+            const sign = (i + j) % 2 === 0 ? 1 : -1;
+            const phase = t * 1.5 + i * 0.5 + j * 0.8;
+
+            // Eddy as a swirl
+            const grad = ctx.createRadialGradient(px, py, 0, px, py, radius);
+            const baseColor = sign > 0 ? '252, 113, 133' : '74, 222, 128';
+            const alpha = isGhost ? 0.2 : 0.7;
+            grad.addColorStop(0, `rgba(${baseColor}, ${alpha})`);
+            grad.addColorStop(1, `rgba(${baseColor}, 0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(px, py, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Boundary lines
+      ctx.strokeStyle = '#f0a050';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + boxH);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(padL + boxW, padT);
+      ctx.lineTo(padL + boxW, padT + boxH);
+      ctx.stroke();
+
+      // Ghost box outlines
+      ctx.strokeStyle = '#252a36';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(padL - boxW, padT, boxW, boxH);
+      ctx.strokeRect(padL + boxW, padT, boxW, boxH);
+      ctx.setLineDash([]);
+
+      // Real box outline
+      ctx.strokeStyle = '#f0a050';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padL, padT, boxW, boxH);
+
+      // Labels
+      ctx.font = "500 9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = '#6b7084';
+      ctx.textAlign = 'center';
+      ctx.fillText('GHOST (copy)', padL - boxW/2, padT - 14);
+      ctx.fillStyle = '#f0a050';
+      ctx.fillText('SIMULATED BOX', padL + boxW/2, padT - 14);
+      ctx.fillStyle = '#6b7084';
+      ctx.fillText('GHOST (copy)', padL + boxW + boxW/2, padT - 14);
+
+      ctx.fillStyle = '#8a8f9f';
+      ctx.fillText('y →', padL + boxW/2, H - 12);
+
+      // Periodic indicator
+      ctx.font = "500 8px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText('left edge ≡ right edge (periodic in y)', padL + boxW/2, padT + boxH + 18);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── Eddies in a box, sampled by 16 gridpoints ──
+  (function(){
+    const cv = document.getElementById('c-eddies');
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth, H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H + 'px';
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    let t = 0;
+
+    function draw() {
+      t += 0.01;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 60, padR = 60, padT = 40, padB = 50;
+      const boxW = W - padL - padR;
+      const boxH = H - padT - padB;
+
+      // Continuous turbulence field (a sum of waves)
+      const NX = 200, NY = 100;
+      const cellW = boxW / NX;
+      const cellH = boxH / NY;
+
+      function turbField(xFrac, yFrac) {
+        // Sum a few k_y modes
+        let v = 0;
+        v += 0.5 * Math.sin(2 * Math.PI * 3 * yFrac + t * 1.5) * Math.cos(2 * Math.PI * 1 * xFrac);
+        v += 0.3 * Math.sin(2 * Math.PI * 5 * yFrac - t * 2.0 + 0.7) * Math.cos(2 * Math.PI * 2 * xFrac + 1);
+        v += 0.2 * Math.sin(2 * Math.PI * 7 * yFrac + t * 0.8 + 1.5) * Math.cos(2 * Math.PI * 3 * xFrac);
+        v += 0.15 * Math.sin(2 * Math.PI * 2 * yFrac + t * 1.0) * Math.cos(2 * Math.PI * 4 * xFrac);
+        return v;
+      }
+
+      // Render turbulence as colored cells
+      for (let i = 0; i < NX; i++) {
+        for (let j = 0; j < NY; j++) {
+          const xFrac = i / NX;
+          const yFrac = j / NY;
+          const v = turbField(xFrac, yFrac);
+          const intensity = (v + 1) / 2;
+          const r = Math.floor(40 + intensity * 200);
+          const g = Math.floor(60 + (1-intensity) * 80);
+          const b = Math.floor(80 + intensity * 80);
+          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+          ctx.fillRect(padL + i * cellW, padT + j * cellH, cellW + 0.5, cellH + 0.5);
+        }
+      }
+
+      // Overlay: 16 gridpoints in y at one x slice
+      const N_GRID_Y = 16;
+      const N_GRID_X = 8;
+      ctx.strokeStyle = 'rgba(240, 160, 80, 0.4)';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= N_GRID_X; i++) {
+        const px = padL + (i / N_GRID_X) * boxW;
+        ctx.beginPath();
+        ctx.moveTo(px, padT);
+        ctx.lineTo(px, padT + boxH);
+        ctx.stroke();
+      }
+      for (let j = 0; j <= N_GRID_Y; j++) {
+        const py = padT + (j / N_GRID_Y) * boxH;
+        ctx.beginPath();
+        ctx.moveTo(padL, py);
+        ctx.lineTo(padL + boxW, py);
+        ctx.stroke();
+      }
+
+      // Sample dots
+      for (let i = 0; i < N_GRID_X; i++) {
+        for (let j = 0; j < N_GRID_Y; j++) {
+          const xFrac = (i + 0.5) / N_GRID_X;
+          const yFrac = (j + 0.5) / N_GRID_Y;
+          const px = padL + xFrac * boxW;
+          const py = padT + yFrac * boxH;
+          ctx.beginPath();
+          ctx.arc(px, py, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#f0a050';
+          ctx.fill();
+        }
+      }
+
+      // Box outline
+      ctx.strokeStyle = '#f0a050';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(padL, padT, boxW, boxH);
+
+      // Labels
+      ctx.font = "500 9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = '#fb7185';
+      ctx.textAlign = 'right';
+      ctx.fillText('x', padL - 8, padT + boxH/2);
+      ctx.fillStyle = '#4ade80';
+      ctx.textAlign = 'center';
+      ctx.fillText('y →', padL + boxW/2, H - 16);
+
+      ctx.font = "500 8px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = '#6b7084';
+      ctx.textAlign = 'left';
+      ctx.fillText('flux tube cross-section · ~5cm × ~5cm', padL, padT - 22);
+      ctx.fillStyle = '#f0a050';
+      ctx.fillText('grid: nx0=8, nky0=16 → captures eddies down to ~3mm', padL, padT - 8);
+
+      // Right-side annotation
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#8a8f9f';
+      ctx.fillText('eddies ~5mm', padL + boxW, padT + boxH + 16);
+      ctx.fillText('box ~50mm', padL + boxW, padT + boxH + 28);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+})();
+</script>
+
+</body>
+</html>

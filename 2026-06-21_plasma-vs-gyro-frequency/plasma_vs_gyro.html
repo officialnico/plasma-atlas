@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plasma frequency vs gyromotion</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 24px;
+    background: #faf9f5; color: #2c2c2a;
+    line-height: 1.6;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a17; color: #e8e6df; }
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+  .sub { color: #6f6e68; font-size: 14px; margin: 0 0 24px; }
+  @media (prefers-color-scheme: dark) { .sub { color: #b4b2a9; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  .panel-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+  .panel-title b { font-size: 17px; font-weight: 500; }
+  .panel-title span { font-size: 13px; color: #6f6e68; }
+  @media (prefers-color-scheme: dark) { .panel-title span { color: #b4b2a9; } }
+  canvas {
+    width: 100%; height: 260px; display: block;
+    border: 0.5px solid rgba(128,128,128,0.35);
+    border-radius: 12px;
+  }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .ctrl label { font-size: 13px; color: #6f6e68; white-space: nowrap; }
+  @media (prefers-color-scheme: dark) { .ctrl label { color: #b4b2a9; } }
+  .ctrl input[type=range] { flex: 1; accent-color: #534ab7; }
+  .ctrl .out { font-size: 13px; font-weight: 500; min-width: 72px; text-align: right; }
+  .note { font-size: 13px; color: #6f6e68; margin-top: 8px; }
+  @media (prefers-color-scheme: dark) { .note { color: #b4b2a9; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Plasma frequency vs gyromotion</h1>
+  <p class="sub">Both are "fast small scales" a simulation must resolve — but they're completely different motions.</p>
+
+  <div class="grid">
+    <div>
+      <div class="panel-title"><b>Plasma frequency</b><span>electrostatic · back-and-forth</span></div>
+      <canvas id="pc"></canvas>
+      <div class="ctrl">
+        <label>density n</label>
+        <input type="range" id="ns" min="0.4" max="2.2" step="0.05" value="1">
+        <span class="out" id="no">f ≈ 1.0</span>
+      </div>
+      <p class="note">Electrons (blue) get nudged sideways off the fixed ion lattice (orange). The exposed charge pulls them back, they overshoot, and oscillate. Denser plasma → stiffer restoring → faster.</p>
+    </div>
+
+    <div>
+      <div class="panel-title"><b>Gyromotion</b><span>magnetic · circular</span></div>
+      <canvas id="gc"></canvas>
+      <div class="ctrl">
+        <label>field B</label>
+        <input type="range" id="bs" min="0.5" max="2.2" step="0.05" value="1">
+        <span class="out" id="bo">f ≈ 1.0</span>
+      </div>
+      <p class="note">A charged particle spirals around a magnetic field line (⊙ = field out of the page). Radius <i>r</i> = gyroradius, laps per second = gyrofrequency. Stronger B → faster <em>and</em> tighter.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var C = {
+    text:  dark ? '#e8e6df' : '#2c2c2a',
+    muted: dark ? '#b4b2a9' : '#6f6e68',
+    bg:    dark ? '#222019' : '#fcfbf7',
+    elec:  '#378add',
+    ion:   '#d85a30',
+    part:  '#d4537e',
+    field: dark ? '#6f6e66' : '#afaea4',
+    force: dark ? '#5dcaa5' : '#0f6e56',
+    orbit: dark ? '#4a3340' : '#f0d6e0'
+  };
+
+  function fit(cv){
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx:ctx, w:w, h:h};
+  }
+
+  var pc = document.getElementById('pc'),
+      gc = document.getElementById('gc'),
+      ns = document.getElementById('ns'), no = document.getElementById('no'),
+      bs = document.getElementById('bs'), bo = document.getElementById('bo');
+
+  var P = fit(pc), G = fit(gc);
+  window.addEventListener('resize', function(){ P = fit(pc); G = fit(gc); });
+
+  function arrow(ctx, x1,y1, x2,y2, col, lw){
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw || 2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var a = Math.atan2(y2-y1, x2-x1), s = 7;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2 - s*Math.cos(a-0.4), y2 - s*Math.sin(a-0.4));
+    ctx.lineTo(x2 - s*Math.cos(a+0.4), y2 - s*Math.sin(a+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function drawPlasma(t){
+    var ctx = P.ctx, w = P.w, h = P.h;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = C.bg; ctx.fillRect(0,0,w,h);
+
+    var n = parseFloat(ns.value);
+    var wp = 1.7*Math.sqrt(n);
+    var A = 16;
+    var dx = A*Math.cos(wp*t);
+
+    var cols=6, rows=4, mx=36, my=42;
+    var gw=w-2*mx, gh=h-2*my-20;
+    var sx=gw/(cols-1), sy=gh/(rows-1);
+
+    for(var i=0;i<cols;i++) for(var j=0;j<rows;j++){
+      var x=mx+i*sx, y=my+j*sy;
+      ctx.strokeStyle=C.ion; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(x-3.5,y); ctx.lineTo(x+3.5,y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,y-3.5); ctx.lineTo(x,y+3.5); ctx.stroke();
+    }
+    for(var i2=0;i2<cols;i2++) for(var j2=0;j2<rows;j2++){
+      var ex=mx+i2*sx+dx, ey=my+j2*sy;
+      ctx.fillStyle=C.elec; ctx.beginPath(); ctx.arc(ex,ey,4,0,6.2832); ctx.fill();
+    }
+
+    var op=Math.min(0.45, Math.abs(dx)/A*0.4);
+    ctx.globalAlpha=op;
+    if(dx>0.3){
+      ctx.fillStyle=C.ion;  ctx.fillRect(mx-16,my-14,dx+12,gh+28);
+      ctx.fillStyle=C.elec; ctx.fillRect(mx+gw,my-14,dx+12,gh+28);
+    } else if(dx<-0.3){
+      ctx.fillStyle=C.elec; ctx.fillRect(mx-16,my-14,-dx+12,gh+28);
+      ctx.fillStyle=C.ion;  ctx.fillRect(mx+gw+dx-12,my-14,-dx+12,gh+28);
+    }
+    ctx.globalAlpha=1;
+
+    var cy=my+gh+30, ccx=mx+gw/2;
+    ctx.font='12px sans-serif'; ctx.textAlign='center';
+    if(Math.abs(dx)>1){
+      var dir=dx>0?-1:1;
+      arrow(ctx, ccx,cy, ccx+dir*Math.min(42,Math.abs(dx)*2.4), cy, C.force, 2);
+      ctx.fillStyle=C.force; ctx.fillText('restoring force', ccx, cy+18);
+    } else {
+      ctx.fillStyle=C.muted; ctx.fillText('balanced', ccx, cy+18);
+    }
+
+    ctx.fillStyle=C.muted; ctx.textAlign='left'; ctx.font='12px sans-serif';
+    ctx.fillText('● electrons   ✛ ions (fixed)', mx-6, 22);
+  }
+
+  function drawGyro(t){
+    var ctx=G.ctx, w=G.w, h=G.h;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle=C.bg; ctx.fillRect(0,0,w,h);
+
+    var B=parseFloat(bs.value);
+    var wc=1.5*B;
+    var r=Math.max(20, Math.min(74, 58/B));
+    var cx=w/2, cy=h/2+4;
+
+    ctx.strokeStyle=C.field; ctx.fillStyle=C.field; ctx.lineWidth=1;
+    for(var gx=30; gx<w-10; gx+=46) for(var gy=32; gy<h-14; gy+=44){
+      ctx.beginPath(); ctx.arc(gx,gy,4,0,6.2832); ctx.stroke();
+      ctx.beginPath(); ctx.arc(gx,gy,1.1,0,6.2832); ctx.fill();
+    }
+
+    ctx.strokeStyle=C.orbit; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,6.2832); ctx.stroke();
+
+    var ang=wc*t;
+    var px=cx+r*Math.cos(ang), py=cy+r*Math.sin(ang);
+
+    ctx.strokeStyle=C.part; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(px,py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=C.muted; ctx.beginPath(); ctx.arc(cx,cy,2.5,0,6.2832); ctx.fill();
+
+    var tx=-Math.sin(ang), ty=Math.cos(ang);
+    arrow(ctx, px,py, px+tx*22, py+ty*22, C.elec, 2);
+
+    ctx.fillStyle=C.part; ctx.beginPath(); ctx.arc(px,py,6,0,6.2832); ctx.fill();
+
+    ctx.fillStyle=C.part; ctx.font='12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('r', (cx+px)/2+7, (cy+py)/2-7);
+
+    ctx.fillStyle=C.muted; ctx.font='12px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('⊙ B out of page', 26, 22);
+    ctx.textAlign='right'; ctx.fillStyle=C.elec;
+    ctx.fillText('→ velocity', w-18, 22);
+  }
+
+  function loop(now){
+    var t=now/1000;
+    no.textContent='f ≈ '+Math.sqrt(parseFloat(ns.value)).toFixed(1);
+    bo.textContent='f ≈ '+parseFloat(bs.value).toFixed(1);
+    drawPlasma(t); drawGyro(t);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

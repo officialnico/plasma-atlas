@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>q — Poloidal + Toroidal Views</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#05080e;--surface:#0a1020;--border:#162040;--text:#e2e8f0;
+  --dim:#64748b;--muted:#2d3f65;--cyan:#22d3ee;--green:#4ade80;
+  --amber:#fbbf24;--red:#f87171;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;overflow-x:hidden;}
+.wrap{max-width:960px;margin:0 auto;padding:20px 14px 70px;}
+.head{text-align:center;margin-bottom:20px;}
+.head h1{font-size:clamp(20px,4.5vw,32px);font-weight:800;letter-spacing:-0.5px;margin-bottom:5px;}
+.head h1 span{color:var(--amber);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:560px;margin:0 auto;line-height:1.5;}
+
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+@media(max-width:680px){.dual{grid-template-columns:1fr;}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative;}
+.plbl{position:absolute;top:10px;left:14px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;pointer-events:none;z-index:2;}
+.psub{position:absolute;top:24px;left:14px;font-size:10px;color:var(--muted);font-weight:300;pointer-events:none;z-index:2;}
+canvas{display:block;width:100%;}
+.cv2{height:440px;}
+.full{grid-column:1/-1;}
+.full canvas{height:320px;cursor:grab;}
+.full canvas:active{cursor:grabbing;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.cg-r{display:flex;align-items:center;gap:8px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:32px;text-align:right;color:var(--amber);}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 8px rgba(251,191,36,.35);}
+.btn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:var(--amber);font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;padding:8px 14px;border-radius:7px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn:hover{background:rgba(251,191,36,.15);}
+.btn2{border-color:rgba(34,211,238,.2);color:var(--cyan);background:rgba(34,211,238,.06);}
+
+.legend{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:14px;}
+.lg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 9px;}
+.ld{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+.expl{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+.expl h3{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--amber);}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:6px;}
+.expl b{color:var(--text);font-weight:600;}
+.ha{color:var(--amber)!important;font-weight:600!important;}
+.hc{color:var(--cyan)!important;font-weight:600!important;}
+.hg{color:var(--green)!important;font-weight:600!important;}
+.hr{color:var(--red)!important;font-weight:600!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>Two Cuts Through the <span>Torus</span></h1>
+    <p>Left: slice across (poloidal). Right: slice along and unroll the tube (toroidal). Bottom: 3D. All synced.</p>
+  </div>
+
+  <div class="ctrls">
+    <div class="cg">
+      <div class="cg-l">Safety Factor q</div>
+      <div class="cg-r"><input type="range" id="sQ" min="1" max="5" step="0.1" value="2"><span class="cg-v" id="vQ">2.0</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Shear ŝ</div>
+      <div class="cg-r"><input type="range" id="sShear" min="0" max="3" step="0.1" value="1.2"><span class="cg-v" id="vShear" style="color:var(--cyan)">1.2</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Speed</div>
+      <div class="cg-r"><input type="range" id="sSpd" min="0.2" max="3" step="0.1" value="1"><span class="cg-v" id="vSpd" style="color:var(--dim)">1.0</span></div>
+    </div>
+    <div class="cg" style="flex:0;display:flex;align-items:flex-end;gap:5px;">
+      <button class="btn" id="bPlay">⏸</button>
+      <button class="btn btn2" id="bReset">↺</button>
+    </div>
+  </div>
+
+  <div class="dual">
+    <div class="panel">
+      <div class="plbl">Poloidal Cross-Section</div>
+      <div class="psub">slice across the donut</div>
+      <canvas id="cPol" class="cv2"></canvas>
+    </div>
+    <div class="panel">
+      <div class="plbl">Unrolled Tube — Side View</div>
+      <div class="psub">tube cut open and laid flat</div>
+      <canvas id="cTube" class="cv2"></canvas>
+    </div>
+    <div class="panel full">
+      <div class="plbl">3D Reference — drag to rotate</div>
+      <canvas id="c3D"></canvas>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="lg"><div class="ld" style="background:var(--green);box-shadow:0 0 5px rgba(74,222,128,.4)"></div> Inner surface</div>
+    <div class="lg"><div class="ld" style="background:var(--amber);box-shadow:0 0 5px rgba(251,191,36,.4)"></div> Selected q</div>
+    <div class="lg"><div class="ld" style="background:var(--red);box-shadow:0 0 5px rgba(248,113,113,.4)"></div> Outer surface</div>
+    <div class="lg" style="color:var(--muted)">Lines never cross — each stays on its own surface</div>
+  </div>
+
+  <div class="expl">
+    <h3>What you're seeing</h3>
+    <p><b>Left (Poloidal):</b> Slice the donut to see the cross-section. Each field line traces around its own flux surface ring — <span class="hg">inner</span> (low q) races around fast, <span class="hr">outer</span> (high q) goes slow. They never cross because each stays on its own surface.</p>
+    <p><b>Right (Unrolled Tube):</b> Imagine cutting one flux surface tube and unrolling it flat. The x-axis is toroidal angle (how far around the long way), y-axis is poloidal angle (short way). A field line is a straight diagonal — its slope = 1/q. <b>Steeper = lower q = tighter spiral.</b> Three tubes are stacked so you can see the slopes differ.</p>
+    <p><b>Bottom (3D):</b> The actual helical field lines on the torus. Drag to rotate.</p>
+  </div>
+
+  <div class="expl">
+    <h3>Why the old toroidal view was wrong</h3>
+    <p>Looking down at a torus from above, all field lines on all surfaces just go around in circles at the same rate — you can't see the poloidal twist from above. The previous view was faking a radial wobble that would imply field lines crossing between surfaces, which <b>can't happen</b> in a good equilibrium. The unrolled tube view actually shows you the different twist rates properly.</p>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let qMid = 2, shat = 1.2, spd = 1, playing = true, phi = 0;
+let camRx = 0.5, camRy = 0.35;
+let dragging = false, dX=0, dY=0, dRx=0, dRy=0;
+
+function getQ(rFrac) {
+  return qMid * Math.exp(shat * (rFrac - 0.5));
+}
+
+const surfs = [
+  { rFrac: 0.25, c: [74,222,128], name: 'Inner' },
+  { rFrac: 0.50, c: [251,191,36], name: 'Mid' },
+  { rFrac: 0.80, c: [248,113,113], name: 'Outer' },
+];
+
+// ============ CANVAS ============
+const cPol = document.getElementById('cPol');
+const cTube = document.getElementById('cTube');
+const c3D = document.getElementById('c3D');
+const ctxP = cPol.getContext('2d');
+const ctxU = cTube.getContext('2d');
+const ctx3 = c3D.getContext('2d');
+let pW,pH,uW,uH,dW,dH,dpr;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  [cPol,cTube,c3D].forEach(c => {
+    const r = c.getBoundingClientRect();
+    c.width = r.width*dpr; c.height = r.height*dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  });
+  let r = cPol.getBoundingClientRect(); pW=r.width; pH=r.height;
+  r = cTube.getBoundingClientRect(); uW=r.width; uH=r.height;
+  r = c3D.getBoundingClientRect(); dW=r.width; dH=r.height;
+}
+
+// ============ POLOIDAL ============
+function drawPoloidal() {
+  ctxP.clearRect(0,0,pW,pH);
+  const cx=pW/2, cy=pH/2, maxR=Math.min(pW,pH)*0.36, elong=1.3;
+
+  // Bg
+  const bg=ctxP.createRadialGradient(cx,cy,0,cx,cy,maxR*1.3);
+  bg.addColorStop(0,'rgba(34,211,238,0.02)'); bg.addColorStop(1,'transparent');
+  ctxP.fillStyle=bg; ctxP.fillRect(0,0,pW,pH);
+
+  // Ghost surfaces
+  for(let i=1;i<=7;i++){
+    const f=i/7, rr=maxR*f, sh=6*(1-f);
+    ctxP.beginPath();
+    ctxP.ellipse(cx+sh,cy,rr,rr*elong,0,0,Math.PI*2);
+    ctxP.strokeStyle=`rgba(34,211,238,${0.03+0.012*f})`;
+    ctxP.lineWidth=0.7;
+    ctxP.stroke();
+  }
+
+  // Angle labels
+  ctxP.font='300 9px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.25)';
+  ctxP.textAlign='center'; ctxP.textBaseline='middle';
+  const lblR=maxR*elong+18;
+  [['outboard',0,-Math.PI/2],['top',Math.PI/2,-Math.PI/2+Math.PI/2],['inboard',Math.PI,-Math.PI/2+Math.PI],['bottom',3*Math.PI/2,-Math.PI/2+3*Math.PI/2]].forEach(([lbl,,ang])=>{
+    ctxP.fillText(lbl, cx+lblR*0.85*Math.cos(ang), cy+lblR*Math.sin(ang));
+  });
+
+  // Field lines
+  surfs.forEach(s => {
+    const rr=maxR*s.rFrac, sh=6*(1-s.rFrac), qv=getQ(s.rFrac);
+    const thetaNow=phi/qv;
+    const trailTheta=Math.min(thetaNow, Math.PI*8);
+    const steps=250;
+
+    // Trail with gradient
+    for(let i=0;i<steps-1;i++){
+      const f0=i/steps, f1=(i+1)/steps;
+      const th0=thetaNow-trailTheta*(1-f0);
+      const th1=thetaNow-trailTheta*(1-f1);
+      if(th0<0) continue;
+
+      const x0=cx+sh+rr*Math.cos(th0-Math.PI/2);
+      const y0=cy+rr*elong*Math.sin(th0-Math.PI/2);
+      const x1=cx+sh+rr*Math.cos(th1-Math.PI/2);
+      const y1=cy+rr*elong*Math.sin(th1-Math.PI/2);
+
+      const alpha=f1*0.55;
+      ctxP.beginPath();
+      ctxP.moveTo(x0,y0); ctxP.lineTo(x1,y1);
+      ctxP.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${alpha})`;
+      ctxP.lineWidth=2.5;
+      ctxP.stroke();
+    }
+
+    // Head glow + dot
+    const hx=cx+sh+rr*Math.cos(thetaNow-Math.PI/2);
+    const hy=cy+rr*elong*Math.sin(thetaNow-Math.PI/2);
+    const gr=ctxP.createRadialGradient(hx,hy,0,hx,hy,20);
+    gr.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`);
+    gr.addColorStop(1,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0)`);
+    ctxP.beginPath(); ctxP.arc(hx,hy,20,0,Math.PI*2); ctxP.fillStyle=gr; ctxP.fill();
+    ctxP.beginPath(); ctxP.arc(hx,hy,5,0,Math.PI*2);
+    ctxP.fillStyle=`rgb(${s.c[0]},${s.c[1]},${s.c[2]})`; ctxP.fill();
+
+    // q label
+    ctxP.font='600 10px "JetBrains Mono",monospace';
+    ctxP.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.7)`;
+    ctxP.textAlign='left'; ctxP.textBaseline='middle';
+    ctxP.fillText(`q=${qv.toFixed(1)}`, cx+sh+rr+10, cy+(s.rFrac-0.5)*50);
+  });
+
+  ctxP.font='500 9px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.3)';
+  ctxP.textAlign='center';
+  ctxP.fillText('AXIS',cx+6,cy);
+}
+
+// ============ UNROLLED TUBE ============
+function drawTube() {
+  ctxU.clearRect(0,0,uW,uH);
+
+  const pad={l:44,r:16,t:44,b:38};
+  const w=uW-pad.l-pad.r;
+  const h=uH-pad.t-pad.b;
+
+  // We'll stack 3 horizontal bands, one per surface
+  const bandGap = 8;
+  const bandH = (h - bandGap * 2) / 3;
+  const phiMax = 4 * Math.PI; // show 2 full toroidal loops
+
+  // Grid + axes
+  ctxU.font='9px "JetBrains Mono",monospace';
+  ctxU.fillStyle='rgba(100,116,139,0.25)';
+  ctxU.textAlign='center'; ctxU.textBaseline='top';
+
+  // Toroidal axis labels
+  const phiLabels=['0','π','2π','3π','4π'];
+  for(let i=0;i<=4;i++){
+    const x=pad.l+(w/4)*i;
+    ctxU.fillText(phiLabels[i], x, pad.t+h+4);
+    ctxU.strokeStyle='rgba(34,211,238,0.03)';
+    ctxU.lineWidth=0.5;
+    ctxU.beginPath(); ctxU.moveTo(x,pad.t); ctxU.lineTo(x,pad.t+h); ctxU.stroke();
+  }
+  ctxU.font='10px "JetBrains Mono",monospace';
+  ctxU.fillText('toroidal angle φ →', pad.l+w/2, pad.t+h+18);
+
+  // Draw each surface band
+  surfs.forEach((s, idx) => {
+    const qv = getQ(s.rFrac);
+    const bandTop = pad.t + idx * (bandH + bandGap);
+    const bandBot = bandTop + bandH;
+    const bandCy = bandTop + bandH/2;
+
+    // Band background
+    ctxU.fillStyle = `rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.03)`;
+    ctxU.fillRect(pad.l, bandTop, w, bandH);
+    ctxU.strokeStyle = `rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.1)`;
+    ctxU.lineWidth = 0.5;
+    ctxU.strokeRect(pad.l, bandTop, w, bandH);
+
+    // Center line (θ = 0 reference)
+    ctxU.strokeStyle = `rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.06)`;
+    ctxU.setLineDash([4,6]);
+    ctxU.beginPath(); ctxU.moveTo(pad.l,bandCy); ctxU.lineTo(pad.l+w,bandCy); ctxU.stroke();
+    ctxU.setLineDash([]);
+
+    // Band label
+    ctxU.font='600 10px "JetBrains Mono",monospace';
+    ctxU.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`;
+    ctxU.textAlign='right'; ctxU.textBaseline='middle';
+    ctxU.fillText(`q=${qv.toFixed(1)}`, pad.l-6, bandCy-7);
+    ctxU.font='300 8px "JetBrains Mono",monospace';
+    ctxU.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.35)`;
+    ctxU.fillText(s.name, pad.l-6, bandCy+7);
+
+    // θ scale labels
+    ctxU.font='8px "JetBrains Mono",monospace';
+    ctxU.fillStyle='rgba(100,116,139,0.2)';
+    ctxU.textAlign='right';
+    ctxU.fillText('+π', pad.l-22, bandTop+4);
+    ctxU.fillText('−π', pad.l-22, bandBot-4);
+
+    // Static full field line (faint)
+    const steps = 500;
+    ctxU.beginPath();
+    let started = false, prevY = null;
+    for(let i=0;i<=steps;i++){
+      const phiPt = (i/steps)*phiMax;
+      const theta = (phiPt / qv);
+      // Wrap theta into -π to π for display in band
+      let thWrap = ((theta % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+      if(thWrap > Math.PI) thWrap -= 2*Math.PI;
+      const px = pad.l + (phiPt/phiMax)*w;
+      const py = bandCy - (thWrap/Math.PI) * (bandH/2) * 0.9;
+
+      if(prevY !== null && Math.abs(py - prevY) > bandH*0.4){
+        ctxU.stroke();
+        ctxU.beginPath();
+        ctxU.moveTo(px, py);
+      } else {
+        if(!started){ctxU.moveTo(px,py);started=true;}
+        else ctxU.lineTo(px,py);
+      }
+      prevY = py;
+    }
+    ctxU.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.1)`;
+    ctxU.lineWidth=1.5;
+    ctxU.stroke();
+
+    // Animated bright portion
+    const animPhi = Math.min(phi, phiMax);
+    ctxU.beginPath();
+    started=false; prevY=null;
+    for(let i=0;i<=steps;i++){
+      const phiPt = (i/steps)*animPhi;
+      const theta = phiPt / qv;
+      let thWrap = ((theta % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+      if(thWrap > Math.PI) thWrap -= 2*Math.PI;
+      const px = pad.l + (phiPt/phiMax)*w;
+      const py = bandCy - (thWrap/Math.PI) * (bandH/2)*0.9;
+
+      if(prevY !== null && Math.abs(py-prevY) > bandH*0.4){
+        ctxU.stroke();
+        ctxU.beginPath();
+        ctxU.moveTo(px,py);
+      } else {
+        if(!started){ctxU.moveTo(px,py);started=true;}
+        else ctxU.lineTo(px,py);
+      }
+      prevY=py;
+    }
+    ctxU.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.7)`;
+    ctxU.lineWidth=2.5;
+    ctxU.stroke();
+
+    // Head dot
+    if(animPhi > 0){
+      const thH = animPhi / qv;
+      let thW = ((thH%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+      if(thW>Math.PI) thW -= 2*Math.PI;
+      const hx = pad.l + (animPhi/phiMax)*w;
+      const hy = bandCy - (thW/Math.PI)*(bandH/2)*0.9;
+
+      const gr=ctxU.createRadialGradient(hx,hy,0,hx,hy,14);
+      gr.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`);
+      gr.addColorStop(1,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0)`);
+      ctxU.beginPath();ctxU.arc(hx,hy,14,0,Math.PI*2);ctxU.fillStyle=gr;ctxU.fill();
+      ctxU.beginPath();ctxU.arc(hx,hy,4,0,Math.PI*2);
+      ctxU.fillStyle=`rgb(${s.c[0]},${s.c[1]},${s.c[2]})`;ctxU.fill();
+    }
+  });
+
+  // Annotation: slope explanation
+  ctxU.font='300 9px Outfit';
+  ctxU.fillStyle='rgba(100,116,139,0.4)';
+  ctxU.textAlign='left';
+  ctxU.fillText('steeper = lower q = tighter spiral', pad.l, pad.t-8);
+}
+
+// ============ 3D ============
+function proj(x,y,z){
+  let x1=x*Math.cos(camRy)-z*Math.sin(camRy);
+  let z1=x*Math.sin(camRy)+z*Math.cos(camRy);
+  let y1=y*Math.cos(camRx)-z1*Math.sin(camRx);
+  let z2=y*Math.sin(camRx)+z1*Math.cos(camRx);
+  const fov=480, d=fov/(fov+z2+220);
+  return {x:dW/2+x1*d, y:dH/2+y1*d, z:z2, d};
+}
+function torusP(R,r,ph,th){
+  return {
+    x:(R+r*Math.cos(th))*Math.cos(ph),
+    y:r*Math.sin(th),
+    z:(R+r*Math.cos(th))*Math.sin(ph)
+  };
+}
+
+function draw3D(){
+  ctx3.clearRect(0,0,dW,dH);
+  const R=110, rMax=38;
+
+  // Wireframe
+  for(let i=0;i<24;i++){
+    const ph=(i/24)*Math.PI*2;
+    const pts=[];
+    for(let j=0;j<=18;j++){
+      const th=(j/18)*Math.PI*2;
+      const p=torusP(R,rMax,ph,th);
+      pts.push(proj(p.x,p.y,p.z));
+    }
+    ctx3.beginPath();
+    pts.forEach((p,k)=>k===0?ctx3.moveTo(p.x,p.y):ctx3.lineTo(p.x,p.y));
+    ctx3.closePath();
+    ctx3.strokeStyle='rgba(34,211,238,0.035)';
+    ctx3.lineWidth=0.5;
+    ctx3.stroke();
+  }
+
+  // Field lines
+  surfs.forEach(s=>{
+    const lr=rMax*s.rFrac, qv=getQ(s.rFrac);
+    const totalPhi=phi;
+    const steps=Math.min(Math.floor(totalPhi*28),1200);
+    const pts=[];
+    for(let i=0;i<=steps;i++){
+      const ph=i/28;
+      if(ph>totalPhi) break;
+      const th=ph/qv;
+      const p3=torusP(R,lr,ph,th);
+      pts.push(proj(p3.x,p3.y,p3.z));
+    }
+    if(pts.length<2) return;
+
+    for(let i=1;i<pts.length;i++){
+      const p0=pts[i-1],p1=pts[i];
+      const age=1-i/pts.length;
+      const dA=0.2+0.8*Math.max(0,Math.min(1,(p1.d-0.3)/0.6));
+      const fA=1-age*0.45;
+      const a=Math.max(0.04, dA*fA);
+      ctx3.beginPath(); ctx3.moveTo(p0.x,p0.y); ctx3.lineTo(p1.x,p1.y);
+      ctx3.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${a})`;
+      ctx3.lineWidth=2*p1.d;
+      ctx3.stroke();
+    }
+
+    if(pts.length>0){
+      const hd=pts[pts.length-1];
+      const gr=ctx3.createRadialGradient(hd.x,hd.y,0,hd.x,hd.y,12*hd.d);
+      gr.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`);
+      gr.addColorStop(1,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0)`);
+      ctx3.beginPath();ctx3.arc(hd.x,hd.y,12*hd.d,0,Math.PI*2);ctx3.fillStyle=gr;ctx3.fill();
+      ctx3.beginPath();ctx3.arc(hd.x,hd.y,3.5*hd.d,0,Math.PI*2);
+      ctx3.fillStyle=`rgb(${s.c[0]},${s.c[1]},${s.c[2]})`;ctx3.fill();
+    }
+  });
+}
+
+// ============ LOOP ============
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  const dt=(ts-lastT)/1000; lastT=ts;
+  if(playing) phi+=dt*spd*1.2;
+  drawPoloidal(); drawTube(); draw3D();
+  requestAnimationFrame(frame);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sQ').addEventListener('input',e=>{qMid=parseFloat(e.target.value);document.getElementById('vQ').textContent=qMid.toFixed(1);});
+document.getElementById('sShear').addEventListener('input',e=>{shat=parseFloat(e.target.value);document.getElementById('vShear').textContent=shat.toFixed(1);});
+document.getElementById('sSpd').addEventListener('input',e=>{spd=parseFloat(e.target.value);document.getElementById('vSpd').textContent=spd.toFixed(1);});
+document.getElementById('bPlay').addEventListener('click',()=>{playing=!playing;document.getElementById('bPlay').textContent=playing?'⏸':'▶';});
+document.getElementById('bReset').addEventListener('click',()=>{phi=0;});
+
+c3D.addEventListener('mousedown',e=>{dragging=true;dX=e.clientX;dY=e.clientY;dRx=camRx;dRy=camRy;});
+window.addEventListener('mousemove',e=>{if(!dragging)return;camRy=dRy+(e.clientX-dX)*0.005;camRx=Math.max(-1.2,Math.min(1.2,dRx+(e.clientY-dY)*0.005));});
+window.addEventListener('mouseup',()=>{dragging=false;});
+c3D.addEventListener('touchstart',e=>{dragging=true;dX=e.touches[0].clientX;dY=e.touches[0].clientY;dRx=camRx;dRy=camRy;},{passive:true});
+c3D.addEventListener('touchmove',e=>{if(!dragging)return;e.preventDefault();camRy=dRy+(e.touches[0].clientX-dX)*0.005;camRx=Math.max(-1.2,Math.min(1.2,dRx+(e.touches[0].clientY-dY)*0.005));},{passive:false});
+c3D.addEventListener('touchend',()=>{dragging=false;});
+
+window.addEventListener('resize',resize);
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,568 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>boltzmann</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function BoltzmannVisualizer() {
+  const [temperature, setTemperature] = useState(300);
+  const [particleCount, setParticleCount] = useState(150);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showFormula, setShowFormula] = useState(true);
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const animationRef = useRef(null);
+
+  // Boltzmann constant (scaled for visualization)
+  const kB = 1.0;
+
+  // Energy levels (discrete, equally spaced)
+  const numLevels = 8;
+  const energyLevels = useMemo(
+    () => Array.from({ length: numLevels }, (_, i) => i * 1.0),
+    []
+  );
+
+  // Boltzmann probabilities P(E_i) = exp(-E_i/kT) / Z
+  const probabilities = useMemo(() => {
+    const T = temperature / 100; // scale for nicer numbers
+    const weights = energyLevels.map((E) => Math.exp(-E / (kB * T)));
+    const Z = weights.reduce((a, b) => a + b, 0);
+    return weights.map((w) => w / Z);
+  }, [temperature, energyLevels]);
+
+  // Continuous distribution curve points
+  const curvePoints = useMemo(() => {
+    const T = temperature / 100;
+    const points = [];
+    const maxE = numLevels;
+    for (let i = 0; i <= 200; i++) {
+      const E = (i / 200) * maxE;
+      const p = Math.exp(-E / (kB * T));
+      points.push({ E, p });
+    }
+    const maxP = Math.max(...points.map((pt) => pt.p));
+    return points.map((pt) => ({ ...pt, p: pt.p / maxP }));
+  }, [temperature]);
+
+  // Initialize particles
+  useEffect(() => {
+    const particles = [];
+    for (let i = 0; i < particleCount; i++) {
+      // Sample energy level from Boltzmann distribution
+      const r = Math.random();
+      let cumulative = 0;
+      let level = 0;
+      for (let j = 0; j < probabilities.length; j++) {
+        cumulative += probabilities[j];
+        if (r < cumulative) {
+          level = j;
+          break;
+        }
+      }
+      particles.push({
+        level,
+        targetLevel: level,
+        x: Math.random(),
+        vx: (Math.random() - 0.5) * 0.002,
+        jiggle: Math.random() * Math.PI * 2,
+      });
+    }
+    particlesRef.current = particles;
+  }, [particleCount]);
+
+  // Resample particles when temperature changes
+  useEffect(() => {
+    const particles = particlesRef.current;
+    particles.forEach((p) => {
+      const r = Math.random();
+      let cumulative = 0;
+      for (let j = 0; j < probabilities.length; j++) {
+        cumulative += probabilities[j];
+        if (r < cumulative) {
+          p.targetLevel = j;
+          break;
+        }
+      }
+    });
+  }, [probabilities]);
+
+  // Animation loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const render = () => {
+      const W = canvas.width / window.devicePixelRatio;
+      const H = canvas.height / window.devicePixelRatio;
+
+      // Background
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#0a0a18');
+      bg.addColorStop(1, '#1a0a2e');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Subtle grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 20; i++) {
+        ctx.beginPath();
+        ctx.moveTo((W / 20) * i, 0);
+        ctx.lineTo((W / 20) * i, H);
+        ctx.stroke();
+      }
+
+      const padLeft = 60;
+      const padRight = 40;
+      const padTop = 30;
+      const padBottom = 50;
+      const plotW = W - padLeft - padRight;
+      const plotH = H - padTop - padBottom;
+
+      const levelHeight = plotH / numLevels;
+
+      // Draw energy levels (horizontal lines)
+      ctx.strokeStyle = 'rgba(255, 200, 100, 0.15)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < numLevels; i++) {
+        const y = padTop + plotH - (i + 0.5) * levelHeight;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(W - padRight, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Energy label
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.6)';
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`E${i}`, padLeft - 10, y + 4);
+      }
+
+      // Draw Boltzmann curve overlay (right side)
+      const curveX0 = W - padRight - 180;
+      ctx.strokeStyle = 'rgba(120, 220, 255, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      curvePoints.forEach((pt, i) => {
+        const y = padTop + plotH - (pt.E / numLevels) * plotH;
+        const x = curveX0 + pt.p * 160;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Filled curve
+      ctx.fillStyle = 'rgba(120, 220, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(curveX0, padTop + plotH);
+      curvePoints.forEach((pt) => {
+        const y = padTop + plotH - (pt.E / numLevels) * plotH;
+        const x = curveX0 + pt.p * 160;
+        ctx.lineTo(x, y);
+      });
+      ctx.lineTo(curveX0, padTop);
+      ctx.closePath();
+      ctx.fill();
+
+      // Curve label
+      ctx.fillStyle = 'rgba(120, 220, 255, 0.9)';
+      ctx.font = 'italic 11px ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('P(E) ∝ e^(−E/kT)', curveX0, padTop - 10);
+
+      // Update and draw particles
+      const particleAreaW = curveX0 - padLeft - 40;
+      particlesRef.current.forEach((p) => {
+        if (!isPaused) {
+          // Smoothly move toward target level
+          p.level += (p.targetLevel - p.level) * 0.04;
+          // Horizontal drift
+          p.x += p.vx;
+          if (p.x < 0 || p.x > 1) p.vx *= -1;
+          p.x = Math.max(0, Math.min(1, p.x));
+          // Jiggle (thermal motion proportional to T)
+          p.jiggle += 0.05 + (temperature / 100) * 0.02;
+        }
+
+        const baseY = padTop + plotH - (p.level + 0.5) * levelHeight;
+        const jiggleAmount = Math.min(levelHeight * 0.35, (temperature / 800) * levelHeight);
+        const y = baseY + Math.sin(p.jiggle) * jiggleAmount;
+        const x = padLeft + 20 + p.x * particleAreaW;
+
+        // Color based on energy level (cool->hot)
+        const t = p.level / (numLevels - 1);
+        const r = Math.floor(80 + t * 220);
+        const g = Math.floor(180 - t * 120);
+        const b = Math.floor(255 - t * 200);
+
+        // Glow
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, 8);
+        grad.addColorStop(0, `rgba(${r},${g},${b},0.9)`);
+        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - 8, y - 8, 16, 16);
+
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Y-axis label
+      ctx.save();
+      ctx.translate(20, padTop + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '12px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Energy →', 0, 0);
+      ctx.restore();
+
+      // Bottom counts per level
+      const counts = new Array(numLevels).fill(0);
+      particlesRef.current.forEach((p) => {
+        const idx = Math.round(p.level);
+        if (idx >= 0 && idx < numLevels) counts[idx]++;
+      });
+
+      animationRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+    return () => {
+      cancelAnimationFrame(animationRef.current);
+      window.removeEventListener('resize', resize);
+    };
+  }, [curvePoints, isPaused, temperature]);
+
+  const T = (temperature / 100).toFixed(2);
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#05050d',
+        color: '#e8e8f0',
+        fontFamily: "'Crimson Pro', Georgia, serif",
+        padding: '24px',
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap');
+        
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+        
+        .header {
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          padding-bottom: 20px;
+          margin-bottom: 24px;
+        }
+        
+        .title {
+          font-size: 38px;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          margin: 0;
+          background: linear-gradient(90deg, #ffd089, #ff7eb3, #78dcff);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+          font-style: italic;
+          color: rgba(255,255,255,0.55);
+          margin-top: 6px;
+          font-size: 16px;
+        }
+        
+        .grid {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 20px;
+        }
+        
+        @media (max-width: 900px) {
+          .grid { grid-template-columns: 1fr; }
+        }
+        
+        .canvas-wrap {
+          background: #0a0a18;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          overflow: hidden;
+          aspect-ratio: 4 / 3;
+          position: relative;
+        }
+        
+        canvas {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+        
+        .panel {
+          background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          padding: 20px;
+        }
+        
+        .panel h3 {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.5);
+          margin: 0 0 16px 0;
+        }
+        
+        .control {
+          margin-bottom: 22px;
+        }
+        
+        .control-label {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          margin-bottom: 8px;
+        }
+        
+        .control-label span:first-child {
+          font-style: italic;
+          color: rgba(255,255,255,0.85);
+        }
+        
+        .control-label span:last-child {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 14px;
+          color: #ffd089;
+        }
+        
+        input[type="range"] {
+          width: 100%;
+          -webkit-appearance: none;
+          appearance: none;
+          height: 4px;
+          background: rgba(255,255,255,0.1);
+          border-radius: 2px;
+          outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #ffd089, #ff7eb3);
+          cursor: pointer;
+          box-shadow: 0 0 12px rgba(255,126,179,0.5);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #ffd089, #ff7eb3);
+          cursor: pointer;
+          border: none;
+        }
+        
+        .btn {
+          width: 100%;
+          padding: 10px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.15);
+          color: #e8e8f0;
+          border-radius: 6px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .btn:hover {
+          background: rgba(255,255,255,0.1);
+          border-color: rgba(255,255,255,0.3);
+        }
+        
+        .formula-box {
+          background: linear-gradient(135deg, rgba(120,220,255,0.05), rgba(255,126,179,0.05));
+          border: 1px solid rgba(120,220,255,0.2);
+          border-radius: 6px;
+          padding: 16px;
+          margin-top: 16px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 13px;
+        }
+        
+        .formula-box .eq {
+          font-size: 18px;
+          color: #78dcff;
+          margin: 8px 0;
+          font-family: 'Crimson Pro', serif;
+          font-style: italic;
+        }
+        
+        .formula-box .desc {
+          color: rgba(255,255,255,0.6);
+          font-size: 11px;
+          font-family: 'Crimson Pro', serif;
+          font-style: italic;
+          line-height: 1.5;
+        }
+        
+        .legend {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-top: 12px;
+          font-size: 11px;
+          font-family: 'JetBrains Mono', monospace;
+          color: rgba(255,255,255,0.6);
+        }
+        
+        .legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        
+        .legend-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        
+        .info {
+          margin-top: 20px;
+          padding: 16px;
+          background: rgba(255,208,137,0.04);
+          border-left: 2px solid #ffd089;
+          border-radius: 0 4px 4px 0;
+          font-size: 14px;
+          line-height: 1.6;
+          color: rgba(255,255,255,0.75);
+        }
+        
+        .info strong {
+          color: #ffd089;
+          font-style: normal;
+        }
+      `}</style>
+
+      <div className="container">
+        <div className="header">
+          <h1 className="title">The Boltzmann Distribution</h1>
+          <p className="subtitle">
+            How particles arrange themselves across energy states — a dance choreographed by temperature.
+          </p>
+        </div>
+
+        <div className="grid">
+          <div>
+            <div className="canvas-wrap">
+              <canvas ref={canvasRef} />
+            </div>
+            <div className="legend">
+              <div className="legend-item">
+                <span className="legend-dot" style={{ background: '#50b4ff' }} />
+                <span>Low energy</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-dot" style={{ background: '#ff6464' }} />
+                <span>High energy</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-dot" style={{ background: '#78dcff' }} />
+                <span>Theoretical curve</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <h3>Controls</h3>
+
+            <div className="control">
+              <div className="control-label">
+                <span>Temperature</span>
+                <span>T = {T}</span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="800"
+                value={temperature}
+                onChange={(e) => setTemperature(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="control">
+              <div className="control-label">
+                <span>Particles</span>
+                <span>N = {particleCount}</span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="400"
+                value={particleCount}
+                onChange={(e) => setParticleCount(Number(e.target.value))}
+              />
+            </div>
+
+            <button className="btn" onClick={() => setIsPaused(!isPaused)}>
+              {isPaused ? '▶  RESUME' : '❚❚  PAUSE'}
+            </button>
+
+            <div className="formula-box">
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', letterSpacing: '0.1em' }}>
+                THE EQUATION
+              </div>
+              <div className="eq">P(E) = e^(−E/kT) / Z</div>
+              <div className="desc">
+                The probability of finding a particle at energy <em>E</em> falls exponentially with <em>E</em>,
+                tempered by temperature <em>T</em>. The partition function <em>Z</em> normalizes the distribution.
+              </div>
+            </div>
+
+            <div className="info">
+              <strong>Try this:</strong> Drag the temperature low — particles collapse into the ground state.
+              Crank it high — they spread across all levels. That's thermal equilibrium in action.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(BoltzmannVisualizer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

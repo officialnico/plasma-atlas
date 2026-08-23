@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What GENE Actually Sees</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070d;--s1:#0b1222;--bdr:#17253f;--tx:#dfe8f5;
+  --dim:#5a7094;--mut:#2f4468;--cyan:#1fd6e8;--green:#3ee886;
+  --amber:#f5c042;--red:#ef6461;--purple:#9b7ff0;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:920px;margin:0 auto;padding:20px 14px 60px;}
+.head{text-align:center;margin-bottom:20px;}
+.head h1{font-size:clamp(20px,4.5vw,30px);font-weight:800;letter-spacing:-0.5px;margin-bottom:5px;}
+.head h1 span{color:var(--green);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:560px;margin:0 auto;line-height:1.5;}
+
+.top-row{display:grid;grid-template-columns:180px 1fr;gap:12px;margin-bottom:14px;align-items:start;}
+@media(max-width:600px){.top-row{grid-template-columns:1fr;}}
+
+.mini-cross{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;padding:0;}
+.mini-cross canvas{display:block;width:100%;height:200px;}
+.mini-label{padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--mut);letter-spacing:1px;text-transform:uppercase;text-align:center;border-top:1px solid var(--bdr);}
+
+.scalars{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;padding:16px 18px;}
+.scalars h3{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--mut);text-transform:uppercase;margin-bottom:12px;}
+.scalar-row{display:flex;gap:12px;flex-wrap:wrap;}
+.scalar{flex:1;min-width:80px;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px 12px;text-align:center;}
+.scalar .sv{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;margin-bottom:2px;}
+.scalar .sl{font-size:10px;color:var(--dim);font-weight:300;}
+
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-bottom:10px;}
+.vbar{padding:10px 14px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--mut);}
+.vbar-r{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dim);}
+canvas{display:block;width:100%;}
+
+.expl{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:14px 16px;margin-bottom:12px;}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl b{color:var(--tx);font-weight:600;}
+.ha{color:var(--amber);font-weight:600;}.hr{color:var(--red);font-weight:600;}
+.hg{color:var(--green);font-weight:600;}.hc{color:var(--cyan);font-weight:600;}
+.hp{color:var(--purple);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="head">
+    <h1>What GENE <span>Actually Sees</span></h1>
+    <p>Two single numbers and a handful of 1D arrays. That's the entire geometry. Hover across any plot to see the corresponding point on the cross-section.</p>
+  </div>
+
+  <!-- Top: mini cross-section + scalar values -->
+  <div class="top-row">
+    <div class="mini-cross">
+      <canvas id="cMini"></canvas>
+      <div class="mini-label">where you are on the surface</div>
+    </div>
+    <div class="scalars">
+      <h3>Single numbers (one per surface)</h3>
+      <div class="scalar-row">
+        <div class="scalar"><div class="sv" style="color:var(--amber)">2.50</div><div class="sl">q (safety factor)</div></div>
+        <div class="scalar"><div class="sv" style="color:var(--cyan)">1.85</div><div class="sl">ŝ (magnetic shear)</div></div>
+        <div class="scalar"><div class="sv" style="color:var(--dim)">0.60</div><div class="sl">ρ (surface location)</div></div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--mut);font-weight:300;">These don't change along the field line — they're properties of the whole surface. Everything below is a 1D array that varies with z.</div>
+    </div>
+  </div>
+
+  <!-- Arrays -->
+  <div class="viz">
+    <div class="vbar"><span class="vbar-t">κ — CURVATURE</span><span class="vbar-r">drives turbulence where positive</span></div>
+    <canvas id="c0" style="height:130px;"></canvas>
+  </div>
+  <div class="viz">
+    <div class="vbar"><span class="vbar-t">|B| — MAGNETIC FIELD STRENGTH</span><span class="vbar-r">stronger on inboard side</span></div>
+    <canvas id="c1" style="height:130px;"></canvas>
+  </div>
+  <div class="viz">
+    <div class="vbar"><span class="vbar-t">g^xx — METRIC COEFFICIENT</span><span class="vbar-r">converts GENE coordinates → real distances</span></div>
+    <canvas id="c2" style="height:130px;"></canvas>
+  </div>
+  <div class="viz">
+    <div class="vbar"><span class="vbar-t">g^xy — METRIC COEFFICIENT</span><span class="vbar-r">cross-term, depends on shear</span></div>
+    <canvas id="c3" style="height:130px;"></canvas>
+  </div>
+  <div class="viz">
+    <div class="vbar"><span class="vbar-t">g^yy — METRIC COEFFICIENT</span><span class="vbar-r">binormal direction distances</span></div>
+    <canvas id="c4" style="height:130px;"></canvas>
+  </div>
+  <div class="viz">
+    <div class="vbar"><span class="vbar-t">JACOBIAN — GRID CELL VOLUME</span><span class="vbar-r">how big each cell is in real space</span></div>
+    <canvas id="c5" style="height:130px;"></canvas>
+  </div>
+
+  <div class="expl">
+    <p>That's the <b>entire geometry file</b>. Three single numbers at the top, six 1D arrays below. Each array has the same number of points (typically 128 or 256) sampled along z from outboard → top → inboard → bottom → back. Hover across any plot and the mini cross-section shows exactly where that z-point sits on the flux surface. GENE reads this once at startup, then runs the whole turbulence simulation using just these curves.</p>
+  </div>
+</div>
+
+<script>
+const elong=1.4, tri=0.2, selRho=0.6;
+
+// Physics functions along the field line (z ↔ θ)
+function kappa(th){return Math.cos(th+tri*Math.sin(th))*0.65/elong;}
+function bField(th){return 0.95-0.12*Math.cos(th);}
+function gxx(th){return 1+0.35*selRho*Math.cos(th);}
+function gxy(th){return 1.85*selRho*(th/Math.PI)*0.3;} // grows with z, shear-dependent
+function gyy(th){return 1-0.15*Math.cos(th)+0.5*selRho*selRho;}
+function jacobian(th){return (1+selRho*Math.cos(th))*elong*1.1;}
+
+function surfPt(theta,rFrac,maxR){
+  const r=maxR*rFrac;
+  return{x:r*Math.cos(theta+tri*Math.sin(theta)),y:r*elong*Math.sin(theta)};
+}
+function kappaColor(k){
+  const t=Math.max(0,Math.min(1,(k+0.5)/1.0));
+  let r,g,b;
+  if(t<0.45){const f=t/0.45;r=40*(1-f)+18*f|0;g=200*(1-f)+40*f|0;b=110*(1-f)+36*f|0;}
+  else if(t<0.55){const f=(t-0.45)/0.1;r=18+f*40|0;g=40-f*10|0;b=36-f*10|0;}
+  else{const f=(t-0.55)/0.45;r=58+f*181|0;g=30+f*50|0;b=26+f*45|0;}
+  return{r,g,b};
+}
+
+// Canvases
+const cMini=document.getElementById('cMini');
+const ctxM=cMini.getContext('2d');
+const plots=[
+  {id:'c0',fn:kappa,color:[239,100,97],range:[-0.55,0.55],isCurv:true,zero:true},
+  {id:'c1',fn:bField,color:[245,192,66],range:[0.75,1.15],isCurv:false,zero:false},
+  {id:'c2',fn:gxx,color:[155,127,240],range:[0.5,1.6],isCurv:false,zero:false},
+  {id:'c3',fn:gxy,color:[155,127,240],range:[-0.3,0.3],isCurv:false,zero:true},
+  {id:'c4',fn:gyy,color:[155,127,240],range:[0.6,1.6],isCurv:false,zero:false},
+  {id:'c5',fn:jacobian,color:[62,232,134],range:[0.5,2.2],isCurv:false,zero:false},
+];
+const pCanvases=plots.map(p=>document.getElementById(p.id));
+const pCtxs=pCanvases.map(c=>c.getContext('2d'));
+const pDims=plots.map(()=>({w:0,h:0}));
+let mW,mH,dpr;
+
+let hoverFrac=-1; // 0..1 across the z axis, shared across all plots
+
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  // Mini
+  const rm=cMini.getBoundingClientRect();
+  cMini.width=rm.width*dpr;cMini.height=rm.height*dpr;
+  ctxM.setTransform(dpr,0,0,dpr,0,0);
+  mW=rm.width;mH=rm.height;
+  // Plots
+  pCanvases.forEach((c,i)=>{
+    const r=c.getBoundingClientRect();
+    c.width=r.width*dpr;c.height=r.height*dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+    pDims[i]={w:r.width,h:r.height};
+  });
+}
+
+// ============ MINI CROSS-SECTION ============
+function drawMini(){
+  ctxM.clearRect(0,0,mW,mH);
+  const cx=mW/2, cy=mH/2, maxR=Math.min(mW,mH)*0.38;
+
+  // Background
+  ctxM.fillStyle='#0b1222';ctxM.fillRect(0,0,mW,mH);
+
+  // Ghost surfaces
+  for(let i=1;i<=6;i++){
+    const f=i/6;
+    ctxM.beginPath();
+    for(let j=0;j<=48;j++){
+      const th=(j/48)*Math.PI*2;
+      const sp=surfPt(th,f,maxR);
+      j===0?ctxM.moveTo(cx+sp.x,cy-sp.y):ctxM.lineTo(cx+sp.x,cy-sp.y);
+    }
+    ctxM.closePath();
+    ctxM.strokeStyle=`rgba(31,214,232,${0.04+0.01*f})`;
+    ctxM.lineWidth=0.5;ctxM.stroke();
+  }
+
+  // Selected surface colored by κ
+  const nSegs=48;
+  for(let i=0;i<nSegs;i++){
+    const th0=(i/nSegs)*Math.PI*2,th1=((i+1)/nSegs)*Math.PI*2;
+    const sp0=surfPt(th0,selRho,maxR),sp1=surfPt(th1,selRho,maxR);
+    const k=kappa((th0+th1)/2);
+    const col=kappaColor(k);
+    ctxM.beginPath();ctxM.moveTo(cx+sp0.x,cy-sp0.y);ctxM.lineTo(cx+sp1.x,cy-sp1.y);
+    ctxM.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;
+    ctxM.lineWidth=3;ctxM.stroke();
+  }
+
+  // If hovering, show the dot
+  if(hoverFrac>=0){
+    const theta=hoverFrac*Math.PI*2;
+    const sp=surfPt(theta,selRho,maxR);
+    const hx=cx+sp.x, hy=cy-sp.y;
+    const k=kappa(theta);
+    const col=kappaColor(k);
+
+    // Glow
+    ctxM.beginPath();ctxM.arc(hx,hy,14,0,Math.PI*2);
+    const gr=ctxM.createRadialGradient(hx,hy,0,hx,hy,14);
+    gr.addColorStop(0,`rgba(${col.r},${col.g},${col.b},0.5)`);
+    gr.addColorStop(1,`rgba(${col.r},${col.g},${col.b},0)`);
+    ctxM.fillStyle=gr;ctxM.fill();
+
+    // Dot
+    ctxM.beginPath();ctxM.arc(hx,hy,5,0,Math.PI*2);
+    ctxM.fillStyle=`rgb(${col.r},${col.g},${col.b})`;ctxM.fill();
+    ctxM.strokeStyle='rgba(255,255,255,0.6)';ctxM.lineWidth=1.5;ctxM.stroke();
+
+    // Line from center
+    ctxM.beginPath();ctxM.moveTo(cx,cy);ctxM.lineTo(hx,hy);
+    ctxM.strokeStyle='rgba(255,255,255,0.06)';ctxM.lineWidth=0.5;ctxM.stroke();
+
+    // Angle label
+    ctxM.font='600 9px "JetBrains Mono",monospace';
+    ctxM.fillStyle='rgba(255,255,255,0.4)';
+    ctxM.textAlign='center';ctxM.textBaseline='bottom';
+    const deg=(theta*180/Math.PI).toFixed(0);
+    ctxM.fillText(`θ=${deg}°`,hx,hy-10);
+  } else {
+    // Default label
+    ctxM.font='300 9px "DM Sans",sans-serif';
+    ctxM.fillStyle='rgba(100,116,139,0.3)';
+    ctxM.textAlign='center';
+    ctxM.fillText('hover a plot →',cx,mH-8);
+  }
+}
+
+// ============ PLOT DRAWING ============
+function drawPlot(idx){
+  const ctx=pCtxs[idx],W=pDims[idx].w,H=pDims[idx].h;
+  const pl=plots[idx];
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,W,H);
+
+  const pad={l:48,r:14,t:10,b:22};
+  const w=W-pad.l-pad.r, h=H-pad.t-pad.b;
+  const [yMin,yMax]=pl.range;
+  const toY=v=>pad.t+h-(v-yMin)/(yMax-yMin)*h;
+
+  // Zero line if applicable
+  if(pl.zero && yMin<0 && yMax>0){
+    const zy=toY(0);
+    ctx.strokeStyle='rgba(100,116,139,0.1)';ctx.lineWidth=0.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+w,zy);ctx.stroke();
+    ctx.setLineDash([]);
+
+    if(pl.isCurv){
+      ctx.fillStyle='rgba(239,100,97,0.03)';ctx.fillRect(pad.l,pad.t,w,zy-pad.t);
+      ctx.fillStyle='rgba(62,232,134,0.03)';ctx.fillRect(pad.l,zy,w,pad.t+h-zy);
+    }
+  }
+
+  // Y axis ticks
+  ctx.font='8px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(100,116,139,0.2)';
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  const nTicks=3;
+  for(let i=0;i<=nTicks;i++){
+    const v=yMin+(yMax-yMin)*(i/nTicks);
+    const y=toY(v);
+    ctx.fillText(v.toFixed(2),pad.l-4,y);
+    ctx.strokeStyle='rgba(100,116,139,0.04)';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+w,y);ctx.stroke();
+  }
+
+  // X axis labels (only bottom plot)
+  if(idx===plots.length-1){
+    ctx.font='7px "JetBrains Mono",monospace';
+    ctx.fillStyle='rgba(100,116,139,0.2)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>{
+      ctx.fillText(l,pad.l+(w/4)*i,pad.t+h+2);
+    });
+  }
+
+  // Data points as dots along the curve (show the discrete nature)
+  const N=128;
+  const dotR=1.5;
+
+  // Filled area for curvature
+  if(pl.isCurv){
+    const zy=toY(0);
+    // Bad fill
+    ctx.beginPath();ctx.moveTo(pad.l,zy);
+    for(let i=0;i<=N;i++){
+      const th=(i/N)*Math.PI*2;
+      const v=pl.fn(th);
+      ctx.lineTo(pad.l+(i/N)*w, v>0?toY(v):zy);
+    }
+    ctx.lineTo(pad.l+w,zy);ctx.closePath();
+    ctx.fillStyle='rgba(239,100,97,0.08)';ctx.fill();
+    // Good fill
+    ctx.beginPath();ctx.moveTo(pad.l,zy);
+    for(let i=0;i<=N;i++){
+      const th=(i/N)*Math.PI*2;
+      const v=pl.fn(th);
+      ctx.lineTo(pad.l+(i/N)*w, v<0?toY(v):zy);
+    }
+    ctx.lineTo(pad.l+w,zy);ctx.closePath();
+    ctx.fillStyle='rgba(62,232,134,0.08)';ctx.fill();
+  }
+
+  // Draw curve with color
+  for(let i=0;i<N;i++){
+    const th0=(i/N)*Math.PI*2, th1=((i+1)/N)*Math.PI*2;
+    const v0=pl.fn(th0), v1=pl.fn(th1);
+    const px0=pad.l+(i/N)*w, px1=pad.l+((i+1)/N)*w;
+
+    let col;
+    if(pl.isCurv){
+      const kc=kappaColor((v0+v1)/2);
+      col=`rgb(${kc.r},${kc.g},${kc.b})`;
+    } else {
+      col=`rgba(${pl.color[0]},${pl.color[1]},${pl.color[2]},0.6)`;
+    }
+    ctx.beginPath();ctx.moveTo(px0,toY(v0));ctx.lineTo(px1,toY(v1));
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+  }
+
+  // Discrete sample dots (every 8th point)
+  for(let i=0;i<N;i+=8){
+    const th=(i/N)*Math.PI*2;
+    const v=pl.fn(th);
+    const px=pad.l+(i/N)*w, py=toY(v);
+    let col;
+    if(pl.isCurv){
+      const kc=kappaColor(v);
+      col=`rgba(${kc.r},${kc.g},${kc.b},0.5)`;
+    } else {
+      col=`rgba(${pl.color[0]},${pl.color[1]},${pl.color[2]},0.35)`;
+    }
+    ctx.beginPath();ctx.arc(px,py,dotR,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();
+  }
+
+  // Hover
+  if(hoverFrac>=0){
+    const theta=hoverFrac*Math.PI*2;
+    const v=pl.fn(theta);
+    const hx=pad.l+hoverFrac*w;
+    const hy=toY(v);
+
+    // Vertical line
+    ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=0.8;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(hx,pad.t);ctx.lineTo(hx,pad.t+h);ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dot
+    let dotCol;
+    if(pl.isCurv){const kc=kappaColor(v);dotCol=`rgb(${kc.r},${kc.g},${kc.b})`;}
+    else dotCol=`rgb(${pl.color[0]},${pl.color[1]},${pl.color[2]})`;
+
+    ctx.beginPath();ctx.arc(hx,hy,5,0,Math.PI*2);
+    ctx.fillStyle=dotCol;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+
+    // Value
+    ctx.font='600 10px "JetBrains Mono",monospace';
+    ctx.fillStyle=dotCol;
+    ctx.textAlign=hoverFrac>0.85?'right':'left';
+    const tx=hoverFrac>0.85?hx-8:hx+8;
+    ctx.fillText(`${v>0?'+':''}${v.toFixed(3)}`,tx,hy-8);
+  }
+
+  // z index label on left
+  if(hoverFrac>=0){
+    const zIdx=Math.round(hoverFrac*127);
+    ctx.font='300 8px "JetBrains Mono",monospace';
+    ctx.fillStyle='rgba(100,116,139,0.3)';
+    ctx.textAlign='left';
+    ctx.fillText(`z[${zIdx}]`,pad.l+2,pad.t+8);
+  }
+}
+
+// ============ HOVER HANDLING ============
+function setHover(canvas,e){
+  const rect=canvas.getBoundingClientRect();
+  const mx=(e.clientX||e.touches[0].clientX)-rect.left;
+  const pad=48,pr=14;
+  const w=rect.width-pad-pr;
+  hoverFrac=Math.max(0,Math.min(1,(mx-pad)/w));
+  drawAll();
+}
+
+function clearHover(){hoverFrac=-1;drawAll();}
+
+pCanvases.forEach(c=>{
+  c.addEventListener('mousemove',e=>setHover(c,e));
+  c.addEventListener('mouseleave',clearHover);
+  c.addEventListener('touchmove',e=>{e.preventDefault();setHover(c,e);},{passive:false});
+  c.addEventListener('touchend',clearHover);
+});
+
+// ============ DRAW ALL ============
+function drawAll(){
+  drawMini();
+  plots.forEach((_,i)=>drawPlot(i));
+}
+
+window.addEventListener('resize',()=>{resize();drawAll();});
+resize();
+drawAll();
+</script>
+</body>
+</html>

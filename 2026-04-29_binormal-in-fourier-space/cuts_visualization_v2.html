@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Toroidal & Poloidal cuts — D-shaped, with binormal slider</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; overflow-x: hidden; }
+
+.wrap { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+h1 {
+  font-family: 'Fraunces', serif; font-weight: 700;
+  font-size: 28px; letter-spacing: -0.02em;
+  margin-bottom: 6px; color: #fff;
+}
+.lede {
+  font-family: 'Fraunces', serif; color: #a8a59c;
+  font-size: 14px; line-height: 1.55; margin-bottom: 20px;
+  max-width: 760px;
+}
+
+.controls {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  align-items: center;
+}
+.controls span.lbl { color: #888; padding-right: 6px; }
+.toggle {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #e8e6e0; padding: 7px 14px; border-radius: 3px;
+  cursor: pointer; transition: all 0.15s;
+  font-family: inherit; font-size: inherit;
+}
+.toggle:hover { background: rgba(255,255,255,0.12); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+
+.binormal-slider {
+  background: rgba(74, 157, 110, 0.06);
+  border: 1px solid rgba(74, 157, 110, 0.25);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+}
+.binormal-slider label { color: #5fc28e; font-weight: 600; min-width: 220px; }
+.binormal-slider input[type=range] {
+  flex: 1; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: rgba(74, 157, 110, 0.15); border-radius: 2px; outline: none;
+}
+.binormal-slider input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #5fc28e; cursor: pointer;
+  box-shadow: 0 0 0 4px rgba(74, 157, 110, 0.2);
+}
+.binormal-slider input[type=range]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #5fc28e; cursor: pointer; border: none;
+}
+.binormal-slider .val {
+  min-width: 90px; text-align: right;
+  color: #5fc28e; font-weight: 600;
+}
+.binormal-slider .hint {
+  color: #888; font-style: italic; font-family: 'Fraunces', serif;
+  font-size: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: rgba(12, 12, 18, 0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 18px;
+}
+.card h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: #d4a04a; margin-bottom: 4px;
+}
+.card .sub {
+  font-family: 'Fraunces', serif; font-size: 13px;
+  color: #d4cfc0; margin-bottom: 12px; font-style: italic;
+}
+.card canvas { width: 100%; height: 480px; display: block; }
+
+.legend {
+  margin-top: 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  color: #a8a59c; line-height: 1.7;
+}
+.tag-x { color: #ff6b6b; font-weight: 600; }
+.tag-y { color: #5fc28e; font-weight: 600; }
+.tag-z { color: #7badd6; font-weight: 600; }
+
+.summary {
+  background: rgba(212, 160, 74, 0.06);
+  border-left: 3px solid #d4a04a;
+  border-radius: 4px;
+  padding: 16px 20px;
+  font-family: 'Fraunces', serif; font-size: 14px; line-height: 1.65;
+  color: #e8e6e0;
+}
+.summary strong { color: #d4a04a; }
+.summary code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The two cuts of a tokamak</h1>
+  <p class="lede">D-shaped flux surfaces (real tokamak geometry — elongated vertically, slightly triangular). Now with a binormal slider so you can <em>slide along y</em> and watch what changes.</p>
+
+  <div class="controls">
+    <span class="lbl">show field:</span>
+    <button class="toggle on" data-field="T">T₀ (temperature)</button>
+    <button class="toggle" data-field="n">n₀ (density)</button>
+    <button class="toggle" data-field="B">|B| (field strength)</button>
+    <button class="toggle" data-field="dT">δT (fluctuation)</button>
+  </div>
+
+  <div class="binormal-slider">
+    <label>slide in y (binormal) →</label>
+    <input type="range" id="ySlider" min="0" max="6.283" step="0.01" value="0">
+    <div class="val" id="yVal">0.00</div>
+    <div class="hint">watch what changes vs. what stays the same</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Poloidal cut</h2>
+      <div class="sub">D-shape — slice perpendicular to the donut axis. Sliding y rotates this cut around the torus (toroidally).</div>
+      <canvas id="polCanvas"></canvas>
+      <div class="legend">
+        <span class="tag-x">x</span> = radial outward.
+        <span class="tag-y">y</span> = binormal (mostly out-of-page here, since B is mostly toroidal in this cut).
+        <span class="tag-z">z</span> = along B (mostly out-of-page, with a small poloidal twist).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Toroidal cut (top-down)</h2>
+      <div class="sub">Equatorial slice. Concentric rings = where the D-surfaces intersect this plane. The pink dot marks your y-position.</div>
+      <canvas id="torCanvas"></canvas>
+      <div class="legend">
+        <span class="tag-x">x</span> = radial outward.
+        <span class="tag-y">y</span> = roughly the toroidal-angle direction (along the rings).
+        <span class="tag-z">z</span> = along B.
+      </div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <strong>The experiment:</strong> drag the y-slider. With <strong>T₀</strong>, <strong>n₀</strong>, or <strong>|B|</strong> selected, you'll see <em>nothing change</em> in the colors. That's binormal symmetry — the equilibrium has it. With <strong>δT</strong> selected, the fluctuation pattern <em>drifts</em> as you slide y. That's what GENE actually computes: the y-structure of the perturbations on top of a y-symmetric background.
+    <p style="margin-top: 10px; font-size: 13px;">In the toroidal view, the pink dot tracks your y-position around the ring. It moves as you slide. The colors stay the same as the dot moves (for T, n, |B|), or drift with it (for δT).</p>
+  </div>
+</div>
+
+<script>
+const state = { field: 'T', y: 0 };
+
+document.querySelectorAll('.toggle[data-field]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle[data-field]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    state.field = btn.dataset.field;
+    redraw();
+  });
+});
+
+const ySlider = document.getElementById('ySlider');
+const yVal = document.getElementById('yVal');
+ySlider.addEventListener('input', () => {
+  state.y = parseFloat(ySlider.value);
+  yVal.textContent = state.y.toFixed(2);
+  redraw();
+});
+
+function setupCanvas(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+function lerp(a,b,t){return a+(b-a)*t;}
+
+// ============ D-shape parameterization ============
+// (R, Z) coords of a flux surface at normalized minor radius r in [0,1]
+// theta is poloidal angle parameter
+// kappa = elongation, delta = triangularity
+const KAPPA = 1.6;
+const DELTA = 0.3;
+function dshape(r, theta) {
+  // Miller-like parametrization
+  const Rrel = r * Math.cos(theta + DELTA * Math.sin(theta));
+  const Zrel = r * KAPPA * Math.sin(theta);
+  return { Rrel, Zrel };
+}
+
+// Field values
+function fieldValue(r, theta, kind, yOffset) {
+  if (kind === 'T') return Math.exp(-2 * r * r);
+  if (kind === 'n') return 0.3 + 0.7 * Math.exp(-1.5 * r * r);
+  if (kind === 'B') {
+    // |B| ∝ 1/R, R = R0 + r*cos(theta+...) (using D-shape R)
+    const { Rrel } = dshape(r, theta);
+    const R0 = 3;
+    return R0 / (R0 + Rrel);
+  }
+  if (kind === 'dT') {
+    // Fluctuation depends on y (binormal phase). Slide y → blobs drift.
+    const ky = 5;
+    const env = Math.exp(-Math.pow((r - 0.6) / 0.22, 2));
+    let v = env * (
+      Math.cos(ky * theta - yOffset * 3 + 1.0) +
+      0.6 * Math.cos(ky * 1.7 * theta - yOffset * 2.5 - 0.6) +
+      0.4 * Math.cos(ky * 0.5 * theta - yOffset * 1.5 + 1.8)
+    );
+    return 0.5 + 0.4 * v;
+  }
+  return 0;
+}
+
+function fieldColor(v, kind) {
+  if (kind === 'dT') {
+    const t = Math.max(0, Math.min(1, v));
+    const c = (t - 0.5) * 2;
+    if (c >= 0) return `rgb(${(245 - 30*c)|0}, ${(220 - 150*c)|0}, ${(200 - 130*c)|0})`;
+    return `rgb(${(245 + 100*c)|0}, ${(220 + 70*c)|0}, ${(200 + 20*c)|0})`;
+  }
+  const t = Math.max(0, Math.min(1, v));
+  const r = lerp(50, 240, t);
+  const g = lerp(70, 180, t);
+  const b = lerp(120, 70, t);
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+
+// ============ POLOIDAL CUT (D-SHAPE) ============
+function drawPoloidal() {
+  const canvas = document.getElementById('polCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w/2, cy = h/2;
+  const scale = Math.min(w, h) * 0.4 / Math.max(KAPPA, 1.0);
+
+  // Fill flux surfaces with field color (D-shape regions)
+  const N = 50;
+  const M = 120;
+  for (let i = N-1; i >= 0; i--) {
+    const r0 = i / N, r1 = (i+1) / N;
+    for (let j = 0; j < M; j++) {
+      const th0 = (j / M) * Math.PI * 2 - Math.PI/2;
+      const th1 = ((j+1) / M) * Math.PI * 2 - Math.PI/2;
+      const thMid = (th0 + th1) / 2;
+      const rMid = (r0 + r1) / 2;
+      const v = fieldValue(rMid, thMid, state.field, state.y);
+      ctx.fillStyle = fieldColor(v, state.field);
+
+      const p00 = dshape(r0, th0);
+      const p10 = dshape(r1, th0);
+      const p11 = dshape(r1, th1);
+      const p01 = dshape(r0, th1);
+      ctx.beginPath();
+      ctx.moveTo(cx + p00.Rrel * scale, cy - p00.Zrel * scale);
+      ctx.lineTo(cx + p10.Rrel * scale, cy - p10.Zrel * scale);
+      ctx.lineTo(cx + p11.Rrel * scale, cy - p11.Zrel * scale);
+      ctx.lineTo(cx + p01.Rrel * scale, cy - p01.Zrel * scale);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Flux surfaces (D-shape contours)
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 0.7;
+  for (let k = 1; k <= 5; k++) {
+    const r = k/5;
+    ctx.beginPath();
+    for (let t = 0; t <= Math.PI*2 + 0.01; t += 0.05) {
+      const p = dshape(r, t);
+      const px = cx + p.Rrel * scale;
+      const py = cy - p.Zrel * scale;
+      if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // Magnetic axis
+  ctx.fillStyle = '#d4a04a';
+  ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2); ctx.fill();
+  ctx.font = '10px JetBrains Mono';
+  ctx.fillText('magnetic axis', cx + 8, cy + 3);
+
+  // Highlighted surface (r = 0.6)
+  const rHi = 0.6;
+  ctx.strokeStyle = 'rgba(212, 160, 74, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let t = 0; t <= Math.PI*2 + 0.01; t += 0.04) {
+    const p = dshape(rHi, t);
+    const px = cx + p.Rrel * scale;
+    const py = cy - p.Zrel * scale;
+    if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Place x/y/z vector frames around the D-surface
+  const pts = 6;
+  for (let i = 0; i < pts; i++) {
+    const th = (i / pts) * Math.PI * 2;
+    const p = dshape(rHi, th);
+    const px = cx + p.Rrel * scale;
+    const py = cy - p.Zrel * scale;
+
+    // Tangent to surface at this theta (numerical derivative)
+    const eps = 0.01;
+    const pNext = dshape(rHi, th + eps);
+    const tang = { x: (pNext.Rrel - p.Rrel) / eps, y: -(pNext.Zrel - p.Zrel) / eps };
+    const tangN = Math.hypot(tang.x, tang.y);
+    tang.x /= tangN; tang.y /= tangN;
+
+    // Outward normal (radial direction in flux-coord sense)
+    const norm = { x: tang.y, y: -tang.x };
+    // Make sure it points outward from center
+    const dot = norm.x * p.Rrel + norm.y * (-p.Zrel);
+    if (dot < 0) { norm.x = -norm.x; norm.y = -norm.y; }
+
+    drawVector(ctx, px, py, norm, 22, '#ff6b6b'); // x radial
+    // y is mostly out of page in this cut (binormal ≈ toroidal here)
+    drawOutOfPage(ctx, px, py, 6, '#5fc28e');
+    // z is also out of page (along B which is mostly toroidal)
+    // Show z slightly offset so they don't overlap
+    drawVector(ctx, px + 14, py, tang, 16, '#7badd6'); // z poloidal component
+  }
+
+  // Labels
+  ctx.fillStyle = '#fff'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText('inboard', 16, cy + 4);
+  ctx.fillText('outboard', w - 70, cy + 4);
+  ctx.fillText('top', cx - 12, 16);
+  ctx.fillText('bottom', cx - 22, h - 8);
+
+  ctx.fillStyle = '#d4a04a'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText(`one flux surface (D-shape, κ=${KAPPA}, δ=${DELTA})`, cx - 90, 32);
+
+  // y-position indicator: poloidal cut doesn't really show y-motion (y is out of page).
+  // Add a status box telling user what changes when they slide.
+  ctx.fillStyle = state.field === 'dT' ? 'rgba(245, 100, 100, 0.85)' : 'rgba(95, 194, 142, 0.85)';
+  ctx.font = 'italic 11px Fraunces';
+  const msg = state.field === 'dT'
+    ? '⚠ fluctuation pattern: shifts when you slide y'
+    : '✓ equilibrium: identical at every y';
+  ctx.fillText(msg, 16, h - 14);
+}
+
+// ============ TOROIDAL CUT (D-shape projected) ============
+function drawToroidal() {
+  const canvas = document.getElementById('torCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w/2, cy = h/2;
+  const Rmax = Math.min(w, h) * 0.42;
+
+  // Major radius and minor radius scale
+  const R0 = Rmax * 0.6;
+  const aScale = Rmax * 0.32;
+
+  // Toroidal cut at z=0 intersects each D-surface at theta=0 (outboard) and theta=pi (inboard)
+  // Fill rings between flux surfaces (outboard and inboard sides separately)
+  const N = 50, M = 240;
+
+  // Outboard rings
+  for (let i = N-1; i >= 0; i--) {
+    const r0 = i / N, r1 = (i+1) / N;
+    const p_out_0 = dshape(r0, 0); // theta=0, outboard
+    const p_out_1 = dshape(r1, 0);
+    // For toroidal cut: at toroidal angle phi, the outboard intersection is at radius
+    //   R(r) = R0 + p_out.Rrel * aScale  (from major axis, in pixels)
+    const r0px_out = R0 + p_out_0.Rrel * aScale;
+    const r1px_out = R0 + p_out_1.Rrel * aScale;
+
+    for (let j = 0; j < M; j++) {
+      const ph0 = (j/M) * Math.PI * 2;
+      const ph1 = ((j+1)/M) * Math.PI * 2;
+      const phMid = (ph0 + ph1) / 2;
+      // Field value: when computing fluctuation, the "y position" effectively maps
+      // to toroidal angle phi (plus the slider state.y).
+      // For equilibrium fields, y doesn't matter — we just use theta=0 here.
+      // For dT, we need to encode y-dependence. Use phMid as a proxy for y.
+      const yEff = state.field === 'dT' ? phMid + state.y : state.y;
+      const v0 = fieldValue(r0, 0, state.field, yEff);
+      const v1 = fieldValue(r1, 0, state.field, yEff);
+      const vMid = (v0 + v1) / 2;
+      ctx.fillStyle = fieldColor(vMid, state.field);
+      ctx.beginPath();
+      ctx.moveTo(cx + r0px_out * Math.cos(ph0), cy + r0px_out * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_out * Math.cos(ph0), cy + r1px_out * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_out * Math.cos(ph1), cy + r1px_out * Math.sin(ph1));
+      ctx.lineTo(cx + r0px_out * Math.cos(ph1), cy + r0px_out * Math.sin(ph1));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Inboard rings
+  for (let i = N-1; i >= 0; i--) {
+    const r0 = i / N, r1 = (i+1) / N;
+    const p_in_0 = dshape(r0, Math.PI);
+    const p_in_1 = dshape(r1, Math.PI);
+    const r0px_in = R0 + p_in_0.Rrel * aScale;  // Rrel is negative at theta=pi
+    const r1px_in = R0 + p_in_1.Rrel * aScale;
+
+    for (let j = 0; j < M; j++) {
+      const ph0 = (j/M) * Math.PI * 2;
+      const ph1 = ((j+1)/M) * Math.PI * 2;
+      const phMid = (ph0 + ph1) / 2;
+      const yEff = state.field === 'dT' ? phMid + state.y : state.y;
+      const v0 = fieldValue(r0, Math.PI, state.field, yEff);
+      const v1 = fieldValue(r1, Math.PI, state.field, yEff);
+      const vMid = (v0 + v1) / 2;
+      ctx.fillStyle = fieldColor(vMid, state.field);
+      ctx.beginPath();
+      ctx.moveTo(cx + r0px_in * Math.cos(ph0), cy + r0px_in * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_in * Math.cos(ph0), cy + r1px_in * Math.sin(ph0));
+      ctx.lineTo(cx + r1px_in * Math.cos(ph1), cy + r1px_in * Math.sin(ph1));
+      ctx.lineTo(cx + r0px_in * Math.cos(ph1), cy + r0px_in * Math.sin(ph1));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Hole in center
+  ctx.fillStyle = '#08080d';
+  const innerEdge = R0 + dshape(1, Math.PI).Rrel * aScale - 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerEdge, 0, Math.PI*2);
+  ctx.fill();
+
+  // Outer & inner edges
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  const outerEdge = R0 + dshape(1, 0).Rrel * aScale;
+  ctx.beginPath(); ctx.arc(cx, cy, outerEdge, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, innerEdge + 0.5, 0, Math.PI*2); ctx.stroke();
+
+  // Highlighted surface (r=0.6)
+  const rHi = 0.6;
+  ctx.strokeStyle = 'rgba(212, 160, 74, 0.7)';
+  ctx.lineWidth = 1.5;
+  const ringOut = R0 + dshape(rHi, 0).Rrel * aScale;
+  const ringIn = R0 + dshape(rHi, Math.PI).Rrel * aScale;
+  ctx.beginPath(); ctx.arc(cx, cy, ringOut, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, ringIn, 0, Math.PI*2); ctx.stroke();
+
+  // Place x/y/z frames at sample points along outboard ring
+  const pts = 8;
+  for (let i = 0; i < pts; i++) {
+    const phi = (i / pts) * Math.PI * 2;
+    const px = cx + ringOut * Math.cos(phi);
+    const py = cy + ringOut * Math.sin(phi);
+    const xDir = { x: Math.cos(phi), y: Math.sin(phi) };
+    const zDir = { x: -Math.sin(phi), y: Math.cos(phi) };
+    drawVector(ctx, px, py, xDir, 18, '#ff6b6b');
+    drawVector(ctx, px, py, zDir, 20, '#7badd6');
+    drawOutOfPage(ctx, px, py, 5, '#5fc28e');
+  }
+
+  // y-position marker: pink dot on the outboard ring
+  const yPhi = state.y; // map y to toroidal angle directly
+  const ypx = cx + ringOut * Math.cos(yPhi);
+  const ypy = cy + ringOut * Math.sin(yPhi);
+  ctx.fillStyle = '#ff6bcc';
+  ctx.beginPath(); ctx.arc(ypx, ypy, 8, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(ypx, ypy, 8, 0, Math.PI*2); ctx.stroke();
+  // Label
+  ctx.fillStyle = '#ff6bcc';
+  ctx.font = 'bold 10px JetBrains Mono';
+  ctx.fillText('you (y)', ypx + 12, ypy + 4);
+
+  // Labels
+  ctx.fillStyle = '#fff'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText('outboard ring', cx + outerEdge - 100, cy - outerEdge + 18);
+  ctx.fillText('inboard ring', cx - 50, cy - innerEdge + 18);
+
+  // Status
+  ctx.fillStyle = state.field === 'dT' ? 'rgba(245, 100, 100, 0.85)' : 'rgba(95, 194, 142, 0.85)';
+  ctx.font = 'italic 11px Fraunces';
+  const msg = state.field === 'dT'
+    ? '⚠ blobs drift around the ring as you slide'
+    : '✓ ring color uniform — slide changes nothing';
+  ctx.fillText(msg, 16, h - 14);
+}
+
+function drawVector(ctx, x0, y0, dir, len, color) {
+  const x1 = x0 + dir.x * len;
+  const y1 = y0 + dir.y * len;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+  ctx.stroke();
+  const angle = Math.atan2(dir.y, dir.x);
+  const ah = 6;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - ah*Math.cos(angle - 0.45), y1 - ah*Math.sin(angle - 0.45));
+  ctx.lineTo(x1 - ah*Math.cos(angle + 0.45), y1 - ah*Math.sin(angle + 0.45));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawOutOfPage(ctx, x, y, r, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI*2); ctx.fill();
+}
+
+function redraw() {
+  drawPoloidal();
+  drawToroidal();
+}
+
+redraw();
+window.addEventListener('resize', redraw);
+</script>
+</body>
+</html>

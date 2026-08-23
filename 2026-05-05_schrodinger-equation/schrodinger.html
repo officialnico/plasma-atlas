@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Schrödinger Equation — An Interactive Essay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="../_lib/mathjax/tex-svg.js"></script>
+<style>
+  :root {
+    --ink: #0a0e1a;
+    --ink-2: #111729;
+    --ink-3: #1a2238;
+    --paper: #f4ecd8;
+    --paper-dim: #d9d0bb;
+    --amber: #e8a857;
+    --amber-bright: #f5c97a;
+    --copper: #c97942;
+    --teal: #4ab8a8;
+    --rose: #d4757a;
+    --line: rgba(244, 236, 216, 0.12);
+    --line-strong: rgba(244, 236, 216, 0.25);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse at top left, rgba(232, 168, 87, 0.08), transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(74, 184, 168, 0.06), transparent 50%);
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    z-index: 1000;
+  }
+
+  /* ============ MASTHEAD ============ */
+  header.masthead {
+    padding: 4rem 6vw 2rem;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+    margin-bottom: 3rem;
+  }
+
+  .top-bar span { opacity: 0.7; }
+
+  .title-block {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 2rem;
+  }
+
+  h1.title {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(3rem, 8vw, 7rem);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    font-style: italic;
+  }
+
+  h1.title .em {
+    font-weight: 800;
+    font-style: normal;
+    color: var(--amber);
+  }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    color: var(--paper-dim);
+    text-align: right;
+    line-height: 1.8;
+  }
+
+  .subtitle .accent { color: var(--amber); }
+
+  /* ============ SECTIONS ============ */
+  section {
+    padding: 6rem 6vw;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+
+  .section-num {
+    position: absolute;
+    top: 2rem;
+    right: 6vw;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--paper-dim);
+    opacity: 0.5;
+  }
+
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: clamp(2rem, 4vw, 3rem);
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+    line-height: 1.1;
+  }
+
+  h2 .italic { font-style: italic; font-weight: 300; }
+
+  h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    font-size: 0.75rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 1rem;
+  }
+
+  p.lede {
+    font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+    line-height: 1.55;
+    max-width: 60ch;
+    color: var(--paper);
+    margin-bottom: 1.25rem;
+  }
+
+  p.body {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 0.98rem;
+    line-height: 1.7;
+    max-width: 62ch;
+    color: var(--paper-dim);
+    margin-bottom: 1rem;
+  }
+
+  p.body em { color: var(--amber-bright); font-style: italic; }
+  p.body strong { color: var(--paper); font-weight: 500; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: start;
+  }
+
+  @media (max-width: 880px) {
+    .two-col { grid-template-columns: 1fr; gap: 2.5rem; }
+    .title-block { grid-template-columns: 1fr; }
+    .subtitle { text-align: left; }
+  }
+
+  /* ============ EQUATION DISPLAY ============ */
+  .equation-stage {
+    margin: 3rem 0;
+    padding: 3rem 2rem;
+    background: linear-gradient(180deg, var(--ink-2), var(--ink-3));
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .equation-stage::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  }
+
+  .eq-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    color: var(--paper-dim);
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .eq-render {
+    font-size: 1.5rem;
+    color: var(--paper);
+    text-align: center;
+    padding: 1rem 0;
+  }
+
+  .eq-decoded {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+  }
+
+  .symbol-card {
+    padding: 0.75rem;
+    background: rgba(0,0,0,0.2);
+    border-left: 2px solid var(--amber);
+  }
+
+  .symbol-card .sym {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 1.4rem;
+    color: var(--amber-bright);
+  }
+
+  .symbol-card .desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    color: var(--paper-dim);
+    margin-top: 0.25rem;
+    line-height: 1.4;
+  }
+
+  /* ============ CONTROLS ============ */
+  .lab {
+    margin-top: 3rem;
+    padding: 2rem;
+    background: var(--ink-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+  }
+
+  .lab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .lab-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  .lab-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--paper-dim);
+    letter-spacing: 0.15em;
+  }
+
+  .lab-status .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--teal);
+    margin-right: 0.4rem;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  canvas { display: block; width: 100%; }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .control label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .control label .val {
+    color: var(--amber);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--line-strong);
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--amber);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(232, 168, 87, 0.5);
+    transition: transform 0.15s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--amber);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  .preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .preset-btn {
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--paper-dim);
+    padding: 0.5rem 0.9rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  .preset-btn.active {
+    background: var(--amber);
+    color: var(--ink);
+    border-color: var(--amber);
+  }
+
+  .toggle-row {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+    cursor: pointer;
+  }
+
+  .toggle input { display: none; }
+
+  .toggle .box {
+    width: 14px; height: 14px;
+    border: 1px solid var(--line-strong);
+    position: relative;
+    transition: all 0.2s;
+  }
+
+  .toggle input:checked + .box {
+    background: var(--amber);
+    border-color: var(--amber);
+  }
+
+  .toggle input:checked + .box::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: var(--ink);
+  }
+
+  /* ============ DROP CAP ============ */
+  .drop-cap::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-style: italic;
+    font-size: 4.5rem;
+    float: left;
+    line-height: 0.85;
+    margin: 0.1rem 0.5rem 0 0;
+    color: var(--amber);
+  }
+
+  /* ============ FOOTER ============ */
+  footer {
+    padding: 4rem 6vw 3rem;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+    opacity: 0.6;
+  }
+
+  footer .ornament {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    color: var(--amber);
+    margin-bottom: 1rem;
+    letter-spacing: 0.5em;
+  }
+
+  /* MathJax fix */
+  mjx-container { color: var(--paper) !important; }
+
+  /* Legend pills */
+  .legend {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--paper-dim);
+    margin-top: 0.75rem;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 0.5rem; }
+  .legend-swatch {
+    width: 14px; height: 3px;
+  }
+
+  /* Marginalia */
+  .marginalia {
+    border-left: 2px solid var(--copper);
+    padding: 0.5rem 0 0.5rem 1.25rem;
+    margin: 1.5rem 0;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--paper-dim);
+    line-height: 1.5;
+  }
+
+  .marginalia .attr {
+    display: block;
+    font-style: normal;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--copper);
+    margin-top: 0.5rem;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ MASTHEAD ============ -->
+<header class="masthead">
+  <div class="top-bar">
+    <span>Vol. I &nbsp;·&nbsp; No. 1</span>
+    <span>An Interactive Essay in Quantum Mechanics</span>
+    <span>Est. 1926</span>
+  </div>
+
+  <div class="title-block">
+    <h1 class="title">
+      The <span class="em">Schrödinger</span><br>
+      <span style="font-style: italic;">Equation</span>
+    </h1>
+    <div class="subtitle">
+      <span class="accent">ψ(x,t)</span> &nbsp;·&nbsp; the wavefunction<br>
+      a portrait of possibility<br>
+      drawn in complex numbers
+    </div>
+  </div>
+</header>
+
+<!-- ============ SECTION 1: THE WAVE ============ -->
+<section>
+  <div class="section-num">§ 01 / The Wave</div>
+  <h2>A particle is <span class="italic">not</span> a point.</h2>
+
+  <div class="two-col" style="margin-top: 2rem;">
+    <div>
+      <p class="lede drop-cap">Before 1926, physicists drew electrons as little marbles. Erwin Schrödinger, working through a Christmas holiday in the Alps, wrote down something that changed the picture forever — an equation whose solutions were not trajectories, but <em>waves of probability</em>.</p>
+
+      <p class="body">The Schrödinger equation does not tell you <strong>where</strong> a particle is. It tells you the shape of a smeared-out cloud — the wavefunction <em>ψ</em> — whose squared magnitude gives the probability of finding the particle at each point in space. The particle, in some sense, is <em>everywhere it could possibly be</em>, until something measures it.</p>
+
+      <div class="marginalia">
+        "I don't like it, and I'm sorry I ever had anything to do with it."
+        <span class="attr">— Erwin Schrödinger, on quantum mechanics</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="equation-stage">
+        <div class="eq-label">
+          <span>The time-dependent equation</span>
+          <span>1926</span>
+        </div>
+        <div class="eq-render">
+          $$ i\hbar \frac{\partial}{\partial t} \Psi(x,t) = \hat{H}\, \Psi(x,t) $$
+        </div>
+        <div class="eq-decoded">
+          <div class="symbol-card">
+            <span class="sym">i</span>
+            <div class="desc">imaginary unit — the wavefunction lives in complex numbers</div>
+          </div>
+          <div class="symbol-card">
+            <span class="sym">ℏ</span>
+            <div class="desc">reduced Planck constant — the quantum of action</div>
+          </div>
+          <div class="symbol-card">
+            <span class="sym">Ψ</span>
+            <div class="desc">the wavefunction — describes the quantum state</div>
+          </div>
+          <div class="symbol-card">
+            <span class="sym">Ĥ</span>
+            <div class="desc">the Hamiltonian — total energy operator</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="body" style="margin-top: 2rem;">Read aloud: <em>"the rate of change of the wavefunction in time equals the action of the energy operator on it."</em> The left side is how the state evolves; the right side is the rules of the game — the kinetic energy, the potential, the forces in play.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 2: PROBABILITY ============ -->
+<section>
+  <div class="section-num">§ 02 / Born's Rule</div>
+  <h2>From wave to <span class="italic">probability</span>.</h2>
+
+  <p class="lede" style="margin-top: 2rem; max-width: 70ch;">The wavefunction itself is complex-valued and has no direct physical meaning. Max Born proposed the bridge in 1926: square its magnitude, and you get the probability density.</p>
+
+  <div class="equation-stage" style="max-width: 720px; margin: 2.5rem auto;">
+    <div class="eq-label">
+      <span>Born's Rule</span>
+      <span>The Probability Density</span>
+    </div>
+    <div class="eq-render">
+      $$ P(x, t) = |\Psi(x,t)|^2 = \Psi^*(x,t) \, \Psi(x,t) $$
+    </div>
+  </div>
+
+  <!-- LAB 1: Wave Packet -->
+  <div class="lab">
+    <div class="lab-header">
+      <div class="lab-title">◢ Laboratory 01 — Wave Packet in Motion</div>
+      <div class="lab-status"><span class="dot"></span>Live · evolving</div>
+    </div>
+
+    <canvas id="packet-canvas" height="380"></canvas>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#e8a857"></div>Re(ψ) — real part</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#4ab8a8"></div>Im(ψ) — imaginary part</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#f4ecd8"></div>|ψ|² — probability density</div>
+    </div>
+
+    <div class="controls">
+      <div class="control">
+        <label>Momentum (k) <span class="val" id="k-val">3.0</span></label>
+        <input type="range" id="k-slider" min="0" max="8" step="0.1" value="3">
+      </div>
+      <div class="control">
+        <label>Width (σ) <span class="val" id="sigma-val">1.0</span></label>
+        <input type="range" id="sigma-slider" min="0.4" max="3" step="0.05" value="1">
+      </div>
+      <div class="control">
+        <label>Speed <span class="val" id="speed-val">1.0×</span></label>
+        <input type="range" id="speed-slider" min="0" max="3" step="0.05" value="1">
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="show-real" checked>
+        <span class="box"></span>
+        Show Re(ψ)
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="show-imag" checked>
+        <span class="box"></span>
+        Show Im(ψ)
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="show-prob" checked>
+        <span class="box"></span>
+        Show |ψ|²
+      </label>
+    </div>
+  </div>
+
+  <p class="body" style="margin-top: 2rem; max-width: 70ch;">Notice how the real and imaginary parts oscillate while the probability cloud (|ψ|²) drifts smoothly to the right and slowly broadens. The faster the particle (higher <em>k</em>), the tighter the oscillation. The narrower the packet (smaller <em>σ</em>), the more <em>uncertain</em> its momentum becomes — and the faster it spreads. <strong>This is Heisenberg's uncertainty principle, made visible.</strong></p>
+</section>
+
+<!-- ============ SECTION 3: STATIONARY STATES ============ -->
+<section>
+  <div class="section-num">§ 03 / Stationary States</div>
+  <h2>Trapped, the wave finds <span class="italic">resonance</span>.</h2>
+
+  <div class="two-col" style="margin-top: 2rem;">
+    <div>
+      <p class="lede">Confine an electron to a box, and something extraordinary happens: only certain energies are allowed. The wavefunction must vanish at the walls, and only standing-wave patterns survive — like a violin string clamped at both ends.</p>
+
+      <div class="equation-stage">
+        <div class="eq-label">
+          <span>Time-independent equation</span>
+          <span>Eigenvalue problem</span>
+        </div>
+        <div class="eq-render">
+          $$ \hat{H}\, \psi_n = E_n\, \psi_n $$
+        </div>
+      </div>
+
+      <p class="body" style="margin-top: 1.5rem;">Each integer <em>n</em> = 1, 2, 3, … selects a discrete energy level <em>Eₙ</em>. There is no <em>n</em> = 0; the particle cannot sit still, even at absolute zero. The minimum motion is called the <strong>zero-point energy</strong> — a permanent quantum jitter built into the fabric of the universe.</p>
+
+      <div class="marginalia">
+        Music gives a clue here. A guitar string vibrates only at certain frequencies — the fundamental and its harmonics. The same mathematics, applied to matter, gave us the periodic table.
+      </div>
+    </div>
+
+    <!-- LAB 2: Particle in a Box -->
+    <div>
+      <div class="lab">
+        <div class="lab-header">
+          <div class="lab-title">◢ Laboratory 02 — Particle in a Box</div>
+          <div class="lab-status"><span class="dot"></span>Stationary state</div>
+        </div>
+
+        <canvas id="box-canvas" height="360"></canvas>
+
+        <div class="preset-row">
+          <button class="preset-btn active" data-n="1">n = 1</button>
+          <button class="preset-btn" data-n="2">n = 2</button>
+          <button class="preset-btn" data-n="3">n = 3</button>
+          <button class="preset-btn" data-n="4">n = 4</button>
+          <button class="preset-btn" data-n="5">n = 5</button>
+          <button class="preset-btn" data-n="6">n = 6</button>
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><div class="legend-swatch" style="background:#e8a857"></div>ψₙ(x)</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:#d4757a"></div>|ψₙ|² · probability</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:#4ab8a8"></div>Eₙ · energy level</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 4: TUNNELING ============ -->
+<section>
+  <div class="section-num">§ 04 / Tunneling</div>
+  <h2>The wall is not <span class="italic">absolute</span>.</h2>
+
+  <p class="lede" style="margin-top: 2rem; max-width: 70ch;">Send a wave packet at a barrier taller than its energy. Classically: it bounces. Quantum-mechanically: a piece of the wavefunction <em>leaks through</em>. The particle can appear on the other side. This is how the sun shines, how transistors switch, how alpha particles escape atomic nuclei.</p>
+
+  <div class="lab">
+    <div class="lab-header">
+      <div class="lab-title">◢ Laboratory 03 — Tunneling Through a Barrier</div>
+      <div class="lab-status"><span class="dot"></span>Wave colliding with wall</div>
+    </div>
+
+    <canvas id="tunnel-canvas" height="400"></canvas>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#f4ecd8"></div>|ψ|² — probability density</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#c97942"></div>Potential barrier V(x)</div>
+    </div>
+
+    <div class="controls">
+      <div class="control">
+        <label>Barrier height (V₀) <span class="val" id="V-val">2.0</span></label>
+        <input type="range" id="V-slider" min="0" max="6" step="0.1" value="2">
+      </div>
+      <div class="control">
+        <label>Particle energy (E) <span class="val" id="E-val">1.5</span></label>
+        <input type="range" id="E-slider" min="0.3" max="5" step="0.1" value="1.5">
+      </div>
+      <div class="control">
+        <label>Barrier width <span class="val" id="W-val">0.6</span></label>
+        <input type="range" id="W-slider" min="0.1" max="1.5" step="0.05" value="0.6">
+      </div>
+    </div>
+
+    <p class="body" style="margin-top: 1.5rem; max-width: 70ch;">When <em>E</em> &lt; <em>V₀</em>, the wave decays exponentially inside the barrier. If the barrier is thin enough, a small but nonzero amplitude emerges on the other side — and that amplitude, squared, is the probability of tunneling. <strong>Try setting E below V₀ and shrinking the barrier width.</strong></p>
+  </div>
+</section>
+
+<!-- ============ SECTION 5: SUPERPOSITION ============ -->
+<section>
+  <div class="section-num">§ 05 / Superposition</div>
+  <h2>A sum of <span class="italic">selves</span>.</h2>
+
+  <div class="two-col" style="margin-top: 2rem;">
+    <div>
+      <p class="lede">The Schrödinger equation is linear: if ψ₁ and ψ₂ are both valid solutions, so is any combination <em>α</em>ψ₁ + <em>β</em>ψ₂. The system is in <em>both states at once</em>, and the squared amplitudes <em>interfere</em> — adding constructively in some places, cancelling in others.</p>
+
+      <p class="body">This linearity is the deepest feature of quantum mechanics. It is why electrons diffract, why a photon can pass through two slits as a single coherent event, and why a quantum computer can encode 2ⁿ classical states in just <em>n</em> qubits. Mix two stationary states with different energies, and the probability cloud begins to <em>breathe</em> — sloshing back and forth at a frequency set by their energy difference.</p>
+
+      <div class="marginalia">
+        "Anyone who is not shocked by quantum theory has not understood it."
+        <span class="attr">— Niels Bohr</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="lab">
+        <div class="lab-header">
+          <div class="lab-title">◢ Laboratory 04 — Superposition</div>
+          <div class="lab-status"><span class="dot"></span>α·ψ₁ + β·ψ₂</div>
+        </div>
+
+        <canvas id="super-canvas" height="320"></canvas>
+
+        <div class="controls" style="grid-template-columns: 1fr 1fr;">
+          <div class="control">
+            <label>α (state 1) <span class="val" id="alpha-val">0.71</span></label>
+            <input type="range" id="alpha-slider" min="0" max="1" step="0.01" value="0.71">
+          </div>
+          <div class="control">
+            <label>State 1 (n) <span class="val" id="n1-val">1</span></label>
+            <input type="range" id="n1-slider" min="1" max="5" step="1" value="1">
+          </div>
+        </div>
+        <div class="controls" style="grid-template-columns: 1fr 1fr; margin-top: 1rem; padding-top: 0; border: none;">
+          <div class="control">
+            <label>β (state 2) <span class="val" id="beta-val">0.71</span></label>
+            <input type="range" id="beta-slider" min="0" max="1" step="0.01" value="0.71">
+          </div>
+          <div class="control">
+            <label>State 2 (n) <span class="val" id="n2-val">2</span></label>
+            <input type="range" id="n2-slider" min="1" max="5" step="1" value="2">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="ornament">⁂</div>
+  <div>End of Essay &nbsp;·&nbsp; ψ collapses here</div>
+  <div style="margin-top: 0.5rem; opacity: 0.6;">All simulations are real solutions to the Schrödinger equation, computed in your browser.</div>
+</footer>
+
+<script>
+// =================================================================
+// COLOR PALETTE
+// =================================================================
+const COLORS = {
+  ink: '#0a0e1a',
+  ink2: '#111729',
+  paper: '#f4ecd8',
+  paperDim: 'rgba(244, 236, 216, 0.55)',
+  amber: '#e8a857',
+  amberBright: '#f5c97a',
+  copper: '#c97942',
+  teal: '#4ab8a8',
+  rose: '#d4757a',
+  line: 'rgba(244, 236, 216, 0.12)',
+  lineStrong: 'rgba(244, 236, 216, 0.25)'
+};
+
+// Helper: setup canvas with device pixel ratio
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = canvas.height * dpr / (canvas._origH ? 1 : 1);
+  if (!canvas._origH) {
+    canvas._origH = parseInt(canvas.getAttribute('height')) || 380;
+  }
+  canvas.height = canvas._origH * dpr;
+  canvas.style.height = canvas._origH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w: rect.width, h: canvas._origH };
+}
+
+// Draw axis grid and frame
+function drawFrame(ctx, w, h, opts={}) {
+  ctx.fillStyle = COLORS.ink2;
+  ctx.fillRect(0, 0, w, h);
+
+  // subtle grid
+  ctx.strokeStyle = COLORS.line;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < 10; i++) {
+    const x = (i / 10) * w;
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+  }
+  for (let i = 1; i < 6; i++) {
+    const y = (i / 6) * h;
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+  }
+  ctx.stroke();
+
+  // baseline
+  ctx.strokeStyle = COLORS.lineStrong;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, h/2);
+  ctx.lineTo(w, h/2);
+  ctx.stroke();
+
+  // border accent
+  ctx.strokeStyle = COLORS.line;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, w-1, h-1);
+}
+
+// =================================================================
+// LAB 1: WAVE PACKET (Gaussian wavepacket evolution)
+// =================================================================
+(function packetLab() {
+  const canvas = document.getElementById('packet-canvas');
+  let { ctx, w, h } = setupCanvas(canvas);
+
+  let k = 3.0, sigma = 1.0, speed = 1.0;
+  let showReal = true, showImag = true, showProb = true;
+  let t = 0;
+
+  // Free Gaussian wavepacket: analytical solution
+  // ψ(x,t) = (1/(2π σ_t²)^{1/4}) exp[ - (x - x₀ - vt)² / (4 σ σ_t) + i k (x - vt/2) ]
+  // Use simplified form that's stable & visually clear
+  function psi(x, t) {
+    // group velocity = k (in natural units ℏ=m=1)
+    const v = k;
+    const x0 = -3 + v * t * 0.3;
+    const dx = x - x0;
+    // wavepacket spreading: σ(t) = σ √(1 + (t/(2σ²))²)
+    const tt = t * 0.3;
+    const spreadFactor = Math.sqrt(1 + (tt / (2 * sigma * sigma))**2);
+    const sigT = sigma * spreadFactor;
+    const envelope = Math.exp(-dx * dx / (4 * sigT * sigT)) / Math.sqrt(sigT);
+    const phase = k * dx - 0.5 * k * k * tt;
+    return {
+      re: envelope * Math.cos(phase),
+      im: envelope * Math.sin(phase),
+      mag2: envelope * envelope
+    };
+  }
+
+  function draw() {
+    drawFrame(ctx, w, h);
+
+    const N = 400;
+    const xMin = -8, xMax = 8;
+    const padX = 20;
+    const plotW = w - 2 * padX;
+
+    // axis labels
+    ctx.fillStyle = COLORS.paperDim;
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillText('x →', w - 30, h - 8);
+    ctx.fillText('ψ', 8, 14);
+
+    // collect samples
+    const samples = [];
+    let maxProb = 0;
+    for (let i = 0; i < N; i++) {
+      const x = xMin + (xMax - xMin) * i / (N - 1);
+      const p = psi(x, t);
+      samples.push({ x, ...p });
+      if (p.mag2 > maxProb) maxProb = p.mag2;
+    }
+
+    const yScale = h * 0.4;
+    const probScale = (h * 0.42) / Math.max(maxProb, 0.5);
+
+    // probability fill (under |ψ|²)
+    if (showProb) {
+      ctx.fillStyle = 'rgba(244, 236, 216, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(padX, h/2);
+      samples.forEach((s, i) => {
+        const sx = padX + (i / (N - 1)) * plotW;
+        const sy = h/2 - s.mag2 * probScale;
+        ctx.lineTo(sx, sy);
+      });
+      ctx.lineTo(padX + plotW, h/2);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = COLORS.paper;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      samples.forEach((s, i) => {
+        const sx = padX + (i / (N - 1)) * plotW;
+        const sy = h/2 - s.mag2 * probScale;
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      });
+      ctx.stroke();
+    }
+
+    // Real part
+    if (showReal) {
+      ctx.strokeStyle = COLORS.amber;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = COLORS.amber;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      samples.forEach((s, i) => {
+        const sx = padX + (i / (N - 1)) * plotW;
+        const sy = h/2 - s.re * yScale * 0.7;
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Imaginary part
+    if (showImag) {
+      ctx.strokeStyle = COLORS.teal;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = COLORS.teal;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      samples.forEach((s, i) => {
+        const sx = padX + (i / (N - 1)) * plotW;
+        const sy = h/2 - s.im * yScale * 0.7;
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // little phase indicator (rotating)
+    const cx = w - 60, cy = 40, r = 18;
+    ctx.strokeStyle = COLORS.line;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    const ph = -k * 0.3 * t;
+    ctx.lineTo(cx + r * Math.cos(ph), cy + r * Math.sin(ph));
+    ctx.stroke();
+    ctx.fillStyle = COLORS.paperDim;
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.fillText('PHASE', cx - 18, cy + r + 14);
+  }
+
+  function animate() {
+    t += speed * 0.05;
+    if (t > 30) t = -10;
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  // listeners
+  document.getElementById('k-slider').addEventListener('input', e => {
+    k = parseFloat(e.target.value);
+    document.getElementById('k-val').textContent = k.toFixed(1);
+  });
+  document.getElementById('sigma-slider').addEventListener('input', e => {
+    sigma = parseFloat(e.target.value);
+    document.getElementById('sigma-val').textContent = sigma.toFixed(2);
+  });
+  document.getElementById('speed-slider').addEventListener('input', e => {
+    speed = parseFloat(e.target.value);
+    document.getElementById('speed-val').textContent = speed.toFixed(1) + '×';
+  });
+  document.getElementById('show-real').addEventListener('change', e => showReal = e.target.checked);
+  document.getElementById('show-imag').addEventListener('change', e => showImag = e.target.checked);
+  document.getElementById('show-prob').addEventListener('change', e => showProb = e.target.checked);
+
+  window.addEventListener('resize', () => {
+    canvas._origH = 380;
+    const r = setupCanvas(canvas);
+    ctx = r.ctx; w = r.w; h = r.h;
+  });
+
+  animate();
+})();
+
+// =================================================================
+// LAB 2: PARTICLE IN A BOX
+// =================================================================
+(function boxLab() {
+  const canvas = document.getElementById('box-canvas');
+  let { ctx, w, h } = setupCanvas(canvas);
+  let n = 1;
+  let t = 0;
+
+  function draw() {
+    drawFrame(ctx, w, h);
+
+    const padX = 40, padY = 30;
+    const plotW = w - 2 * padX;
+    const plotH = h - 2 * padY;
+
+    // Box walls
+    ctx.strokeStyle = COLORS.copper;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padX, padY);
+    ctx.lineTo(padX, h - padY);
+    ctx.moveTo(w - padX, padY);
+    ctx.lineTo(w - padX, h - padY);
+    ctx.stroke();
+    // hatching for "infinite walls"
+    ctx.strokeStyle = 'rgba(201, 121, 66, 0.4)';
+    ctx.lineWidth = 1;
+    for (let yy = padY; yy < h - padY; yy += 8) {
+      ctx.beginPath();
+      ctx.moveTo(padX - 8, yy);
+      ctx.lineTo(padX, yy + 4);
+      ctx.moveTo(w - padX, yy);
+      ctx.lineTo(w - padX + 8, yy + 4);
+      ctx.stroke();
+    }
+
+    // Energy levels markers (left side)
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillStyle = COLORS.paperDim;
+    ctx.fillText('E', 8, padY + 4);
+    for (let i = 1; i <= 6; i++) {
+      const E = i * i;
+      const ey = h - padY - (E / 36) * plotH * 0.85;
+      ctx.strokeStyle = i === n ? COLORS.teal : COLORS.line;
+      ctx.lineWidth = i === n ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(8, ey);
+      ctx.lineTo(padX - 4, ey);
+      ctx.stroke();
+      if (i === n) {
+        ctx.fillStyle = COLORS.teal;
+        ctx.fillText('E' + i, 12, ey - 4);
+      }
+    }
+
+    // ψ_n(x) = sin(nπx/L) on [0,1]
+    const N = 300;
+    const samples = [];
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1);
+      const psi = Math.sin(n * Math.PI * u);
+      const phase = -n * n * t * 0.5;
+      const re = psi * Math.cos(phase);
+      const im = psi * Math.sin(phase);
+      samples.push({ u, psi, re, im, mag2: psi * psi });
+    }
+
+    const yScale = plotH * 0.32;
+    const cy = h / 2;
+
+    // probability density fill
+    ctx.fillStyle = 'rgba(212, 117, 122, 0.18)';
+    ctx.beginPath();
+    ctx.moveTo(padX, cy);
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.mag2 * yScale * 0.9;
+      ctx.lineTo(sx, sy);
+    });
+    ctx.lineTo(w - padX, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = COLORS.rose;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.mag2 * yScale * 0.9;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+
+    // ψ_n(x) (real part with time evolution)
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = COLORS.amber;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.re * yScale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // imaginary (lighter)
+    ctx.strokeStyle = 'rgba(74, 184, 168, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.im * yScale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = COLORS.amberBright;
+    ctx.font = 'italic 16px Fraunces, serif';
+    ctx.fillText('ψ' + (n) + '(x)', w - padX - 60, padY + 16);
+    ctx.fillStyle = COLORS.paperDim;
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillText('E = ' + (n*n) + ' · E₁', w - padX - 80, padY + 32);
+
+    // x-axis labels
+    ctx.fillStyle = COLORS.paperDim;
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillText('0', padX - 4, h - padY + 16);
+    ctx.fillText('L', w - padX - 4, h - padY + 16);
+  }
+
+  function animate() {
+    t += 0.04;
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  document.querySelectorAll('[data-n]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-n]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      n = parseInt(btn.dataset.n);
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    canvas._origH = 360;
+    const r = setupCanvas(canvas);
+    ctx = r.ctx; w = r.w; h = r.h;
+  });
+
+  animate();
+})();
+
+// =================================================================
+// LAB 3: TUNNELING
+// =================================================================
+(function tunnelLab() {
+  const canvas = document.getElementById('tunnel-canvas');
+  let { ctx, w, h } = setupCanvas(canvas);
+  let V0 = 2.0, E = 1.5, barrierW = 0.6;
+  let t = 0;
+
+  function draw() {
+    drawFrame(ctx, w, h);
+
+    const padX = 30, padY = 30;
+    const plotW = w - 2 * padX;
+    const plotH = h - 2 * padY;
+
+    // Barrier region (centered)
+    const barrierStart = 0.5 - barrierW/2;
+    const barrierEnd = 0.5 + barrierW/2;
+    const bxStart = padX + barrierStart * plotW;
+    const bxEnd = padX + barrierEnd * plotW;
+
+    // Draw potential V(x) — scaled so V0 max = 80% of plotH
+    const vScale = plotH * 0.8 / 6;
+    const cy = h - padY; // baseline at bottom
+
+    // Barrier fill
+    const grad = ctx.createLinearGradient(0, cy - V0 * vScale, 0, cy);
+    grad.addColorStop(0, 'rgba(201, 121, 66, 0.4)');
+    grad.addColorStop(1, 'rgba(201, 121, 66, 0.05)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(bxStart, cy - V0 * vScale, bxEnd - bxStart, V0 * vScale);
+
+    // Barrier outline
+    ctx.strokeStyle = COLORS.copper;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padX, cy);
+    ctx.lineTo(bxStart, cy);
+    ctx.lineTo(bxStart, cy - V0 * vScale);
+    ctx.lineTo(bxEnd, cy - V0 * vScale);
+    ctx.lineTo(bxEnd, cy);
+    ctx.lineTo(w - padX, cy);
+    ctx.stroke();
+
+    // Energy line E
+    ctx.strokeStyle = COLORS.teal;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padX, cy - E * vScale);
+    ctx.lineTo(w - padX, cy - E * vScale);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = COLORS.teal;
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillText('E = ' + E.toFixed(1), padX + 4, cy - E * vScale - 4);
+    ctx.fillStyle = COLORS.copper;
+    ctx.fillText('V₀ = ' + V0.toFixed(1), bxStart + 4, cy - V0 * vScale - 4);
+
+    // Wave packet: incident from left, with tunneling probability
+    // Use simplified analytical approximation
+    const k1 = Math.sqrt(2 * Math.max(E, 0.01));
+    const insideBarrier = E < V0;
+    const k2 = insideBarrier ? Math.sqrt(2 * (V0 - E)) : Math.sqrt(2 * (E - V0));
+
+    // Transmission coefficient (rough analytical for rectangular barrier)
+    let T;
+    if (insideBarrier) {
+      const kappa = k2;
+      const a = barrierW * 6; // scale to physical width
+      // Simplified: T ≈ 1 / (1 + (V0² sinh²(κa)) / (4E(V0-E)))
+      const sinh = Math.sinh(Math.min(kappa * a, 10));
+      T = 1 / (1 + (V0 * V0 * sinh * sinh) / (4 * E * (V0 - E)));
+    } else {
+      const sin = Math.sin(k2 * barrierW * 6);
+      T = 1 / (1 + (V0 * V0 * sin * sin) / (4 * E * (E - V0) + 1e-6));
+    }
+    const R = 1 - T;
+
+    // Animated incoming wave packet
+    const tt = (t * 0.5) % 6;
+    const packetCenter = -2 + tt; // travels from left to right in [-2, 4] in plot units (0..1 mapped)
+
+    const N = 400;
+    const samples = [];
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1);
+      const xPhys = (u - 0.5) * 6; // physical x in [-3, 3]
+
+      let psi2;
+      const sigma = 0.5;
+      const incidentCenter = packetCenter - 1.5;
+      const transCenter = packetCenter - 1.5;
+
+      if (xPhys < (barrierStart - 0.5) * 6) {
+        // Left of barrier: incident + reflected
+        const incident = Math.exp(-((xPhys - incidentCenter)**2) / (2 * sigma * sigma));
+        // Reflected packet (bounces back after hitting barrier at t≈3)
+        const reflectCenter = -1 - Math.max(0, tt - 3);
+        const reflected = tt > 2.5 ? R * Math.exp(-((xPhys - reflectCenter)**2) / (2 * sigma * sigma)) : 0;
+        psi2 = incident * incident * (incidentCenter < (barrierStart - 0.5) * 6 ? 1 : 0) + reflected;
+      } else if (xPhys > (barrierEnd - 0.5) * 6) {
+        // Right of barrier: transmitted
+        const transCenter2 = (barrierEnd - 0.5) * 6 + Math.max(0, tt - 3) * 1.0;
+        psi2 = tt > 2.8 ? T * Math.exp(-((xPhys - transCenter2)**2) / (2 * sigma * sigma)) : 0;
+      } else {
+        // Inside barrier: exponentially decaying
+        const xLocal = xPhys - (barrierStart - 0.5) * 6;
+        const decay = insideBarrier ? Math.exp(-k2 * xLocal) : Math.cos(k2 * xLocal);
+        const envelope = Math.exp(-((packetCenter - 1.5 - (barrierStart-0.5)*6)**2) / 4);
+        psi2 = (tt > 2 && tt < 4) ? envelope * decay * decay * 0.6 : 0;
+      }
+
+      samples.push({ u, psi2: Math.max(0, psi2) });
+    }
+
+    // Find max for scaling
+    let maxP = 0;
+    samples.forEach(s => { if (s.psi2 > maxP) maxP = s.psi2; });
+    const psiScale = plotH * 0.5 / Math.max(maxP, 0.3);
+
+    // Fill |ψ|²
+    ctx.fillStyle = 'rgba(244, 236, 216, 0.15)';
+    ctx.beginPath();
+    ctx.moveTo(padX, cy);
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.psi2 * psiScale;
+      ctx.lineTo(sx, sy);
+    });
+    ctx.lineTo(w - padX, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    // |ψ|² stroke
+    ctx.strokeStyle = COLORS.paper;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = COLORS.amber;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.psi2 * psiScale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Transmission probability readout
+    ctx.fillStyle = COLORS.amber;
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillText('TRANSMISSION T = ' + (T*100).toFixed(2) + '%', w - 220, padY + 20);
+    ctx.fillStyle = COLORS.rose;
+    ctx.fillText('REFLECTION  R = ' + (R*100).toFixed(2) + '%', w - 220, padY + 36);
+  }
+
+  function animate() {
+    t += 0.04;
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  document.getElementById('V-slider').addEventListener('input', e => {
+    V0 = parseFloat(e.target.value);
+    document.getElementById('V-val').textContent = V0.toFixed(1);
+  });
+  document.getElementById('E-slider').addEventListener('input', e => {
+    E = parseFloat(e.target.value);
+    document.getElementById('E-val').textContent = E.toFixed(1);
+  });
+  document.getElementById('W-slider').addEventListener('input', e => {
+    barrierW = parseFloat(e.target.value);
+    document.getElementById('W-val').textContent = barrierW.toFixed(2);
+  });
+
+  window.addEventListener('resize', () => {
+    canvas._origH = 400;
+    const r = setupCanvas(canvas);
+    ctx = r.ctx; w = r.w; h = r.h;
+  });
+
+  animate();
+})();
+
+// =================================================================
+// LAB 4: SUPERPOSITION
+// =================================================================
+(function superLab() {
+  const canvas = document.getElementById('super-canvas');
+  let { ctx, w, h } = setupCanvas(canvas);
+  let alpha = 0.71, beta = 0.71, n1 = 1, n2 = 2;
+  let t = 0;
+
+  function draw() {
+    drawFrame(ctx, w, h);
+
+    const padX = 30, padY = 25;
+    const plotW = w - 2 * padX;
+    const plotH = h - 2 * padY;
+    const cy = h / 2;
+
+    // box walls
+    ctx.strokeStyle = COLORS.copper;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padX, padY);
+    ctx.lineTo(padX, h - padY);
+    ctx.moveTo(w - padX, padY);
+    ctx.lineTo(w - padX, h - padY);
+    ctx.stroke();
+
+    // Normalize α,β
+    const norm = Math.sqrt(alpha*alpha + beta*beta);
+    const a = alpha / Math.max(norm, 0.001);
+    const b = beta / Math.max(norm, 0.001);
+
+    const N = 300;
+    const samples = [];
+    let maxMag = 0;
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1);
+      const psi1 = Math.sin(n1 * Math.PI * u);
+      const psi2 = Math.sin(n2 * Math.PI * u);
+      const E1 = n1 * n1, E2 = n2 * n2;
+      const ph1 = -E1 * t * 0.4;
+      const ph2 = -E2 * t * 0.4;
+      const re = a * psi1 * Math.cos(ph1) + b * psi2 * Math.cos(ph2);
+      const im = a * psi1 * Math.sin(ph1) + b * psi2 * Math.sin(ph2);
+      const mag2 = re*re + im*im;
+      if (mag2 > maxMag) maxMag = mag2;
+      samples.push({ u, re, im, mag2 });
+    }
+
+    const yScale = plotH * 0.28;
+    const probScale = (plotH * 0.32) / Math.max(maxMag, 0.5);
+
+    // |ψ|²
+    ctx.fillStyle = 'rgba(212, 117, 122, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(padX, cy);
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.mag2 * probScale;
+      ctx.lineTo(sx, sy);
+    });
+    ctx.lineTo(w - padX, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = COLORS.rose;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.mag2 * probScale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+
+    // Re part
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = COLORS.amber;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.re * yScale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Im part
+    ctx.strokeStyle = 'rgba(74, 184, 168, 0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      const sx = padX + s.u * plotW;
+      const sy = cy - s.im * yScale;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    });
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = COLORS.amberBright;
+    ctx.font = 'italic 13px Fraunces, serif';
+    ctx.fillText(`ψ = ${a.toFixed(2)}·ψ${n1} + ${b.toFixed(2)}·ψ${n2}`, padX + 8, padY + 14);
+  }
+
+  function animate() {
+    t += 0.04;
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  document.getElementById('alpha-slider').addEventListener('input', e => {
+    alpha = parseFloat(e.target.value);
+    document.getElementById('alpha-val').textContent = alpha.toFixed(2);
+  });
+  document.getElementById('beta-slider').addEventListener('input', e => {
+    beta = parseFloat(e.target.value);
+    document.getElementById('beta-val').textContent = beta.toFixed(2);
+  });
+  document.getElementById('n1-slider').addEventListener('input', e => {
+    n1 = parseInt(e.target.value);
+    document.getElementById('n1-val').textContent = n1;
+  });
+  document.getElementById('n2-slider').addEventListener('input', e => {
+    n2 = parseInt(e.target.value);
+    document.getElementById('n2-val').textContent = n2;
+  });
+
+  window.addEventListener('resize', () => {
+    canvas._origH = 320;
+    const r = setupCanvas(canvas);
+    ctx = r.ctx; w = r.w; h = r.h;
+  });
+
+  animate();
+})();
+</script>
+</body>
+</html>

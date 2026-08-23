@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particle Sandbox · Time-Resolved Boltzmann Equilibration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06080f;
+  --bg-2: #0f1320;
+  --paper: #f0eee4;
+  --ink-dim: #6a7390;
+  --ink-soft: #9aa4be;
+  --ion: #ff6b35;
+  --ion-neg: #4ab8d8;
+  --electron: #b3d9ff;
+  --result: #ffd54f;
+  --equil: #7fdb96;
+  --rule: rgba(240, 238, 228, 0.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--paper);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#sandboxCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 30%, rgba(74, 184, 216, 0.04), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 70% 70%, rgba(255, 107, 53, 0.04), transparent 70%),
+    var(--bg);
+}
+
+/* ---------- HEADER ---------- */
+.header {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 10;
+  pointer-events: none;
+  max-width: 440px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--result);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--result);
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(26px, 3.6vw, 38px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--equil);
+}
+
+.sub {
+  margin-top: 11px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.65;
+  font-style: italic;
+}
+.sub strong { color: var(--paper); font-weight: 400; font-style: normal; }
+
+/* ---------- INFO PANEL ---------- */
+.info {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 10;
+  background: rgba(15, 19, 32, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 16px 18px;
+  width: 270px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.info-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--result);
+  margin-bottom: 10px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  border-bottom: 1px dashed var(--rule);
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .label { letter-spacing: 0.1em; }
+.info-row .val {
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.info-row .val.pos { color: var(--ion); }
+.info-row .val.neg { color: var(--ion-neg); }
+.info-row .val.bright { color: var(--result); }
+.info-row .val.equil { color: var(--equil); }
+
+/* Equilibrium meter */
+.equil-meter {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.equil-meter-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.equil-meter-label .v {
+  color: var(--equil);
+  font-variant-numeric: tabular-nums;
+}
+.equil-bar {
+  height: 4px;
+  background: rgba(240, 238, 228, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.equil-bar .fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--ion), var(--result), var(--equil));
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.info-note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+.info-note strong { color: var(--paper); font-style: normal; font-weight: 400; }
+
+/* ---------- TIMELINE ---------- */
+.timeline-wrap {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: min(720px, calc(100vw - 32px));
+  background: rgba(15, 19, 32, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 12px 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.timeline-header .tl-label { color: var(--ink-dim); }
+.timeline-header .tl-time { color: var(--result); font-variant-numeric: tabular-nums; }
+
+.timeline-track {
+  position: relative;
+  height: 28px;
+  background: rgba(240, 238, 228, 0.04);
+  border-radius: 3px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.timeline-progress {
+  position: absolute;
+  left: 0; top: 0;
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(255, 107, 53, 0.15),
+    rgba(255, 213, 79, 0.18),
+    rgba(127, 219, 150, 0.2));
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+
+.timeline-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 213, 79, 0.4);
+  pointer-events: none;
+}
+
+.timeline-marker {
+  position: absolute;
+  top: -4px;
+  width: 3px;
+  height: 36px;
+  background: var(--result);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  box-shadow: 0 0 8px rgba(255, 213, 79, 0.6);
+  pointer-events: none;
+}
+
+.timeline-event {
+  position: absolute;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.timeline-event.pos { background: var(--ion); box-shadow: 0 0 4px var(--ion); }
+.timeline-event.neg { background: var(--ion-neg); box-shadow: 0 0 4px var(--ion-neg); }
+.timeline-event.kT { background: var(--paper); top: 16px; box-shadow: 0 0 4px var(--paper); }
+
+/* ---------- TOOLBAR ---------- */
+.toolbar {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(15, 19, 32, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 5px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  flex-wrap: wrap;
+  max-width: calc(100vw - 32px);
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--paper);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  border-radius: 2px;
+}
+.tool:hover { background: rgba(240, 238, 228, 0.05); }
+.tool.active {
+  background: rgba(255, 213, 79, 0.12);
+  color: var(--result);
+}
+
+.tool .swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fraunces', serif;
+  font-size: 12px;
+  color: white;
+  font-style: normal;
+}
+.tool .swatch.pos { background: var(--ion); }
+.tool .swatch.neg { background: var(--ion-neg); }
+.tool .swatch.eraser {
+  background: transparent;
+  border: 1.5px dashed var(--ink-dim);
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.divider {
+  width: 1px;
+  height: 22px;
+  background: var(--rule);
+  margin: 0 3px;
+}
+
+.tool-icon {
+  font-family: 'Fraunces', serif;
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.slider-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.slider-mini label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.slider-mini .v {
+  font-family: 'Fraunces', serif;
+  font-size: 13px;
+  color: var(--result);
+  min-width: 22px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+input[type="range"].mini {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].mini::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  background: var(--result);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].mini::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  background: var(--result);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.toggle-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0 6px;
+}
+.toggle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid var(--rule);
+  padding: 5px 9px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.toggle:hover { color: var(--paper); }
+.toggle.on {
+  background: rgba(255, 213, 79, 0.1);
+  color: var(--result);
+  border-color: var(--result);
+}
+
+/* ---------- HINT ---------- */
+.hint {
+  position: absolute;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0.8;
+  text-align: center;
+}
+.hint.fade { animation: fadeOut 8s ease forwards; }
+@keyframes fadeOut {
+  0%, 60% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 768px) {
+  .header { top: 14px; left: 14px; max-width: 65%; }
+  .info { top: auto; bottom: 200px; right: 14px; left: 14px; width: auto; }
+  h1 { font-size: 22px; }
+  .sub { font-size: 11.5px; }
+  .toolbar { gap: 2px; bottom: 12px; padding: 4px; font-size: 9px; }
+  .tool { padding: 7px 9px; font-size: 9px; }
+  .tool span:not(.swatch) { display: none; }
+  .slider-mini { padding: 0 6px; gap: 6px; }
+  .slider-mini input { width: 50px; }
+  .toggle { padding: 5px 7px; }
+  .timeline-wrap { bottom: 70px; padding: 10px 14px; }
+  .hint { bottom: 280px; font-size: 9px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="sandboxCanvas"></canvas>
+
+<div class="header">
+  <div class="eyebrow">time-resolved boltzmann sandbox</div>
+  <h1>Place ions.<br>Watch electrons <em>equilibrate</em>.</h1>
+  <div class="sub">
+    <strong>Click to drop an ion.</strong> The electron cloud relaxes toward Boltzmann equilibrium over time.
+    Use the timeline to scrub backwards or step through. The <strong>equilibrium meter</strong> shows
+    how close the live distribution matches the theoretical prediction.
+  </div>
+</div>
+
+<div class="info">
+  <div class="info-title">— live readout</div>
+  <div class="info-row">
+    <span class="label">positive ions</span>
+    <span class="val pos" id="posCount">0</span>
+  </div>
+  <div class="info-row">
+    <span class="label">negative ions</span>
+    <span class="val neg" id="negCount">0</span>
+  </div>
+  <div class="info-row">
+    <span class="label">free electrons</span>
+    <span class="val" id="electronCount">600</span>
+  </div>
+  <div class="info-row">
+    <span class="label">k<sub>B</sub>T (thermal)</span>
+    <span class="val bright" id="kbtReadout">1.0</span>
+  </div>
+  <div class="info-row">
+    <span class="label">peak n/n₀</span>
+    <span class="val bright" id="peakDensity">1.0×</span>
+  </div>
+
+  <div class="equil-meter">
+    <div class="equil-meter-label">
+      <span>match to boltzmann</span>
+      <span class="v" id="equilVal">—</span>
+    </div>
+    <div class="equil-bar">
+      <div class="fill" id="equilFill"></div>
+    </div>
+  </div>
+
+  <div class="info-note" id="infoNote">
+    Drop an ion to start. The electron gas begins as a uniform soup —
+    <strong>Boltzmann's prediction only applies once it settles.</strong>
+  </div>
+</div>
+
+<div class="hint fade" id="firstHint">click anywhere to drop your first ion</div>
+
+<!-- TIMELINE -->
+<div class="timeline-wrap">
+  <div class="timeline-header">
+    <span class="tl-label">— timeline · scrub to replay</span>
+    <span class="tl-time" id="tlTime">t = 0.0 s</span>
+  </div>
+  <div class="timeline-track" id="timelineTrack">
+    <div class="timeline-progress" id="timelineProgress"></div>
+    <div class="timeline-marker" id="timelineMarker"></div>
+    <!-- events appended dynamically -->
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+
+  <button class="tool active" data-tool="pos">
+    <span class="swatch pos">+</span>
+    <span>positive</span>
+  </button>
+
+  <button class="tool" data-tool="neg">
+    <span class="swatch neg">−</span>
+    <span>negative</span>
+  </button>
+
+  <button class="tool" data-tool="erase">
+    <span class="swatch eraser">×</span>
+    <span>remove</span>
+  </button>
+
+  <div class="divider"></div>
+
+  <!-- Time controls -->
+  <button class="tool" id="rewindBtn" title="Rewind">
+    <span class="tool-icon">⏮</span>
+  </button>
+  <button class="tool active" id="playPauseBtn" title="Play/Pause">
+    <span class="tool-icon" id="playPauseIcon">⏸</span>
+  </button>
+  <button class="tool" id="stepBackBtn" title="Step back">
+    <span class="tool-icon">◀</span>
+  </button>
+  <button class="tool" id="stepFwdBtn" title="Step forward">
+    <span class="tool-icon">▶</span>
+  </button>
+
+  <div class="divider"></div>
+
+  <div class="slider-mini">
+    <label>speed</label>
+    <input type="range" class="mini" id="speedSlider" min="0.1" max="3" step="0.1" value="1">
+    <span class="v" id="speedVal">1.0×</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="slider-mini">
+    <label>k<sub>B</sub>T</label>
+    <input type="range" class="mini" id="kbtSlider" min="0.2" max="4" step="0.1" value="1">
+    <span class="v" id="kbtVal">1.0</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="toggle-row">
+    <button class="toggle on" id="fieldToggle">field</button>
+    <button class="toggle" id="boltzToggle">boltz</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <button class="tool" id="clearBtn" style="color: var(--ion);">
+    <span class="tool-icon">↻</span>
+    <span>clear</span>
+  </button>
+
+</div>
+
+<script>
+'use strict';
+
+// ============ CANVAS ============
+const canvas = document.getElementById('sandboxCanvas');
+const ctx = canvas.getContext('2d');
+let dim = { w: 0, h: 0 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  dim.w = window.innerWidth;
+  dim.h = window.innerHeight;
+  canvas.width = dim.w * dpr;
+  canvas.height = dim.h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+// ============ STATE ============
+const N_ELECTRONS = 600;
+let kBT = 1.0;
+let timeScale = 1.0;
+let currentTool = 'pos';
+let showField = true;
+let showBoltz = false;
+let running = true;
+
+// World state: ions + electrons at current time
+let ions = []; // { x, y, q, id, dragging? }
+let electrons = []; // { x, y, vx, vy }
+let nextIonId = 1;
+
+// ============ HISTORY (for time scrub) ============
+// We store snapshots at fixed intervals + events (ion placements/removals)
+const SNAPSHOT_INTERVAL = 0.1; // seconds
+const MAX_DURATION = 60; // seconds
+let elapsed = 0;
+let snapshots = []; // [{t, electrons:[...], ions:[...], kBT}]
+let events = []; // [{t, type, data}] - for timeline markers
+let scrubMode = false;
+let scrubTime = 0;
+let firstIonPlaced = false;
+
+// ============ INITIALIZATION ============
+function thermalVelocity() {
+  // Box-Muller for Maxwell-Boltzmann at temperature kBT
+  const u1 = Math.max(1e-9, Math.random());
+  const u2 = Math.random();
+  const speed = Math.sqrt(-2 * Math.log(u1) * kBT) * 30;
+  const angle = 2 * Math.PI * u2;
+  return { vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
+}
+
+function initElectrons() {
+  electrons = [];
+  for (let i = 0; i < N_ELECTRONS; i++) {
+    const v = thermalVelocity();
+    electrons.push({
+      x: Math.random() * dim.w,
+      y: Math.random() * dim.h,
+      vx: v.vx,
+      vy: v.vy
+    });
+  }
+}
+initElectrons();
+takeSnapshot();
+
+// ============ PHYSICS ============
+function fieldAt(x, y) {
+  // Returns potential energy U for an ELECTRON at (x,y), in eV-like units
+  let U = 0;
+  for (const ion of ions) {
+    const dx = x - ion.x;
+    const dy = y - ion.y;
+    const r2 = dx * dx + dy * dy + 100; // softening
+    const r = Math.sqrt(r2);
+    // U_electron = -k * (+e) * (q_ion) / r  -> for positive ion q=+1, U is negative (attractive)
+    // Use coupling constant tuned for screen pixels
+    U += -ion.q * 8000 / r;
+  }
+  return U;
+}
+function forceAt(x, y) {
+  // Force on electron = -dU/dx, -dU/dy
+  let fx = 0, fy = 0;
+  for (const ion of ions) {
+    const dx = x - ion.x;
+    const dy = y - ion.y;
+    const r2 = dx * dx + dy * dy + 100;
+    const r = Math.sqrt(r2);
+    // gradient of U_electron = -ion.q * 8000 / r is +ion.q*8000/(r^3) * (dx, dy)
+    // So force = -gradU = -ion.q * 8000/(r^3) * (dx, dy)
+    const factor = -ion.q * 8000 / (r2 * r);
+    fx += factor * dx;
+    fy += factor * dy;
+  }
+  return { fx, fy };
+}
+
+function step(dt) {
+  // Move electrons
+  for (const e of electrons) {
+    const f = forceAt(e.x, e.y);
+    e.vx += f.fx * dt;
+    e.vy += f.fy * dt;
+
+    // Thermostat: gentle Langevin-like - randomize a fraction of velocities
+    // toward thermal each step to maintain temperature
+    if (Math.random() < 0.02) {
+      const v = thermalVelocity();
+      e.vx = v.vx;
+      e.vy = v.vy;
+    }
+    // Damping
+    e.vx *= 0.998;
+    e.vy *= 0.998;
+
+    e.x += e.vx * dt;
+    e.y += e.vy * dt;
+
+    // Periodic boundaries (so electrons don't pile up on walls)
+    if (e.x < 0) e.x += dim.w;
+    if (e.x > dim.w) e.x -= dim.w;
+    if (e.y < 0) e.y += dim.h;
+    if (e.y > dim.h) e.y -= dim.h;
+
+    // Cap velocity to prevent explosions
+    const vmag = Math.hypot(e.vx, e.vy);
+    if (vmag > 200) {
+      e.vx *= 200 / vmag;
+      e.vy *= 200 / vmag;
+    }
+  }
+}
+
+// ============ SNAPSHOTS / HISTORY ============
+function takeSnapshot() {
+  // Deep copy current state
+  snapshots.push({
+    t: elapsed,
+    electrons: electrons.map(e => ({ x: e.x, y: e.y, vx: e.vx, vy: e.vy })),
+    ions: ions.map(i => ({ x: i.x, y: i.y, q: i.q, id: i.id })),
+    kBT: kBT
+  });
+  // Cap memory
+  if (elapsed > MAX_DURATION) {
+    snapshots.shift();
+    events = events.filter(ev => ev.t > snapshots[0].t);
+  }
+}
+function restoreSnapshot(snap) {
+  electrons = snap.electrons.map(e => ({ x: e.x, y: e.y, vx: e.vx, vy: e.vy }));
+  ions = snap.ions.map(i => ({ x: i.x, y: i.y, q: i.q, id: i.id }));
+  kBT = snap.kBT;
+}
+function nearestSnapshotAt(t) {
+  // Binary search would be better, but linear is fine for our sizes
+  let best = snapshots[0];
+  let bestDiff = Math.abs(snapshots[0].t - t);
+  for (const s of snapshots) {
+    const d = Math.abs(s.t - t);
+    if (d < bestDiff) { bestDiff = d; best = s; }
+  }
+  return best;
+}
+
+// ============ EQUILIBRIUM SCORE ============
+let equilScore = 0; // smoothed
+let equilCells = null;
+function computeEquilibrium() {
+  // Coarse-grain density on a grid, compare to theoretical Boltzmann prediction
+  const cellSize = 30;
+  const cols = Math.max(1, Math.floor(dim.w / cellSize));
+  const rows = Math.max(1, Math.floor(dim.h / cellSize));
+  const cellW = dim.w / cols;
+  const cellH = dim.h / rows;
+
+  const observed = new Float32Array(cols * rows);
+  for (const e of electrons) {
+    const cx = Math.min(cols - 1, Math.floor(e.x / cellW));
+    const cy = Math.min(rows - 1, Math.floor(e.y / cellH));
+    observed[cy * cols + cx]++;
+  }
+
+  const predicted = new Float32Array(cols * rows);
+  let predTotal = 0;
+  let maxPred = 0;
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const x = (cx + 0.5) * cellW;
+      const y = (cy + 0.5) * cellH;
+      const U = fieldAt(x, y);
+      const w = Math.exp(-U / kBT);
+      // Cap to avoid runaway near singularities
+      const wCapped = Math.min(w, 50);
+      predicted[cy * cols + cx] = wCapped;
+      predTotal += wCapped;
+      if (wCapped > maxPred) maxPred = wCapped;
+    }
+  }
+  // Normalize predicted to total electron count
+  if (predTotal > 0) {
+    for (let i = 0; i < predicted.length; i++) {
+      predicted[i] *= electrons.length / predTotal;
+    }
+  }
+
+  // Compute correlation / overlap (cosine similarity)
+  let dotP = 0, magO = 0, magP = 0;
+  for (let i = 0; i < observed.length; i++) {
+    dotP += observed[i] * predicted[i];
+    magO += observed[i] * observed[i];
+    magP += predicted[i] * predicted[i];
+  }
+  let score = 0;
+  if (magO > 0 && magP > 0) {
+    score = dotP / Math.sqrt(magO * magP);
+  }
+  // If no ions, the "predicted" is uniform and observed is also random uniform → similarity ~1 always
+  // In that case set score to "neutral" (gray)
+  const totalIonStrength = ions.reduce((s, i) => s + Math.abs(i.q), 0);
+  if (totalIonStrength === 0) {
+    score = 1; // already at equilibrium (uniform)
+  }
+
+  // Smooth it
+  equilScore = equilScore * 0.85 + score * 0.15;
+  equilCells = { observed, predicted, cols, rows, cellW, cellH, maxPred };
+  return equilScore;
+}
+
+// ============ DRAWING ============
+function drawField() {
+  if (!showField || ions.length === 0) return;
+  const cellSize = 14;
+  const cols = Math.ceil(dim.w / cellSize);
+  const rows = Math.ceil(dim.h / cellSize);
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const x = cx * cellSize + cellSize / 2;
+      const y = cy * cellSize + cellSize / 2;
+      const U = fieldAt(x, y);
+      // Map U to color: negative (attractive for electron) → blue tint, positive → red tint
+      const intensity = Math.min(0.18, Math.abs(U) / 60);
+      let color;
+      if (U < 0) color = `rgba(74, 184, 216, ${intensity})`;
+      else color = `rgba(255, 107, 53, ${intensity})`;
+      ctx.fillStyle = color;
+      ctx.fillRect(cx * cellSize, cy * cellSize, cellSize, cellSize);
+    }
+  }
+}
+
+function drawBoltzmannPrediction() {
+  if (!showBoltz || !equilCells || ions.length === 0) return;
+  const { predicted, cols, rows, cellW, cellH, maxPred } = equilCells;
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const v = predicted[cy * cols + cx];
+      const norm = v / maxPred;
+      if (norm > 0.05) {
+        ctx.fillStyle = `rgba(127, 219, 150, ${Math.min(0.35, norm * 0.5)})`;
+        ctx.fillRect(cx * cellW, cy * cellH, cellW, cellH);
+      }
+    }
+  }
+}
+
+function drawElectrons() {
+  for (const e of electrons) {
+    // Color by local U (potential energy at electron's position)
+    const U = fieldAt(e.x, e.y);
+    let r, g, b, alpha;
+    if (U < -2) {
+      // deep well - bright cyan/yellow
+      const t = Math.min(1, -U / 20);
+      r = Math.round(180 + t * 75);
+      g = Math.round(220 - t * 30);
+      b = Math.round(255 - t * 200);
+      alpha = 1;
+    } else if (U > 2) {
+      // hill - dim red
+      const t = Math.min(1, U / 20);
+      r = 255;
+      g = Math.round(180 - t * 100);
+      b = Math.round(180 - t * 100);
+      alpha = 0.4 + (1 - t) * 0.4;
+    } else {
+      r = 200; g = 220; b = 255; alpha = 0.7;
+    }
+
+    // Glow
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Core
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawIons() {
+  for (const ion of ions) {
+    // Glow
+    const glowColor = ion.q > 0 ? '255, 107, 53' : '74, 184, 216';
+    const grad = ctx.createRadialGradient(ion.x, ion.y, 0, ion.x, ion.y, 60);
+    grad.addColorStop(0, `rgba(${glowColor}, 0.4)`);
+    grad.addColorStop(1, `rgba(${glowColor}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(ion.x, ion.y, 60, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = ion.q > 0 ? '#ff6b35' : '#4ab8d8';
+    ctx.beginPath();
+    ctx.arc(ion.x, ion.y, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Sign
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 18px 'Fraunces', serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ion.q > 0 ? '+' : '−', ion.x, ion.y + 1);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+  drawField();
+  drawBoltzmannPrediction();
+  drawElectrons();
+  drawIons();
+}
+
+// ============ EVENT LOG / TIMELINE ============
+function logEvent(type, data) {
+  events.push({ t: elapsed, type, data });
+  renderTimelineEvents();
+}
+function renderTimelineEvents() {
+  const track = document.getElementById('timelineTrack');
+  // Remove old event dots
+  track.querySelectorAll('.timeline-event').forEach(el => el.remove());
+  for (const ev of events) {
+    const dot = document.createElement('div');
+    dot.className = 'timeline-event ' + ev.type;
+    const tStart = snapshots[0]?.t || 0;
+    const tEnd = elapsed;
+    const range = Math.max(0.1, tEnd - tStart);
+    dot.style.left = `${((ev.t - tStart) / range) * 100}%`;
+    track.appendChild(dot);
+  }
+}
+
+// ============ READOUTS ============
+function updateReadouts() {
+  document.getElementById('posCount').textContent = ions.filter(i => i.q > 0).length;
+  document.getElementById('negCount').textContent = ions.filter(i => i.q < 0).length;
+  document.getElementById('electronCount').textContent = electrons.length;
+  document.getElementById('kbtReadout').textContent = kBT.toFixed(2);
+
+  // Peak density
+  if (equilCells) {
+    const { observed, cols, rows } = equilCells;
+    let peak = 0;
+    for (let i = 0; i < observed.length; i++) if (observed[i] > peak) peak = observed[i];
+    const avgPerCell = electrons.length / (cols * rows);
+    const ratio = peak / Math.max(0.5, avgPerCell);
+    document.getElementById('peakDensity').textContent = ratio.toFixed(1) + '×';
+  }
+
+  // Equilibrium meter
+  const score = computeEquilibrium();
+  const pct = Math.max(0, Math.min(100, (score - 0.5) * 200));
+  document.getElementById('equilFill').style.width = pct + '%';
+  document.getElementById('equilVal').textContent = pct.toFixed(0) + '%';
+
+  // Info note
+  const note = document.getElementById('infoNote');
+  if (ions.length === 0) {
+    note.innerHTML = `Drop an ion to start. The electron gas is currently uniform — that <em>is</em> the equilibrium when no field is present.`;
+  } else if (pct < 40) {
+    note.innerHTML = `<strong>Far from equilibrium.</strong> The cloud just got disturbed and hasn't relaxed yet. Wait or scrub forward.`;
+  } else if (pct < 75) {
+    note.innerHTML = `<strong>Relaxing.</strong> Electrons are still rearranging — the distribution is approaching the Boltzmann shape.`;
+  } else {
+    note.innerHTML = `<strong>At equilibrium.</strong> The live density now matches n = n₀·exp(−U/k<sub>B</sub>T) closely. <em>This is the regime where the formula applies.</em>`;
+  }
+}
+
+// ============ TIMELINE UI ============
+const tlTrack = document.getElementById('timelineTrack');
+const tlProgress = document.getElementById('timelineProgress');
+const tlMarker = document.getElementById('timelineMarker');
+const tlTime = document.getElementById('tlTime');
+
+function updateTimeline() {
+  const tStart = snapshots[0]?.t || 0;
+  const tEnd = elapsed;
+  const range = Math.max(0.1, tEnd - tStart);
+  const cur = scrubMode ? scrubTime : elapsed;
+  const pct = ((cur - tStart) / range) * 100;
+  tlProgress.style.width = pct + '%';
+  tlMarker.style.left = pct + '%';
+  tlTime.textContent = `t = ${cur.toFixed(1)} s${scrubMode ? ' · SCRUBBING' : ''}`;
+}
+
+function scrubTo(t) {
+  scrubMode = true;
+  scrubTime = t;
+  const snap = nearestSnapshotAt(t);
+  if (snap) restoreSnapshot(snap);
+  updateTimeline();
+}
+
+let isScrubbing = false;
+tlTrack.addEventListener('mousedown', e => {
+  isScrubbing = true;
+  running = false;
+  document.getElementById('playPauseIcon').textContent = '▶';
+  document.getElementById('playPauseBtn').classList.remove('active');
+  handleScrub(e);
+});
+tlTrack.addEventListener('mousemove', e => { if (isScrubbing) handleScrub(e); });
+window.addEventListener('mouseup', () => { isScrubbing = false; });
+
+tlTrack.addEventListener('touchstart', e => {
+  isScrubbing = true;
+  running = false;
+  document.getElementById('playPauseIcon').textContent = '▶';
+  document.getElementById('playPauseBtn').classList.remove('active');
+  handleScrubTouch(e);
+  e.preventDefault();
+}, { passive: false });
+tlTrack.addEventListener('touchmove', e => { if (isScrubbing) { handleScrubTouch(e); e.preventDefault(); } }, { passive: false });
+window.addEventListener('touchend', () => { isScrubbing = false; });
+
+function handleScrub(e) {
+  const rect = tlTrack.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, x / rect.width));
+  const tStart = snapshots[0]?.t || 0;
+  const tEnd = elapsed;
+  scrubTo(tStart + pct * (tEnd - tStart));
+}
+function handleScrubTouch(e) {
+  const t = e.touches[0];
+  const rect = tlTrack.getBoundingClientRect();
+  const x = t.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, x / rect.width));
+  const tStart = snapshots[0]?.t || 0;
+  const tEnd = elapsed;
+  scrubTo(tStart + pct * (tEnd - tStart));
+}
+
+// ============ INTERACTIONS - PLACING IONS ============
+let dragIon = null;
+let lastInteractWasDrag = false;
+
+function getPos(e) {
+  if (e.touches && e.touches.length) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+canvas.addEventListener('mousedown', e => {
+  // Hide hint
+  const hint = document.getElementById('firstHint');
+  if (hint) hint.style.display = 'none';
+
+  // Resume if scrubbing
+  if (scrubMode) {
+    scrubMode = false;
+    // truncate future history beyond current scrub time
+    const cutoff = scrubTime;
+    snapshots = snapshots.filter(s => s.t <= cutoff);
+    events = events.filter(ev => ev.t <= cutoff);
+    elapsed = cutoff;
+    running = true;
+    document.getElementById('playPauseIcon').textContent = '⏸';
+    document.getElementById('playPauseBtn').classList.add('active');
+  }
+
+  const pos = getPos(e);
+  // Check if clicking existing ion
+  for (const ion of ions) {
+    if (Math.hypot(pos.x - ion.x, pos.y - ion.y) < 22) {
+      if (currentTool === 'erase') {
+        ions = ions.filter(i => i.id !== ion.id);
+        firstIonPlaced = true;
+        return;
+      } else {
+        dragIon = ion;
+        ion.dragging = true;
+        return;
+      }
+    }
+  }
+  // Otherwise place new ion (if not in erase mode)
+  if (currentTool === 'pos' || currentTool === 'neg') {
+    const q = currentTool === 'pos' ? +1 : -1;
+    ions.push({ x: pos.x, y: pos.y, q, id: nextIonId++ });
+    logEvent(currentTool, {});
+    firstIonPlaced = true;
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  if (!dragIon) return;
+  const pos = getPos(e);
+  dragIon.x = pos.x;
+  dragIon.y = pos.y;
+});
+canvas.addEventListener('mouseup', () => {
+  if (dragIon) { dragIon.dragging = false; dragIon = null; }
+});
+
+canvas.addEventListener('touchstart', e => {
+  const hint = document.getElementById('firstHint');
+  if (hint) hint.style.display = 'none';
+
+  if (scrubMode) {
+    scrubMode = false;
+    const cutoff = scrubTime;
+    snapshots = snapshots.filter(s => s.t <= cutoff);
+    events = events.filter(ev => ev.t <= cutoff);
+    elapsed = cutoff;
+    running = true;
+    document.getElementById('playPauseIcon').textContent = '⏸';
+    document.getElementById('playPauseBtn').classList.add('active');
+  }
+
+  const pos = getPos(e);
+  for (const ion of ions) {
+    if (Math.hypot(pos.x - ion.x, pos.y - ion.y) < 28) {
+      if (currentTool === 'erase') {
+        ions = ions.filter(i => i.id !== ion.id);
+        firstIonPlaced = true;
+        e.preventDefault();
+        return;
+      } else {
+        dragIon = ion;
+        ion.dragging = true;
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+  if (currentTool === 'pos' || currentTool === 'neg') {
+    const q = currentTool === 'pos' ? +1 : -1;
+    ions.push({ x: pos.x, y: pos.y, q, id: nextIonId++ });
+    logEvent(currentTool, {});
+    firstIonPlaced = true;
+    e.preventDefault();
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (!dragIon) return;
+  const pos = getPos(e);
+  dragIon.x = pos.x;
+  dragIon.y = pos.y;
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', () => {
+  if (dragIon) { dragIon.dragging = false; dragIon = null; }
+});
+
+// ============ TOOLBAR ============
+document.querySelectorAll('.tool[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentTool = btn.dataset.tool;
+    document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+document.getElementById('playPauseBtn').addEventListener('click', () => {
+  if (scrubMode) {
+    // resume from scrub point
+    scrubMode = false;
+    const cutoff = scrubTime;
+    snapshots = snapshots.filter(s => s.t <= cutoff);
+    events = events.filter(ev => ev.t <= cutoff);
+    elapsed = cutoff;
+  }
+  running = !running;
+  document.getElementById('playPauseIcon').textContent = running ? '⏸' : '▶';
+  document.getElementById('playPauseBtn').classList.toggle('active', running);
+});
+
+document.getElementById('rewindBtn').addEventListener('click', () => {
+  if (snapshots.length === 0) return;
+  scrubTo(snapshots[0].t);
+  running = false;
+  document.getElementById('playPauseIcon').textContent = '▶';
+  document.getElementById('playPauseBtn').classList.remove('active');
+});
+
+document.getElementById('stepBackBtn').addEventListener('click', () => {
+  if (!scrubMode) {
+    scrubMode = true;
+    scrubTime = elapsed;
+    running = false;
+    document.getElementById('playPauseIcon').textContent = '▶';
+    document.getElementById('playPauseBtn').classList.remove('active');
+  }
+  scrubTo(Math.max(snapshots[0]?.t || 0, scrubTime - 0.3));
+});
+document.getElementById('stepFwdBtn').addEventListener('click', () => {
+  if (!scrubMode) {
+    scrubMode = true;
+    scrubTime = elapsed;
+    running = false;
+    document.getElementById('playPauseIcon').textContent = '▶';
+    document.getElementById('playPauseBtn').classList.remove('active');
+  }
+  scrubTo(Math.min(elapsed, scrubTime + 0.3));
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  ions = [];
+  initElectrons();
+  elapsed = 0;
+  snapshots = [];
+  events = [];
+  scrubMode = false;
+  running = true;
+  document.getElementById('playPauseIcon').textContent = '⏸';
+  document.getElementById('playPauseBtn').classList.add('active');
+  takeSnapshot();
+  renderTimelineEvents();
+});
+
+document.getElementById('speedSlider').addEventListener('input', e => {
+  timeScale = parseFloat(e.target.value);
+  document.getElementById('speedVal').textContent = timeScale.toFixed(1) + '×';
+});
+document.getElementById('kbtSlider').addEventListener('input', e => {
+  const newKbt = parseFloat(e.target.value);
+  if (Math.abs(newKbt - kBT) > 0.01) {
+    logEvent('kT', { kBT: newKbt });
+  }
+  kBT = newKbt;
+  document.getElementById('kbtVal').textContent = kBT.toFixed(1);
+});
+document.getElementById('fieldToggle').addEventListener('click', e => {
+  showField = !showField;
+  e.target.classList.toggle('on', showField);
+});
+document.getElementById('boltzToggle').addEventListener('click', e => {
+  showBoltz = !showBoltz;
+  e.target.classList.toggle('on', showBoltz);
+});
+
+// ============ MAIN LOOP ============
+let lastTime = performance.now();
+let snapshotTimer = 0;
+
+function loop(now) {
+  const dtRaw = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (running && !scrubMode) {
+    const dt = dtRaw * timeScale;
+    // Substep for stability
+    const subs = 3;
+    for (let i = 0; i < subs; i++) step(dt / subs);
+    elapsed += dt;
+    snapshotTimer += dt;
+    if (snapshotTimer >= SNAPSHOT_INTERVAL) {
+      takeSnapshot();
+      snapshotTimer = 0;
+    }
+  }
+
+  draw();
+  updateReadouts();
+  updateTimeline();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>

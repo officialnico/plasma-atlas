@@ -1,0 +1,392 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>parallelogram viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+  yellow: "#fff176",
+  pink: "#f48fb1",
+};
+
+function fluxSurface(psiNorm, theta) {
+  const r0 = 2.0, kappa = 1.6, delta = 0.35, shaf = 0.25;
+  const a = 0.7 * psiNorm;
+  const shift = shaf * (1 - psiNorm * psiNorm);
+  return {
+    R: r0 + shift + a * Math.cos(theta + delta * Math.sin(theta)),
+    Z: kappa * a * Math.sin(theta),
+  };
+}
+
+function computeAll(psiNorm, theta) {
+  const eps = 0.005;
+  const pp = fluxSurface(psiNorm + eps, theta);
+  const pm = fluxSurface(psiNorm - eps, theta);
+  const dRdpsi = (pp.R - pm.R) / (2 * eps);
+  const dZdpsi = (pp.Z - pm.Z) / (2 * eps);
+
+  const tp = fluxSurface(psiNorm, theta + eps);
+  const tm = fluxSurface(psiNorm, theta - eps);
+  const dRdth = (tp.R - tm.R) / (2 * eps);
+  const dZdth = (tp.Z - tm.Z) / (2 * eps);
+
+  const gxx = dRdpsi * dRdpsi + dZdpsi * dZdpsi;
+  const gyy = dRdth * dRdth + dZdth * dZdth;
+  const gxy = dRdpsi * dRdth + dZdpsi * dZdth;
+  const J = Math.abs(dRdpsi * dZdth - dZdpsi * dRdth);
+
+  // angle between the two vectors
+  const cosAngle = gxy / (Math.sqrt(gxx) * Math.sqrt(gyy));
+  const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+
+  return { dRdpsi, dZdpsi, dRdth, dZdth, gxx, gyy, gxy, J, angle };
+}
+
+function ParallelogramViz() {
+  const [theta, setTheta] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const startRef = useRef(null);
+  const psi = 0.6;
+
+  // Animation
+  useEffect(() => {
+    if (!animating) return;
+    startRef.current = Date.now();
+    const tick = () => {
+      const t = (Date.now() - startRef.current) / 1000;
+      setTheta((t * 0.5) % (Math.PI * 2));
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [animating]);
+
+  const data = computeAll(psi, theta);
+
+  // Draw
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // === LEFT SIDE: parallelogram in real space ===
+    const leftCx = W * 0.3, leftCy = H * 0.45;
+    const scale = 120;
+
+    const psiVecX = data.dRdpsi * scale;
+    const psiVecY = -data.dZdpsi * scale;
+    const thVecX = data.dRdth * scale;
+    const thVecY = -data.dZdth * scale;
+
+    // Background grid
+    ctx.strokeStyle = C.border + "20";
+    ctx.lineWidth = 0.5;
+    for (let i = -5; i <= 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(leftCx + i * 25, leftCy - 150);
+      ctx.lineTo(leftCx + i * 25, leftCy + 150);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(leftCx - 150, leftCy + i * 25);
+      ctx.lineTo(leftCx + 150, leftCy + i * 25);
+      ctx.stroke();
+    }
+
+    // Parallelogram fill
+    ctx.beginPath();
+    ctx.moveTo(leftCx, leftCy);
+    ctx.lineTo(leftCx + psiVecX, leftCy + psiVecY);
+    ctx.lineTo(leftCx + psiVecX + thVecX, leftCy + psiVecY + thVecY);
+    ctx.lineTo(leftCx + thVecX, leftCy + thVecY);
+    ctx.closePath();
+
+    // Area fill with opacity based on J
+    const maxJ = 0.8;
+    const jNorm = Math.min(1, data.J / maxJ);
+    ctx.fillStyle = C.purple + Math.round(30 + 50 * jNorm).toString(16).padStart(2, "0");
+    ctx.fill();
+    ctx.strokeStyle = C.purple + "80";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // ψ vector (green)
+    ctx.beginPath();
+    ctx.moveTo(leftCx, leftCy);
+    ctx.lineTo(leftCx + psiVecX, leftCy + psiVecY);
+    ctx.strokeStyle = C.green;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Arrowhead
+    const a1 = Math.atan2(psiVecY, psiVecX);
+    ctx.beginPath();
+    ctx.moveTo(leftCx + psiVecX, leftCy + psiVecY);
+    ctx.lineTo(leftCx + psiVecX - 10 * Math.cos(a1 - 0.35), leftCy + psiVecY - 10 * Math.sin(a1 - 0.35));
+    ctx.moveTo(leftCx + psiVecX, leftCy + psiVecY);
+    ctx.lineTo(leftCx + psiVecX - 10 * Math.cos(a1 + 0.35), leftCy + psiVecY - 10 * Math.sin(a1 + 0.35));
+    ctx.stroke();
+
+    // θ vector (orange)
+    ctx.beginPath();
+    ctx.moveTo(leftCx, leftCy);
+    ctx.lineTo(leftCx + thVecX, leftCy + thVecY);
+    ctx.strokeStyle = C.orange;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    const a2 = Math.atan2(thVecY, thVecX);
+    ctx.beginPath();
+    ctx.moveTo(leftCx + thVecX, leftCy + thVecY);
+    ctx.lineTo(leftCx + thVecX - 10 * Math.cos(a2 - 0.35), leftCy + thVecY - 10 * Math.sin(a2 - 0.35));
+    ctx.moveTo(leftCx + thVecX, leftCy + thVecY);
+    ctx.lineTo(leftCx + thVecX - 10 * Math.cos(a2 + 0.35), leftCy + thVecY - 10 * Math.sin(a2 + 0.35));
+    ctx.stroke();
+
+    // Origin dot
+    ctx.beginPath();
+    ctx.arc(leftCx, leftCy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = C.textBright;
+    ctx.fill();
+
+    // Angle arc
+    const arcR = 25;
+    const startAngle = Math.atan2(psiVecY, psiVecX);
+    const endAngle = Math.atan2(thVecY, thVecX);
+    ctx.beginPath();
+    ctx.arc(leftCx, leftCy, arcR, Math.min(startAngle, endAngle), Math.max(startAngle, endAngle));
+    ctx.strokeStyle = C.yellow + "80";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Labels on vectors
+    ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.green;
+    ctx.fillText("dψ", leftCx + psiVecX * 0.5 - 20, leftCy + psiVecY * 0.5 - 8);
+    ctx.fillStyle = C.orange;
+    ctx.fillText("dθ", leftCx + thVecX * 0.5 + 8, leftCy + thVecY * 0.5 + 14);
+
+    // g_xx label along psi side
+    const psiLen = Math.sqrt(psiVecX * psiVecX + psiVecY * psiVecY);
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.green;
+    ctx.fillText(`|dψ|² = g_xx = ${data.gxx.toFixed(3)}`, leftCx + psiVecX * 0.5 - 55, leftCy + psiVecY * 0.5 - 22);
+
+    // g_yy label along theta side
+    ctx.fillStyle = C.orange;
+    ctx.fillText(`|dθ|² = g_yy = ${data.gyy.toFixed(3)}`, leftCx + thVecX * 0.5 - 10, leftCy + thVecY * 0.5 + 30);
+
+    // g_xy label near angle
+    ctx.fillStyle = C.yellow;
+    ctx.fillText(`g_xy = ${data.gxy.toFixed(3)}`, leftCx + arcR + 5, leftCy + 4);
+
+    // J = area label in center of parallelogram
+    const cx = leftCx + (psiVecX + thVecX) / 2;
+    const cy = leftCy + (psiVecY + thVecY) / 2;
+    ctx.font = "bold 13px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.purple;
+    ctx.textAlign = "center";
+    ctx.fillText(`J = ${data.J.toFixed(3)}`, cx, cy - 2);
+    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.fillText("(area)", cx, cy + 12);
+    ctx.textAlign = "left";
+
+    // === BOTTOM: relationship diagram ===
+    const botY = H - 95;
+
+    // Box for shape
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 1;
+    const boxW = 170, boxH = 60;
+
+    // Shape box
+    ctx.fillStyle = C.surface + "80";
+    ctx.strokeStyle = C.accent + "60";
+    ctx.beginPath();
+    ctx.roundRect(W * 0.08, botY, boxW, boxH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "bold 10px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.accent;
+    ctx.fillText("SHAPE", W * 0.08 + 12, botY + 16);
+    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.green;
+    ctx.fillText(`g_xx = ${data.gxx.toFixed(3)}`, W * 0.08 + 12, botY + 30);
+    ctx.fillStyle = C.orange;
+    ctx.fillText(`g_yy = ${data.gyy.toFixed(3)}`, W * 0.08 + 12, botY + 42);
+    ctx.fillStyle = C.yellow;
+    ctx.fillText(`g_xy = ${data.gxy.toFixed(3)}`, W * 0.08 + 12, botY + 54);
+
+    // side lengths + angle
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("side lengths", W * 0.08 + 100, botY + 30);
+    ctx.fillText("+ angle", W * 0.08 + 100, botY + 42);
+
+    // Area box
+    ctx.fillStyle = C.surface + "80";
+    ctx.strokeStyle = C.purple + "60";
+    ctx.beginPath();
+    ctx.roundRect(W * 0.55, botY, boxW, boxH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "bold 10px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.purple;
+    ctx.fillText("AREA", W * 0.55 + 12, botY + 16);
+    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.purple;
+    ctx.fillText(`J = ${data.J.toFixed(3)}`, W * 0.55 + 12, botY + 30);
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("for integrals", W * 0.55 + 12, botY + 42);
+
+    // Formula connecting them
+    ctx.font = "8px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("J² = g_xx·g_yy − g_xy²", W * 0.55 + 12, botY + 54);
+
+    // Arrow between boxes
+    ctx.beginPath();
+    ctx.moveTo(W * 0.08 + boxW + 4, botY + boxH / 2);
+    ctx.lineTo(W * 0.55 - 4, botY + boxH / 2);
+    ctx.strokeStyle = C.textDim + "60";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "8px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("contains", W * 0.39, botY + boxH / 2 - 5);
+
+    // Title
+    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("same parallelogram, different info", W * 0.22, botY - 8);
+  }, [theta, data]);
+
+  // Theta label
+  const thetaDeg = ((theta * 180) / Math.PI).toFixed(0);
+  const thetaLabel =
+    theta < 0.05 ? "outboard" :
+    Math.abs(theta - Math.PI / 2) < 0.1 ? "top" :
+    Math.abs(theta - Math.PI) < 0.1 ? "inboard" :
+    Math.abs(theta - 1.5 * Math.PI) < 0.1 ? "bottom" : "";
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <h1 style={{ fontSize: 17, fontWeight: 700, color: C.textBright, margin: 0 }}>
+            One Parallelogram, Two Descriptions
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            g's = shape &nbsp;|&nbsp; J = area &nbsp;|&nbsp; same geometry
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, overflow: "hidden", marginBottom: 12,
+        }}>
+          <canvas ref={canvasRef} width={500} height={420}
+            style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        {/* Theta control */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14, marginBottom: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: C.textDim, minWidth: 25 }}>θ</div>
+            <input
+              type="range" min="0" max={Math.PI * 2} step="0.02"
+              value={theta}
+              onChange={(e) => { setAnimating(false); setTheta(parseFloat(e.target.value)); }}
+              style={{ flex: 1, accentColor: C.accent }}
+            />
+            <div style={{ fontSize: 11, color: C.accent, minWidth: 55, textAlign: "right" }}>
+              {thetaDeg}° {thetaLabel && <span style={{ color: C.textDim, fontSize: 9 }}>({thetaLabel})</span>}
+            </div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <button
+              onClick={() => setAnimating(!animating)}
+              style={{
+                padding: "6px 16px", borderRadius: 6, fontSize: 10,
+                border: `1px solid ${animating ? C.highlight : C.border}`,
+                background: animating ? C.highlight + "20" : C.bgPanel,
+                color: animating ? C.highlight : C.textDim,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              {animating ? "■ stop" : "▶ sweep θ around surface"}
+            </button>
+          </div>
+        </div>
+
+        {/* Explanation */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14,
+        }}>
+          <div style={{ fontSize: 11, color: C.text, lineHeight: 1.7 }}>
+            Drag θ or hit sweep to watch the parallelogram change shape as you move around the flux surface.
+          </div>
+          <div style={{
+            marginTop: 10, padding: "8px 10px", background: C.surface,
+            borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.7,
+          }}>
+            <span style={{ color: C.green }}>g_xx</span> — length² of the <span style={{ color: C.green }}>ψ side</span> → for radial derivatives
+            <br />
+            <span style={{ color: C.orange }}>g_yy</span> — length² of the <span style={{ color: C.orange }}>θ side</span> → for poloidal derivatives
+            <br />
+            <span style={{ color: C.yellow }}>g_xy</span> — the skew (0 = rectangle) → for cross derivatives
+            <br />
+            <span style={{ color: C.purple }}>J</span> — the area → for integrals and averages
+            <br /><br />
+            GENE uses g's when computing ∇ (gradients, derivatives).
+            <br />
+            GENE uses J when computing ∫ (integrals, averages, fluxes).
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ParallelogramViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,466 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wrench torque</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function WrenchTorqueVisualization() {
+  const canvasRef = useRef(null);
+  const [forceAngle, setForceAngle] = useState(90); // degrees from wrench direction
+  const [forceMagnitude, setForceMagnitude] = useState(100);
+  const [wrenchLength, setWrenchLength] = useState(150);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [boltRotation, setBoltRotation] = useState(0);
+  const [showVectors, setShowVectors] = useState(true);
+  const animationRef = useRef(null);
+
+  // Torque = r × F = |r||F|sin(θ)
+  const torque = (wrenchLength / 150) * (forceMagnitude / 100) * Math.sin(forceAngle * Math.PI / 180);
+  const torquePercent = Math.abs(torque) * 100;
+
+  // Animate bolt rotation based on torque
+  useEffect(() => {
+    if (isAnimating && Math.abs(torque) > 0.01) {
+      const animate = () => {
+        setBoltRotation(prev => prev + torque * 2);
+        animationRef.current = requestAnimationFrame(animate);
+      };
+      animationRef.current = requestAnimationFrame(animate);
+    }
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [isAnimating, torque]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Background
+    const bgGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
+    bgGradient.addColorStop(0, '#2a2a3e');
+    bgGradient.addColorStop(1, '#1a1a2e');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, width, height);
+
+    const centerX = width / 2 - 50;
+    const centerY = height / 2;
+
+    // Draw bolt (the thing being turned)
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(boltRotation * Math.PI / 180);
+
+    // Bolt head (hexagon)
+    ctx.fillStyle = '#666';
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * 60 - 30) * Math.PI / 180;
+      const x = Math.cos(angle) * 25;
+      const y = Math.sin(angle) * 25;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Bolt center
+    ctx.fillStyle = '#444';
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // Draw wrench
+    const wrenchEndX = centerX + wrenchLength;
+    const wrenchEndY = centerY;
+
+    // Wrench handle
+    ctx.fillStyle = '#c0392b';
+    ctx.strokeStyle = '#922b21';
+    ctx.lineWidth = 2;
+    
+    // Handle
+    ctx.beginPath();
+    ctx.roundRect(centerX + 20, centerY - 12, wrenchLength - 20, 24, 5);
+    ctx.fill();
+    ctx.stroke();
+
+    // Wrench head (around bolt)
+    ctx.fillStyle = '#7f8c8d';
+    ctx.strokeStyle = '#5d6d6d';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Opening in wrench head
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(boltRotation * Math.PI / 180);
+    ctx.fillStyle = '#2a2a3e';
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * 60 - 30) * Math.PI / 180;
+      const x = Math.cos(angle) * 27;
+      const y = Math.sin(angle) * 27;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Force application point
+    const forceStartX = wrenchEndX;
+    const forceStartY = wrenchEndY;
+
+    // Force vector direction
+    const forceAngleRad = (180 - forceAngle) * Math.PI / 180;
+    const forceLen = forceMagnitude * 0.8;
+    const forceEndX = forceStartX + Math.cos(forceAngleRad) * forceLen;
+    const forceEndY = forceStartY + Math.sin(forceAngleRad) * forceLen;
+
+    if (showVectors) {
+      // Draw r vector (wrench length from pivot)
+      ctx.strokeStyle = '#3498db';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.setLineDash([]);
+      
+      // r arrow
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(wrenchEndX, wrenchEndY);
+      ctx.stroke();
+
+      // r arrowhead
+      ctx.fillStyle = '#3498db';
+      ctx.beginPath();
+      ctx.moveTo(wrenchEndX, wrenchEndY);
+      ctx.lineTo(wrenchEndX - 15, wrenchEndY - 8);
+      ctx.lineTo(wrenchEndX - 15, wrenchEndY + 8);
+      ctx.closePath();
+      ctx.fill();
+
+      // r label
+      ctx.fillStyle = '#3498db';
+      ctx.font = 'bold 20px Arial';
+      ctx.fillText('r', centerX + wrenchLength / 2, centerY - 20);
+
+      // Draw F vector (force)
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(forceStartX, forceStartY);
+      ctx.lineTo(forceEndX, forceEndY);
+      ctx.stroke();
+
+      // F arrowhead
+      const fAngle = Math.atan2(forceEndY - forceStartY, forceEndX - forceStartX);
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath();
+      ctx.moveTo(forceEndX, forceEndY);
+      ctx.lineTo(forceEndX - 15 * Math.cos(fAngle - 0.4), forceEndY - 15 * Math.sin(fAngle - 0.4));
+      ctx.lineTo(forceEndX - 15 * Math.cos(fAngle + 0.4), forceEndY - 15 * Math.sin(fAngle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+
+      // F label
+      ctx.fillStyle = '#e74c3c';
+      ctx.font = 'bold 20px Arial';
+      ctx.fillText('F', forceEndX + 10, forceEndY - 10);
+
+      // Draw torque indicator (curved arrow around bolt)
+      if (Math.abs(torque) > 0.05) {
+        const torqueRadius = 50;
+        const torqueColor = torque > 0 ? '#2ecc71' : '#e67e22';
+        
+        ctx.strokeStyle = torqueColor;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        if (torque > 0) {
+          ctx.arc(centerX, centerY, torqueRadius, -0.5, Math.PI * 0.8);
+        } else {
+          ctx.arc(centerX, centerY, torqueRadius, Math.PI + 0.5, Math.PI * 2.3);
+        }
+        ctx.stroke();
+
+        // Torque arrowhead
+        ctx.fillStyle = torqueColor;
+        const arrowAngle = torque > 0 ? Math.PI * 0.8 : Math.PI * 2.3;
+        const arrowX = centerX + Math.cos(arrowAngle) * torqueRadius;
+        const arrowY = centerY + Math.sin(arrowAngle) * torqueRadius;
+        const perpAngle = arrowAngle + (torque > 0 ? Math.PI/2 : -Math.PI/2);
+        
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY);
+        ctx.lineTo(arrowX + 12 * Math.cos(perpAngle - 0.5), arrowY + 12 * Math.sin(perpAngle - 0.5));
+        ctx.lineTo(arrowX + 12 * Math.cos(perpAngle + 0.5), arrowY + 12 * Math.sin(perpAngle + 0.5));
+        ctx.closePath();
+        ctx.fill();
+
+        // τ label
+        ctx.fillStyle = torqueColor;
+        ctx.font = 'bold 24px Arial';
+        ctx.fillText('τ', centerX - 70, centerY + 8);
+      }
+
+      // Draw angle arc
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const arcRadius = 40;
+      const startAngle = 0;
+      const endAngle = -forceAngle * Math.PI / 180;
+      ctx.arc(wrenchEndX, wrenchEndY, arcRadius, startAngle, endAngle, forceAngle > 0);
+      ctx.stroke();
+
+      // Angle label
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.font = '14px Arial';
+      const labelAngle = -forceAngle / 2 * Math.PI / 180;
+      ctx.fillText(`${forceAngle}°`, wrenchEndX + Math.cos(labelAngle) * 55, wrenchEndY + Math.sin(labelAngle) * 55);
+
+      // Draw perpendicular component of force
+      if (forceAngle !== 90 && forceAngle !== 0 && forceAngle !== 180) {
+        const perpLen = forceMagnitude * 0.8 * Math.sin(forceAngle * Math.PI / 180);
+        
+        ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(forceStartX, forceStartY);
+        ctx.lineTo(forceStartX, forceStartY - perpLen);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label
+        ctx.fillStyle = 'rgba(46, 204, 113, 0.9)';
+        ctx.font = '12px Arial';
+        ctx.fillText('F sin θ', forceStartX + 5, forceStartY - perpLen / 2);
+        ctx.fillText('(useful)', forceStartX + 5, forceStartY - perpLen / 2 + 14);
+      }
+    }
+
+    // Hand pushing (simple representation)
+    if (isAnimating) {
+      ctx.fillStyle = '#f4d03f';
+      ctx.beginPath();
+      ctx.arc(forceEndX, forceEndY, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#d4ac0d';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Push lines
+      ctx.strokeStyle = '#f4d03f';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const offset = (i - 1) * 10;
+        ctx.beginPath();
+        ctx.moveTo(forceEndX + 20 + Math.cos(forceAngleRad) * 10, forceEndY + offset);
+        ctx.lineTo(forceEndX + 35 + Math.cos(forceAngleRad) * 10, forceEndY + offset);
+        ctx.stroke();
+      }
+    }
+
+  }, [forceAngle, forceMagnitude, wrenchLength, boltRotation, showVectors, isAnimating, torque]);
+
+  const resetBolt = () => {
+    setBoltRotation(0);
+    setIsAnimating(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold mb-1 text-center">Torque = r × F</h1>
+      <p className="text-center text-gray-400 mb-4 text-sm">The cross product in action: turning a bolt with a wrench</p>
+
+      <div className="flex flex-col lg:flex-row gap-4 max-w-6xl mx-auto">
+        
+        {/* Canvas */}
+        <div className="lg:flex-1">
+          <div className="bg-gray-800 rounded-xl p-4">
+            <canvas
+              ref={canvasRef}
+              width={500}
+              height={400}
+              className="rounded-lg w-full"
+            />
+            
+            <div className="flex gap-2 mt-4 justify-center">
+              <button
+                onClick={() => setIsAnimating(!isAnimating)}
+                className={`px-6 py-3 rounded-lg font-bold text-lg transition-all ${
+                  isAnimating 
+                    ? 'bg-red-600 hover:bg-red-700' 
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {isAnimating ? '⏹ Stop' : '▶ Apply Force'}
+              </button>
+              <button
+                onClick={resetBolt}
+                className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-bold text-lg"
+              >
+                ↺ Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="lg:w-80 space-y-3">
+          
+          {/* Torque result */}
+          <div className={`rounded-xl p-4 ${
+            Math.abs(torque) > 0.7 ? 'bg-green-900/50 border-2 border-green-500' :
+            Math.abs(torque) > 0.3 ? 'bg-yellow-900/50 border-2 border-yellow-500' :
+            'bg-red-900/50 border-2 border-red-500'
+          }`}>
+            <h2 className="font-semibold mb-1 text-sm">Torque (τ = r × F)</h2>
+            <div className="text-4xl font-bold font-mono">
+              {(torque * 100).toFixed(0)}%
+            </div>
+            <div className="text-sm text-gray-400 mt-1">
+              = |r| × |F| × sin({forceAngle}°)
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-3 mt-2">
+              <div 
+                className={`h-full rounded-full transition-all ${
+                  Math.abs(torque) > 0.7 ? 'bg-green-500' :
+                  Math.abs(torque) > 0.3 ? 'bg-yellow-500' :
+                  'bg-red-500'
+                }`}
+                style={{ width: `${Math.min(100, torquePercent)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Force angle */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm text-red-400">Force Angle (θ)</h2>
+            <input
+              type="range" min="0" max="180" step="5" value={forceAngle}
+              onChange={(e) => setForceAngle(parseInt(e.target.value))}
+              className="w-full accent-red-500 h-2"
+            />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>0° (along wrench)</span>
+              <span className="font-mono text-red-400">{forceAngle}°</span>
+              <span>180°</span>
+            </div>
+            <div className="mt-2 text-xs">
+              {forceAngle === 90 && <span className="text-green-400">✓ Perfect! Force is perpendicular → maximum torque</span>}
+              {forceAngle === 0 && <span className="text-red-400">✗ Pushing along the wrench → zero torque!</span>}
+              {forceAngle === 180 && <span className="text-red-400">✗ Pulling along the wrench → zero torque!</span>}
+              {forceAngle > 0 && forceAngle < 90 && <span className="text-yellow-400">Some force is wasted pushing into/away from the bolt</span>}
+              {forceAngle > 90 && forceAngle < 180 && <span className="text-yellow-400">Some force is wasted pushing into/away from the bolt</span>}
+            </div>
+          </div>
+
+          {/* Force magnitude */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm text-red-400">Force Magnitude (|F|)</h2>
+            <input
+              type="range" min="20" max="150" step="10" value={forceMagnitude}
+              onChange={(e) => setForceMagnitude(parseInt(e.target.value))}
+              className="w-full accent-red-500 h-2"
+            />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>Weak</span>
+              <span className="font-mono text-red-400">{forceMagnitude}%</span>
+              <span>Strong</span>
+            </div>
+          </div>
+
+          {/* Wrench length */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm text-blue-400">Wrench Length (|r|)</h2>
+            <input
+              type="range" min="80" max="200" step="10" value={wrenchLength}
+              onChange={(e) => setWrenchLength(parseInt(e.target.value))}
+              className="w-full accent-blue-500 h-2"
+            />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>Short</span>
+              <span className="font-mono text-blue-400">{Math.round(wrenchLength / 150 * 100)}%</span>
+              <span>Long</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Longer wrench = more torque (that's why mechanics use breaker bars!)
+            </p>
+          </div>
+
+          {/* Show vectors toggle */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={showVectors} 
+                onChange={(e) => setShowVectors(e.target.checked)}
+                className="accent-green-500 w-4 h-4"
+              />
+              <span className="text-sm">Show vectors</span>
+            </label>
+          </div>
+
+          {/* The formula */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">The Math</h2>
+            <div className="font-mono text-sm space-y-1">
+              <p>τ = r × F</p>
+              <p className="text-gray-400">|τ| = |r| |F| sin(θ)</p>
+              <p className="text-gray-500 text-xs mt-2">
+                = {(wrenchLength / 150).toFixed(2)} × {(forceMagnitude / 100).toFixed(2)} × sin({forceAngle}°)
+              </p>
+              <p className="text-gray-500 text-xs">
+                = {(wrenchLength / 150).toFixed(2)} × {(forceMagnitude / 100).toFixed(2)} × {Math.sin(forceAngle * Math.PI / 180).toFixed(2)}
+              </p>
+              <p className="text-green-400">
+                = {Math.abs(torque).toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          {/* Key insight */}
+          <div className="bg-blue-900/20 border border-blue-700/50 p-4 rounded-xl text-xs">
+            <p className="font-semibold text-blue-400 mb-2">Why cross product?</p>
+            <p className="text-gray-300">
+              Only the <strong>perpendicular</strong> part of your force creates rotation. 
+              Pushing along the wrench just pushes the bolt sideways — no rotation.
+            </p>
+            <p className="text-gray-400 mt-2">
+              sin(θ) extracts exactly that perpendicular component. At 90°, sin = 1 (all force is useful). At 0° or 180°, sin = 0 (no useful force).
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(WrenchTorqueVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

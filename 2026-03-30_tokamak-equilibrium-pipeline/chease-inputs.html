@@ -1,0 +1,326 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease inputs</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function CHEASEInputs() {
+  const [useCase, setUseCase] = useState("polish"); // "polish" or "standalone"
+  const [expanded, setExpanded] = useState(null);
+
+  const cases = {
+    polish: {
+      title: "Polishing EFIT output",
+      subtitle: "\"Make the equilibrium smoother for GENE\"",
+      scenario: "EFIT already solved the equilibrium. CHEASE re-solves it with better numerics on a finer grid. This is the most common use case.",
+      inputs: [
+        { name: "EQDSK file from EFIT", type: "file", icon: "📄", color: "#ff6b6b",
+          desc: "The complete EFIT output. CHEASE reads the boundary shape, the P' and ff' profiles, and the scalar parameters. It extracts everything it needs from this one file.",
+          detail: "CHEASE reads: plasma boundary (R,Z) points, P'(ψ), ff'(ψ), and reference values like R0, B0, total current. The ψ grid itself is thrown away — CHEASE will recompute it.",
+        },
+        { name: "Resolution settings", type: "config", icon: "⚙️", color: "#c9b87c",
+          desc: "How many radial surfaces and poloidal points. More = smoother but slower.",
+          detail: "NPSI = number of radial flux surfaces (typically 128-512). NCHI = number of poloidal points (typically 128-512). Compare to EFIT's 65×65 — CHEASE can go much finer.",
+        },
+        { name: "Output format choice", type: "config", icon: "⚙️", color: "#c9b87c",
+          desc: "Which downstream codes need the output. CHEASE can write for GENE, MARS, PEST, NOVA, XTOR, or back to EQDSK format.",
+          detail: "NIDEAL, NEQDSK, NSUBS etc. control which output formats are generated. For GENE, you want the geometric coefficients (gxx, gxy, gyy, curvature, etc.) written in GENE's format.",
+        },
+      ],
+      outputs: [
+        { name: "Clean EQDSK file", desc: "Same format, smoother ψ grid and profiles", icon: "📄" },
+        { name: "Geometric coefficients", desc: "gxx, gxy, gyy, curvature, shear — ready for GENE", icon: "📐" },
+        { name: "Flux coordinate mapping", desc: "(R,Z) ↔ (s,θ) coordinate transformation tables", icon: "🗺️" },
+        { name: "Stability inputs", desc: "Formatted for MARS, PEST, NOVA-W, XTOR, LION", icon: "📊" },
+      ],
+    },
+    standalone: {
+      title: "Standalone predictive",
+      subtitle: "\"Skip EFIT entirely, go straight to CHEASE\"",
+      scenario: "You're designing a reactor. You know the plasma shape and profiles you want. You feed them directly to CHEASE without running EFIT first. Less common but valid for predictive work.",
+      inputs: [
+        { name: "Plasma boundary shape", type: "specified", icon: "✏️", color: "#c9a3f5",
+          desc: "The (R,Z) outline of the plasma edge. Either as a list of coordinate pairs or as analytic parameters (R0, a, κ, δ).",
+          detail: "Can be specified via Fourier coefficients, (R,Z) point list in an EXPEQ file, or analytic parameterization. CHEASE option NSHAPE controls which method.",
+        },
+        { name: "P'(ψ) — pressure gradient", type: "specified", icon: "✏️", color: "#c9a3f5",
+          desc: "How pressure varies across flux surfaces. Same as what EFIT needs in predictive mode.",
+          detail: "Specified as a polynomial, spline, or set of data points. CHEASE option NSP controls the functional form. Common choice: P'(s) = P0 × (1 - s^α)^β with a few free parameters.",
+        },
+        { name: "Current profile (one of three options)", type: "specified", icon: "✏️", color: "#c9a3f5",
+          desc: "You pick ONE of: ff'(ψ), the total enclosed current I*(s), or the parallel current density J∥(s). CHEASE accepts any of the three.",
+          detail: "CHEASE option NPPFUN and NSTTP control which current representation you're using. ff'(ψ) goes directly into the Grad-Shafranov equation. I*(s) and J∥(s) get converted internally.",
+        },
+        { name: "Scaling parameters", type: "config", icon: "⚙️", color: "#c9b87c",
+          desc: "R0 (major radius), B0 (toroidal field), total plasma current. These set the physical scale.",
+          detail: "CHEASE works in normalized units internally. R0 and B0 convert the solution to physical (SI) units for the output files.",
+        },
+        { name: "Resolution settings", type: "config", icon: "⚙️", color: "#c9b87c",
+          desc: "Same as polish mode — NPSI, NCHI for grid resolution.",
+          detail: "Typically higher than EFIT: 256 radial × 256 poloidal is common for production GENE inputs.",
+        },
+      ],
+      outputs: [
+        { name: "EQDSK file", desc: "Complete equilibrium, can be read by any downstream code", icon: "📄" },
+        { name: "Geometric coefficients", desc: "gxx, gxy, gyy, curvature, shear — ready for GENE", icon: "📐" },
+        { name: "Flux coordinate mapping", desc: "(R,Z) ↔ (s,θ) coordinate transformation tables", icon: "🗺️" },
+        { name: "Stability inputs", desc: "Formatted for MARS, PEST, NOVA-W, XTOR, LION", icon: "📊" },
+      ],
+    },
+  };
+
+  const c = cases[useCase];
+  const typeColors = {
+    file: { bg: "#1a1420", border: "#ff6b6b" },
+    specified: { bg: "#1a1a2a", border: "#c9a3f5" },
+    config: { bg: "#1a1a18", border: "#c9b87c" },
+  };
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          CHEASE INPUTS & OUTPUTS
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          TWO USE CASES — POLISHING EFIT OR RUNNING STANDALONE
+        </p>
+
+        {/* Use case toggle */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {[
+            { id: "polish", label: "📄→✨ Polish EFIT output", sub: "Most common" },
+            { id: "standalone", label: "✏️→📄 Standalone predictive", sub: "Skip EFIT" },
+          ].map(v => (
+            <button key={v.id} onClick={() => { setUseCase(v.id); setExpanded(null); }}
+              style={{
+                flex: 1, padding: "10px 12px", textAlign: "left",
+                background: useCase === v.id ? "#1a2a3a" : "#12171f",
+                border: useCase === v.id ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <div style={{ fontSize: 11, color: useCase === v.id ? "#4ecdc4" : "#5c6a7a", fontWeight: 700 }}>{v.label}</div>
+              <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 2 }}>{v.sub}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Explanation buttons */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 12, flexWrap: "wrap" }}>
+          {[
+            { id: "simple", label: "💡 Simple", color: "#4ecdc4" },
+            { id: "technical", label: "🔧 Technical", color: "#8ab4f8" },
+            { id: "relevance", label: "⚡ Why it matters for us", color: "#c9a3f5" },
+          ].map(btn => (
+            <button key={btn.id}
+              onClick={() => setExpanded(expanded === btn.id ? null : btn.id)}
+              style={{
+                padding: "6px 10px", fontSize: 9, fontFamily: "inherit",
+                background: expanded === btn.id ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${expanded === btn.id ? btn.color : "#1e2630"}`,
+                color: expanded === btn.id ? btn.color : "#5c6a7a",
+                borderRadius: 4, cursor: "pointer",
+              }}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+
+        {expanded && (
+          <div style={{
+            padding: "10px 14px", marginBottom: 12,
+            background: "#12171f", borderRadius: 6,
+            borderLeft: `3px solid ${expanded === "simple" ? "#4ecdc4" : expanded === "technical" ? "#8ab4f8" : "#c9a3f5"}`,
+            fontSize: 11, color: "#8a95a5", lineHeight: 1.9,
+          }}>
+            {expanded === "simple" && (
+              useCase === "polish" ? (
+                <>
+                  You already have an EQDSK file from EFIT. You feed it to CHEASE. CHEASE reads the plasma shape and profiles from it, throws away the rough ψ grid, and recomputes everything on a finer grid with better math. Out comes a cleaner EQDSK file plus geometric coefficients that GENE can use directly. Takes seconds.
+                </>
+              ) : (
+                <>
+                  No EFIT needed. You directly tell CHEASE: "here's my plasma shape, here's my pressure profile, here's my current profile." CHEASE solves the Grad-Shafranov equation from scratch and produces the EQDSK file and geometric coefficients. Same output as the polish path, just skipping the EFIT step entirely.
+                </>
+              )
+            )}
+            {expanded === "technical" && (
+              useCase === "polish" ? (
+                <>
+                  CHEASE reads the EQDSK via its NEQDSK input flag. It extracts the boundary (R,Z) points and the P'(ψ) and ff'(ψ) profiles. These become the fixed inputs to the Grad-Shafranov solver. CHEASE then solves the GS equation on a (s, θ) grid using Hermite bicubic finite elements in the radial direction and Fourier decomposition in the poloidal direction. The radial grid (NPSI up to 512 surfaces) is much finer than EFIT's 65, and the spectral poloidal representation eliminates grid-scale aliasing. The output includes flux-coordinate geometric quantities (|∇ψ|, curvature, local shear, Jacobian) computed analytically from the finite element solution, not by numerical differentiation of a grid — which is why they're smoother.
+                </>
+              ) : (
+                <>
+                  CHEASE solves the fixed-boundary Grad-Shafranov equation: R∂/∂R(1/R ∂ψ/∂R) + ∂²ψ/∂Z² = -μ₀R²P'(ψ) - ff'(ψ). You provide P'(ψ) and one of ff'(ψ), I*(s), or J∥(s) as inputs, along with the boundary shape. The code maps the plasma domain to a rectangular (s, θ) computational domain, discretizes with Hermite bicubic elements radially and Fourier modes poloidally, and iterates to convergence. It can also automatically adjust P' to achieve marginal ballooning stability or a specified bootstrap current fraction — useful for advanced scenario design.
+                </>
+              )
+            )}
+            {expanded === "relevance" && (
+              <>
+                <span style={{ color: "#c9a3f5", fontWeight: 700 }}>For your quantum collision operator project:</span>
+                <br /><br />
+                {useCase === "polish" ? (
+                  <>
+                    The EFIT→CHEASE→GENE pipeline is the standard production workflow. Your quantum collision operator plugs into GENE at the end of this chain. Clean geometric inputs from CHEASE mean your quantum results are directly comparable to classical results — no geometry noise confounding the comparison. When you publish your first benchmark paper showing "quantum collision operator reproduces classical GENE results," reviewers will expect you used CHEASE-quality geometry. Anything less and they'll question whether differences are from your algorithm or from geometry artifacts.
+                  </>
+                ) : (
+                  <>
+                    The standalone path is useful for parameter scans — when you're exploring how your quantum collision operator performs across different plasma shapes and profiles without needing real experimental data. You can sweep elongation, triangularity, pressure peaking, etc. by just changing CHEASE inputs. Each run takes seconds, giving you a library of equilibria to test your quantum algorithm against. Fast iteration on the equilibrium step means you spend your time on the collision operator development, not waiting for EFIT.
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Scenario */}
+        <div style={{
+          padding: "10px 14px",
+          background: "#1a2a3a",
+          borderRadius: "6px 6px 0 0",
+          borderLeft: "3px solid #4ecdc4",
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ecdc4" }}>{c.title}</div>
+          <div style={{ fontSize: 10, color: "#8a95a5", fontStyle: "italic", marginTop: 2 }}>{c.subtitle}</div>
+          <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4, lineHeight: 1.7 }}>{c.scenario}</div>
+        </div>
+
+        {/* Inputs */}
+        <div style={{
+          padding: "12px 14px",
+          background: "#12171f",
+          border: "1px solid #1e2630",
+          borderTop: "none",
+        }}>
+          <div style={{ fontSize: 11, color: "#e6ecf2", fontWeight: 700, marginBottom: 8 }}>INPUTS →</div>
+          {c.inputs.map((inp, i) => {
+            const tc = typeColors[inp.type];
+            return (
+              <div key={i} style={{
+                padding: "8px 10px", marginBottom: 4,
+                background: tc.bg,
+                border: `1px solid ${tc.border}44`,
+                borderRadius: 4,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: inp.color || tc.border, fontWeight: 700 }}>
+                    {inp.icon} {inp.name}
+                  </span>
+                  <span style={{ fontSize: 8, color: "#3a4a5a" }}>
+                    {inp.type === "file" ? "From EFIT" : inp.type === "specified" ? "You specify" : "Configuration"}
+                  </span>
+                </div>
+                <div style={{ fontSize: 10, color: "#8a95a5", marginTop: 3, lineHeight: 1.6 }}>
+                  {inp.desc}
+                </div>
+                <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 3, lineHeight: 1.5, fontStyle: "italic" }}>
+                  {inp.detail}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Process */}
+        <div style={{
+          padding: "10px 14px",
+          background: "#0d1117",
+          border: "1px solid #1e2630",
+          borderTop: "none",
+          textAlign: "center",
+        }}>
+          <div style={{ fontSize: 16, color: "#3a4a5a" }}>↓</div>
+          <div style={{
+            display: "inline-block", padding: "8px 16px",
+            background: "#1a2a3a", borderRadius: 4,
+            border: "1px solid #4ecdc4",
+          }}>
+            <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>
+              CHEASE solves Grad-Shafranov
+            </div>
+            <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 2 }}>
+              Hermite bicubic finite elements · flux coordinates · spectral poloidal decomposition
+            </div>
+            <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 2 }}>
+              Takes: seconds
+            </div>
+          </div>
+          <div style={{ fontSize: 16, color: "#3a4a5a" }}>↓</div>
+        </div>
+
+        {/* Outputs */}
+        <div style={{
+          padding: "12px 14px",
+          background: "#12171f",
+          border: "1px solid #1e2630",
+          borderTop: "none",
+          borderRadius: "0 0 6px 6px",
+        }}>
+          <div style={{ fontSize: 11, color: "#e6ecf2", fontWeight: 700, marginBottom: 8 }}>→ OUTPUTS</div>
+          {c.outputs.map((out, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "6px 10px", marginBottom: 3,
+              background: "#0a0e14", borderRadius: 4,
+              border: "1px solid #1a2030",
+            }}>
+              <span style={{ fontSize: 14 }}>{out.icon}</span>
+              <div>
+                <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 600 }}>{out.name}</div>
+                <div style={{ fontSize: 9, color: "#5c6a7a" }}>{out.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Key difference callout */}
+        <div style={{
+          marginTop: 12, padding: 12,
+          background: "rgba(78,205,196,0.05)",
+          borderRadius: 6, border: "1px solid rgba(78,205,196,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            {useCase === "polish" ? "What CHEASE keeps vs throws away" : "How this differs from EFIT predictive mode"}
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            {useCase === "polish" ? (
+              <>
+                <span style={{ color: "#4ecdc4" }}>Keeps:</span> Boundary shape, P'(ψ), ff'(ψ), scaling parameters (R0, B0, Ip)
+                <br />
+                <span style={{ color: "#ff6b6b" }}>Throws away:</span> The ψ(R,Z) grid, fpol, P, q — all recomputed from scratch on a finer grid
+                <br /><br />
+                The physics is identical. Only the numerical quality improves.
+              </>
+            ) : (
+              <>
+                EFIT predictive mode works on a rectangular (R,Z) grid with finite differences. CHEASE works in flux coordinates (s, θ) with spectral methods. The result is the same physics but CHEASE produces smoother derivatives and can directly output the geometric quantities gyrokinetic codes need.
+                <br /><br />
+                For your workflow: if you don't need EFIT's experimental reconstruction capability, going straight to CHEASE is simpler and gives you better quality output for GENE.
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CHEASEInputs));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

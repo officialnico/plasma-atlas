@@ -1,0 +1,365 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vector viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function Vector3DVisualization() {
+  const canvasRef = useRef(null);
+  const [a1, setA1] = useState(3);
+  const [a2, setA2] = useState(4);
+  const [a3, setA3] = useState(5);
+  const [rotationX, setRotationX] = useState(-0.5);
+  const [rotationY, setRotationY] = useState(0.6);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+
+  const r = Math.sqrt(a1 * a1 + a2 * a2);
+  const magnitude = Math.sqrt(a1 * a1 + a2 * a2 + a3 * a3);
+
+  // 3D to 2D projection
+  const project = (x, y, z, width, height) => {
+    // Apply rotations
+    let tempY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
+    let tempZ = y * Math.sin(rotationX) + z * Math.cos(rotationX);
+    y = tempY;
+    z = tempZ;
+
+    let tempX = x * Math.cos(rotationY) + z * Math.sin(rotationY);
+    tempZ = -x * Math.sin(rotationY) + z * Math.cos(rotationY);
+    x = tempX;
+    z = tempZ;
+
+    // Simple perspective projection
+    const scale = 40;
+    const perspective = 500;
+    const factor = perspective / (perspective + z);
+    
+    return {
+      x: width / 2 + x * scale * factor,
+      y: height / 2 - y * scale * factor,
+      z: z
+    };
+  };
+
+  const drawArrow = (ctx, from, to, color, lineWidth = 2) => {
+    const headLen = 10;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const angle = Math.atan2(dy, dx);
+    
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - headLen * Math.cos(angle - Math.PI / 6), to.y - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(to.x - headLen * Math.cos(angle + Math.PI / 6), to.y - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const drawDashedLine = (ctx, from, to, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+
+    const origin = project(0, 0, 0, width, height);
+    const axisLen = 7;
+
+    // Draw grid on xy plane
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    for (let i = -6; i <= 6; i++) {
+      const p1 = project(i, -6, 0, width, height);
+      const p2 = project(i, 6, 0, width, height);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      
+      const p3 = project(-6, i, 0, width, height);
+      const p4 = project(6, i, 0, width, height);
+      ctx.beginPath();
+      ctx.moveTo(p3.x, p3.y);
+      ctx.lineTo(p4.x, p4.y);
+      ctx.stroke();
+    }
+
+    // Key points
+    const vectorTip = project(a1, a2, a3, width, height);
+    const xyProjection = project(a1, a2, 0, width, height);
+    const xPoint = project(a1, 0, 0, width, height);
+    const yPoint = project(0, a2, 0, width, height);
+    const zPoint = project(0, 0, a3, width, height);
+
+    // Draw the right triangle showing r (on xy-plane)
+    ctx.fillStyle = 'rgba(46, 204, 113, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(xPoint.x, xPoint.y);
+    ctx.lineTo(xyProjection.x, xyProjection.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw the right triangle showing |A| (vertical plane)
+    ctx.fillStyle = 'rgba(231, 76, 60, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(xyProjection.x, xyProjection.y);
+    ctx.lineTo(vectorTip.x, vectorTip.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw axes
+    const xAxis = project(axisLen, 0, 0, width, height);
+    const yAxis = project(0, axisLen, 0, width, height);
+    const zAxis = project(0, 0, axisLen, width, height);
+
+    drawArrow(ctx, origin, xAxis, '#e74c3c', 2);
+    drawArrow(ctx, origin, yAxis, '#2ecc71', 2);
+    drawArrow(ctx, origin, zAxis, '#3498db', 2);
+
+    // Label axes
+    ctx.font = 'bold 16px Arial';
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillText('x', xAxis.x + 5, xAxis.y + 5);
+    ctx.fillStyle = '#2ecc71';
+    ctx.fillText('y', yAxis.x + 5, yAxis.y - 5);
+    ctx.fillStyle = '#3498db';
+    ctx.fillText('z', zAxis.x - 15, zAxis.y - 5);
+
+    // Draw component lines (dashed)
+    drawDashedLine(ctx, origin, xPoint, 'rgba(255,255,255,0.5)');
+    drawDashedLine(ctx, xPoint, xyProjection, 'rgba(255,255,255,0.5)');
+    drawDashedLine(ctx, xyProjection, vectorTip, 'rgba(255,255,255,0.5)');
+
+    // Draw r (projection on xy-plane) - GREEN
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(xyProjection.x, xyProjection.y);
+    ctx.stroke();
+
+    // Label r
+    const rMid = project(a1/2, a2/2, 0, width, height);
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = '#2ecc71';
+    ctx.fillText('r', rMid.x - 15, rMid.y + 20);
+
+    // Draw a₃ height line - BLUE
+    ctx.strokeStyle = '#3498db';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(xyProjection.x, xyProjection.y);
+    ctx.lineTo(vectorTip.x, vectorTip.y);
+    ctx.stroke();
+
+    // Label a₃
+    const a3Mid = project(a1, a2, a3/2, width, height);
+    ctx.fillStyle = '#3498db';
+    ctx.fillText('a₃', a3Mid.x + 10, a3Mid.y);
+
+    // Draw main vector |A| - YELLOW/ORANGE
+    drawArrow(ctx, origin, vectorTip, '#f39c12', 4);
+
+    // Label |A|
+    const aMid = project(a1/2, a2/2, a3/2, width, height);
+    ctx.fillStyle = '#f39c12';
+    ctx.fillText('|A|', aMid.x - 30, aMid.y - 10);
+
+    // Draw point at vector tip
+    ctx.fillStyle = '#f39c12';
+    ctx.beginPath();
+    ctx.arc(vectorTip.x, vectorTip.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label the point
+    ctx.fillStyle = 'white';
+    ctx.font = '14px Arial';
+    ctx.fillText(`(${a1}, ${a2}, ${a3})`, vectorTip.x + 10, vectorTip.y - 10);
+
+    // Draw right angle markers
+    const drawRightAngle = (corner, dir1, dir2, size = 10) => {
+      const p1 = { x: corner.x + dir1.x * size, y: corner.y + dir1.y * size };
+      const p2 = { x: corner.x + dir2.x * size, y: corner.y + dir2.y * size };
+      const p3 = { x: p1.x + dir2.x * size, y: p1.y + dir2.y * size };
+      
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p3.x, p3.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    };
+
+  }, [a1, a2, a3, rotationX, rotationY]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    setRotationY(prev => prev + dx * 0.01);
+    setRotationX(prev => Math.max(-Math.PI/2, Math.min(Math.PI/2, prev + dy * 0.01)));
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-2xl font-bold mb-4 text-center">3D Vector Magnitude Visualization</h1>
+      
+      <div className="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={500}
+            height={450}
+            className="border border-gray-600 rounded-lg cursor-grab active:cursor-grabbing w-full"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+          <p className="text-gray-400 text-sm mt-2 text-center">Click and drag to rotate the view</p>
+        </div>
+
+        <div className="lg:w-80 space-y-6">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold mb-4">Vector Components</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="flex justify-between mb-1">
+                  <span>a₁ (x)</span>
+                  <span className="text-red-400 font-mono">{a1}</span>
+                </label>
+                <input
+                  type="range"
+                  min="-6"
+                  max="6"
+                  step="0.5"
+                  value={a1}
+                  onChange={(e) => setA1(parseFloat(e.target.value))}
+                  className="w-full accent-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="flex justify-between mb-1">
+                  <span>a₂ (y)</span>
+                  <span className="text-green-400 font-mono">{a2}</span>
+                </label>
+                <input
+                  type="range"
+                  min="-6"
+                  max="6"
+                  step="0.5"
+                  value={a2}
+                  onChange={(e) => setA2(parseFloat(e.target.value))}
+                  className="w-full accent-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="flex justify-between mb-1">
+                  <span>a₃ (z)</span>
+                  <span className="text-blue-400 font-mono">{a3}</span>
+                </label>
+                <input
+                  type="range"
+                  min="-6"
+                  max="6"
+                  step="0.5"
+                  value={a3}
+                  onChange={(e) => setA3(parseFloat(e.target.value))}
+                  className="w-full accent-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold mb-3">The Math (Two Pythagorean Steps)</h2>
+            
+            <div className="space-y-4 font-mono text-sm">
+              <div className="bg-green-900/30 p-3 rounded border border-green-700">
+                <p className="text-green-400 font-sans font-semibold mb-1">Step 1: Find r (xy-plane)</p>
+                <p>r = √(a₁² + a₂²)</p>
+                <p>r = √({a1}² + {a2}²)</p>
+                <p>r = √({(a1*a1).toFixed(2)} + {(a2*a2).toFixed(2)})</p>
+                <p className="text-green-400 font-bold">r = {r.toFixed(3)}</p>
+              </div>
+
+              <div className="bg-orange-900/30 p-3 rounded border border-orange-700">
+                <p className="text-orange-400 font-sans font-semibold mb-1">Step 2: Find |A| (use r and a₃)</p>
+                <p>|A| = √(r² + a₃²)</p>
+                <p>|A| = √({r.toFixed(2)}² + {a3}²)</p>
+                <p>|A| = √({(r*r).toFixed(2)} + {(a3*a3).toFixed(2)})</p>
+                <p className="text-orange-400 font-bold">|A| = {magnitude.toFixed(3)}</p>
+              </div>
+
+              <div className="bg-gray-700 p-3 rounded">
+                <p className="text-gray-300 font-sans text-xs">Or equivalently:</p>
+                <p>|A| = √(a₁² + a₂² + a₃²)</p>
+                <p>|A| = √({(a1*a1 + a2*a2 + a3*a3).toFixed(2)})</p>
+                <p className="text-yellow-400 font-bold">|A| = {magnitude.toFixed(3)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Legend</h3>
+            <div className="space-y-1">
+              <p><span className="text-green-400">■</span> r = projection onto xy-plane</p>
+              <p><span className="text-blue-400">■</span> a₃ = height (z-component)</p>
+              <p><span className="text-orange-400">■</span> |A| = vector magnitude</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Vector3DVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

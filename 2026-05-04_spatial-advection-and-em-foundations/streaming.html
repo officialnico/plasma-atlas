@@ -1,0 +1,795 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>streaming</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function StreamingTermVisualizer() {
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [velocity, setVelocity] = useState(1.0);
+  const [shape, setShape] = useState("gaussian");
+  const [showGradient, setShowGradient] = useState(true);
+  const [showAdvected, setShowAdvected] = useState(true);
+  const [mode, setMode] = useState("1d"); // "1d" or "phase"
+
+  const rafRef = useRef(null);
+  const lastRef = useRef(performance.now());
+
+  useEffect(() => {
+    const tick = (now) => {
+      const dt = (now - lastRef.current) / 1000;
+      lastRef.current = now;
+      if (playing) {
+        setTime((t) => {
+          let nt = t + dt;
+          if (nt > 8) nt = 0;
+          return nt;
+        });
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [playing]);
+
+  // distribution f(x) at t=0
+  const f0 = (x) => {
+    if (shape === "gaussian") {
+      return Math.exp(-Math.pow((x - 2.5) / 0.7, 2));
+    } else if (shape === "double") {
+      return (
+        0.8 * Math.exp(-Math.pow((x - 2) / 0.5, 2)) +
+        0.6 * Math.exp(-Math.pow((x - 4) / 0.4, 2))
+      );
+    } else {
+      // square-ish bump
+      const c = 2.5;
+      const w = 0.8;
+      return Math.abs(x - c) < w ? Math.pow(Math.cos((Math.PI * (x - c)) / (2 * w)), 2) : 0;
+    }
+  };
+
+  // derivative df/dx (numerical)
+  const dfdx = (x) => {
+    const h = 0.01;
+    return (f0(x + h) - f0(x - h)) / (2 * h);
+  };
+
+  const W = 720;
+  const H = 320;
+  const xMin = 0;
+  const xMax = 8;
+  const xToPx = (x) => ((x - xMin) / (xMax - xMin)) * W;
+  const pxToX = (p) => xMin + (p / W) * (xMax - xMin);
+  const yToPx = (y) => H - 40 - y * (H - 80);
+
+  // build paths
+  const N = 400;
+  const points = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i <= N; i++) {
+      const x = xMin + (i / N) * (xMax - xMin);
+      arr.push(x);
+    }
+    return arr;
+  }, []);
+
+  const pathInitial = useMemo(() => {
+    return points
+      .map((x, i) => {
+        const px = xToPx(x);
+        const py = yToPx(f0(x));
+        return `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)}`;
+      })
+      .join(" ");
+  }, [shape]);
+
+  const pathAdvected = useMemo(() => {
+    return points
+      .map((x, i) => {
+        const px = xToPx(x);
+        // f(x, t) = f0(x - v*t)
+        const py = yToPx(f0(x - velocity * time));
+        return `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)}`;
+      })
+      .join(" ");
+  }, [shape, velocity, time]);
+
+  const pathGradient = useMemo(() => {
+    return points
+      .map((x, i) => {
+        const px = xToPx(x);
+        const py = yToPx(0.5 + 0.4 * dfdx(x - velocity * time));
+        return `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)}`;
+      })
+      .join(" ");
+  }, [shape, velocity, time]);
+
+  // tracer particles
+  const tracers = [1, 2, 3, 4, 5, 6];
+
+  // phase-space mode: f(x, v) — two velocity bands moving at different speeds
+  const phaseW = 720;
+  const phaseH = 360;
+  const vMin = -2;
+  const vMax = 2;
+  const vToPx = (v) => phaseH - 30 - ((v - vMin) / (vMax - vMin)) * (phaseH - 60);
+  const xToPxP = (x) => 30 + ((x - xMin) / (xMax - xMin)) * (phaseW - 60);
+
+  // for phase space, draw f(x, v, t) as a heatmap-ish set of contour blobs
+  // use a grid
+  const gridX = 80;
+  const gridV = 40;
+  const phaseCells = useMemo(() => {
+    const cells = [];
+    // initial blob: gaussian in x around 2, gaussian in v around 0.8
+    // streams at speed v
+    for (let i = 0; i < gridX; i++) {
+      for (let j = 0; j < gridV; j++) {
+        const x = xMin + ((i + 0.5) / gridX) * (xMax - xMin);
+        const v = vMin + ((j + 0.5) / gridV) * (vMax - vMin);
+        const x0 = x - v * time;
+        // initial f(x0, v): blob centered at x0=2, v=0.8 + blob at x0=2, v=-0.6
+        const a = Math.exp(-Math.pow((x0 - 2) / 0.6, 2) - Math.pow((v - 0.8) / 0.3, 2));
+        const b =
+          0.7 *
+          Math.exp(-Math.pow((x0 - 2) / 0.6, 2) - Math.pow((v + 0.6) / 0.3, 2));
+        const val = a + b;
+        if (val > 0.05) cells.push({ x, v, val });
+      }
+    }
+    return cells;
+  }, [time]);
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0a0a0f",
+        color: "#e8e8ee",
+        fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+        padding: "32px 24px",
+        overflowX: "hidden",
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent;
+          border: 1px solid #2a2a35;
+          color: #e8e8ee;
+          padding: 8px 14px;
+          font-family: inherit;
+          font-size: 12px;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        input[type="range"] {
+          -webkit-appearance: none;
+          appearance: none;
+          background: transparent;
+          width: 100%;
+          height: 24px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+          height: 2px;
+          background: #2a2a35;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          background: #ff5c3a;
+          height: 14px;
+          width: 14px;
+          border-radius: 50%;
+          margin-top: -6px;
+          cursor: pointer;
+        }
+        input[type="range"]::-moz-range-track {
+          height: 2px;
+          background: #2a2a35;
+        }
+        input[type="range"]::-moz-range-thumb {
+          background: #ff5c3a;
+          height: 14px;
+          width: 14px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+        }
+        .viz-card {
+          background: #11111a;
+          border: 1px solid #1f1f2c;
+          padding: 20px;
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 920, margin: "0 auto" }}>
+        {/* HEADER */}
+        <div style={{ marginBottom: 32 }}>
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.3em",
+              color: "#ff5c3a",
+              marginBottom: 12,
+            }}
+          >
+            VLASOV / KINETIC THEORY
+          </div>
+          <h1
+            className="display"
+            style={{
+              fontSize: 56,
+              lineHeight: 1.0,
+              margin: 0,
+              fontWeight: 800,
+              fontStyle: "italic",
+            }}
+          >
+            The streaming term
+          </h1>
+          <div
+            style={{
+              fontFamily: "'Fraunces', serif",
+              fontSize: 38,
+              fontStyle: "italic",
+              color: "#888",
+              marginTop: 16,
+              marginBottom: 20,
+            }}
+          >
+            v · ∂f/∂x
+          </div>
+          <p
+            style={{
+              fontSize: 15,
+              lineHeight: 1.6,
+              maxWidth: 640,
+              color: "#b0b0bc",
+            }}
+          >
+            In plain words: <em style={{ color: "#ff5c3a" }}>no, it's not how fast the
+            distribution changes in time</em> — that's ∂f/∂t. The streaming term is the
+            piece that <em>causes</em> change because particles are moving. It says: if
+            particles at this spot have velocity v, they are carrying the distribution
+            with them at speed v.
+          </p>
+        </div>
+
+        {/* MODE SWITCHER */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <button
+            className={`control-btn ${mode === "1d" ? "active" : ""}`}
+            onClick={() => setMode("1d")}
+          >
+            1D Streaming
+          </button>
+          <button
+            className={`control-btn ${mode === "phase" ? "active" : ""}`}
+            onClick={() => setMode("phase")}
+          >
+            Phase Space (x, v)
+          </button>
+        </div>
+
+        {/* MAIN VIZ */}
+        {mode === "1d" && (
+          <div className="viz-card" style={{ marginBottom: 24 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666" }}>
+                f(x, t) — DISTRIBUTION IN POSITION
+              </div>
+              <div style={{ fontSize: 11, color: "#666" }}>
+                t = {time.toFixed(2)}
+              </div>
+            </div>
+
+            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
+              {/* axes */}
+              <line
+                x1={0}
+                y1={H - 40}
+                x2={W}
+                y2={H - 40}
+                stroke="#2a2a35"
+                strokeWidth="1"
+              />
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((tick) => (
+                <g key={tick}>
+                  <line
+                    x1={xToPx(tick)}
+                    y1={H - 40}
+                    x2={xToPx(tick)}
+                    y2={H - 36}
+                    stroke="#2a2a35"
+                  />
+                  <text
+                    x={xToPx(tick)}
+                    y={H - 22}
+                    fontSize="10"
+                    fill="#555"
+                    textAnchor="middle"
+                  >
+                    {tick}
+                  </text>
+                </g>
+              ))}
+              <text x={W - 10} y={H - 5} fontSize="11" fill="#888" textAnchor="end" fontStyle="italic">
+                x (position)
+              </text>
+
+              {/* zero baseline for gradient */}
+              {showGradient && (
+                <line
+                  x1={0}
+                  y1={yToPx(0.5)}
+                  x2={W}
+                  y2={yToPx(0.5)}
+                  stroke="#2a2a35"
+                  strokeDasharray="2,4"
+                />
+              )}
+
+              {/* initial distribution (ghost) */}
+              <path
+                d={pathInitial}
+                fill="none"
+                stroke="#3a3a4a"
+                strokeWidth="1.5"
+                strokeDasharray="4,4"
+              />
+
+              {/* gradient curve */}
+              {showGradient && (
+                <path
+                  d={pathGradient}
+                  fill="none"
+                  stroke="#5b8def"
+                  strokeWidth="1.5"
+                  opacity="0.7"
+                />
+              )}
+
+              {/* advected distribution */}
+              {showAdvected && (
+                <path
+                  d={pathAdvected}
+                  fill="none"
+                  stroke="#ff5c3a"
+                  strokeWidth="2.5"
+                />
+              )}
+
+              {/* arrow showing velocity direction */}
+              <g transform={`translate(${xToPx(0.3)}, 30)`}>
+                <line
+                  x1="0"
+                  y1="0"
+                  x2={velocity * 40}
+                  y2="0"
+                  stroke="#ff5c3a"
+                  strokeWidth="2"
+                />
+                <polygon
+                  points={`${velocity * 40 - 6},-4 ${velocity * 40},0 ${velocity * 40 - 6},4`}
+                  fill="#ff5c3a"
+                />
+                <text x="0" y="-8" fontSize="10" fill="#ff5c3a">
+                  v = {velocity.toFixed(2)}
+                </text>
+              </g>
+
+              {/* tracer particles riding the wave */}
+              {tracers.map((x0) => {
+                const x = x0 + velocity * time;
+                if (x < 0 || x > 8) return null;
+                return (
+                  <circle
+                    key={x0}
+                    cx={xToPx(x)}
+                    cy={yToPx(f0(x - velocity * time)) - 0}
+                    r="3"
+                    fill="#ffd166"
+                  />
+                );
+              })}
+
+              {/* legend */}
+              <g transform={`translate(${W - 200}, 20)`}>
+                <rect x="0" y="-12" width="200" height="64" fill="#0a0a0f" opacity="0.8" />
+                <line x1="6" y1="0" x2="22" y2="0" stroke="#3a3a4a" strokeDasharray="4,4" />
+                <text x="28" y="3" fontSize="10" fill="#888">f(x, 0) — initial</text>
+                <line x1="6" y1="16" x2="22" y2="16" stroke="#ff5c3a" strokeWidth="2.5" />
+                <text x="28" y="19" fontSize="10" fill="#ff5c3a">f(x, t) — advected</text>
+                {showGradient && (
+                  <>
+                    <line x1="6" y1="32" x2="22" y2="32" stroke="#5b8def" />
+                    <text x="28" y="35" fontSize="10" fill="#5b8def">∂f/∂x (gradient)</text>
+                  </>
+                )}
+              </g>
+            </svg>
+          </div>
+        )}
+
+        {mode === "phase" && (
+          <div className="viz-card" style={{ marginBottom: 24 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666" }}>
+                f(x, v, t) — PHASE SPACE
+              </div>
+              <div style={{ fontSize: 11, color: "#666" }}>
+                t = {time.toFixed(2)}
+              </div>
+            </div>
+
+            <svg width="100%" viewBox={`0 0 ${phaseW} ${phaseH}`} style={{ display: "block" }}>
+              {/* axes */}
+              <line
+                x1={30}
+                y1={phaseH - 30}
+                x2={phaseW - 30}
+                y2={phaseH - 30}
+                stroke="#2a2a35"
+              />
+              <line
+                x1={30}
+                y1={30}
+                x2={30}
+                y2={phaseH - 30}
+                stroke="#2a2a35"
+              />
+              {/* v=0 line */}
+              <line
+                x1={30}
+                y1={vToPx(0)}
+                x2={phaseW - 30}
+                y2={vToPx(0)}
+                stroke="#2a2a35"
+                strokeDasharray="2,4"
+              />
+
+              {/* cells */}
+              {phaseCells.map((c, i) => {
+                const op = Math.min(c.val, 1);
+                // color: warm for v>0, cool for v<0
+                const color = c.v > 0 ? "#ff5c3a" : "#5b8def";
+                return (
+                  <rect
+                    key={i}
+                    x={xToPxP(c.x) - 4}
+                    y={vToPx(c.v) - 4}
+                    width="8"
+                    height="8"
+                    fill={color}
+                    opacity={op * 0.85}
+                  />
+                );
+              })}
+
+              {/* axis labels */}
+              {[0, 2, 4, 6, 8].map((tick) => (
+                <text
+                  key={tick}
+                  x={xToPxP(tick)}
+                  y={phaseH - 12}
+                  fontSize="10"
+                  fill="#555"
+                  textAnchor="middle"
+                >
+                  {tick}
+                </text>
+              ))}
+              {[-2, -1, 0, 1, 2].map((tick) => (
+                <text
+                  key={tick}
+                  x={20}
+                  y={vToPx(tick) + 3}
+                  fontSize="10"
+                  fill="#555"
+                  textAnchor="end"
+                >
+                  {tick}
+                </text>
+              ))}
+              <text
+                x={phaseW - 30}
+                y={phaseH - 8}
+                fontSize="11"
+                fill="#888"
+                textAnchor="end"
+                fontStyle="italic"
+              >
+                x →
+              </text>
+              <text
+                x={20}
+                y={20}
+                fontSize="11"
+                fill="#888"
+                textAnchor="end"
+                fontStyle="italic"
+              >
+                v
+              </text>
+              <text
+                x={phaseW / 2}
+                y={20}
+                fontSize="11"
+                fill="#888"
+                textAnchor="middle"
+              >
+                fast particles (v {">"} 0) drift right · slow/negative drift left
+              </text>
+            </svg>
+          </div>
+        )}
+
+        {/* CONTROLS */}
+        <div className="viz-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: "0.2em",
+                  color: "#666",
+                  marginBottom: 8,
+                }}
+              >
+                VELOCITY · v = {velocity.toFixed(2)}
+              </div>
+              <input
+                type="range"
+                min="-2"
+                max="2"
+                step="0.05"
+                value={velocity}
+                onChange={(e) => setVelocity(parseFloat(e.target.value))}
+              />
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: "0.2em",
+                  color: "#666",
+                  marginBottom: 8,
+                }}
+              >
+                TIME · t = {time.toFixed(2)}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="8"
+                step="0.05"
+                value={time}
+                onChange={(e) => {
+                  setTime(parseFloat(e.target.value));
+                  setPlaying(false);
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 20 }}>
+            <button
+              className="control-btn"
+              onClick={() => setPlaying((p) => !p)}
+            >
+              {playing ? "❚❚ Pause" : "▶ Play"}
+            </button>
+            <button
+              className="control-btn"
+              onClick={() => {
+                setTime(0);
+              }}
+            >
+              ↺ Reset t
+            </button>
+            <div style={{ width: 1, background: "#2a2a35", margin: "0 4px" }} />
+            <button
+              className={`control-btn ${shape === "gaussian" ? "active" : ""}`}
+              onClick={() => setShape("gaussian")}
+            >
+              Gaussian
+            </button>
+            <button
+              className={`control-btn ${shape === "double" ? "active" : ""}`}
+              onClick={() => setShape("double")}
+            >
+              Double bump
+            </button>
+            <button
+              className={`control-btn ${shape === "square" ? "active" : ""}`}
+              onClick={() => setShape("square")}
+            >
+              Cosine bump
+            </button>
+            <div style={{ width: 1, background: "#2a2a35", margin: "0 4px" }} />
+            {mode === "1d" && (
+              <>
+                <button
+                  className={`control-btn ${showGradient ? "active" : ""}`}
+                  onClick={() => setShowGradient((s) => !s)}
+                >
+                  ∂f/∂x
+                </button>
+                <button
+                  className={`control-btn ${showAdvected ? "active" : ""}`}
+                  onClick={() => setShowAdvected((s) => !s)}
+                >
+                  Advected f
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* EXPLAINER */}
+        <div style={{ marginBottom: 24 }}>
+          <h2
+            className="display"
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              fontStyle: "italic",
+              margin: "0 0 16px 0",
+            }}
+          >
+            What is it, really?
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+              marginBottom: 16,
+            }}
+          >
+            <div className="viz-card">
+              <div style={{ fontSize: 11, color: "#ff5c3a", letterSpacing: "0.2em", marginBottom: 8 }}>
+                THE COMMON CONFUSION
+              </div>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#b0b0bc" }}>
+                The question: "is it literally how fast the distribution changes?" <br/><br/>
+                Almost — but that's <code style={{color:"#fff"}}>∂f/∂t</code>, the
+                <em> total</em> rate of change at a fixed point in space.
+                The streaming term is one <em>contribution</em> to that change.
+              </p>
+            </div>
+            <div className="viz-card">
+              <div style={{ fontSize: 11, color: "#5b8def", letterSpacing: "0.2em", marginBottom: 8 }}>
+                THE RIGHT INTUITION
+              </div>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#b0b0bc" }}>
+                v · ∂f/∂x is the rate at which f changes <em>at a fixed point in space</em>
+                {" "}because the distribution is being <em>blown past you</em> at speed v.
+                Bigger v → faster sweep. Steeper gradient → bigger swing as it passes.
+              </p>
+            </div>
+          </div>
+
+          <div className="viz-card" style={{ background: "#0d0d18" }}>
+            <div style={{ fontSize: 11, color: "#ffd166", letterSpacing: "0.2em", marginBottom: 12 }}>
+              THE KEY IDENTITY
+            </div>
+            <div
+              className="display"
+              style={{
+                fontSize: 22,
+                fontStyle: "italic",
+                marginBottom: 12,
+                color: "#fff",
+              }}
+            >
+              ∂f/∂t = − v · ∂f/∂x &nbsp;&nbsp;(no forces)
+            </div>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#b0b0bc" }}>
+              With no forces, the Vlasov equation collapses to this. Solution:
+              {" "}<code style={{color:"#fff"}}>f(x, t) = f(x − vt, 0)</code>. That's
+              what the orange curve above is doing: it's a <em>rigid shift</em> at speed v.
+              Same shape, just translated. The shape never deforms — only the location moves.
+              Try the slider: negative v reverses direction; v = 0 freezes everything.
+            </p>
+          </div>
+        </div>
+
+        {/* DETAILED BREAKDOWN */}
+        <div className="viz-card" style={{ marginBottom: 24 }}>
+          <h3
+            className="display"
+            style={{ fontSize: 20, fontWeight: 600, margin: "0 0 16px 0" }}
+          >
+            Term-by-term anatomy
+          </h3>
+          <div style={{ display: "grid", gap: 14 }}>
+            <Row
+              symbol="∂f/∂x"
+              color="#5b8def"
+              title="The spatial gradient"
+              text="How steeply f changes across space at this instant. Big positive value = density rising as you move right. Big negative = falling. Zero at peaks/valleys."
+            />
+            <Row
+              symbol="v"
+              color="#ff5c3a"
+              title="The advection speed"
+              text="The velocity coordinate at which we're evaluating f. Each velocity slice of phase space streams independently — fast slices stream faster."
+            />
+            <Row
+              symbol="v · ∂f/∂x"
+              color="#ffd166"
+              title="The streaming term"
+              text="Their product gives the rate at which 'stuff is being flowed past' a fixed observation point. Sign matters: if v>0 and gradient is positive, density is dropping at this point because the peak is moving away from you toward higher x."
+            />
+          </div>
+        </div>
+
+        <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginTop: 32 }}>
+          Try: set v = 0 → distribution freezes. Set v = −1 → it streams left.
+          Switch to Phase Space to see how each velocity band drifts at its own rate.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ symbol, color, title, text }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 16, alignItems: "start" }}>
+      <div
+        className="display"
+        style={{
+          fontSize: 24,
+          fontStyle: "italic",
+          color: color,
+          fontWeight: 600,
+        }}
+      >
+        {symbol}
+      </div>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e8ee", marginBottom: 4 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 13, lineHeight: 1.55, color: "#9a9aa8" }}>{text}</div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Row));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

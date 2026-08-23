@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integration, step by step</title>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#111722; --ink:#dfe9e6; --dim:#7a8a95; --faint:#38454f;
+    --red:#e8663c; --blue:#3f9bd0; --purple:#a06bd6; --axis:#5a6b78;
+    --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:"Helvetica Neue",Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    padding:28px 18px 60px;}
+  .wrap{max-width:860px;margin:0 auto;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;}
+  h1{font-weight:300;font-size:clamp(24px,4.6vw,36px);margin:0 0 12px;letter-spacing:-.01em;}
+  h1 em{font-style:normal;color:var(--purple);font-weight:500;}
+  .lead{color:var(--dim);font-size:15px;line-height:1.6;max-width:62ch;margin:0 0 22px;}
+  .card{border:1px solid var(--faint);border-radius:12px;background:var(--panel);padding:14px;
+    box-shadow:0 24px 60px -40px #000;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;}
+  button{cursor:pointer;border:1px solid var(--faint);border-radius:8px;background:#0d131c;
+    color:var(--ink);font-family:var(--mono);font-size:13px;padding:9px 15px;transition:.15s;}
+  button:hover{border-color:var(--dim);}
+  button.primary{background:var(--purple);color:#120a1c;border-color:var(--purple);font-weight:600;}
+  .slider{flex:1;display:flex;align-items:center;gap:10px;min-width:180px;}
+  .slider label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase;}
+  input[type=range]{flex:1;accent-color:var(--purple);}
+  .readout{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--faint);
+    border-radius:8px;overflow:hidden;margin-top:12px;}
+  .ro{background:#0d131c;padding:9px 11px;}
+  .ro .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);}
+  .ro .v{font-family:var(--mono);font-size:15px;margin-top:2px;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--dim);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;}
+  .note{margin-top:16px;color:var(--dim);font-size:13.5px;line-height:1.6;border-left:2px solid var(--faint);padding-left:14px;}
+  .note b{color:var(--ink);font-weight:500;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Gauss's law · dE/dx = ρ</p>
+  <h1>Integration, <em>one bin at a time</em></h1>
+  <p class="lead">The sweep line moves left to right. At each position it adds that bin's signed height
+    (red pile = add, blue gap = subtract) to a running total. That running total, traced below, <b>is the field</b>.
+    Watch the field dip while the line crosses blue and climb while it crosses red.</p>
+
+  <div class="card">
+    <canvas id="c" width="820" height="620"></canvas>
+    <div class="controls">
+      <button class="primary" id="play">Pause</button>
+      <button id="reset">Reset</button>
+      <button id="step">Step ▸</button>
+      <div class="slider"><label>speed</label><input type="range" id="spd" min="1" max="12" value="4"></div>
+    </div>
+    <div class="readout">
+      <div class="ro"><div class="k">position x</div><div class="v" id="rx">−5.00</div></div>
+      <div class="ro"><div class="k">this bin height</div><div class="v" id="rh">0.000</div></div>
+      <div class="ro"><div class="k">running total (field)</div><div class="v" id="rf">0.000</div></div>
+    </div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--red)"></span>density &gt; 0 (pile → adds)</span>
+      <span><span class="sw" style="background:var(--blue)"></span>density &lt; 0 (gap → subtracts)</span>
+      <span><span class="sw" style="background:var(--purple)"></span>field = running total</span>
+    </div>
+  </div>
+
+  <p class="note">Top plot is the <b>density</b> (already mean-subtracted, so it has both signs). Bottom plot is the
+    <b>field</b> being drawn in real time as the sweep accumulates area. This is exactly what
+    <b>np.cumsum(density) * bin_width</b> computes — the whole purple curve is the running total, revealed left to right.</p>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  // ---- synthetic density: gaussian bump minus a constant -> both signs ----
+  const NB = 120, lo = -5, hi = 5;
+  const bw = (hi - lo) / NB;
+  const dens = new Float32Array(NB);
+  let mean = 0;
+  for (let i=0;i<NB;i++){ const x = lo + (i+0.5)*bw; dens[i] = 0.9*Math.exp(-x*x/2.2); mean += dens[i]; }
+  mean /= NB;
+  for (let i=0;i<NB;i++) dens[i] -= mean;          // center on zero
+  // precompute running field
+  const fieldArr = new Float32Array(NB);
+  let run = 0;
+  for (let i=0;i<NB;i++){ run += dens[i]*bw; fieldArr[i] = run; }
+  let fmin=1e9, fmax=-1e9, dmin=1e9, dmax=-1e9;
+  for (let i=0;i<NB;i++){ fmin=Math.min(fmin,fieldArr[i]); fmax=Math.max(fmax,fieldArr[i]);
+                          dmin=Math.min(dmin,dens[i]); dmax=Math.max(dmax,dens[i]); }
+
+  // ---- layout: two stacked plots ----
+  const padL=64, padR=24;
+  const topY=54, topH=228;      // density plot
+  const botY=340, botH=228;     // field plot
+  const plotW = W - padL - padR;
+
+  const xToPx = i => padL + (i/(NB-1))*plotW;
+  const dToPx = d => topY + topH - ((d - dmin)/(dmax - dmin))*topH;
+  const fToPx = f => botY + botH - ((f - fmin)/(fmax - fmin))*botH;
+  const dZero = dToPx(0), fZero = fToPx(0);
+
+  let cursor = 0;      // current bin index of the sweep (float)
+  let running = true, speed = 4;
+
+  function frame(){
+    if(running){ cursor += speed*0.35; if(cursor >= NB){ cursor = NB-0.001; } }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function label(txt,x,y,color,size=12,align='left'){
+    ctx.fillStyle=color; ctx.font=`${size}px ui-monospace,monospace`; ctx.textAlign=align; ctx.fillText(txt,x,y);
+    ctx.textAlign='left';
+  }
+
+  function draw(){
+    const ci = Math.floor(cursor);
+    ctx.fillStyle = '#0a0e14'; ctx.fillRect(0,0,W,H);
+
+    // ---- titles ----
+    label('DENSITY  (mean-subtracted)', padL, 30, '#7a8a95', 13);
+    label('FIELD  =  running total of area', padL, botY-16, '#7a8a95', 13);
+
+    // ---- density plot ----
+    // zero axis
+    ctx.strokeStyle='#5a6b78'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(padL,dZero); ctx.lineTo(padL+plotW,dZero); ctx.stroke();
+
+    // filled bars up to the cursor (curve <-> zero), colored by sign
+    for(let i=0;i<=ci && i<NB;i++){
+      const x0 = xToPx(i), x1 = xToPx(i+1<NB?i+1:i);
+      const y = dToPx(dens[i]);
+      ctx.fillStyle = dens[i] >= 0 ? 'rgba(232,102,60,0.55)' : 'rgba(63,155,208,0.55)';
+      ctx.fillRect(x0, Math.min(y,dZero), Math.max(x1-x0,1), Math.abs(y-dZero));
+    }
+    // density outline
+    ctx.strokeStyle='#e8663c'; ctx.lineWidth=2; ctx.beginPath();
+    for(let i=0;i<NB;i++){ const px=xToPx(i), py=dToPx(dens[i]); i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+    ctx.stroke();
+
+    // ---- field plot ----
+    ctx.strokeStyle='#5a6b78'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(padL,fZero); ctx.lineTo(padL+plotW,fZero); ctx.stroke();
+    // field traced only up to cursor
+    ctx.strokeStyle='#a06bd6'; ctx.lineWidth=2.5; ctx.beginPath();
+    for(let i=0;i<=ci && i<NB;i++){ const px=xToPx(i), py=fToPx(fieldArr[i]); i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+    ctx.stroke();
+    // current field dot
+    if(ci<NB){
+      const px=xToPx(ci), py=fToPx(fieldArr[ci]);
+      ctx.fillStyle='#a06bd6'; ctx.beginPath(); ctx.arc(px,py,5,0,7); ctx.fill();
+    }
+
+    // ---- sweep line spanning both plots ----
+    const sx = xToPx(cursor);
+    ctx.strokeStyle='rgba(223,233,230,0.55)'; ctx.lineWidth=1.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(sx, topY-6); ctx.lineTo(sx, botY+botH+6); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // axis end labels
+    label('x = −5', padL, H-12, '#38454f', 11);
+    label('x = +5', padL+plotW, H-12, '#38454f', 11, 'right');
+
+    // ---- readouts ----
+    const xval = lo + (cursor+0.5)*bw;
+    document.getElementById('rx').textContent = xval.toFixed(2);
+    document.getElementById('rh').textContent = (ci<NB?dens[ci]:0).toFixed(4);
+    document.getElementById('rf').textContent = (ci<NB?fieldArr[ci]:fieldArr[NB-1]).toFixed(4);
+    const hEl=document.getElementById('rh');
+    hEl.style.color = (ci<NB && dens[ci]<0) ? '#3f9bd0' : '#e8663c';
+  }
+
+  document.getElementById('play').addEventListener('click', e=>{
+    running=!running; e.target.textContent=running?'Pause':'Play';
+  });
+  document.getElementById('reset').addEventListener('click', ()=>{ cursor=0; });
+  document.getElementById('step').addEventListener('click', ()=>{ running=false;
+    document.getElementById('play').textContent='Play'; cursor=Math.min(cursor+1,NB-0.001); });
+  document.getElementById('spd').addEventListener('input', e=>speed=+e.target.value);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

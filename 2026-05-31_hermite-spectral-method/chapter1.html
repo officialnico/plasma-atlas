@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 1 — A curve is just a few numbers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0f17;
+  --ink:#edecf4;
+  --soft:#b3b1c8;
+  --faint:#76748f;
+  --cyan:#5fe6ff;
+  --gold:#ffd166;
+  --mag:#ff6fae;
+  --green:#7fe7b0;
+  --line:rgba(149,140,255,0.16);
+  --card:rgba(22,24,38,0.6);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(1000px 600px at 85% 0%,rgba(95,230,255,0.05),transparent 60%),
+    radial-gradient(800px 500px at 5% 40%,rgba(255,111,174,0.04),transparent 60%),
+    var(--bg);
+  color:var(--ink);font-family:'Newsreader',serif;font-size:21px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.rail{position:fixed;top:0;left:0;height:3px;width:0%;z-index:100;
+  background:linear-gradient(90deg,var(--cyan),var(--gold));box-shadow:0 0 10px rgba(95,230,255,.5)}
+
+section{max-width:760px;margin:0 auto;padding:14vh 26px;min-height:80vh;display:flex;flex-direction:column;justify-content:center}
+.first{min-height:92vh;padding-top:8vh}
+
+.step{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.32em;text-transform:uppercase;
+  color:var(--cyan);margin-bottom:18px}
+h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(36px,7vw,68px);line-height:1.02;letter-spacing:-.02em;margin-bottom:22px}
+h1 em{font-style:italic;color:var(--gold)}
+h2{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(28px,5vw,44px);line-height:1.08;letter-spacing:-.01em;margin-bottom:14px}
+p{font-size:21px;color:var(--soft);margin:16px 0;max-width:620px}
+p b{color:var(--ink);font-weight:500}
+p .c{color:var(--cyan);font-style:italic}
+p .g{color:var(--gold);font-style:normal;font-weight:500}
+p .m{color:var(--mag);font-weight:500}
+.small{font-size:16px;color:var(--faint);font-family:'Spline Sans Mono',monospace;letter-spacing:.04em}
+
+/* the tactile panel */
+.panel{margin:34px 0;border:1px solid var(--line);border-radius:16px;background:var(--card);overflow:hidden;backdrop-filter:blur(6px)}
+.panel canvas{display:block;width:100%;height:240px}
+.knobs{padding:20px 22px;display:grid;grid-template-columns:1fr 1fr;gap:20px 30px;border-top:1px solid var(--line)}
+@media(max-width:560px){.knobs{grid-template-columns:1fr}}
+.knob label{display:flex;justify-content:space-between;align-items:baseline;font-family:'Spline Sans Mono',monospace;
+  font-size:13px;letter-spacing:.06em;color:var(--ink);margin-bottom:9px}
+.knob label .v{color:var(--cyan);font-size:13px}
+.knob .desc{font-size:13px;color:var(--faint);margin-top:7px;font-family:'Newsreader',serif;font-style:italic}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(149,140,255,.25);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:var(--cyan);cursor:grab;box-shadow:0 0 14px rgba(95,230,255,.6);border:2px solid #0d0f17}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border:2px solid #0d0f17;border-radius:50%;background:var(--cyan);cursor:grab}
+
+.got{display:flex;gap:13px;align-items:flex-start;margin:30px 0;padding:18px 20px;border-radius:12px;
+  background:rgba(127,231,176,0.07);border:1px solid rgba(127,231,176,0.25)}
+.got .tick{color:var(--green);font-size:24px;line-height:1;flex-shrink:0}
+.got p{margin:0;font-size:18px;color:var(--ink)}
+.got p b{color:var(--green)}
+
+.reveal{opacity:0;transform:translateY(24px);transition:.7s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.cue{font-family:'Spline Sans Mono',monospace;font-size:13px;color:var(--faint);letter-spacing:.1em;margin-top:30px}
+
+.tag{font-family:'Spline Sans Mono',monospace;font-size:12px;padding:4px 10px;border-radius:6px;
+  background:rgba(95,230,255,.12);color:var(--cyan);letter-spacing:.05em}
+.relabel{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;margin:24px 0;align-items:center}
+.relabel .from{font-family:'Spline Sans Mono',monospace;font-size:14px;color:var(--soft);text-align:right}
+.relabel .to{font-size:18px}
+.relabel .to b{color:var(--gold)}
+.arrow{color:var(--faint)}
+.endcard{border:1px solid var(--line);border-radius:14px;padding:26px;background:var(--card);margin-top:24px}
+.endcard h3{font-family:'Fraunces',serif;font-size:22px;font-weight:500;margin-bottom:8px}
+.endcard p{font-size:17px;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="rail" id="rail"></div>
+
+<!-- ░░░ INTRO ░░░ -->
+<section class="first">
+  <div class="step">Chapter 1 · the one idea everything rests on</div>
+  <h1>A curve is just<br>a <em>few numbers.</em></h1>
+  <p>This part tends to stay fuzzy — the idea that a whole smooth curve can be boiled down to a handful of numbers. Fair. It's abstract until you do it with your hands.</p>
+  <p>So let's do that. <b>No math.</b> Just a curve and a few knobs. Scroll down.</p>
+  <div class="cue">↓</div>
+</section>
+
+<!-- ░░░ STEP 1 · THE KNOBS ░░░ -->
+<section>
+  <div class="step reveal">Step 1 — drive it yourself</div>
+  <h2 class="reveal">Four knobs. One curve.</h2>
+  <p class="reveal">Here's a bell curve. Underneath it are four knobs. <b>Grab them. Drag them around.</b> Watch what each one does to the shape.</p>
+  <div class="panel reveal" data-curve="play">
+    <canvas></canvas>
+    <div class="knobs">
+      <div class="knob">
+        <label>HEIGHT <span class="v" id="v_h">1.0</span></label>
+        <input type="range" min="0.2" max="1.6" step="0.01" value="1.0" data-k="h">
+        <div class="desc">how tall the bump is</div>
+      </div>
+      <div class="knob">
+        <label>CENTER <span class="v" id="v_c">0.0</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0" data-k="c">
+        <div class="desc">slides it left ↔ right</div>
+      </div>
+      <div class="knob">
+        <label>WIDTH <span class="v" id="v_w">1.0</span></label>
+        <input type="range" min="0.5" max="2.2" step="0.01" value="1.0" data-k="w">
+        <div class="desc">fat & spread vs. tall & narrow</div>
+      </div>
+      <div class="knob">
+        <label>LEAN <span class="v" id="v_l">0.0</span></label>
+        <input type="range" min="-0.6" max="0.6" step="0.01" value="0" data-k="l">
+        <div class="desc">tilts it lopsided one way</div>
+      </div>
+    </div>
+  </div>
+  <p class="reveal">Notice something. There is <b>no curve stored anywhere</b> in here. The computer isn't keeping a giant list of the curve's height at a thousand points. It's holding <b>four numbers</b> — and drawing the picture fresh from them every time you move a knob.</p>
+  <div class="got reveal"><span class="tick">✓</span><p>That's the whole idea, and you just did it: <b>the four numbers ARE the curve.</b> Change the numbers, change the curve. Store the numbers, you've stored the curve.</p></div>
+</section>
+
+<!-- ░░░ STEP 2 · THE OTHER DIRECTION ░░░ -->
+<section>
+  <div class="step reveal">Step 2 — the same idea, backwards</div>
+  <h2 class="reveal">Any bump → a few numbers.</h2>
+  <p class="reveal">It works both ways. I'll draw a <span class="g">target shape</span> (the dotted gold one). Your <span class="c">blue curve</span> from the knobs is here too. Try to <b>match the gold one</b> by dragging the same four knobs.</p>
+  <div class="panel reveal" data-curve="match">
+    <canvas></canvas>
+    <div class="knobs">
+      <div class="knob">
+        <label>HEIGHT <span class="v" id="v_h2">1.0</span></label>
+        <input type="range" min="0.2" max="1.6" step="0.01" value="1.0" data-k="h2">
+      </div>
+      <div class="knob">
+        <label>CENTER <span class="v" id="v_c2">0.0</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0" data-k="c2">
+      </div>
+      <div class="knob">
+        <label>WIDTH <span class="v" id="v_w2">1.0</span></label>
+        <input type="range" min="0.5" max="2.2" step="0.01" value="1.0" data-k="w2">
+      </div>
+      <div class="knob">
+        <label>LEAN <span class="v" id="v_l2">0.0</span></label>
+        <input type="range" min="-0.6" max="0.6" step="0.01" value="0" data-k="l2">
+      </div>
+    </div>
+  </div>
+  <p class="reveal"><span class="small" id="matchMsg">keep adjusting…</span></p>
+  <div class="got reveal"><span class="tick">✓</span><p>When the blue sits on the gold, you've just done the magic trick: you <b>looked at a shape and found the few numbers that describe it.</b> That's called "fitting." A computer does exactly this, automatically.</p></div>
+</section>
+
+<!-- ░░░ STEP 3 · WHY IT MATTERS ░░░ -->
+<section>
+  <div class="step reveal">Step 3 — why anyone cares</div>
+  <h2 class="reveal">Now here's the payoff.</h2>
+  <p class="reveal">That bell curve isn't a toy. Inside a fusion machine, <b>it's real</b>. It's a count of the particles: <span class="c">how many are moving at each speed</span>. Most drift along near the average speed — that's the tall middle. A few zip fast — those are the thin tails.</p>
+  <p class="reveal">And those four knobs you were just dragging? Physicists have names for every one of them. You were doing real physics without knowing it:</p>
+  <div class="relabel reveal">
+    <div class="from">HEIGHT</div><div class="to"><span class="arrow">→</span> <b>density</b> — how much gas is sitting here</div>
+    <div class="from">CENTER</div><div class="to"><span class="arrow">→</span> <b>flow</b> — which way the whole gas is drifting</div>
+    <div class="from">WIDTH</div><div class="to"><span class="arrow">→</span> <b>temperature</b> — wide spread of speeds = hot</div>
+    <div class="from">LEAN</div><div class="to"><span class="arrow">→</span> <b>heat flux</b> — energy leaking off to one side</div>
+  </div>
+  <div class="got reveal"><span class="tick">✓</span><p>This is the part to hold onto: <b>the summary numbers aren't just a shortcut — each one is a real physical quantity.</b> Density, flow, temperature, heat flux. The picture and the physics are the same four numbers.</p></div>
+</section>
+
+<!-- ░░░ STEP 4 · THE DOCUMENT ░░░ -->
+<section>
+  <div class="step reveal">Step 4 — what your document was saying</div>
+  <h2 class="reveal">So that's what "Hermite" means.</h2>
+  <p class="reveal">Your document keeps saying it stores the plasma in a <span class="tag">Hermite</span> representation. Strip the jargon and here's the entire meaning:</p>
+  <p class="reveal">Instead of storing the gas as a <b>giant list</b> — the curve's height at a thousand speed-points — it stores it as a <b>short list of knob-numbers</b>, exactly like the four you dragged. Far fewer numbers to carry around, and each one means something physical.</p>
+  <p class="reveal">That's it. That's the whole reason the code uses it, and it's the root of the speed claim in the paper. <span class="g">Fewer numbers = less to compute = faster.</span></p>
+  <div class="endcard reveal">
+    <h3>You now own the foundation.</h3>
+    <p>✓ A curve = a few numbers.</p>
+    <p>✓ You can go both ways: numbers→curve, and curve→numbers.</p>
+    <p>✓ For a plasma, those numbers are real physics (density, flow, temperature, heat flux).</p>
+    <p>✓ "Hermite" = storing the gas as those numbers instead of a giant list.</p>
+    <p class="small" style="margin-top:16px">Everything else in the paper is built on this. Next chapters, when you're ready: why four knobs isn't enough (and what the extra ones do) · why they're called Hermite specifically · why it beats the obvious alternative · and where the whole bet gets risky.</p>
+  </div>
+  <p class="reveal cue">tell me how this one landed →</p>
+</section>
+
+<script>
+const C={cyan:'#5fe6ff',gold:'#ffd166',soft:'#b3b1c8',faint:'#76748f',line:'rgba(149,140,255,0.16)'};
+const st={h:1,c:0,w:1,l:0, h2:1,c2:0,w2:1,l2:0};
+// target for the match game
+const TGT={h:1.25,c:-0.7,w:1.4,l:0.35};
+
+function bump(v,h,c,w,l){
+  // gaussian shifted by c, width w, with a gentle lean (skew) by l
+  const z=(v-c)/w;
+  let f=h*Math.exp(-z*z/2)*(1 + l*z);
+  return Math.max(0,f);
+}
+function sizeCanvas(cv){const d=window.devicePixelRatio||1;cv.width=cv.clientWidth*d;cv.height=cv.clientHeight*d;return d;}
+
+function drawCurve(cv,ctx,mode){
+  const d=cv._d, w=cv.clientWidth, h=cv.clientHeight;
+  ctx.clearRect(0,0,cv.width,cv.height);ctx.save();ctx.scale(d,d);
+  const base=h-26, vmax=4.5, sx=w/(2*vmax), cx=w/2, sy=120;
+  // axes
+  ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  ctx.fillStyle=C.faint;ctx.font="11px 'Spline Sans Mono'";ctx.textAlign='center';
+  ctx.fillText('slow ←   speed of particles   → fast',cx,h-7);
+
+  // target (match mode only)
+  if(mode==='match'){
+    ctx.strokeStyle='rgba(255,209,102,0.6)';ctx.lineWidth=2.4;ctx.setLineDash([6,6]);ctx.beginPath();
+    for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const y=base-bump(v,TGT.h,TGT.c,TGT.w,TGT.l)*sy;
+      i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+    ctx.stroke();ctx.setLineDash([]);
+  }
+  // the live curve
+  const p = mode==='match' ? {h:st.h2,c:st.c2,w:st.w2,l:st.l2} : {h:st.h,c:st.c,w:st.w,l:st.l};
+  const grad=ctx.createLinearGradient(0,0,0,base);grad.addColorStop(0,'rgba(95,230,255,0.5)');grad.addColorStop(1,'rgba(95,230,255,0.02)');
+  ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const y=base-bump(v,p.h,p.c,p.w,p.l)*sy;
+    i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+  ctx.lineTo(cx+vmax*sx,base);ctx.lineTo(cx-vmax*sx,base);ctx.closePath();
+  ctx.fillStyle=grad;ctx.fill();
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=3;ctx.shadowColor=C.cyan;ctx.shadowBlur=12;ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const y=base-bump(v,p.h,p.c,p.w,p.l)*sy;
+    i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+  ctx.stroke();ctx.shadowBlur=0;ctx.restore();
+
+  // match feedback
+  if(mode==='match'){
+    const err=Math.abs(p.h-TGT.h)+Math.abs(p.c-TGT.c)*0.6+Math.abs(p.w-TGT.w)+Math.abs(p.l-TGT.l);
+    const msg=document.getElementById('matchMsg');
+    if(err<0.18){msg.textContent='✓ matched! the gold shape = these four numbers.';msg.style.color=C.gold;}
+    else if(err<0.6){msg.textContent='very close — nudge them…';msg.style.color=C.soft;}
+    else{msg.textContent='keep adjusting…';msg.style.color=C.faint;}
+  }
+}
+
+const panels=[...document.querySelectorAll('[data-curve]')].map(p=>{
+  const cv=p.querySelector('canvas');return {p,cv,ctx:cv.getContext('2d'),mode:p.dataset.curve,vis:true};
+});
+function resize(){panels.forEach(o=>{o.cv._d=sizeCanvas(o.cv);});}
+addEventListener('resize',resize);resize();
+
+const io=new IntersectionObserver(es=>es.forEach(e=>{const o=panels.find(x=>x.p===e.target);if(o)o.vis=e.isIntersecting;}),{threshold:0.02});
+panels.forEach(o=>io.observe(o.p));
+
+function loop(){panels.forEach(o=>{if(o.vis)drawCurve(o.cv,o.ctx,o.mode);});requestAnimationFrame(loop);}
+loop();
+
+// sliders
+const labelMap={h:'v_h',c:'v_c',w:'v_w',l:'v_l',h2:'v_h2',c2:'v_c2',w2:'v_w2',l2:'v_l2'};
+document.querySelectorAll('input[data-k]').forEach(inp=>{
+  inp.addEventListener('input',()=>{const k=inp.dataset.k;st[k]=parseFloat(inp.value);
+    const el=document.getElementById(labelMap[k]);if(el)el.textContent=parseFloat(inp.value).toFixed(1);});
+});
+
+// reveal + rail
+const rIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');}),{threshold:0.1});
+document.querySelectorAll('.reveal').forEach(el=>rIO.observe(el));
+const rail=document.getElementById('rail');
+addEventListener('scroll',()=>{rail.style.width=(scrollY/(document.body.scrollHeight-innerHeight)*100)+'%';});
+</script>
+</body>
+</html>

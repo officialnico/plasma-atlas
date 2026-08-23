@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spin · a 3D instrument for spin-½</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg-0:#070a18; --bg-1:#0d1230; --bg-2:#141a3e;
+    --glass:rgba(18,24,56,0.62); --glass-line:rgba(120,140,220,0.22);
+    --ink:#eaeefb; --muted:#8b95c2; --faint:#5a6396;
+    --up:#5cd6e8;        /* |up>  */
+    --down:#ff7aa8;      /* |down> */
+    --state:#ffc24b;     /* state vector */
+    --meas:#7ee08a;      /* measurement axis */
+    --display:'Space Grotesk',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--display); color:var(--ink); overflow:hidden;
+    background:radial-gradient(120% 120% at 70% -10%, var(--bg-2), var(--bg-1) 45%, var(--bg-0) 100%);
+  }
+  #stage{position:fixed; inset:0}
+  canvas{display:block; touch-action:none}
+
+  /* ---- title ---- */
+  .masthead{position:fixed; top:22px; left:26px; z-index:5; pointer-events:none; max-width:48%}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.34em; text-transform:uppercase; color:var(--faint)}
+  .title{font-size:30px; font-weight:600; letter-spacing:-.01em; margin-top:6px; line-height:1}
+  .title .frac{color:var(--state)}
+  .sub{font-size:13px; color:var(--muted); margin-top:9px; line-height:1.45; max-width:30ch}
+
+  /* ---- control panel ---- */
+  .panel{
+    position:fixed; z-index:6; top:22px; right:22px; width:330px; max-width:calc(100vw - 44px);
+    background:var(--glass); border:1px solid var(--glass-line); border-radius:18px;
+    backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 24px 60px -24px rgba(0,0,0,.7);
+    overflow:hidden;
+  }
+  .tabs{display:flex; border-bottom:1px solid var(--glass-line)}
+  .tab{flex:1; font-family:var(--mono); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;
+       padding:13px 4px; text-align:center; color:var(--muted); cursor:pointer; background:none; border:none;
+       border-bottom:2px solid transparent; transition:color .18s, border-color .18s}
+  .tab:hover{color:var(--ink)}
+  .tab.on{color:var(--ink); border-bottom-color:var(--state)}
+  .pane{padding:18px 18px 20px}
+  .pane[hidden]{display:none}
+
+  .lead{font-size:12.5px; color:var(--muted); line-height:1.5; margin-bottom:16px}
+
+  .ctl{margin:15px 0}
+  .ctl .row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px}
+  .ctl label{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint)}
+  .ctl .val{font-family:var(--mono); font-size:13px; color:var(--ink)}
+  input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:3px; border-radius:3px;
+    background:rgba(150,165,225,.25); outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+    background:var(--state); cursor:pointer; box-shadow:0 0 0 4px rgba(255,194,75,.18)}
+  input[type=range]::-moz-range-thumb{width:15px; height:15px; border:none; border-radius:50%;
+    background:var(--state); cursor:pointer; box-shadow:0 0 0 4px rgba(255,194,75,.18)}
+
+  /* state readout */
+  .ket{font-family:var(--mono); font-size:14px; line-height:1.7; background:rgba(8,11,28,.55);
+    border:1px solid var(--glass-line); border-radius:11px; padding:12px 13px; margin-top:4px}
+  .ket .up{color:var(--up)} .ket .dn{color:var(--down)} .ket .dim{color:var(--faint)}
+  .bars{margin-top:14px}
+  .bar{margin:9px 0}
+  .bar .tag{display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; margin-bottom:4px}
+  .bar .tag .nm.up{color:var(--up)} .bar .tag .nm.dn{color:var(--down)}
+  .bar .track{height:7px; border-radius:7px; background:rgba(150,165,225,.16); overflow:hidden}
+  .bar .fill{height:100%; width:0; border-radius:7px; transition:width .25s ease}
+  .bar .fill.up{background:var(--up)} .bar .fill.dn{background:var(--down)}
+
+  /* segmented + buttons */
+  .seg{display:flex; gap:6px; margin-top:7px}
+  .seg button{flex:1; font-family:var(--mono); font-size:12px; padding:8px 0; border-radius:9px; cursor:pointer;
+    background:rgba(150,165,225,.1); color:var(--muted); border:1px solid transparent; transition:.16s}
+  .seg button:hover{color:var(--ink)}
+  .seg button.on{color:#08203a; background:var(--meas); border-color:var(--meas); font-weight:600}
+  .actions{display:flex; gap:9px; margin-top:16px}
+  .btn{flex:1; font-family:var(--display); font-weight:600; font-size:13px; padding:11px 0; border-radius:11px;
+    cursor:pointer; border:1px solid var(--glass-line); background:rgba(150,165,225,.1); color:var(--ink); transition:.16s}
+  .btn:hover{background:rgba(150,165,225,.2)}
+  .btn.primary{background:var(--state); color:#2a1c00; border-color:var(--state)}
+  .btn.primary:hover{filter:brightness(1.08)}
+
+  .outcome{font-family:var(--mono); text-align:center; font-size:13px; color:var(--muted); margin-top:14px; min-height:18px}
+  .outcome b.up{color:var(--up)} .outcome b.dn{color:var(--down)}
+
+  /* tally */
+  .tally{margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--faint)}
+  .tally .grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px}
+  .tally .cell{background:rgba(8,11,28,.5); border:1px solid var(--glass-line); border-radius:10px; padding:9px 11px}
+  .tally .cell .big{font-size:20px; color:var(--ink); font-weight:600}
+  .tally .cell.up .big{color:var(--up)} .tally .cell.dn .big{color:var(--down)}
+  .tally .cell .sm{font-size:10px; margin-top:2px}
+
+  /* phase dial */
+  .dialwrap{display:flex; align-items:center; gap:14px; margin-top:8px}
+  .dial{flex:0 0 96px}
+  .dialtxt{font-family:var(--mono); font-size:11.5px; color:var(--muted); line-height:1.55}
+  .dialtxt .ph{color:var(--state); font-size:15px}
+  .note{font-size:12px; color:var(--muted); line-height:1.55; margin-top:16px; padding-top:14px; border-top:1px solid var(--glass-line)}
+
+  .hint{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:5;
+    font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--faint); pointer-events:none;
+    background:rgba(8,11,28,.4); padding:6px 14px; border-radius:20px; border:1px solid var(--glass-line)}
+
+  @media (max-width:760px){
+    .masthead{position:fixed; max-width:none; left:18px; right:18px; top:16px}
+    .title{font-size:23px} .sub{display:none}
+    .panel{top:auto; bottom:0; right:0; left:0; width:100%; max-width:100%;
+      border-radius:18px 18px 0 0; max-height:62vh; overflow-y:auto}
+    .hint{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div class="masthead">
+  <div class="eyebrow">Spin · ½</div>
+  <h1 class="title">The state on a sphere<span class="frac"></span></h1>
+  <p class="sub">Spin isn't a spinning ball. A spin-½ state is a single point on this sphere — and a measurement only ever returns one of two answers.</p>
+</div>
+
+<div class="panel">
+  <div class="tabs">
+    <button class="tab on" data-mode="state">State</button>
+    <button class="tab" data-mode="measure">Measure</button>
+    <button class="tab" data-mode="twist">720°</button>
+  </div>
+
+  <!-- STATE -->
+  <div class="pane" id="pane-state">
+    <p class="lead">Drag in empty space to orbit. Move the sliders to steer the state vector — the gold needle — anywhere on the sphere.</p>
+    <div class="ctl">
+      <div class="row"><label>θ — polar angle</label><span class="val" id="v-theta">90°</span></div>
+      <input type="range" id="s-theta" min="0" max="180" value="90" step="1">
+    </div>
+    <div class="ctl">
+      <div class="row"><label>φ — azimuth</label><span class="val" id="v-phi">0°</span></div>
+      <input type="range" id="s-phi" min="0" max="360" value="0" step="1">
+    </div>
+    <div class="ket" id="ket">
+      |ψ⟩ = <span id="k-a">0.71</span> <span class="up">|↑⟩</span> <span class="dim">+</span>
+      <span id="k-b">0.71</span><span class="dim" id="k-ph"> e<sup>i·0°</sup></span> <span class="dn">|↓⟩</span>
+    </div>
+    <div class="bars">
+      <div class="bar">
+        <div class="tag"><span class="nm up">P(↑)</span><span id="p-up">50%</span></div>
+        <div class="track"><div class="fill up" id="f-up"></div></div>
+      </div>
+      <div class="bar">
+        <div class="tag"><span class="nm dn">P(↓)</span><span id="p-dn">50%</span></div>
+        <div class="track"><div class="fill dn" id="f-dn"></div></div>
+      </div>
+    </div>
+    <p class="note">The poles are the only "definite" states: top is spin-up, bottom is spin-down. Everything in between is a genuine superposition of both.</p>
+  </div>
+
+  <!-- MEASURE -->
+  <div class="pane" id="pane-measure" hidden>
+    <p class="lead">Pick an axis and measure. The state collapses to up or down along that axis — never anything between. Probabilities follow the Born rule.</p>
+    <div class="ctl">
+      <div class="row"><label>Measurement axis</label></div>
+      <div class="seg" id="axis-seg">
+        <button data-axis="Z" class="on">Z ↑↓</button>
+        <button data-axis="X">X</button>
+        <button data-axis="Y">Y</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btn-measure">Measure once</button>
+      <button class="btn" id="btn-100">Run 100</button>
+    </div>
+    <div class="outcome" id="outcome">Set a state under “State”, then measure.</div>
+    <div class="tally">
+      Tally over <span id="t-total">0</span> trials
+      <div class="grid">
+        <div class="cell up"><div class="big" id="t-up">0</div><div class="sm">+ along axis · <span id="t-up-pct">0%</span></div></div>
+        <div class="cell dn"><div class="big" id="t-dn">0</div><div class="sm">− along axis · <span id="t-dn-pct">0%</span></div></div>
+      </div>
+      <div style="margin-top:8px">Theory now: <span id="t-theory">—</span></div>
+    </div>
+    <button class="btn" id="btn-reset" style="margin-top:14px; width:100%">Reset tally</button>
+  </div>
+
+  <!-- TWIST / 720 -->
+  <div class="pane" id="pane-twist" hidden>
+    <p class="lead">Rotate the object in real space. Watch the body and watch its quantum <em>phase</em> — they don't come back together.</p>
+    <div class="ctl">
+      <div class="row"><label>rotation γ</label><span class="val" id="v-gamma">0°</span></div>
+      <input type="range" id="s-gamma" min="0" max="720" value="0" step="1">
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btn-spin">Auto-rotate</button>
+      <button class="btn" id="btn-gamma-reset">Reset</button>
+    </div>
+    <div class="dialwrap">
+      <svg class="dial" viewBox="-50 -50 100 100" aria-hidden="true">
+        <circle cx="0" cy="0" r="40" fill="none" stroke="var(--glass-line)" stroke-width="2"/>
+        <line x1="-46" y1="0" x2="46" y2="0" stroke="rgba(150,165,225,.2)" stroke-width="1"/>
+        <line x1="0" y1="-46" x2="0" y2="46" stroke="rgba(150,165,225,.2)" stroke-width="1"/>
+        <text x="44" y="4" font-size="9" fill="var(--faint)" font-family="monospace">+1</text>
+        <text x="-49" y="4" font-size="9" fill="var(--faint)" font-family="monospace">−1</text>
+        <line id="dial-hand" x1="0" y1="0" x2="40" y2="0" stroke="var(--state)" stroke-width="3" stroke-linecap="round"/>
+        <circle id="dial-dot" cx="40" cy="0" r="4.5" fill="var(--state)"/>
+      </svg>
+      <div class="dialtxt">
+        spinor phase<br>
+        e<sup>−iγ/2</sup> = <span class="ph" id="phase-val">+1.00</span>
+      </div>
+    </div>
+    <p class="note" id="twist-note">At <b>0°</b> the object and its phase agree. Keep going to 360°, then to 720°.</p>
+  </div>
+</div>
+
+<div class="hint">drag to orbit · scroll to zoom</div>
+
+<script>
+"use strict";
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const R = 2.2;                       // sphere radius
+const DEG = Math.PI/180;
+let scene, camera, renderer, stage;
+let stateGroup, twistGroup;          // toggled per mode
+let arrow, tipDot;                   // state vector
+let measAxisLine, measGlowUp, measGlowDn;
+let ribbon, twistArrow, twistRef;
+let mode = 'state';
+
+// physical state (Three.js coords: +Y is "up" = |↑>)
+let theta = 90*DEG, phi = 0;
+// camera orbit
+let camR = 7.2, camAz = 0.7, camPol = 1.15;
+let curAxis = 'Z';
+
+/* ---------- vector helpers ---------- */
+function blochVec(th, ph){           // unit Bloch vector in Three coords
+  return new THREE.Vector3(
+    Math.sin(th)*Math.cos(ph),
+    Math.cos(th),
+    Math.sin(th)*Math.sin(ph)
+  );
+}
+const AXES = {
+  Z: new THREE.Vector3(0,1,0),
+  X: new THREE.Vector3(1,0,0),
+  Y: new THREE.Vector3(0,0,1)
+};
+
+/* ---------- scene scaffolding ---------- */
+function circle(radius, color, opacity, axis){
+  const pts=[], N=96;
+  for(let i=0;i<=N;i++){
+    const a=i/N*Math.PI*2, c=Math.cos(a)*radius, s=Math.sin(a)*radius;
+    if(axis==='y') pts.push(new THREE.Vector3(c,0,s));      // horizontal (equator)
+    else if(axis==='x') pts.push(new THREE.Vector3(0,c,s)); // meridian in y-z
+    else pts.push(new THREE.Vector3(c,s,0));                // meridian in x-y
+  }
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  const m=new THREE.LineBasicMaterial({color,transparent:true,opacity});
+  return new THREE.Line(g,m);
+}
+function makeLabel(text, color){
+  const c=document.createElement('canvas'); c.width=c.height=128;
+  const x=c.getContext('2d');
+  x.fillStyle=color; x.font='600 64px "IBM Plex Mono", monospace';
+  x.textAlign='center'; x.textBaseline='middle'; x.fillText(text,64,68);
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  sp.scale.set(0.62,0.62,0.62);
+  return sp;
+}
+function axisLine(dir,color){
+  const g=new THREE.BufferGeometry().setFromPoints([
+    dir.clone().multiplyScalar(-R*1.28), dir.clone().multiplyScalar(R*1.28)]);
+  return new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity:.4}));
+}
+
+function buildSphere(){
+  const g=new THREE.Group();
+  const lineCol=0x4a5594;
+  // parallels
+  for(let k=1;k<6;k++){
+    const th=k/6*Math.PI, r=Math.sin(th)*R, y=Math.cos(th)*R;
+    const eq=(k===3);
+    const c=circle(r,eq?0x6e7bc0:lineCol,eq?.5:.18,'y'); c.position.y=y;
+    g.add(c);
+  }
+  // meridians
+  for(let k=0;k<6;k++){
+    const m=circle(R,lineCol,.16,'x'); m.rotation.y=k/6*Math.PI; g.add(m);
+  }
+  g.add(circle(R,0x6e7bc0,.42,'x')); // prime meridian highlight
+  // axes
+  g.add(axisLine(AXES.Z,0x6e7bc0));
+  g.add(axisLine(AXES.X,lineCol));
+  g.add(axisLine(AXES.Y,lineCol));
+  // labels
+  const up=makeLabel('|↑⟩','#5cd6e8'); up.position.set(0,R*1.42,0); g.add(up);
+  const dn=makeLabel('|↓⟩','#ff7aa8'); dn.position.set(0,-R*1.42,0); g.add(dn);
+  const lx=makeLabel('x','#8b95c2'); lx.position.copy(AXES.X.clone().multiplyScalar(R*1.4)); g.add(lx);
+  const ly=makeLabel('y','#8b95c2'); ly.position.copy(AXES.Y.clone().multiplyScalar(R*1.4)); g.add(ly);
+  return g;
+}
+
+function buildStateGroup(){
+  const g=new THREE.Group();
+  g.add(buildSphere());
+  arrow=new THREE.ArrowHelper(blochVec(theta,phi),new THREE.Vector3(0,0,0),R,0xffc24b,0.42,0.26);
+  arrow.line.material.linewidth=3;
+  g.add(arrow);
+  tipDot=new THREE.Mesh(new THREE.SphereGeometry(0.09,20,20),
+    new THREE.MeshBasicMaterial({color:0xffc24b}));
+  g.add(tipDot);
+
+  // measurement helpers (hidden until measure mode)
+  measAxisLine=axisLine(AXES.Z,0x7ee08a); measAxisLine.material.opacity=.85; measAxisLine.visible=false;
+  g.add(measAxisLine);
+  const glow=(c)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(0.16,20,20),
+    new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.55})); m.visible=false; return m;};
+  measGlowUp=glow(0x7ee08a); measGlowDn=glow(0x7ee08a);
+  g.add(measGlowUp); g.add(measGlowDn);
+  return g;
+}
+
+function buildTwistGroup(){
+  const g=new THREE.Group(); g.visible=false;
+  g.add(buildSphere());
+  // a body "token": an arrow that rotates about the vertical axis
+  twistArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(0,0,0),R*0.92,0xffc24b,0.42,0.26);
+  g.add(twistArrow);
+  // a fixed reference arrow (where it started)
+  twistRef=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(0,0,0),R*0.92,0x4a5594,0.34,0.2);
+  twistRef.line.material.transparent=true; twistRef.line.material.opacity=.6;
+  g.add(twistRef);
+  // twisting ribbon (rebuilt each frame)
+  const geom=new THREE.BufferGeometry();
+  ribbon=new THREE.Mesh(geom,new THREE.MeshBasicMaterial({color:0xffc24b,transparent:true,opacity:.32,side:THREE.DoubleSide}));
+  g.add(ribbon);
+  return g;
+}
+
+function updateRibbon(gamma){
+  const M=60, w=0.34, top=R, bot=-R;
+  const pos=[], idx=[];
+  for(let i=0;i<=M;i++){
+    const t=i/M, y=bot+(top-bot)*t, tw=gamma*t;
+    const dx=Math.cos(tw)*w, dz=Math.sin(tw)*w;
+    pos.push(-dx,y,-dz,  dx,y,dz);
+  }
+  for(let i=0;i<M;i++){
+    const a=i*2;
+    idx.push(a,a+1,a+2,  a+1,a+3,a+2);
+  }
+  const g=ribbon.geometry;
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx); g.computeVertexNormals();
+}
+
+/* ---------- updates ---------- */
+function updateStateVector(){
+  const v=blochVec(theta,phi);
+  arrow.setDirection(v);
+  tipDot.position.copy(v.clone().multiplyScalar(R));
+  // readout
+  const a=Math.cos(theta/2), b=Math.sin(theta/2);
+  document.getElementById('k-a').textContent=a.toFixed(2);
+  document.getElementById('k-b').textContent=b.toFixed(2);
+  document.getElementById('k-ph').innerHTML=' e<sup>i·'+Math.round(phi/DEG)+'°</sup>';
+  const pUp=a*a, pDn=b*b;
+  setProb(pUp,pDn);
+}
+function setProb(pUp,pDn){
+  document.getElementById('p-up').textContent=Math.round(pUp*100)+'%';
+  document.getElementById('p-dn').textContent=Math.round(pDn*100)+'%';
+  document.getElementById('f-up').style.width=(pUp*100)+'%';
+  document.getElementById('f-dn').style.width=(pDn*100)+'%';
+}
+
+function probAlong(axis){
+  const s=blochVec(theta,phi), n=AXES[axis];
+  const pPlus=(1+s.dot(n))/2;
+  return pPlus;
+}
+function refreshMeasureHelpers(){
+  const n=AXES[curAxis];
+  measAxisLine.geometry.setFromPoints([n.clone().multiplyScalar(-R*1.28),n.clone().multiplyScalar(R*1.28)]);
+  measGlowUp.position.copy(n.clone().multiplyScalar(R));
+  measGlowDn.position.copy(n.clone().multiplyScalar(-R));
+  const p=probAlong(curAxis);
+  document.getElementById('t-theory').textContent=
+    '+ '+Math.round(p*100)+'%  ·  − '+Math.round((1-p)*100)+'%';
+}
+
+let tally={up:0,dn:0};
+function refreshTally(){
+  const tot=tally.up+tally.dn;
+  document.getElementById('t-total').textContent=tot;
+  document.getElementById('t-up').textContent=tally.up;
+  document.getElementById('t-dn').textContent=tally.dn;
+  document.getElementById('t-up-pct').textContent=tot?Math.round(tally.up/tot*100)+'%':'0%';
+  document.getElementById('t-dn-pct').textContent=tot?Math.round(tally.dn/tot*100)+'%':'0%';
+}
+
+function collapse(plus){
+  // snap the live state to ±axis
+  const n=AXES[curAxis].clone().multiplyScalar(plus?1:-1);
+  theta=Math.acos(Math.max(-1,Math.min(1,n.y)));
+  phi=Math.atan2(n.z,n.x); if(phi<0) phi+=Math.PI*2;
+  syncSliders(); updateStateVector(); refreshMeasureHelpers();
+}
+function doMeasure(){
+  const p=probAlong(curAxis), plus=Math.random()<p;
+  if(plus) tally.up++; else tally.dn++;
+  collapse(plus); refreshTally();
+  const o=document.getElementById('outcome');
+  o.innerHTML='Outcome: '+(plus?'<b class="up">+ (up)</b>':'<b class="dn">− (down)</b>')
+    +' along '+curAxis+'  ·  state collapsed';
+}
+function run100(){
+  const p=probAlong(curAxis);
+  for(let i=0;i<100;i++){ if(Math.random()<p) tally.up++; else tally.dn++; }
+  refreshTally();
+  document.getElementById('outcome').innerHTML='Ran 100 trials on the prepared state.';
+}
+
+/* twist mode */
+let autoSpin=false, gamma=0;
+function applyTwist(){
+  const g=gamma*DEG;
+  twistArrow.setDirection(new THREE.Vector3(Math.cos(g),0,Math.sin(g)));
+  updateRibbon(g);
+  document.getElementById('v-gamma').textContent=Math.round(gamma)+'°';
+  // spinor phase e^{-i gamma/2}
+  const ph=-g/2, re=Math.cos(ph), im=Math.sin(ph);
+  const hx=40*Math.cos(ph), hy=-40*Math.sin(ph); // svg y is down
+  document.getElementById('dial-hand').setAttribute('x2',hx.toFixed(1));
+  document.getElementById('dial-hand').setAttribute('y2',hy.toFixed(1));
+  document.getElementById('dial-dot').setAttribute('cx',hx.toFixed(1));
+  document.getElementById('dial-dot').setAttribute('cy',hy.toFixed(1));
+  const txt=(Math.abs(im)<0.01)? re.toFixed(2) : (re.toFixed(2)+(im<0?' − ':' + ')+Math.abs(im).toFixed(2)+'i');
+  document.getElementById('phase-val').textContent=txt;
+  const note=document.getElementById('twist-note');
+  if(gamma<5) note.innerHTML='At <b>0°</b> the object and its phase agree. Keep going to 360°, then 720°.';
+  else if(Math.abs(gamma-360)<6) note.innerHTML='<b style="color:var(--state)">360°.</b> The arrow is back where it started — but the phase is <b>−1</b>. The state is <em>not</em> the same.';
+  else if(gamma>=716) note.innerHTML='<b style="color:var(--meas)">720°.</b> Only now is the phase back to +1. A spin-½ state needs a double turn to truly return.';
+  else note.innerHTML='Body angle '+Math.round(gamma)+'° · phase has turned '+Math.round(gamma/2)+'°. The phase moves at half speed.';
+}
+
+/* ---------- sliders / modes ---------- */
+function syncSliders(){
+  document.getElementById('s-theta').value=Math.round(theta/DEG);
+  document.getElementById('s-phi').value=Math.round(phi/DEG);
+  document.getElementById('v-theta').textContent=Math.round(theta/DEG)+'°';
+  document.getElementById('v-phi').textContent=Math.round(phi/DEG)+'°';
+}
+function setMode(m){
+  mode=m;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.mode===m));
+  document.getElementById('pane-state').hidden=(m!=='state');
+  document.getElementById('pane-measure').hidden=(m!=='measure');
+  document.getElementById('pane-twist').hidden=(m!=='twist');
+  const measuring=(m==='measure');
+  measAxisLine.visible=measuring; measGlowUp.visible=measuring; measGlowDn.visible=measuring;
+  stateGroup.visible=(m!=='twist');
+  twistGroup.visible=(m==='twist');
+  if(measuring) refreshMeasureHelpers();
+  if(m==='twist') applyTwist();
+}
+
+/* ---------- camera orbit ---------- */
+function updateCamera(){
+  camPol=Math.max(0.2,Math.min(Math.PI-0.2,camPol));
+  camera.position.set(
+    camR*Math.sin(camPol)*Math.sin(camAz),
+    camR*Math.cos(camPol),
+    camR*Math.sin(camPol)*Math.cos(camAz));
+  camera.lookAt(0,0,0);
+}
+function initControls(){
+  let dragging=false, px=0, py=0;
+  const el=renderer.domElement;
+  el.addEventListener('pointerdown',e=>{dragging=true;px=e.clientX;py=e.clientY;el.setPointerCapture(e.pointerId);});
+  el.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    camAz-=(e.clientX-px)*0.006; camPol-=(e.clientY-py)*0.006;
+    px=e.clientX; py=e.clientY; updateCamera();
+  });
+  el.addEventListener('pointerup',()=>dragging=false);
+  el.addEventListener('pointercancel',()=>dragging=false);
+  el.addEventListener('wheel',e=>{e.preventDefault();camR=Math.max(4,Math.min(13,camR+e.deltaY*0.006));updateCamera();},{passive:false});
+}
+
+/* ---------- init ---------- */
+function init(){
+  stage=document.getElementById('stage');
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,100);
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  stage.appendChild(renderer.domElement);
+
+  stateGroup=buildStateGroup(); scene.add(stateGroup);
+  twistGroup=buildTwistGroup(); scene.add(twistGroup);
+
+  updateStateVector(); syncSliders(); updateCamera(); initControls();
+
+  // listeners
+  document.getElementById('s-theta').addEventListener('input',e=>{
+    theta=(+e.target.value)*DEG; document.getElementById('v-theta').textContent=e.target.value+'°';
+    updateStateVector(); if(mode==='measure') refreshMeasureHelpers();
+  });
+  document.getElementById('s-phi').addEventListener('input',e=>{
+    phi=(+e.target.value)*DEG; document.getElementById('v-phi').textContent=e.target.value+'°';
+    updateStateVector(); if(mode==='measure') refreshMeasureHelpers();
+  });
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>setMode(t.dataset.mode)));
+  document.querySelectorAll('#axis-seg button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#axis-seg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); curAxis=b.dataset.axis; refreshMeasureHelpers();
+  }));
+  document.getElementById('btn-measure').addEventListener('click',doMeasure);
+  document.getElementById('btn-100').addEventListener('click',run100);
+  document.getElementById('btn-reset').addEventListener('click',()=>{tally={up:0,dn:0};refreshTally();
+    document.getElementById('outcome').textContent='Tally cleared.';});
+  document.getElementById('s-gamma').addEventListener('input',e=>{gamma=+e.target.value;autoSpin=false;
+    document.getElementById('btn-spin').textContent='Auto-rotate';applyTwist();});
+  document.getElementById('btn-spin').addEventListener('click',e=>{
+    autoSpin=!autoSpin; e.target.textContent=autoSpin?'Pause':'Auto-rotate';});
+  document.getElementById('btn-gamma-reset').addEventListener('click',()=>{gamma=0;autoSpin=false;
+    document.getElementById('s-gamma').value=0;document.getElementById('btn-spin').textContent='Auto-rotate';applyTwist();});
+
+  addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+  animate();
+}
+function animate(){
+  requestAnimationFrame(animate);
+  if(mode==='twist'&&autoSpin&&!reduceMotion){
+    gamma=(gamma+1.1)%720.0001; if(gamma>720)gamma=720;
+    document.getElementById('s-gamma').value=Math.round(gamma); applyTwist();
+  }
+  renderer.render(scene,camera);
+}
+init();
+</script>
+</body>
+</html>

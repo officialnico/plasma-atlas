@@ -1,0 +1,563 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eqdsk anatomy</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Generate realistic 1D profiles
+function genProfile(n, type) {
+  const arr = [];
+  for (let i = 0; i < n; i++) {
+    const psiN = i / (n - 1); // 0 to 1
+    let val;
+    switch (type) {
+      case "pressure":
+        val = 2.63e6 * Math.pow(1 - psiN * psiN, 2); // Peaked, zero at edge
+        break;
+      case "fpol":
+        val = 5.6 - 0.3 * psiN * psiN; // Slowly decreasing
+        break;
+      case "ffprime":
+        val = -0.6 * psiN * (1 - psiN); // Negative, zero at axis and edge
+        break;
+      case "pprime":
+        val = -5.2e6 * (1 - psiN * psiN); // Negative (pressure decreases outward)
+        break;
+      case "q":
+        val = 0.95 + 0.05 * psiN + 0.5 * psiN * psiN + 2.7 * Math.pow(psiN, 4); // Monotonically increasing
+        break;
+      default:
+        val = 0;
+    }
+    arr.push(val);
+  }
+  return arr;
+}
+
+// Generate 2D psi grid
+function genPsi(nR, nZ) {
+  const grid = [];
+  const R0 = 1.15, a = 0.42, kappa = 1.75, delta = 0.40;
+  const Rmin = 0.60, Rmax = 1.80, Zmin = -1.0, Zmax = 1.0;
+  for (let j = 0; j < nZ; j++) {
+    const row = [];
+    for (let i = 0; i < nR; i++) {
+      const R = Rmin + i * (Rmax - Rmin) / (nR - 1);
+      const Z = Zmin + j * (Zmax - Zmin) / (nZ - 1);
+      const dRn = (R - R0) / a;
+      const dZn = Z / (a * kappa);
+      const triShift = -delta * dZn * dZn;
+      const rhoSq = (dRn - triShift) ** 2 + dZn ** 2;
+      const rho = Math.sqrt(rhoSq);
+      const psi = Math.min(rho + 0.08 * (R - R0) / a * rhoSq, 2.5);
+      // Convert to real units (Weber/rad)
+      row.push(psi * 0.85); // scale to ~0.85 Wb/rad at boundary
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+const N = 65;
+const pressure = genProfile(N, "pressure");
+const fpol = genProfile(N, "fpol");
+const ffprime = genProfile(N, "ffprime");
+const pprime = genProfile(N, "pprime");
+const qpsi = genProfile(N, "q");
+const psi2d = genPsi(N, N);
+
+const scalars = [
+  { name: "rdim", val: "1.200", unit: "m", desc: "Width of the grid in R" },
+  { name: "zdim", val: "2.000", unit: "m", desc: "Height of the grid in Z" },
+  { name: "rcentr", val: "1.150", unit: "m", desc: "R at center of grid" },
+  { name: "rgrid1", val: "0.600", unit: "m", desc: "R at left edge of grid" },
+  { name: "zmid", val: "0.000", unit: "m", desc: "Z at middle of grid" },
+  { name: "rmagx", val: "1.150", unit: "m", desc: "R of magnetic axis" },
+  { name: "zmagx", val: "0.000", unit: "m", desc: "Z of magnetic axis" },
+  { name: "simagx", val: "0.000", unit: "Wb/rad", desc: "ψ at magnetic axis" },
+  { name: "sibdry", val: "0.850", unit: "Wb/rad", desc: "ψ at plasma boundary" },
+  { name: "bcentr", val: "12.20", unit: "T", desc: "Vacuum toroidal field at rcentr" },
+  { name: "cpasma", val: "8.7E+06", unit: "A", desc: "Total plasma current" },
+];
+
+const sections = [
+  {
+    id: "scalars",
+    label: "Header Scalars",
+    count: "11 numbers",
+    desc: "Single values that describe the grid setup and key reference points. These come first in the file, right after the description line.",
+  },
+  {
+    id: "fpol",
+    label: "fpol(ψ)",
+    count: "65 numbers",
+    desc: "f = R × B_toroidal at each flux surface. This encodes how the toroidal field varies across the plasma. Slowly decreasing from center to edge because the field is stronger on the inboard side.",
+    data: fpol,
+    unit: "T·m",
+    yLabel: "f = R·Btor",
+  },
+  {
+    id: "pressure",
+    label: "pressure(ψ)",
+    count: "65 numbers",
+    desc: "Plasma pressure at each flux surface in Pascals. Hot and dense in the center (~2.6 MPa), dropping to basically zero at the edge. This is T×n that we talked about.",
+    data: pressure,
+    unit: "Pa",
+    yLabel: "Pressure",
+  },
+  {
+    id: "ffprime",
+    label: "ff'(ψ)",
+    count: "65 numbers",
+    desc: "f times the derivative of f with respect to ψ. This is one of the two source terms on the right side of the Grad-Shafranov equation. Related to the current distribution.",
+    data: ffprime,
+    unit: "T²·m²/(Wb/rad)",
+    yLabel: "ff'",
+  },
+  {
+    id: "pprime",
+    label: "P'(ψ)",
+    count: "65 numbers",
+    desc: "Derivative of pressure with respect to ψ. The other source term in the Grad-Shafranov equation. Negative because pressure decreases as ψ increases (moving outward).",
+    data: pprime,
+    unit: "Pa/(Wb/rad)",
+    yLabel: "P'",
+  },
+  {
+    id: "psi2d",
+    label: "ψ(R,Z) grid",
+    count: "65 × 65 = 4,225 numbers",
+    desc: "THE main data. Poloidal magnetic flux at every grid point. This is the 2D map that encodes the entire magnetic geometry. Everything else could technically be derived from this.",
+  },
+  {
+    id: "qpsi",
+    label: "q(ψ)",
+    count: "65 numbers",
+    desc: "Safety factor at each flux surface. Starts near 1 at the center, rises to ~4 at the edge. Tells you how twisted the field lines are — how many long laps per short lap.",
+    data: qpsi,
+    unit: "",
+    yLabel: "q",
+  },
+  {
+    id: "boundary",
+    label: "Boundary + Wall",
+    count: "~89 + ~25 (R,Z) pairs",
+    desc: "The plasma boundary contour and the physical wall contour. Just lists of (R,Z) coordinate pairs. The boundary is where ψ = sibdry.",
+  },
+];
+
+function MiniPlot({ data, yLabel, unit, color = "#4ecdc4", width = 380, height = 180 }) {
+  if (!data) return null;
+  const pad = { l: 55, r: 15, t: 10, b: 30 };
+  const pw = width - pad.l - pad.r;
+  const ph = height - pad.t - pad.b;
+  const minV = Math.min(...data);
+  const maxV = Math.max(...data);
+  const range = maxV - minV || 1;
+
+  const points = data.map((v, i) => {
+    const x = pad.l + (i / (data.length - 1)) * pw;
+    const y = pad.t + ph - ((v - minV) / range) * ph;
+    return `${x},${y}`;
+  }).join(" ");
+
+  const formatNum = (v) => {
+    if (Math.abs(v) >= 1e5 || (Math.abs(v) < 0.01 && v !== 0)) return v.toExponential(1);
+    if (Math.abs(v) >= 100) return v.toFixed(0);
+    if (Math.abs(v) >= 1) return v.toFixed(2);
+    return v.toFixed(3);
+  };
+
+  return (
+    <svg width={width} height={height} style={{ display: "block" }}>
+      <rect x={pad.l} y={pad.t} width={pw} height={ph} fill="#080c12" stroke="#1e2630" />
+      <polyline points={points} fill="none" stroke={color} strokeWidth={2} />
+      {/* Y axis labels */}
+      <text x={pad.l - 5} y={pad.t + 10} textAnchor="end" fill="#5c6a7a" fontSize={9}>{formatNum(maxV)}</text>
+      <text x={pad.l - 5} y={pad.t + ph} textAnchor="end" fill="#5c6a7a" fontSize={9}>{formatNum(minV)}</text>
+      <text x={pad.l - 5} y={pad.t + ph / 2 + 3} textAnchor="end" fill="#7a8a9a" fontSize={10}>{yLabel}</text>
+      {/* X axis */}
+      <text x={pad.l} y={height - 5} fill="#5c6a7a" fontSize={9}>ψ=0 (center)</text>
+      <text x={pad.l + pw} y={height - 5} textAnchor="end" fill="#5c6a7a" fontSize={9}>ψ=1 (edge)</text>
+      {/* Grid point markers every 16 */}
+      {data.filter((_, i) => i % 16 === 0).map((v, idx) => {
+        const i = idx * 16;
+        const x = pad.l + (i / (data.length - 1)) * pw;
+        const y = pad.t + ph - ((v - minV) / range) * ph;
+        return <circle key={i} cx={x} cy={y} r={3} fill={color} opacity={0.7} />;
+      })}
+    </svg>
+  );
+}
+
+function PsiHeatmap({ grid, width = 380, height = 380 }) {
+  const n = grid.length;
+  const pad = { l: 35, r: 10, t: 10, b: 30 };
+  const pw = width - pad.l - pad.r;
+  const ph = height - pad.t - pad.b;
+  const cellW = pw / n;
+  const cellH = ph / n;
+
+  const maxPsi = 0.85 * 2.5;
+  const psiColor = (psi) => {
+    const norm = psi / 0.85;
+    if (norm > 1.0) {
+      const t = Math.min(1, (norm - 1.0) / 1.5);
+      return `rgb(${Math.round(10 + t * 5)},${Math.round(15 + t * 5)},${Math.round(25 + t * 10)})`;
+    }
+    const t = Math.max(0, Math.min(1, norm));
+    return `rgb(${Math.round(8 + t * 15)},${Math.round(210 - t * 170)},${Math.round(210 - t * 90)})`;
+  };
+
+  // Sample every 4th point for performance
+  const step = 2;
+  const rects = [];
+  for (let j = 0; j < n; j += step) {
+    for (let i = 0; i < n; i += step) {
+      rects.push(
+        <rect
+          key={`${i}-${j}`}
+          x={pad.l + i * cellW}
+          y={pad.t + (n - 1 - j) * cellH}
+          width={cellW * step + 1}
+          height={cellH * step + 1}
+          fill={psiColor(grid[j][i])}
+        />
+      );
+    }
+  }
+
+  return (
+    <svg width={width} height={height} style={{ display: "block" }}>
+      <rect x={pad.l} y={pad.t} width={pw} height={ph} fill="#080c12" />
+      {rects}
+      <text x={pad.l} y={height - 5} fill="#5c6a7a" fontSize={9}>R=0.6m</text>
+      <text x={pad.l + pw} y={height - 5} textAnchor="end" fill="#5c6a7a" fontSize={9}>R=1.8m</text>
+      <text x={pad.l - 3} y={pad.t + 10} textAnchor="end" fill="#5c6a7a" fontSize={9}>Z=1.0</text>
+      <text x={pad.l - 3} y={pad.t + ph} textAnchor="end" fill="#5c6a7a" fontSize={9}>Z=-1.0</text>
+    </svg>
+  );
+}
+
+function RawNumbers({ data, label, perLine = 5, maxLines = 4 }) {
+  if (!data) return null;
+  const lines = [];
+  for (let i = 0; i < Math.min(data.length, perLine * maxLines); i += perLine) {
+    const chunk = data.slice(i, i + perLine);
+    lines.push(chunk.map(v => {
+      const s = v.toExponential(9).toUpperCase();
+      return (v >= 0 ? " " : "") + s.replace("E+", "E+").replace("E-", "E-");
+    }).join(""));
+  }
+  if (data.length > perLine * maxLines) {
+    lines.push(`  ... (${data.length - perLine * maxLines} more values)`);
+  }
+  return (
+    <pre style={{
+      fontSize: 10,
+      color: "#6a8a7a",
+      background: "#060a0e",
+      padding: "8px 10px",
+      borderRadius: 4,
+      margin: "8px 0 0 0",
+      overflow: "auto",
+      lineHeight: 1.5,
+    }}>
+      <span style={{ color: "#3a5a4a" }}>{'// ' + label + ' (' + data.length + ' values, shown ' + perLine + ' per line)\n'}</span>
+      {lines.join("\n")}
+    </pre>
+  );
+}
+
+function EQDSKStructure() {
+  const [active, setActive] = useState("scalars");
+  const section = sections.find(s => s.id === active);
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          INSIDE THE EQDSK FILE
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 4px", letterSpacing: 1 }}>
+          EVERY PIECE OF DATA, EXACTLY AS THE CODE READS IT
+        </p>
+        <p style={{ fontSize: 11, color: "#3a4a5a", margin: "0 0 16px" }}>
+          Source: github.com/bendudson/pyTokamak — geqdsk.py read() function
+        </p>
+
+        {/* File structure overview */}
+        <div style={{
+          display: "flex",
+          gap: 2,
+          marginBottom: 16,
+          flexWrap: "wrap",
+        }}>
+          {sections.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setActive(s.id)}
+              style={{
+                padding: "8px 10px",
+                background: active === s.id ? "#1a2a3a" : "#12171f",
+                border: active === s.id ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: active === s.id ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 10,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                fontWeight: active === s.id ? 700 : 400,
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content area */}
+        <div style={{
+          background: "#12171f",
+          borderRadius: 6,
+          border: "1px solid #1e2630",
+          overflow: "hidden",
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: "14px 20px",
+            background: "#1a2a3a",
+            borderBottom: "1px solid #1e2630",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <div>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#4ecdc4" }}>{section.label}</span>
+              <span style={{ fontSize: 11, color: "#5c6a7a", marginLeft: 12 }}>{section.count}</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#3a4a5a" }}>
+              {sections.findIndex(s => s.id === active) + 1} / {sections.length} in file order
+            </div>
+          </div>
+
+          <div style={{ padding: "16px 20px" }}>
+            <p style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.7, margin: "0 0 16px" }}>
+              {section.desc}
+            </p>
+
+            {/* Scalars */}
+            {active === "scalars" && (
+              <div>
+                {scalars.map((s, i) => (
+                  <div key={i} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "6px 0",
+                    borderBottom: i < scalars.length - 1 ? "1px solid #1a2030" : "none",
+                    gap: 12,
+                  }}>
+                    <code style={{
+                      fontSize: 12,
+                      color: "#4ecdc4",
+                      fontWeight: 700,
+                      minWidth: 70,
+                    }}>{s.name}</code>
+                    <code style={{
+                      fontSize: 13,
+                      color: "#e6ecf2",
+                      minWidth: 90,
+                      textAlign: "right",
+                    }}>{s.val}</code>
+                    <span style={{ fontSize: 10, color: "#5c6a7a", minWidth: 55 }}>{s.unit}</span>
+                    <span style={{ fontSize: 11, color: "#7a8a9a" }}>{s.desc}</span>
+                  </div>
+                ))}
+                <pre style={{
+                  fontSize: 10,
+                  color: "#6a8a7a",
+                  background: "#060a0e",
+                  padding: "8px 10px",
+                  borderRadius: 4,
+                  marginTop: 12,
+                  lineHeight: 1.5,
+                }}>
+                  <span style={{ color: "#3a5a4a" }}>{'// As it appears in the file (5 values per line):\n'}</span>
+{` 1.200000000E+00 2.000000000E+00 1.150000000E+00 6.000000000E-01 0.000000000E+00
+ 1.150000000E+00 0.000000000E+00 0.000000000E+00 8.500000000E-01 1.220000000E+01
+ 8.700000000E+06 0.000000000E+00 0.000000000E+00 1.150000000E+00 0.000000000E+00
+ 0.000000000E+00 0.000000000E+00 8.500000000E-01 0.000000000E+00 0.000000000E+00`}
+                </pre>
+              </div>
+            )}
+
+            {/* 1D profiles */}
+            {section.data && (
+              <div>
+                <MiniPlot data={section.data} yLabel={section.yLabel} unit={section.unit} />
+                <RawNumbers data={section.data} label={section.label} />
+              </div>
+            )}
+
+            {/* 2D psi grid */}
+            {active === "psi2d" && (
+              <div>
+                <PsiHeatmap grid={psi2d} />
+                <pre style={{
+                  fontSize: 10,
+                  color: "#6a8a7a",
+                  background: "#060a0e",
+                  padding: "8px 10px",
+                  borderRadius: 4,
+                  marginTop: 8,
+                  lineHeight: 1.5,
+                  overflow: "auto",
+                }}>
+                  <span style={{ color: "#3a5a4a" }}>{'// 4,225 values written row by row, 5 per line = 845 lines\n'}</span>
+{` ${psi2d[0].slice(0, 5).map(v => (v >= 0 ? " " : "") + v.toExponential(9).toUpperCase()).join("")}
+ ${psi2d[0].slice(5, 10).map(v => (v >= 0 ? " " : "") + v.toExponential(9).toUpperCase()).join("")}
+ ${psi2d[0].slice(10, 15).map(v => (v >= 0 ? " " : "") + v.toExponential(9).toUpperCase()).join("")}
+  ... (4,210 more values)`}
+                </pre>
+              </div>
+            )}
+
+            {/* Boundary */}
+            {active === "boundary" && (
+              <div>
+                <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>
+                      Plasma boundary — {89} (R,Z) pairs
+                    </div>
+                    <pre style={{
+                      fontSize: 10,
+                      color: "#6a8a7a",
+                      background: "#060a0e",
+                      padding: "8px 10px",
+                      borderRadius: 4,
+                      lineHeight: 1.5,
+                    }}>
+{`nbdry = 89
+ 1.570000E+00  0.000000E+00
+ 1.565000E+00  5.200000E-02
+ 1.551000E+00  1.030000E-01
+ 1.528000E+00  1.520000E-01
+ 1.497000E+00  1.980000E-01
+ 1.458000E+00  2.400000E-01
+ ...
+ 1.458000E+00 -2.400000E-01
+ 1.497000E+00 -1.980000E-01
+ 1.528000E+00 -1.520000E-01
+ 1.551000E+00 -1.030000E-01
+ 1.565000E+00 -5.200000E-02
+ 1.570000E+00  0.000000E+00`}
+                    </pre>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontSize: 11, color: "#c9b87c", fontWeight: 700, marginBottom: 6 }}>
+                      Wall / limiter — {25} (R,Z) pairs
+                    </div>
+                    <pre style={{
+                      fontSize: 10,
+                      color: "#8a7a6a",
+                      background: "#060a0e",
+                      padding: "8px 10px",
+                      borderRadius: 4,
+                      lineHeight: 1.5,
+                    }}>
+{`nlim = 25
+ 1.680000E+00  0.000000E+00
+ 1.670000E+00  2.000000E-01
+ 1.640000E+00  4.000000E-01
+ 1.580000E+00  5.800000E-01
+ 1.480000E+00  7.200000E-01
+ 1.350000E+00  8.100000E-01
+ ...
+ 1.350000E+00 -8.100000E-01
+ 1.480000E+00 -7.200000E-01
+ 1.580000E+00 -5.800000E-01
+ 1.640000E+00 -4.000000E-01
+ 1.670000E+00 -2.000000E-01
+ 1.680000E+00  0.000000E+00`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* File order summary */}
+        <div style={{
+          marginTop: 16,
+          padding: 16,
+          background: "#12171f",
+          borderRadius: 6,
+          border: "1px solid #1e2630",
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+            Complete file layout in order
+          </div>
+          <div style={{ fontSize: 11, color: "#7a8a9a", lineHeight: 2.0 }}>
+            {[
+              { name: "Header line", size: "1 line", detail: "description, idum, nx, ny" },
+              { name: "Scalars", size: "20 numbers", detail: "rdim, zdim, rcentr, rgrid1, zmid, rmagx, zmagx, simagx, sibdry, bcentr, cpasma + duplicates + padding zeros" },
+              { name: "fpol(ψ)", size: "65 numbers", detail: "f = R·Btor on uniform ψ grid" },
+              { name: "pressure(ψ)", size: "65 numbers", detail: "P in Pascals on uniform ψ grid" },
+              { name: "ff'(ψ)", size: "65 numbers", detail: "workk1 — ff' on uniform ψ grid" },
+              { name: "P'(ψ)", size: "65 numbers", detail: "workk2 — dP/dψ on uniform ψ grid" },
+              { name: "ψ(R,Z)", size: "4,225 numbers", detail: "the 2D poloidal flux grid — THE main data" },
+              { name: "q(ψ)", size: "65 numbers", detail: "safety factor on uniform ψ grid" },
+              { name: "nbdry, nlim", size: "2 integers", detail: "number of boundary and wall points" },
+              { name: "boundary", size: "~178 numbers", detail: "89 (R,Z) pairs tracing plasma edge" },
+              { name: "wall", size: "~50 numbers", detail: "25 (R,Z) pairs tracing physical wall" },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: "flex",
+                gap: 10,
+                padding: "2px 0",
+                borderLeft: item.name === "ψ(R,Z)" ? "2px solid #4ecdc4" : "2px solid #1e2630",
+                paddingLeft: 10,
+              }}>
+                <span style={{
+                  color: item.name === "ψ(R,Z)" ? "#4ecdc4" : "#5c6a7a",
+                  minWidth: 90,
+                  fontWeight: item.name === "ψ(R,Z)" ? 700 : 400,
+                }}>{item.name}</span>
+                <span style={{ color: "#3a4a5a", minWidth: 100 }}>{item.size}</span>
+                <span style={{ color: "#5c6a7a" }}>{item.detail}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{
+            marginTop: 12,
+            fontSize: 12,
+            color: "#4a5a6a",
+            padding: "8px 12px",
+            background: "#0a0e14",
+            borderRadius: 4,
+          }}>
+            Total: ~4,575 floating-point numbers + 2 integers + 1 header line = one complete tokamak equilibrium in ~100 KB of ASCII text
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EQDSKStructure));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

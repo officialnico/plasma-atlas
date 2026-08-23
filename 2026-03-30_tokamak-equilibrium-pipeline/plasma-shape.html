@@ -1,0 +1,339 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>plasma shape</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function PlasmaShape() {
+  const [kappa, setKappa] = useState(1.75);
+  const [delta, setDelta] = useState(0.40);
+  const [shift, setShift] = useState(0.05);
+  const [R0_geo, setR0] = useState(1.15);
+  const [a, setA] = useState(0.42);
+
+  const svgW = 420, svgH = 460;
+  const cx = svgW / 2, cy = svgH / 2;
+  const scale = 130;
+
+  const R0 = R0_geo + shift; // magnetic axis shifted outward
+  const aspectRatio = R0_geo / a;
+  const asin_d = Math.asin(Math.max(-0.9, Math.min(0.9, delta)));
+
+  // Generate plasma boundary
+  function getContour(scl = 1.0, nPts = 200) {
+    const pts = [];
+    for (let t = 0; t <= nPts; t++) {
+      const theta = (2 * Math.PI * t) / nPts;
+      const r = a * scl;
+      const R = R0 + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Z = kappa * r * Math.sin(theta);
+      pts.push({ R, Z });
+    }
+    return pts;
+  }
+
+  // SVG transform: center the plasma in the view
+  const toX = (R) => cx + (R - R0_geo) * scale;
+  const toY = (Z) => cy - Z * scale;
+
+  const boundary = getContour(1.0);
+  const boundaryPath = boundary.map((p, i) =>
+    `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`
+  ).join(" ") + " Z";
+
+  // Inner surfaces
+  const innerPaths = [0.2, 0.4, 0.6, 0.8].map(s => {
+    const pts = getContour(s);
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`).join(" ") + " Z";
+  });
+
+  // Circle for comparison
+  const circlePath = Array.from({ length: 201 }, (_, t) => {
+    const theta = (2 * Math.PI * t) / 200;
+    const R = R0_geo + a * Math.cos(theta);
+    const Z = a * Math.sin(theta);
+    return `${t === 0 ? "M" : "L"} ${toX(R)} ${toY(Z)}`;
+  }).join(" ") + " Z";
+
+  // Measurement lines
+  const topPoint = boundary.reduce((best, p) => p.Z > best.Z ? p : best, boundary[0]);
+  const bottomPoint = boundary.reduce((best, p) => p.Z < best.Z ? p : best, boundary[0]);
+  const rightPoint = boundary.reduce((best, p) => p.R > best.R ? p : best, boundary[0]);
+  const leftPoint = boundary.reduce((best, p) => p.R < best.R ? p : best, boundary[0]);
+
+  const fullHeight = topPoint.Z - bottomPoint.Z;
+  const fullWidth = rightPoint.R - leftPoint.R;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          PLASMA SHAPE
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          DRAG THE SLIDERS TO RESHAPE THE PLASMA
+        </p>
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {/* SVG */}
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 8,
+            flexShrink: 0,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" rx={4} />
+
+              {/* Reference circle (what it would look like with no shaping) */}
+              <path d={circlePath} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={1} strokeDasharray="4,4" />
+
+              {/* Inner surfaces */}
+              {innerPaths.map((d, i) => (
+                <path key={i} d={d} fill="none" stroke="rgba(78,205,196,0.15)" strokeWidth={0.8} />
+              ))}
+
+              {/* Plasma boundary */}
+              <path d={boundaryPath} fill="rgba(78,205,196,0.06)" stroke="#4ecdc4" strokeWidth={2.5} />
+
+              {/* Geometric center */}
+              <circle cx={toX(R0_geo)} cy={toY(0)} r={3} fill="none" stroke="#5c6a7a" strokeWidth={1} strokeDasharray="2,2" />
+
+              {/* Magnetic axis */}
+              <circle cx={toX(R0)} cy={toY(0)} r={5} fill="none" stroke="#ff6b6b" strokeWidth={2} />
+              <circle cx={toX(R0)} cy={toY(0)} r={2} fill="#ff6b6b" />
+
+              {/* === ELONGATION measurement === */}
+              {/* Vertical line: full height */}
+              <line x1={toX(R0) + 60} y1={toY(topPoint.Z)} x2={toX(R0) + 60} y2={toY(bottomPoint.Z)}
+                stroke="#c9b87c" strokeWidth={1.5} />
+              <line x1={toX(R0) + 55} y1={toY(topPoint.Z)} x2={toX(R0) + 65} y2={toY(topPoint.Z)}
+                stroke="#c9b87c" strokeWidth={1.5} />
+              <line x1={toX(R0) + 55} y1={toY(bottomPoint.Z)} x2={toX(R0) + 65} y2={toY(bottomPoint.Z)}
+                stroke="#c9b87c" strokeWidth={1.5} />
+              <text x={toX(R0) + 72} y={toY(0) - 5} fill="#c9b87c" fontSize={9} fontWeight={600}>
+                height
+              </text>
+              <text x={toX(R0) + 72} y={toY(0) + 7} fill="#c9b87c" fontSize={9}>
+                {fullHeight.toFixed(2)}m
+              </text>
+
+              {/* Horizontal line: full width */}
+              <line x1={toX(leftPoint.R)} y1={toY(0) + 50} x2={toX(rightPoint.R)} y2={toY(0) + 50}
+                stroke="#c9b87c" strokeWidth={1.5} />
+              <line x1={toX(leftPoint.R)} y1={toY(0) + 45} x2={toX(leftPoint.R)} y2={toY(0) + 55}
+                stroke="#c9b87c" strokeWidth={1.5} />
+              <line x1={toX(rightPoint.R)} y1={toY(0) + 45} x2={toX(rightPoint.R)} y2={toY(0) + 55}
+                stroke="#c9b87c" strokeWidth={1.5} />
+              <text x={(toX(leftPoint.R) + toX(rightPoint.R)) / 2} y={toY(0) + 66}
+                textAnchor="middle" fill="#c9b87c" fontSize={9}>
+                width {fullWidth.toFixed(2)}m
+              </text>
+
+              {/* === TRIANGULARITY measurement === */}
+              {/* Line from geometric center to top point R */}
+              <line x1={toX(R0_geo)} y1={toY(topPoint.Z)} x2={toX(topPoint.R)} y2={toY(topPoint.Z)}
+                stroke="#c9a3f5" strokeWidth={1.5} strokeDasharray="4,3" />
+              <circle cx={toX(topPoint.R)} cy={toY(topPoint.Z)} r={4} fill="#c9a3f5" />
+              <circle cx={toX(R0_geo)} cy={toY(topPoint.Z)} r={3} fill="none" stroke="#5c6a7a" strokeWidth={1} />
+              {delta > 0.05 && (
+                <text x={(toX(R0_geo) + toX(topPoint.R)) / 2} y={toY(topPoint.Z) - 8}
+                  textAnchor="middle" fill="#c9a3f5" fontSize={8}>
+                  top shifted {delta > 0 ? "inboard" : "outboard"}
+                </text>
+              )}
+
+              {/* === SHAFRANOV SHIFT === */}
+              {shift > 0.01 && (
+                <>
+                  <line x1={toX(R0_geo)} y1={toY(0)} x2={toX(R0)} y2={toY(0)}
+                    stroke="#ff6b6b" strokeWidth={1.5} />
+                  <text x={(toX(R0_geo) + toX(R0)) / 2} y={toY(0) - 10}
+                    textAnchor="middle" fill="#ff6b6b" fontSize={8}>
+                    shift = {shift.toFixed(2)}m
+                  </text>
+                </>
+              )}
+
+              {/* Labels */}
+              <text x={15} y={20} fill="#5c6a7a" fontSize={9}>Dashed circle = no shaping (κ=1, δ=0)</text>
+              <text x={15} y={svgH - 10} fill="#3a4a5a" fontSize={8}>
+                R₀={R0_geo.toFixed(2)} · a={a.toFixed(2)} · κ={kappa.toFixed(2)} · δ={delta.toFixed(2)} · shift={shift.toFixed(2)}m · A={aspectRatio.toFixed(1)}
+              </text>
+            </svg>
+          </div>
+
+          {/* Controls and info */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            {/* Aspect ratio display */}
+            <div style={{
+              padding: 10, background: "#1a2a3a", borderRadius: 6,
+              border: "1px solid #4ecdc4", marginBottom: 10,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span style={{ fontSize: 10, color: "#4ecdc4" }}>Aspect ratio R₀/a</span>
+              <span style={{ fontSize: 16, color: "#e6ecf2", fontWeight: 700 }}>{aspectRatio.toFixed(1)}</span>
+              <span style={{ fontSize: 9, color: "#5c6a7a" }}>
+                {aspectRatio < 1.8 ? "spherical" : aspectRatio < 2.5 ? "tight" : aspectRatio < 3.5 ? "conventional" : "large"}
+              </span>
+            </div>
+
+            {/* Major radius */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#8ab4f8", fontWeight: 700 }}>Major radius R₀</span>
+                <span style={{ fontSize: 13, color: "#e6ecf2", fontWeight: 700 }}>{R0_geo.toFixed(2)} m</span>
+              </div>
+              <input type="range" min={50} max={650} value={R0_geo * 100}
+                onChange={e => setR0(Number(e.target.value) / 100)}
+                style={{ width: "100%", accentColor: "#8ab4f8" }}
+              />
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4, lineHeight: 1.7 }}>
+                Distance from the central axis to the geometric center of the plasma. How big the donut is. SPARC ≈ 1.85m, ITER ≈ 6.2m. Bigger machine = more plasma = more fusion power, but also more expensive.
+              </div>
+            </div>
+
+            {/* Minor radius */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>Minor radius a</span>
+                <span style={{ fontSize: 13, color: "#e6ecf2", fontWeight: 700 }}>{a.toFixed(2)} m</span>
+              </div>
+              <input type="range" min={15} max={250} value={a * 100}
+                onChange={e => setA(Number(e.target.value) / 100)}
+                style={{ width: "100%", accentColor: "#4ecdc4" }}
+              />
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4, lineHeight: 1.7 }}>
+                Half-width of the plasma cross-section. How fat the donut tube is. This is the "a" in all the shape equations. Height = 2 × a × κ = {(2 * a * kappa).toFixed(2)}m. Width = 2 × a = {(2 * a).toFixed(2)}m.
+              </div>
+            </div>
+
+            {/* Elongation */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#c9b87c", fontWeight: 700 }}>Elongation κ</span>
+                <span style={{ fontSize: 13, color: "#e6ecf2", fontWeight: 700 }}>{kappa.toFixed(2)}</span>
+              </div>
+              <input type="range" min={100} max={250} value={kappa * 100}
+                onChange={e => setKappa(Number(e.target.value) / 100)}
+                style={{ width: "100%", accentColor: "#c9b87c" }}
+              />
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4, lineHeight: 1.7 }}>
+                How tall vs wide. κ=1 is a circle. κ=1.75 means 75% taller than wide. Most tokamaks use κ = 1.6-2.0. Taller = more plasma volume in the same magnetic field = better performance.
+              </div>
+            </div>
+
+            {/* Triangularity */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#c9a3f5", fontWeight: 700 }}>Triangularity δ</span>
+                <span style={{ fontSize: 13, color: "#e6ecf2", fontWeight: 700 }}>{delta.toFixed(2)}</span>
+              </div>
+              <input type="range" min={-60} max={70} value={delta * 100}
+                onChange={e => setDelta(Number(e.target.value) / 100)}
+                style={{ width: "100%", accentColor: "#c9a3f5" }}
+              />
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4, lineHeight: 1.7 }}>
+                How D-shaped. δ=0 is symmetric. Positive δ means the top and bottom are shifted inboard (toward central axis) — the standard D-shape. Negative δ is the reversed D — an active research area. Drag it negative to see.
+              </div>
+            </div>
+
+            {/* Shafranov shift */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "#ff6b6b", fontWeight: 700 }}>Shafranov shift</span>
+                <span style={{ fontSize: 13, color: "#e6ecf2", fontWeight: 700 }}>{shift.toFixed(2)} m</span>
+              </div>
+              <input type="range" min={0} max={15} value={shift * 100}
+                onChange={e => setShift(Number(e.target.value) / 100)}
+                style={{ width: "100%", accentColor: "#ff6b6b" }}
+              />
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4, lineHeight: 1.7 }}>
+                How far the magnetic center (red dot) is pushed outward from the geometric center (dashed circle). Caused by plasma pressure — higher pressure pushes the core outward more. Not something you directly control — it's a consequence of the pressure profile.
+              </div>
+            </div>
+
+            {/* Presets */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                Real machine shapes
+              </div>
+              {[
+                { name: "SPARC", k: 1.75, d: 0.40, s: 0.05, r0: 1.85, aa: 0.57, desc: "High-field compact" },
+                { name: "ITER", k: 1.85, d: 0.48, s: 0.06, r0: 6.20, aa: 2.00, desc: "Large conventional" },
+                { name: "NSTX (spherical)", k: 2.20, d: 0.50, s: 0.10, r0: 0.85, aa: 0.67, desc: "Tight aspect ratio" },
+                { name: "Circle (no shaping)", k: 1.00, d: 0.00, s: 0.00, r0: 1.50, aa: 0.50, desc: "Early tokamaks" },
+                { name: "Negative-δ", k: 1.40, d: -0.40, s: 0.04, r0: 1.85, aa: 0.57, desc: "TCV/DIII-D experiments" },
+              ].map(p => (
+                <button key={p.name}
+                  onClick={() => { setKappa(p.k); setDelta(p.d); setShift(p.s); setR0(p.r0); setA(p.aa); }}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left",
+                    padding: "6px 10px", marginBottom: 3,
+                    background: "#0a0e14", border: "1px solid #1e2630",
+                    borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 600 }}>{p.name}</span>
+                  <span style={{ fontSize: 9, color: "#3a4a5a", marginLeft: 8 }}>
+                    R₀={p.r0} a={p.aa} κ={p.k} δ={p.d}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* What goes in the file */}
+            <div style={{
+              padding: 12, background: "rgba(78,205,196,0.05)",
+              borderRadius: 6, border: "1px solid rgba(78,205,196,0.15)",
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                In the EQDSK file
+              </div>
+              <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 1.8 }}>
+                κ, δ, and shift aren't stored directly. The boundary is stored as ~89 (R,Z) points tracing the edge. You could calculate κ and δ from those points, but the file just has the raw coordinates. The shape is implicit in the ψ grid — contour lines of constant ψ reveal the shape at every surface, not just the boundary.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PlasmaShape));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

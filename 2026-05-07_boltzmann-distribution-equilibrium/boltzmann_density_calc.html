@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boltzmann Density · Step by Step</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg-2: #14141c;
+  --paper: #f8f4ea;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --pe: #e85d3c;
+  --kT: #b39ddb;
+  --result: #ffd54f;
+  --density: #4ab8d8;
+  --rule: rgba(248, 244, 234, 0.12);
+  --paper-line: rgba(26, 20, 16, 0.15);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--paper);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 20%, rgba(74, 184, 216, 0.07), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 75% 85%, rgba(232, 93, 60, 0.05), transparent 60%),
+    var(--bg);
+}
+
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 36px 28px 60px;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 22px;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--density);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--density);
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  max-width: 22ch;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--density);
+}
+
+.sub {
+  margin-top: 14px;
+  font-size: 14.5px;
+  color: var(--ink-dim);
+  line-height: 1.7;
+  max-width: 64ch;
+}
+.sub strong { color: var(--paper); font-weight: 400; }
+
+/* ---------- LAYOUT ---------- */
+.lab {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 980px) {
+  .lab { grid-template-columns: 1fr; }
+}
+
+/* ---------- LEFT: Inputs + visualization ---------- */
+.inputs-panel {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.panel-header .num { color: var(--result); }
+
+.panel-body {
+  padding: 24px;
+}
+
+.input-block {
+  margin-bottom: 26px;
+}
+.input-block:last-child { margin-bottom: 0; }
+
+.input-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.input-label .what { color: var(--paper); }
+.input-label.pe .what { color: var(--pe); }
+.input-label.kT .what { color: var(--kT); }
+
+.input-value {
+  font-family: 'Fraunces', serif;
+  font-size: 30px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+.input-value.pe { color: var(--pe); }
+.input-value.kT { color: var(--kT); }
+.input-value .unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin-left: 6px;
+  letter-spacing: 0.1em;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].pe-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--pe);
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].pe-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--pe);
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].kT-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--kT);
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].kT-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--kT);
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Mini visualization */
+.viz {
+  margin-top: 24px;
+  border-top: 1px dashed var(--rule);
+  padding-top: 20px;
+}
+.viz-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 10px;
+}
+#vizCanvas {
+  width: 100%;
+  height: 200px;
+  display: block;
+  background: rgba(248, 244, 234, 0.02);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+/* Quick presets */
+.presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-top: 1px solid var(--rule);
+}
+.preset-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+.preset-btn:hover {
+  background: var(--paper);
+  color: var(--bg);
+  border-color: var(--paper);
+}
+
+/* ---------- RIGHT: Calc panel ---------- */
+.calc {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+}
+
+.calc-header {
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--paper-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.calc-header .label {
+  color: var(--density);
+  font-weight: 600;
+}
+
+.calc-body {
+  padding: 22px;
+  flex: 1;
+}
+
+.formula-step {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--paper-line);
+}
+.formula-step:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.step-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+}
+.step-label .nm {
+  display: inline-block;
+  width: 18px;
+  color: var(--density);
+  font-weight: 600;
+}
+
+.formula-line {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.formula-line .var { font-weight: 500; }
+.formula-line .pe-c {
+  color: var(--pe);
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 17px;
+}
+.formula-line .kT-c {
+  color: #6e5aa3;
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 17px;
+}
+.formula-line .ratio {
+  color: var(--ink);
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 17px;
+}
+.formula-line .equals {
+  color: var(--ink-dim);
+  font-style: normal;
+  padding: 0 8px;
+}
+.formula-line .op {
+  color: var(--ink-dim);
+  font-style: normal;
+  padding: 0 4px;
+}
+
+.note-line {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-top: 8px;
+  font-style: italic;
+}
+.note-line strong { color: var(--ink); font-style: normal; font-weight: 500; }
+
+/* Final result */
+.result-block {
+  padding: 22px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.result-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--density);
+  margin-bottom: 6px;
+}
+.result-value {
+  font-family: 'Fraunces', serif;
+  font-size: 38px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.result-value .ratio-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-right: 8px;
+  letter-spacing: 0.1em;
+  vertical-align: middle;
+}
+.result-value .multiplier {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  color: var(--ink-dim);
+  margin-left: 10px;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+.result-meaning {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.65;
+  font-style: italic;
+}
+.result-meaning strong { color: var(--paper); font-weight: 400; font-style: normal; }
+.result-meaning em { color: var(--density); font-style: italic; }
+
+/* ---------- Quick lookup table ---------- */
+.lookup {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 28px;
+  margin-bottom: 28px;
+}
+.lookup h2 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  margin-bottom: 16px;
+  color: var(--paper);
+}
+.lookup p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+  margin-bottom: 18px;
+  max-width: 70ch;
+}
+.lookup p strong { color: var(--paper); font-weight: 400; }
+
+.lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.lookup-table th {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-dim);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.lookup-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.lookup-table tr:last-child td { border-bottom: none; }
+.lookup-table tr.highlight { background: rgba(255, 213, 79, 0.06); }
+.lookup-table tr.highlight td { color: var(--result); }
+.lookup-table .pos { color: var(--pe); }
+.lookup-table .neg { color: var(--density); }
+
+/* ---------- Closing notes ---------- */
+.closing {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 28px;
+}
+.closing h2 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  margin-bottom: 14px;
+  color: var(--paper);
+}
+.closing p {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-dim);
+  margin-bottom: 12px;
+  max-width: 70ch;
+}
+.closing p:last-child { margin-bottom: 0; }
+.closing strong { color: var(--paper); font-weight: 400; }
+.closing em { color: var(--density); font-style: italic; }
+.closing code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--density);
+  background: rgba(74, 184, 216, 0.08);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">interactive worked example · density</div>
+    <h1>Boltzmann density,<br><em>line by line</em>.</h1>
+    <p class="sub">
+      You set the potential energy U at some location and the thermal energy k<sub>B</sub>T.
+      The panel on the right shows how n/n₀ — the density at that location, relative to bulk —
+      gets computed step by step. Watch what happens when you make the well deeper.
+    </p>
+  </header>
+
+  <div class="lab">
+
+    <!-- LEFT: inputs + viz -->
+    <div class="inputs-panel">
+      <div class="panel-header">
+        <span><span class="num">inputs</span> &nbsp; · &nbsp; set U and k<sub>B</sub>T</span>
+      </div>
+
+      <div class="panel-body">
+
+        <div class="input-block">
+          <div class="input-label pe">
+            <span class="what">U · potential energy at this point</span>
+            <span style="color: var(--ink-dim); font-size: 9px;">drag to change</span>
+          </div>
+          <div class="input-value pe">
+            <span id="peVal">−2.0</span><span class="unit">eV</span>
+          </div>
+          <input type="range" id="peSlider" class="pe-slider" min="-15" max="15" step="0.1" value="-2">
+        </div>
+
+        <div class="input-block">
+          <div class="input-label kT">
+            <span class="what">k<sub>B</sub>T · thermal energy</span>
+            <span style="color: var(--ink-dim); font-size: 9px;">drag to change</span>
+          </div>
+          <div class="input-value kT">
+            <span id="kTVal">1.0</span><span class="unit">eV</span>
+          </div>
+          <input type="range" id="kTSlider" class="kT-slider" min="0.1" max="5" step="0.05" value="1">
+        </div>
+
+        <div class="viz">
+          <div class="viz-label">↓ density profile · current point marked</div>
+          <canvas id="vizCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="presets">
+        <button class="preset-btn" data-pe="-1" data-kT="1">U = −1, k<sub>B</sub>T = 1</button>
+        <button class="preset-btn" data-pe="-3" data-kT="1">U = −3, k<sub>B</sub>T = 1</button>
+        <button class="preset-btn" data-pe="-5" data-kT="1">U = −5, k<sub>B</sub>T = 1</button>
+        <button class="preset-btn" data-pe="-10" data-kT="1">U = −10, k<sub>B</sub>T = 1</button>
+        <button class="preset-btn" data-pe="2" data-kT="1">U = +2 (hill)</button>
+        <button class="preset-btn" data-pe="-3" data-kT="3">deeper but hotter</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: calc -->
+    <div class="calc">
+      <div class="calc-header">
+        <span class="label">live calculation</span>
+        &nbsp;·&nbsp; n(x) = n₀ · exp(−U/k<sub>B</sub>T)
+      </div>
+
+      <div class="calc-body">
+
+        <!-- Step A -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">A</span> the formula</div>
+          <div class="formula-line">
+            <span class="var">n(x)</span> <span class="equals">=</span> <span class="var">n₀</span> <span class="op">·</span> exp<span class="op">(</span>−<span class="var">U</span> / <span class="var">k<sub>B</sub>T</span><span class="op">)</span>
+          </div>
+          <div class="note-line">
+            <strong>n₀</strong> is the reference bulk density (where U = 0). We're computing how much
+            the local density differs from that reference.
+          </div>
+        </div>
+
+        <!-- Step B: plug in -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">B</span> plug in your values</div>
+          <div class="formula-line">
+            <span class="var">U</span> <span class="equals">=</span> <span id="bU" class="pe-c">−2.0 eV</span>
+          </div>
+          <div class="formula-line" style="margin-top: 6px;">
+            <span class="var">k<sub>B</sub>T</span> <span class="equals">=</span> <span id="bkT" class="kT-c">1.0 eV</span>
+          </div>
+        </div>
+
+        <!-- Step C: form the ratio -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">C</span> form the ratio U / k<sub>B</sub>T</div>
+          <div class="formula-line">
+            <span id="cU" class="pe-c">−2.0</span> <span class="op">/</span> <span id="ckT" class="kT-c">1.0</span> <span class="equals">=</span> <span id="cRatio" class="ratio">−2.0</span>
+          </div>
+          <div class="note-line">
+            This is the <strong>dimensionless number</strong> at the heart of Boltzmann statistics.
+            It asks: <em>how many thermal-energy-units tall (or deep) is this hill?</em>
+          </div>
+        </div>
+
+        <!-- Step D: negate -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">D</span> apply the minus sign</div>
+          <div class="formula-line">
+            <span class="op">−</span><span class="var">(U / k<sub>B</sub>T)</span> <span class="equals">=</span> <span id="dNeg" class="ratio">+2.0</span>
+          </div>
+          <div class="note-line">
+            Negative U (well) becomes a <em>positive</em> exponent → density rises.
+            Positive U (hill) becomes a <em>negative</em> exponent → density falls.
+          </div>
+        </div>
+
+        <!-- Step E: exponentiate -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">E</span> exponentiate</div>
+          <div class="formula-line">
+            exp<span class="op">(</span><span id="eExp" class="ratio">+2.0</span><span class="op">)</span> <span class="equals">=</span> <span id="eResult" class="ratio">7.39</span>
+          </div>
+          <div class="note-line" id="eNote">
+            <strong>e²·⁰ ≈ 7.39</strong> — every additional unit in the exponent multiplies by another factor of e ≈ 2.72.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Final result -->
+      <div class="result-block">
+        <div class="result-label">→ density relative to bulk</div>
+        <div class="result-value">
+          <span class="ratio-label">n / n₀ =</span>
+          <span id="nRatio">7.39</span>
+          <span class="multiplier" id="multLabel">≈ 7× bulk</span>
+        </div>
+        <div class="result-meaning" id="meaning">
+          drag the sliders to see what happens...
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Lookup table -->
+  <div class="lookup">
+    <h2>The exponential, in a single table</h2>
+    <p>
+      This is what makes the Boltzmann formula so dramatic.
+      <strong>The exponent depends on U/k<sub>B</sub>T linearly, but the density depends on it exponentially.</strong>
+      Each row below is one additional unit of well depth — and density grows by a factor of e ≈ 2.72 each step.
+    </p>
+    <table class="lookup-table">
+      <thead>
+        <tr>
+          <th>U / k<sub>B</sub>T</th>
+          <th>−U / k<sub>B</sub>T (exponent)</th>
+          <th>exp(−U/k<sub>B</sub>T) = n/n₀</th>
+          <th>plain-English meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="pos">+5</td><td>−5</td><td>0.0067</td><td>tall hill — density crashes, &lt; 1% of bulk</td></tr>
+        <tr><td class="pos">+2</td><td>−2</td><td>0.135</td><td>short hill — about 14% of bulk</td></tr>
+        <tr><td class="pos">+1</td><td>−1</td><td>0.368</td><td>tiny hill — about 37% of bulk</td></tr>
+        <tr class="highlight"><td>0</td><td>0</td><td>1.000</td><td>flat — bulk density (the reference)</td></tr>
+        <tr><td class="neg">−1</td><td>+1</td><td>2.72</td><td>shallow well — density nearly triples</td></tr>
+        <tr><td class="neg">−2</td><td>+2</td><td>7.39</td><td>modest well — 7× bulk</td></tr>
+        <tr><td class="neg">−5</td><td>+5</td><td>148</td><td>deep well — 148× bulk</td></tr>
+        <tr><td class="neg">−10</td><td>+10</td><td>22,026</td><td>very deep — 22,000× bulk</td></tr>
+        <tr><td class="neg">−20</td><td>+20</td><td>4.85 × 10⁸</td><td>absurdly deep — half a billion × bulk</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Closing -->
+  <div class="closing">
+    <h2>Why this answers your "spike" question</h2>
+    <p>
+      The density spike at the bottom of the well comes from <strong>nothing more than this exponential function</strong>.
+      The formula <code>n = n₀ · exp(−U/k<sub>B</sub>T)</code> has no competing geometric factors —
+      unlike the speed distribution, where v² suppresses things at v = 0.
+      So as U dives below zero, the exponent climbs above zero, and exp() runs away with it.
+    </p>
+    <p>
+      Concretely: every additional <em>k<sub>B</sub>T</em> of depth = one additional factor of e ≈ 2.72 in density.
+      That's why "moderately bound" states (a few k<sub>B</sub>T deep) give modest enhancement,
+      while "strongly bound" states (10+ k<sub>B</sub>T deep) give astronomical pile-ups
+      — the kind of pile-up that makes molecules stable, screens electric fields in plasmas,
+      and explains why atmospheres thin out as you go up but don't disappear.
+    </p>
+    <p>
+      The clearest takeaway: <strong>Boltzmann's formula is brutally sensitive to the ratio U/k<sub>B</sub>T</strong>,
+      and only that ratio. Two systems with completely different physical scales — eV-scale plasma vs. meV-scale
+      molecular thermal motion — give the same density profile if their U/k<sub>B</sub>T ratios match.
+      The exponent is what does all the work.
+    </p>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const peSlider = document.getElementById('peSlider');
+const kTSlider = document.getElementById('kTSlider');
+const peVal = document.getElementById('peVal');
+const kTVal = document.getElementById('kTVal');
+
+const bU = document.getElementById('bU');
+const bkT = document.getElementById('bkT');
+const cU = document.getElementById('cU');
+const ckT = document.getElementById('ckT');
+const cRatio = document.getElementById('cRatio');
+const dNeg = document.getElementById('dNeg');
+const eExp = document.getElementById('eExp');
+const eResult = document.getElementById('eResult');
+const eNote = document.getElementById('eNote');
+const nRatio = document.getElementById('nRatio');
+const multLabel = document.getElementById('multLabel');
+const meaning = document.getElementById('meaning');
+
+const canvas = document.getElementById('vizCanvas');
+const ctx = canvas.getContext('2d');
+
+function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: rect.width, h: rect.height };
+}
+
+let dim = setupCanvas();
+window.addEventListener('resize', () => { dim = setupCanvas(); update(); });
+
+function fmtNum(n) {
+  const a = Math.abs(n);
+  if (a === 0) return '0';
+  if (a >= 1e6 || a < 0.001) {
+    // scientific
+    const exp = Math.floor(Math.log10(a));
+    const mantissa = n / Math.pow(10, exp);
+    return `${mantissa.toFixed(2)} × 10${supExp(exp)}`;
+  }
+  if (a >= 1000) return n.toFixed(0);
+  if (a >= 100) return n.toFixed(1);
+  if (a >= 10) return n.toFixed(2);
+  if (a >= 1) return n.toFixed(3);
+  return n.toFixed(3);
+}
+function supExp(n) {
+  const map = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+  return String(n).split('').map(c => map[c] || c).join('');
+}
+
+function fmtSign(n, decimals = 2) {
+  const sign = n >= 0 ? '+' : '−';
+  return sign + Math.abs(n).toFixed(decimals);
+}
+function fmtMaybeSign(n, decimals = 2) {
+  if (n < 0) return '−' + Math.abs(n).toFixed(decimals);
+  return n.toFixed(decimals);
+}
+
+function update() {
+  const U = parseFloat(peSlider.value);
+  const kT = parseFloat(kTSlider.value);
+  const ratio = U / kT;
+  const negRatio = -ratio;
+  const expVal = Math.exp(negRatio);
+
+  // Update inputs display
+  peVal.textContent = U >= 0 ? '+' + U.toFixed(1) : '−' + Math.abs(U).toFixed(1);
+  kTVal.textContent = kT.toFixed(2);
+
+  // Step B
+  bU.textContent = (U >= 0 ? '+' : '−') + Math.abs(U).toFixed(1) + ' eV';
+  bkT.textContent = kT.toFixed(2) + ' eV';
+
+  // Step C
+  cU.textContent = U >= 0 ? '+' + U.toFixed(1) : '−' + Math.abs(U).toFixed(1);
+  ckT.textContent = kT.toFixed(2);
+  cRatio.textContent = ratio >= 0 ? '+' + ratio.toFixed(3) : '−' + Math.abs(ratio).toFixed(3);
+
+  // Step D
+  dNeg.textContent = negRatio >= 0 ? '+' + negRatio.toFixed(3) : '−' + Math.abs(negRatio).toFixed(3);
+
+  // Step E
+  eExp.textContent = negRatio >= 0 ? '+' + negRatio.toFixed(2) : '−' + Math.abs(negRatio).toFixed(2);
+  eResult.textContent = fmtNum(expVal);
+
+  // E note
+  if (expVal > 1) {
+    eNote.innerHTML = `<strong>e^${negRatio.toFixed(2)} ≈ ${fmtNum(expVal)}</strong> — density is <em style="color: var(--density); font-style:italic;">enhanced</em> at this point because U is below the bulk reference.`;
+  } else if (expVal < 1) {
+    eNote.innerHTML = `<strong>e^(${negRatio.toFixed(2)}) ≈ ${fmtNum(expVal)}</strong> — density is <em style="color: var(--pe); font-style:italic;">suppressed</em> because U is above the bulk reference.`;
+  } else {
+    eNote.innerHTML = `<strong>e⁰ = 1</strong> — at U = 0 the local density is exactly the bulk density n₀.`;
+  }
+
+  // Final result
+  nRatio.textContent = fmtNum(expVal);
+
+  // Multiplier label
+  if (expVal >= 100) multLabel.textContent = '≈ ' + Math.round(expVal).toLocaleString() + '× bulk';
+  else if (expVal >= 10) multLabel.textContent = '≈ ' + expVal.toFixed(0) + '× bulk';
+  else if (expVal >= 2) multLabel.textContent = '≈ ' + expVal.toFixed(1) + '× bulk';
+  else if (expVal >= 0.5) multLabel.textContent = '≈ ' + Math.round(expVal * 100) + '% of bulk';
+  else if (expVal >= 0.01) multLabel.textContent = '≈ ' + (expVal * 100).toFixed(1) + '% of bulk';
+  else multLabel.textContent = 'far below bulk';
+
+  // Meaning
+  if (expVal >= 1000) {
+    meaning.innerHTML = `<strong>Massive pile-up.</strong> This is a deep well — particles cluster here so densely that bulk-density approximations break down. <em>This is the regime of strong binding.</em>`;
+  } else if (expVal >= 50) {
+    meaning.innerHTML = `<strong>Strong enhancement.</strong> Many times more particles here than in the bulk. The well is several thermal energies deep.`;
+  } else if (expVal >= 5) {
+    meaning.innerHTML = `<strong>Clear enhancement.</strong> Particles meaningfully prefer this location over the bulk. Typical of a moderate potential well.`;
+  } else if (expVal >= 1.2) {
+    meaning.innerHTML = `<strong>Mild enhancement.</strong> The well is shallow compared to thermal energy — particles slightly prefer this spot.`;
+  } else if (expVal >= 0.8) {
+    meaning.innerHTML = `<strong>Nearly bulk.</strong> Whatever U is, it's tiny compared to k<sub>B</sub>T — thermal motion dominates and density is close to n₀.`;
+  } else if (expVal >= 0.1) {
+    meaning.innerHTML = `<strong>Suppressed.</strong> Particles avoid this spot — it's an energy hill they'd rather not climb.`;
+  } else {
+    meaning.innerHTML = `<strong>Strongly suppressed.</strong> The hill is many thermal energies tall; particles essentially never make it up here. <em>This is how Debye screening works.</em>`;
+  }
+
+  drawViz(U, kT);
+}
+
+// Visualization: density profile through a parabolic well centered at user's U
+function drawViz(U_here, kT) {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+  const w = dim.w, h = dim.h;
+  const padL = 36, padR = 14, padT = 14, padB = 24;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  // We plot n(x)/n_0 vs U(x) where U(x) ranges over [-15, 15]
+  const Umin = -15, Umax = 15;
+  const xToU = x => Umin + (x / plotW) * (Umax - Umin);
+  const UToX = U => ((U - Umin) / (Umax - Umin)) * plotW;
+
+  // Compute max for scaling
+  // Use a soft cap so the plot is readable
+  const maxVal = Math.min(50, Math.exp(15 / kT));
+  const yScale = plotH / maxVal;
+
+  // Background: positive (hill) side and negative (well) side
+  ctx.fillStyle = 'rgba(232, 93, 60, 0.04)';
+  ctx.fillRect(padL + UToX(0), padT, plotW - UToX(0), plotH);
+  ctx.fillStyle = 'rgba(74, 184, 216, 0.05)';
+  ctx.fillRect(padL, padT, UToX(0), plotH);
+
+  // Axes
+  ctx.strokeStyle = 'rgba(248, 244, 234, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT);
+  ctx.lineTo(padL, padT + plotH);
+  ctx.lineTo(padL + plotW, padT + plotH);
+  ctx.stroke();
+
+  // n_0 reference line at exp(0) = 1
+  const refY = padT + plotH - 1 * yScale;
+  if (refY > padT && refY < padT + plotH) {
+    ctx.strokeStyle = 'rgba(248, 244, 234, 0.25)';
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, refY);
+    ctx.lineTo(padL + plotW, refY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(248, 244, 234, 0.5)';
+    ctx.font = "9px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'left';
+    ctx.fillText('n₀', padL + 4, refY - 4);
+  }
+
+  // U = 0 vertical
+  const zeroX = padL + UToX(0);
+  ctx.strokeStyle = 'rgba(248, 244, 234, 0.2)';
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  ctx.moveTo(zeroX, padT);
+  ctx.lineTo(zeroX, padT + plotH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // The exponential curve
+  ctx.strokeStyle = 'rgba(74, 184, 216, 0.95)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  let started = false;
+  for (let px = 0; px <= plotW; px += 2) {
+    const U = xToU(px);
+    const v = Math.exp(-U / kT);
+    const y = padT + plotH - Math.min(plotH - 2, v * yScale);
+    if (!started) { ctx.moveTo(padL + px, y); started = true; }
+    else ctx.lineTo(padL + px, y);
+  }
+  ctx.stroke();
+
+  // Marker at user's current U
+  const userX = padL + UToX(U_here);
+  const userVal = Math.exp(-U_here / kT);
+  const userY = padT + plotH - Math.min(plotH - 2, userVal * yScale);
+
+  // Vertical drop line
+  ctx.strokeStyle = 'rgba(255, 213, 79, 0.7)';
+  ctx.setLineDash([2, 3]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(userX, padT + plotH);
+  ctx.lineTo(userX, userY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Dot
+  ctx.fillStyle = '#ffd54f';
+  ctx.beginPath();
+  ctx.arc(userX, userY, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0a0a0f';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = 'rgba(248, 244, 234, 0.6)';
+  ctx.font = "9px 'JetBrains Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.fillText('U →', padL + plotW - 12, padT + plotH + 14);
+  ctx.fillText('−15', padL + 8, padT + plotH + 14);
+  ctx.fillText('0', padL + UToX(0), padT + plotH + 14);
+  ctx.fillText('+15', padL + plotW - 12, padT + plotH + 14);
+
+  ctx.save();
+  ctx.translate(12, padT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('n / n₀', 0, 0);
+  ctx.restore();
+
+  // Side annotations
+  ctx.fillStyle = 'rgba(74, 184, 216, 0.6)';
+  ctx.font = "9px 'JetBrains Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.fillText('WELL ←', padL + UToX(-8), padT + 16);
+  ctx.fillStyle = 'rgba(232, 93, 60, 0.6)';
+  ctx.fillText('→ HILL', padL + UToX(8), padT + 16);
+}
+
+// Wire up
+peSlider.addEventListener('input', update);
+kTSlider.addEventListener('input', update);
+
+// Presets
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    peSlider.value = btn.dataset.pe;
+    kTSlider.value = btn.dataset.kT;
+    update();
+  });
+});
+
+update();
+</script>
+
+</body>
+</html>

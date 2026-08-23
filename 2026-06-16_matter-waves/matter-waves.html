@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What's Actually Waving</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#080b11;
+    --panel:#0f141d;
+    --panel-2:#131a25;
+    --line:#1e2733;
+    --ink:#e9eef5;
+    --ink-dim:#8493a6;
+    --ink-faint:#56616f;
+    --cyan:#4fe3c1;
+    --cyan-glow:rgba(79,227,193,.45);
+    --amber:#ffb35c;
+    --amber-glow:rgba(255,179,92,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* faint phosphor grid backdrop */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:48px 48px;
+    opacity:.16;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 75%);
+    -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 75%);
+  }
+  .wrap{position:relative;z-index:1;max-width:880px;margin:0 auto;padding:0 24px}
+
+  /* ---------- HERO ---------- */
+  header{padding:clamp(90px,16vh,160px) 0 clamp(50px,8vh,90px)}
+  .eyebrow{
+    font-family:"JetBrains Mono",monospace;
+    font-size:.72rem;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--cyan);margin-bottom:26px;
+  }
+  h1{
+    font-family:"Fraunces",serif;font-weight:500;
+    font-size:clamp(2.7rem,8.5vw,5.4rem);
+    line-height:.98;letter-spacing:-.015em;
+    margin-bottom:28px;
+  }
+  h1 em{font-style:italic;color:var(--cyan)}
+  .lede{
+    font-size:clamp(1.05rem,2.4vw,1.28rem);
+    color:var(--ink-dim);max-width:62ch;
+  }
+  .lede strong{color:var(--ink);font-weight:500}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:clamp(48px,9vh,96px) 0;border-top:1px solid var(--line)}
+  .sec-eyebrow{
+    font-family:"JetBrains Mono",monospace;
+    font-size:.72rem;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--ink-faint);margin-bottom:18px;
+  }
+  .sec-eyebrow b{color:var(--cyan);font-weight:500}
+  h2{
+    font-family:"Fraunces",serif;font-weight:500;
+    font-size:clamp(1.9rem,4.6vw,2.9rem);
+    line-height:1.05;letter-spacing:-.01em;margin-bottom:22px;
+  }
+  p{max-width:64ch;color:var(--ink-dim);margin-bottom:18px;font-size:1.04rem}
+  p strong{color:var(--ink);font-weight:500}
+  .cy{color:var(--cyan)}
+  .am{color:var(--amber)}
+
+  .equation{
+    font-family:"Fraunces",serif;font-size:clamp(1.7rem,4vw,2.4rem);
+    text-align:center;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:30px 20px 22px;margin:30px 0;
+  }
+  .equation .cap{
+    display:block;font-family:"JetBrains Mono",monospace;
+    font-size:.72rem;letter-spacing:.12em;color:var(--ink-faint);
+    margin-top:14px;
+  }
+
+  /* ---------- INTERACTIVE PANELS ---------- */
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:18px;margin:30px 0 8px;
+  }
+  canvas{display:block;width:100%;border-radius:8px}
+  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;margin-top:18px}
+  .ctl{display:flex;flex-direction:column;gap:7px;flex:1 1 220px;min-width:200px}
+  .ctl label{
+    font-family:"JetBrains Mono",monospace;font-size:.66rem;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);
+  }
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:3px;
+    background:var(--line);border-radius:3px;outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:var(--cyan);border:3px solid var(--bg);
+    box-shadow:0 0 12px var(--cyan-glow);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px;height:14px;border-radius:50%;background:var(--cyan);
+    border:3px solid var(--bg);box-shadow:0 0 12px var(--cyan-glow);cursor:pointer;
+  }
+  input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid var(--ink);outline-offset:2px}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  button{
+    font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.06em;
+    color:var(--ink-dim);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:8px;
+    padding:8px 13px;cursor:pointer;transition:.15s;
+  }
+  button:hover{color:var(--ink);border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan-glow)}
+  button.active{color:var(--bg);background:var(--cyan);border-color:var(--cyan)}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .iconbtn{padding:8px 11px;line-height:1}
+
+  .readout{
+    display:flex;flex-wrap:wrap;gap:10px 28px;margin-top:16px;
+    padding-top:16px;border-top:1px solid var(--line);
+    font-family:"JetBrains Mono",monospace;
+  }
+  .readout .item{display:flex;flex-direction:column;gap:3px}
+  .readout .k{font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint)}
+  .readout .v{font-size:1.05rem;color:var(--cyan)}
+  .readout .v.am{color:var(--amber)}
+  .note{font-size:.82rem;color:var(--ink-faint);margin-top:14px;font-family:"JetBrains Mono",monospace;letter-spacing:.02em}
+
+  .pull{
+    font-family:"Fraunces",serif;font-style:italic;font-weight:400;
+    font-size:clamp(1.3rem,3.2vw,1.8rem);line-height:1.3;
+    color:var(--ink);max-width:24ch;margin:36px 0;
+    border-left:2px solid var(--cyan);padding-left:24px;
+  }
+  footer{
+    border-top:1px solid var(--line);padding:48px 0 90px;
+    font-family:"JetBrains Mono",monospace;font-size:.74rem;
+    letter-spacing:.06em;color:var(--ink-faint);
+  }
+  @media (max-width:560px){
+    .ctl{flex:1 1 100%}
+    .pull{padding-left:18px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Phase, not stuff</div>
+    <h1>Nothing is<br><em>actually jiggling.</em></h1>
+    <p class="lede">A water wave is water moving up and down. A sound wave is air squeezing. A matter wave is <strong>neither</strong> — what waves is an abstract angle that winds around as the particle travels. You can never picture it as the thing wobbling. But you can watch the angle. Here it is.</p>
+  </header>
+
+  <!-- ============ SECTION 01: THE PHASOR ============ -->
+  <section>
+    <div class="sec-eyebrow"><b>01</b> &nbsp;/&nbsp; The rotating arrow</div>
+    <h2>One full turn per wavelength</h2>
+    <p>Strap a tiny spinning arrow to the particle. As it travels, the arrow rotates — and the distance it covers for <strong>one complete turn</strong> is the wavelength. That's the whole definition. The arrow's height as it spins traces out the wave below it. Nothing is moving up and down; the <span class="cy">arrow</span> is just winding around.</p>
+
+    <div class="equation">
+      &lambda; = h / p
+      <span class="cap">wavelength = planck's constant ÷ momentum</span>
+    </div>
+
+    <p>Momentum sets the spin rate. Crank it up and the arrow winds tighter — shorter wavelength. It was never about going <em>fast</em>; a heavy thing has huge momentum even when slow, so its arrow spins into a blur. Drag the slider, or drop in a real particle.</p>
+
+    <div class="panel">
+      <canvas id="scope" height="300"></canvas>
+      <div class="controls">
+        <div class="ctl" style="flex:1 1 260px">
+          <label for="mom">Momentum &nbsp;p&nbsp; (low → high)</label>
+          <input type="range" id="mom" min="0" max="1000" value="0">
+        </div>
+        <div class="presets" id="presets">
+          <button data-p="5.0e-24" class="active">Electron</button>
+          <button data-p="9.18e-21">Proton</button>
+          <button data-p="5.8">Baseball</button>
+        </div>
+        <button id="scope-play" class="iconbtn" aria-label="pause animation">❚❚</button>
+      </div>
+      <div class="readout">
+        <div class="item"><span class="k">momentum</span><span class="v" id="r-p">—</span></div>
+        <div class="item"><span class="k">wavelength (real)</span><span class="v am" id="r-l">—</span></div>
+        <div class="item"><span class="k">compared to an atom</span><span class="v" id="r-cmp" style="color:var(--ink-dim)">—</span></div>
+      </div>
+      <div class="note">On-screen arrow spacing is log-compressed so it stays visible — the real wavelength is the number above.</div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 02: INTERFERENCE ============ -->
+  <section>
+    <div class="sec-eyebrow"><b>02</b> &nbsp;/&nbsp; Why that counts as a wave</div>
+    <h2>Two arrows, added</h2>
+    <p>A spinning arrow only earns the word "wave" because of what happens when you give the particle <strong>two ways</strong> to reach the same spot. Each path delivers its own arrow. Line them up: pointing the <span class="cy">same way</span> they reinforce — a bright spot. Pointing <span class="am">opposite</span> they cancel to nothing — darkness. That adding-and-cancelling is interference, the fingerprint of a wave, and it's the phase doing every bit of it.</p>
+
+    <div class="panel">
+      <canvas id="slit" height="340"></canvas>
+      <div class="controls">
+        <div class="ctl" style="flex:1 1 100%">
+          <label for="det">Move the detector along the screen</label>
+          <input type="range" id="det" min="0" max="1000" value="500">
+        </div>
+      </div>
+      <div class="readout">
+        <div class="item"><span class="k">path difference</span><span class="v" id="r-delta">—</span></div>
+        <div class="item"><span class="k">arrows</span><span class="v am" id="r-state">—</span></div>
+        <div class="item"><span class="k">brightness</span><span class="v" id="r-bright">—</span></div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px">Slide through the screen and watch the two arrows scissor open and shut. Where they align, the fringe is bright; where they oppose, it goes dark. Same pattern you'd build firing electrons one at a time.</p>
+  </section>
+
+  <!-- ============ SECTION 03: THE BASEBALL ============ -->
+  <section>
+    <div class="sec-eyebrow"><b>03</b> &nbsp;/&nbsp; So, the baseball</div>
+    <h2>Real, and hopelessly scrambled</h2>
+    <p>Run the baseball through section 01 and its arrow spins so violently that one full turn takes about <strong>10<sup>−34</sup> metres</strong> — a hundred quintillion times smaller than a proton. The wave is genuinely there. The formula never switches off; it's the same one confirmed for electrons, then atoms, then molecules of thousands of atoms, each heavier than the last.</p>
+    <p>But the instant a baseball touches <em>anything</em> — air, light, your hand — that contact scrambles where the arrow points. You could never line up two clean arrows to watch them add or cancel. <strong>Same rulebook as the electron. Just the far, unobservable end of one continuous line.</strong></p>
+
+    <div class="pull">The universe doesn't keep two rulebooks — one for the tiny and one for the large. It keeps one, and the waviness is in there for everything.</div>
+
+    <p>And the honest floor: physicists predict the arrow's behaviour to absurd precision. But what the phase <em>is</em> — a physical thing out in the world, pure information, or something we lack the words for — nobody has settled. You didn't find a hole in your understanding. You found a hole in everyone's.</p>
+  </section>
+
+  <footer>
+    &lambda; = h / p &nbsp;·&nbsp; de Broglie, 1924 &nbsp;·&nbsp; drag the sliders, the physics is real
+  </footer>
+
+</div>
+
+<script>
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const H = 6.626e-34;
+const PMIN = 5.0e-24, PMAX = 5.8;
+const L10MIN = Math.log10(PMIN), L10MAX = Math.log10(PMAX);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+function fmtSci(x){
+  const e = Math.floor(Math.log10(x));
+  const m = x/Math.pow(10,e);
+  const sup = String(e).replace(/-/,'\u207B').replace(/[0-9]/g,d=>'\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079'[d]);
+  return m.toFixed(1)+' \u00D7 10'+sup+' m';
+}
+function fmtMom(p){
+  if(p>=0.1) return p.toFixed(1)+' kg\u00B7m/s';
+  return fmtSci(p).replace(' m',' kg\u00B7m/s');
+}
+function compareAtom(lam){
+  const atom = 1e-10;
+  if(lam>=3e-11 && lam<=4e-10) return ['\u2248 the width of an atom','var(--cyan)'];
+  if(lam<atom){
+    const f = atom/lam;
+    return [fmtBig(f)+'\u00D7 smaller than an atom','var(--ink-dim)'];
+  }
+  const f = lam/atom;
+  return [fmtBig(f)+'\u00D7 bigger than an atom','var(--ink-dim)'];
+}
+function fmtBig(f){
+  const e = Math.floor(Math.log10(f));
+  if(e<3) return Math.round(f).toLocaleString();
+  const sup = String(e).replace(/[0-9]/g,d=>'\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079'[d]);
+  return '10'+sup;
+}
+
+/* ============================ SCOPE ============================ */
+(function(){
+  const canvas = document.getElementById('scope');
+  const ctx = canvas.getContext('2d');
+  const momSlider = document.getElementById('mom');
+  const playBtn = document.getElementById('scope-play');
+  const presetWrap = document.getElementById('presets');
+  const rP=document.getElementById('r-p'), rL=document.getElementById('r-l'), rCmp=document.getElementById('r-cmp');
+
+  let W=0,Hh=0,dpr=1;
+  let p = 5.0e-24;
+  let dotX = 0;          // px offset along track
+  let playing = !reduceMotion;
+  let last = 0;
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio||1,2);
+    W = canvas.clientWidth; Hh = 300;
+    canvas.width = W*dpr; canvas.height = Hh*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  function tOf(p){ return (Math.log10(p)-L10MIN)/(L10MAX-L10MIN); }
+  function pOf(t){ return Math.pow(10, L10MIN + t*(L10MAX-L10MIN)); }
+  function screenLambda(p){
+    const t = clamp(tOf(p),0,1);
+    return 150*Math.pow(0.05,t);      // 150px (electron) -> 7.5px (baseball)
+  }
+  function trueLambda(p){ return H/p; }
+
+  function syncReadout(){
+    const lam = trueLambda(p);
+    rP.textContent = fmtMom(p);
+    rL.textContent = fmtSci(lam);
+    const [txt,col] = compareAtom(lam);
+    rCmp.textContent = txt; rCmp.style.color = col;
+    // preset highlighting
+    [...presetWrap.children].forEach(b=>{
+      b.classList.toggle('active', Math.abs(parseFloat(b.dataset.p)-p)/p < 0.02);
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,Hh);
+    const midY = Hh/2;
+    const cx = 66, R = 46, trackX0 = 150, trackX1 = W-22;
+    const trackW = trackX1 - trackX0;
+    const lam = screenLambda(p);
+    const lamTrue = trueLambda(p);
+    const classical = lamTrue < 1e-11;   // below ~0.1 angstrom -> looks solid
+
+    const dx = (dotX % trackW + trackW) % trackW;
+    const dotPx = trackX0 + dx;
+    const theta = 2*Math.PI*dx/lam;       // phase at the particle
+
+    // baseline
+    ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(trackX0,midY); ctx.lineTo(trackX1,midY); ctx.stroke();
+
+    if(!classical){
+      // ---- the wave (snapshot in space) ----
+      ctx.beginPath();
+      for(let x=trackX0;x<=trackX1;x+=1){
+        const y = midY - R*Math.sin(2*Math.PI*(x-trackX0)/lam);
+        x===trackX0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle='rgba(79,227,193,.28)'; ctx.lineWidth=2; ctx.stroke();
+
+      // ---- one-wavelength bracket ----
+      const by = 30;
+      ctx.strokeStyle='rgba(132,147,166,.5)'; ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(trackX0,by); ctx.lineTo(trackX0,by+6);
+      ctx.moveTo(trackX0,by+3); ctx.lineTo(trackX0+lam,by+3);
+      ctx.moveTo(trackX0+lam,by); ctx.lineTo(trackX0+lam,by+6);
+      ctx.stroke();
+      ctx.fillStyle='var(--ink-faint)'; ctx.fillStyle='#56616f';
+      ctx.font='11px "JetBrains Mono",monospace';
+      ctx.fillText('\u03BB  ·  one full turn of the arrow', trackX0+lam+12, by+7);
+
+      // ---- dashed projection line: arrow tip height = wave height under particle ----
+      const tipY = midY - R*Math.sin(theta);
+      ctx.setLineDash([3,4]);
+      ctx.strokeStyle='rgba(255,179,92,.35)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(cx,tipY); ctx.lineTo(dotPx,tipY); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // ---- the phasor circle ----
+      ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(cx,midY,R,0,2*Math.PI); ctx.stroke();
+      const tx = cx + R*Math.cos(theta), ty = midY - R*Math.sin(theta);
+      ctx.strokeStyle='var(--amber)'; ctx.strokeStyle='#ffb35c'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(cx,midY); ctx.lineTo(tx,ty); ctx.stroke();
+      // arrowhead
+      const ah=Math.atan2(midY-ty,tx-cx);
+      ctx.beginPath();
+      ctx.moveTo(tx,ty);
+      ctx.lineTo(tx-7*Math.cos(ah-0.5), ty+7*Math.sin(ah-0.5));
+      ctx.lineTo(tx-7*Math.cos(ah+0.5), ty+7*Math.sin(ah+0.5));
+      ctx.closePath(); ctx.fillStyle='#ffb35c'; ctx.fill();
+      // glow dot at tip
+      ctx.beginPath(); ctx.arc(tx,ty,3,0,2*Math.PI); ctx.fillStyle='#ffb35c'; ctx.fill();
+
+      // ---- the particle on the wave ----
+      const dotY = midY - R*Math.sin(theta);
+      ctx.shadowBlur=14; ctx.shadowColor='var(--cyan-glow)'; ctx.shadowColor='rgba(79,227,193,.7)';
+      ctx.beginPath(); ctx.arc(dotPx,dotY,6,0,2*Math.PI); ctx.fillStyle='#4fe3c1'; ctx.fill();
+      ctx.shadowBlur=0;
+
+    } else {
+      // ---- classical regime: solid ball, scrambled blur ----
+      // dense hatch hinting at an unmeasurably tight wave
+      ctx.strokeStyle='rgba(79,227,193,.10)'; ctx.lineWidth=1;
+      for(let x=trackX0;x<trackX1;x+=2){
+        ctx.beginPath(); ctx.moveTo(x,midY-R); ctx.lineTo(x,midY+R); ctx.stroke();
+      }
+      // blurred phasor
+      ctx.strokeStyle='rgba(255,179,92,.18)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(cx,midY,R,0,2*Math.PI); ctx.stroke();
+      for(let a=0;a<2*Math.PI;a+=0.35){
+        ctx.beginPath(); ctx.moveTo(cx,midY);
+        ctx.lineTo(cx+R*Math.cos(a),midY-R*Math.sin(a)); ctx.stroke();
+      }
+      // solid ball
+      ctx.shadowBlur=18; ctx.shadowColor='rgba(233,238,245,.4)';
+      ctx.beginPath(); ctx.arc(dotPx,midY,10,0,2*Math.PI); ctx.fillStyle='#e9eef5'; ctx.fill();
+      ctx.shadowBlur=0;
+      // label
+      ctx.fillStyle='#8493a6'; ctx.font='12px "JetBrains Mono",monospace';
+      ctx.textAlign='center';
+      ctx.fillText('wavelength far below any ruler — the arrow is a blur, you see a solid ball', W/2, Hh-18);
+      ctx.textAlign='left';
+    }
+  }
+
+  function frame(ts){
+    if(playing){
+      const dt = last? (ts-last):16; last=ts;
+      const trackW = (W-22)-150;
+      const lam = screenLambda(p);
+      // speed: travel ~1.1 wavelengths per second-ish, capped so tight waves don't strobe
+      const pxPerMs = Math.max(lam, 14) * 0.0016;
+      dotX += pxPerMs*dt;
+    } else { last = ts; }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function setP(np){ p = np; momSlider.value = Math.round(tOf(p)*1000); syncReadout(); if(!playing) draw(); }
+
+  momSlider.addEventListener('input',()=>{ p = pOf(momSlider.value/1000); syncReadout(); if(!playing) draw(); });
+  presetWrap.addEventListener('click',e=>{ if(e.target.dataset.p) setP(parseFloat(e.target.dataset.p)); });
+  playBtn.addEventListener('click',()=>{
+    playing=!playing; playBtn.textContent = playing?'\u275A\u275A':'\u25B6';
+    playBtn.setAttribute('aria-label', playing?'pause animation':'play animation');
+    last=0;
+  });
+
+  window.addEventListener('resize',()=>{ resize(); draw(); });
+  resize(); setP(5.0e-24);
+  if(!playing){ playBtn.textContent='\u25B6'; playBtn.setAttribute('aria-label','play animation'); draw(); }
+  requestAnimationFrame(frame);
+})();
+
+/* ============================ INTERFERENCE ============================ */
+(function(){
+  const canvas = document.getElementById('slit');
+  const ctx = canvas.getContext('2d');
+  const detSlider = document.getElementById('det');
+  const rDelta=document.getElementById('r-delta'), rState=document.getElementById('r-state'), rBright=document.getElementById('r-bright');
+
+  let W=0,Hh=340,dpr=1;
+  const LAM = 30;          // interference wavelength in px (gives a few fringes)
+  const d   = 84;          // slit separation in px
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio||1,2);
+    W = canvas.clientWidth;
+    canvas.width = W*dpr; canvas.height = Hh*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    draw();
+  }
+
+  function geom(){
+    const midY = Hh/2;
+    const sx = 70;
+    const screenX = W-66;
+    return {midY,sx,screenX,
+      s1:{x:sx,y:midY-d/2}, s2:{x:sx,y:midY+d/2}};
+  }
+  function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+  function intensityAt(py){
+    const g=geom();
+    const P={x:g.screenX,y:py};
+    const L1=dist(g.s1,P), L2=dist(g.s2,P);
+    const alpha = Math.PI*(L1-L2)/LAM;     // half phase difference
+    const I = Math.cos(alpha)*Math.cos(alpha);
+    return {L1,L2,alpha,I};
+  }
+
+  function draw(){
+    const g=geom();
+    ctx.clearRect(0,0,W,Hh);
+    const yMin=24, yMax=Hh-24;
+    const py = yMin + (detSlider.value/1000)*(yMax-yMin);
+    const {L1,L2,alpha,I} = intensityAt(py);
+
+    // ---- fringe bar on the screen ----
+    const barX = g.screenX, barW=20;
+    for(let y=yMin;y<yMax;y++){
+      const I2 = intensityAt(y).I;
+      ctx.fillStyle = `rgba(79,227,193,${0.10+0.85*I2})`;
+      ctx.fillRect(barX,y,barW,1);
+    }
+    ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.lineWidth=1;
+    ctx.strokeRect(barX,yMin,barW,yMax-yMin);
+
+    // ---- slits (barrier) ----
+    ctx.fillStyle='rgba(255,255,255,.10)';
+    ctx.fillRect(g.sx-3,yMin,6,(g.s1.y-7)-yMin);
+    ctx.fillRect(g.sx-3,g.s1.y+7,6,(g.s2.y-7)-(g.s1.y+7));
+    ctx.fillRect(g.sx-3,g.s2.y+7,6,yMax-(g.s2.y+7));
+    [g.s1,g.s2].forEach(s=>{
+      ctx.beginPath(); ctx.arc(s.x,s.y,4,0,2*Math.PI);
+      ctx.fillStyle='#4fe3c1'; ctx.fill();
+    });
+
+    // ---- the two paths ----
+    const P={x:barX,y:py};
+    function ray(s,col){ ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(P.x,P.y); ctx.stroke(); }
+    ray(g.s1,'rgba(79,227,193,.55)');
+    ray(g.s2,'rgba(255,179,92,.55)');
+
+    // detector point glow by brightness
+    ctx.shadowBlur=4+22*I; ctx.shadowColor='rgba(79,227,193,.9)';
+    ctx.beginPath(); ctx.arc(P.x,P.y,5+3*I,0,2*Math.PI);
+    ctx.fillStyle=`rgba(233,238,245,${0.4+0.6*I})`; ctx.fill();
+    ctx.shadowBlur=0;
+
+    // ---- phasor add box (tip to tail) ----
+    const bx=120, by=Hh-58, scale=30;
+    ctx.fillStyle='#8493a6'; ctx.font='10px "JetBrains Mono",monospace';
+    ctx.fillText('PHASE A + PHASE B', bx-30, by-scale-14);
+    // arrow A from origin at +alpha
+    const ax = Math.cos(alpha)*scale, ay=-Math.sin(alpha)*scale;
+    drawArrow(bx,by, bx+ax,by+ay, '#4fe3c1');
+    // arrow B tip-to-tail at -alpha
+    const bx2=bx+ax, by2=by+ay;
+    const cxp=Math.cos(-alpha)*scale, cyp=-Math.sin(-alpha)*scale;
+    drawArrow(bx2,by2, bx2+cxp,by2+cyp, '#ffb35c');
+    // resultant
+    drawArrow(bx,by, bx2+cxp,by2+cyp, 'rgba(233,238,245,.85)', 2.5);
+
+    // ---- readout ----
+    const delta = Math.abs(L1-L2)/LAM;
+    rDelta.textContent = delta.toFixed(2)+' \u03BB';
+    let state, col;
+    const a = Math.abs(((alpha/Math.PI)%1+1)%1);
+    if(I>0.75){ state='aligned \u2192 reinforce'; col='var(--cyan)'; }
+    else if(I<0.25){ state='opposed \u2192 cancel'; col='var(--amber)'; }
+    else { state='partly out of step'; col='var(--ink-dim)'; }
+    rState.textContent = state; rState.style.color=col;
+    rBright.textContent = Math.round(I*100)+'%';
+    rBright.style.color = I>0.5?'var(--cyan)':'var(--ink-dim)';
+  }
+
+  function drawArrow(x1,y1,x2,y2,col,lw){
+    ctx.strokeStyle=col; ctx.lineWidth=lw||2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const a=Math.atan2(y2-y1,x2-x1);
+    ctx.beginPath(); ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-7*Math.cos(a-0.45),y2-7*Math.sin(a-0.45));
+    ctx.lineTo(x2-7*Math.cos(a+0.45),y2-7*Math.sin(a+0.45));
+    ctx.closePath(); ctx.fillStyle=col; ctx.fill();
+  }
+
+  detSlider.addEventListener('input',draw);
+  window.addEventListener('resize',resize);
+  resize();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,536 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>debye app</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function DebyeApp() {
+  const [testCharge, setTestCharge] = useState({ x: 0, y: 0, q: 1 });
+  const [temperature, setTemperature] = useState(1.0);
+  const [density, setDensity] = useState(1.0);
+  const [showField, setShowField] = useState(true);
+  const [showElectrons, setShowElectrons] = useState(true);
+  const [showIons, setShowIons] = useState(true);
+  const [showShielded, setShowShielded] = useState(true);
+  const [showVacuum, setShowVacuum] = useState(false);
+  const [running, setRunning] = useState(true);
+  const [draggingCharge, setDraggingCharge] = useState(false);
+
+  // Debye length: lambda_D ~ sqrt(T/n) in our normalized units
+  const lambdaD = Math.sqrt(temperature / density);
+
+  const W = 720, H = 480;
+  const xMin = -5, xMax = 5;
+  const yMin = -3.5, yMax = 3.5;
+  const xToPx = (x) => W / 2 + (x / (xMax - xMin)) * W;
+  const yToPx = (y) => H / 2 - (y / (yMax - yMin)) * H;
+  const pxToX = (px) => ((px - W / 2) / W) * (xMax - xMin);
+  const pxToY = (py) => -((py - H / 2) / H) * (yMax - yMin);
+
+  // Particles
+  const N_ELECTRONS = 200;
+  const N_IONS = 150;
+  const electronsRef = useRef([]);
+  const ionsRef = useRef([]);
+  const lastFrameRef = useRef(performance.now());
+  const [, setTick] = useState(0);
+
+  // initialize particles
+  useEffect(() => {
+    const electrons = [];
+    for (let i = 0; i < N_ELECTRONS; i++) {
+      electrons.push({
+        x: xMin + Math.random() * (xMax - xMin),
+        y: yMin + Math.random() * (yMax - yMin),
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5
+      });
+    }
+    const ions = [];
+    for (let i = 0; i < N_IONS; i++) {
+      ions.push({
+        x: xMin + Math.random() * (xMax - xMin),
+        y: yMin + Math.random() * (yMax - yMin),
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.15
+      });
+    }
+    electronsRef.current = electrons;
+    ionsRef.current = ions;
+  }, []);
+
+  // sim loop
+  useEffect(() => {
+    let raf;
+    const tickFn = (now) => {
+      const dt = Math.min(0.04, (now - lastFrameRef.current) / 1000);
+      lastFrameRef.current = now;
+      if (running) {
+        // forces from test charge: attract electrons (opposite sign), repel ions (same sign)
+        // also some random thermal motion based on T
+        const Q = testCharge.q;
+        const tx = testCharge.x;
+        const ty = testCharge.y;
+
+        // electron dynamics
+        for (const p of electronsRef.current) {
+          const rx = p.x - tx;
+          const ry = p.y - ty;
+          const r2 = rx * rx + ry * ry + 0.05;
+          const r = Math.sqrt(r2);
+          // attractive force toward test charge, scaled by Q (positive Q attracts electrons)
+          const Fmag = -2.0 * Q / r2;
+          const fx = (Fmag * rx) / r;
+          const fy = (Fmag * ry) / r;
+          p.vx += fx * dt;
+          p.vy += fy * dt;
+          // thermal kick
+          p.vx += (Math.random() - 0.5) * 1.5 * Math.sqrt(temperature) * dt;
+          p.vy += (Math.random() - 0.5) * 1.5 * Math.sqrt(temperature) * dt;
+          // damping
+          p.vx *= 0.97;
+          p.vy *= 0.97;
+          // limit speed
+          const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+          const vmax = 1.5 * Math.sqrt(temperature) + 0.5;
+          if (sp > vmax) {
+            p.vx *= vmax / sp;
+            p.vy *= vmax / sp;
+          }
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          // periodic-ish boundary
+          if (p.x < xMin) p.x = xMax;
+          if (p.x > xMax) p.x = xMin;
+          if (p.y < yMin) p.y = yMax;
+          if (p.y > yMax) p.y = yMin;
+        }
+
+        // ion dynamics — much slower, less responsive
+        for (const p of ionsRef.current) {
+          const rx = p.x - tx;
+          const ry = p.y - ty;
+          const r2 = rx * rx + ry * ry + 0.05;
+          const r = Math.sqrt(r2);
+          // repulsive force (positive Q repels ions)
+          const Fmag = 0.4 * Q / r2;
+          const fx = (Fmag * rx) / r;
+          const fy = (Fmag * ry) / r;
+          p.vx += fx * dt;
+          p.vy += fy * dt;
+          p.vx += (Math.random() - 0.5) * 0.4 * Math.sqrt(temperature) * dt;
+          p.vy += (Math.random() - 0.5) * 0.4 * Math.sqrt(temperature) * dt;
+          p.vx *= 0.95;
+          p.vy *= 0.95;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          if (p.x < xMin) p.x = xMax;
+          if (p.x > xMax) p.x = xMin;
+          if (p.y < yMin) p.y = yMax;
+          if (p.y > yMax) p.y = yMin;
+        }
+      }
+      // adjust particle density on density change
+      adjustParticleCount();
+      setTick((t) => t + 1);
+      raf = requestAnimationFrame(tickFn);
+    };
+    raf = requestAnimationFrame(tickFn);
+    return () => cancelAnimationFrame(raf);
+  }, [running, temperature, density, testCharge.q, testCharge.x, testCharge.y]);
+
+  const adjustParticleCount = () => {
+    const targetElectrons = Math.round(N_ELECTRONS * density);
+    const targetIons = Math.round(N_IONS * density);
+    const e = electronsRef.current;
+    const i = ionsRef.current;
+    while (e.length < targetElectrons) {
+      e.push({
+        x: xMin + Math.random() * (xMax - xMin),
+        y: yMin + Math.random() * (yMax - yMin),
+        vx: 0, vy: 0
+      });
+    }
+    while (e.length > targetElectrons) e.pop();
+    while (i.length < targetIons) {
+      i.push({
+        x: xMin + Math.random() * (xMax - xMin),
+        y: yMin + Math.random() * (yMax - yMin),
+        vx: 0, vy: 0
+      });
+    }
+    while (i.length > targetIons) i.pop();
+  };
+
+  // Debye potential profile sampled along x-axis through test charge
+  const profileN = 200;
+  const potentialPath = (() => {
+    let d = "";
+    let firstPoint = true;
+    for (let i = 0; i < profileN; i++) {
+      const x = xMin + (i / (profileN - 1)) * (xMax - xMin);
+      const r = Math.abs(x - testCharge.x);
+      if (r < 0.05) continue;
+      const phi = (testCharge.q / r) * Math.exp(-r / lambdaD);
+      // map phi to a y-coordinate for plotting
+      const px = xToPx(x);
+      const py = 30 - Math.sign(phi) * Math.min(20, Math.log(Math.abs(phi) + 1) * 12);
+      d += `${firstPoint ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+      firstPoint = false;
+    }
+    return d;
+  })();
+
+  // vacuum (unshielded) potential profile for comparison
+  const vacuumPath = (() => {
+    let d = "";
+    let firstPoint = true;
+    for (let i = 0; i < profileN; i++) {
+      const x = xMin + (i / (profileN - 1)) * (xMax - xMin);
+      const r = Math.abs(x - testCharge.x);
+      if (r < 0.05) continue;
+      const phi = testCharge.q / r;
+      const px = xToPx(x);
+      const py = 30 - Math.sign(phi) * Math.min(20, Math.log(Math.abs(phi) + 1) * 12);
+      d += `${firstPoint ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+      firstPoint = false;
+    }
+    return d;
+  })();
+
+  // dragging the test charge
+  const svgRef = useRef(null);
+  const handleSvgPointerDown = (e) => {
+    const r = svgRef.current.getBoundingClientRect();
+    const sx = ((e.clientX - r.left) / r.width) * W;
+    const sy = ((e.clientY - r.top) / r.height) * H;
+    const cx = xToPx(testCharge.x);
+    const cy = yToPx(testCharge.y);
+    if (Math.hypot(sx - cx, sy - cy) < 25) {
+      setDraggingCharge(true);
+    }
+  };
+  const handleSvgPointerMove = (e) => {
+    if (!draggingCharge) return;
+    const r = svgRef.current.getBoundingClientRect();
+    const sx = ((e.clientX - r.left) / r.width) * W;
+    const sy = ((e.clientY - r.top) / r.height) * H;
+    const x = pxToX(sx);
+    const y = pxToY(sy);
+    if (x > xMin && x < xMax && y > yMin && y < yMax) {
+      setTestCharge({ ...testCharge, x, y });
+    }
+  };
+  const handleSvgPointerUp = () => setDraggingCharge(false);
+
+  // Debye sphere circle (1, 2, 3 lambda_D rings)
+  const debyeRings = [1, 2, 3].map(r => ({
+    radius: r * lambdaD,
+    label: `${r}λ_D`
+  }));
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#08080d",
+      color: "#e8e8ee",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+      padding: "32px 24px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: inherit; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 18px; }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; margin-top: -7px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #08080d;
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%;
+          cursor: grab; border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+        .stat {
+          background: #0d0d18; border: 1px solid #1f1f2c; padding: 10px 12px;
+        }
+        .stat .lbl { font-size: 9px; letter-spacing: 0.2em; color: #666; margin-bottom: 4px; }
+        .stat .val { font-size: 16px; font-family: 'Fraunces', serif; font-style: italic; color: #fff; }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>
+            DEBYE SHIELDING · WHY PLASMA IS PLASMA
+          </div>
+          <h1 className="display" style={{ fontSize: 36, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            The cloak of charges
+          </h1>
+          <p style={{ fontSize: 13, color: "#b0b0bc", marginTop: 12, lineHeight: 1.6, maxWidth: 750 }}>
+            Drop a positive charge into a plasma. Electrons rush in to surround it, ions drift away. The cloud of
+            attracted electrons cancels the test charge's field at distances larger than the <em>Debye length</em> λ<sub>D</sub>.
+            Beyond λ<sub>D</sub>, the rest of the plasma can't even tell the test charge is there.
+          </p>
+        </div>
+
+        {/* MAIN VIZ */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666" }}>
+              PLASMA WITH TEST CHARGE · DRAG THE YELLOW CHARGE
+            </div>
+            <div style={{ fontSize: 10, color: "#ffd166" }}>
+              λ<sub>D</sub> = {lambdaD.toFixed(2)}
+            </div>
+          </div>
+          <svg
+            ref={svgRef}
+            width="100%"
+            viewBox={`0 0 ${W} ${H}`}
+            style={{ display: "block", cursor: draggingCharge ? "grabbing" : "default", border: "1px solid #1f1f2c", touchAction: "none", background: "#06060a" }}
+            onPointerDown={handleSvgPointerDown}
+            onPointerMove={handleSvgPointerMove}
+            onPointerUp={handleSvgPointerUp}
+            onPointerLeave={handleSvgPointerUp}
+          >
+            {/* potential profile strip at top */}
+            {showField && (
+              <g>
+                <line x1="0" y1="30" x2={W} y2="30" stroke="#1f1f2c" strokeDasharray="2,3" />
+                {showVacuum && <path d={vacuumPath} fill="none" stroke="#666" strokeWidth="1.5" strokeDasharray="3,3" />}
+                {showShielded && <path d={potentialPath} fill="none" stroke="#ffd166" strokeWidth="2" />}
+                <text x="10" y="14" fontSize="10" fill="#666" letterSpacing="0.1em">φ(x) ALONG y = TEST CHARGE</text>
+                {showVacuum && <text x={W - 10} y={14} fontSize="10" fill="#888" textAnchor="end" fontStyle="italic">vacuum 1/r</text>}
+                {showShielded && <text x={W - 10} y={26} fontSize="10" fill="#ffd166" textAnchor="end" fontStyle="italic">shielded</text>}
+              </g>
+            )}
+
+            {/* Debye rings */}
+            {debyeRings.map((ring, i) => (
+              <g key={i}>
+                <circle
+                  cx={xToPx(testCharge.x)}
+                  cy={yToPx(testCharge.y)}
+                  r={(ring.radius / (xMax - xMin)) * W}
+                  fill="none"
+                  stroke="#ffd166"
+                  strokeOpacity={0.3 - i * 0.08}
+                  strokeWidth="1"
+                  strokeDasharray="4,4"
+                />
+                <text
+                  x={xToPx(testCharge.x) + (ring.radius / (xMax - xMin)) * W + 6}
+                  y={yToPx(testCharge.y) - 2}
+                  fontSize="9"
+                  fill="#ffd166"
+                  fillOpacity={0.5}
+                  fontStyle="italic"
+                >
+                  {ring.label}
+                </text>
+              </g>
+            ))}
+
+            {/* ions (red, slow) */}
+            {showIons && ionsRef.current.map((p, i) => (
+              <circle key={`i${i}`} cx={xToPx(p.x)} cy={yToPx(p.y)} r="2.5" fill="#ff7a7a" opacity="0.6" />
+            ))}
+
+            {/* electrons (blue, fast) */}
+            {showElectrons && electronsRef.current.map((p, i) => (
+              <circle key={`e${i}`} cx={xToPx(p.x)} cy={yToPx(p.y)} r="2" fill="#5b8def" opacity="0.85" />
+            ))}
+
+            {/* test charge */}
+            <g>
+              <circle
+                cx={xToPx(testCharge.x)}
+                cy={yToPx(testCharge.y)}
+                r="14"
+                fill={testCharge.q > 0 ? "#ffd166" : "#3ec6c2"}
+                stroke="#0a0a0f"
+                strokeWidth="2"
+                style={{ cursor: "grab" }}
+              />
+              <text
+                x={xToPx(testCharge.x)}
+                y={yToPx(testCharge.y) + 5}
+                fontSize="16"
+                fill="#0a0a0f"
+                textAnchor="middle"
+                fontWeight="700"
+                style={{ pointerEvents: "none" }}
+              >
+                {testCharge.q > 0 ? "+" : "−"}
+              </text>
+            </g>
+
+            {/* legend */}
+            <g transform="translate(12, 50)">
+              <circle cx="6" cy="0" r="3" fill="#5b8def" />
+              <text x="14" y="3" fontSize="10" fill="#888">electrons (light, fast)</text>
+              <circle cx="6" cy="14" r="3" fill="#ff7a7a" />
+              <text x="14" y="17" fontSize="10" fill="#888">ions (heavy, slow)</text>
+            </g>
+          </svg>
+        </div>
+
+        {/* CONTROLS */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 12 }}>
+            PLASMA PARAMETERS
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>TEMPERATURE T</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{temperature.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="0.1" max="3" step="0.01"
+                value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} />
+              <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                higher T → bigger λ<sub>D</sub> (electrons too energetic to localize)
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>DENSITY n</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{density.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="0.3" max="2" step="0.01"
+                value={density} onChange={e => setDensity(parseFloat(e.target.value))} />
+              <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                higher n → smaller λ<sub>D</sub> (more electrons available to shield)
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>TEST CHARGE q</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{testCharge.q >= 0 ? "+" : ""}{testCharge.q.toFixed(1)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="-2" max="2" step="0.1"
+                value={testCharge.q} onChange={e => setTestCharge({...testCharge, q: parseFloat(e.target.value)})} />
+              <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                positive attracts electrons, negative attracts ions
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DERIVED VALUES */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+          <div className="stat">
+            <div className="lbl">DEBYE LENGTH λ<sub>D</sub></div>
+            <div className="val" style={{ color: "#ffd166" }}>{lambdaD.toFixed(3)}</div>
+          </div>
+          <div className="stat">
+            <div className="lbl">FORMULA</div>
+            <div className="val" style={{ fontSize: 13 }}>√(T/n)</div>
+          </div>
+          <div className="stat">
+            <div className="lbl">SHIELDING DECAY</div>
+            <div className="val" style={{ fontSize: 13 }}>e<sup>−r/{lambdaD.toFixed(2)}</sup></div>
+          </div>
+          <div className="stat">
+            <div className="lbl">QUASINEUTRAL ABOVE</div>
+            <div className="val" style={{ color: "#ffd166" }}>r &gt; {(3 * lambdaD).toFixed(2)}</div>
+          </div>
+        </div>
+
+        {/* DISPLAY TOGGLES */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 12 }}>
+            SHOW / HIDE
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className={`control-btn ${showField ? "active" : ""}`} onClick={() => setShowField(s => !s)}>Potential profile</button>
+            <button className={`control-btn ${showShielded ? "active" : ""}`} onClick={() => setShowShielded(s => !s)}>Shielded curve</button>
+            <button className={`control-btn ${showVacuum ? "active" : ""}`} onClick={() => setShowVacuum(s => !s)}>Vacuum 1/r curve</button>
+            <button className={`control-btn ${showElectrons ? "active" : ""}`} onClick={() => setShowElectrons(s => !s)}>Electrons</button>
+            <button className={`control-btn ${showIons ? "active" : ""}`} onClick={() => setShowIons(s => !s)}>Ions</button>
+            <button className="control-btn" onClick={() => setRunning(r => !r)}>
+              {running ? "❚❚ Pause" : "▶ Play"}
+            </button>
+          </div>
+        </div>
+
+        {/* EXPLAINER */}
+        <div className="viz-card" style={{ background: "#0d0d18", marginBottom: 14 }}>
+          <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 12 }}>
+            What you're seeing
+          </div>
+          <div style={{ display: "grid", gap: 10, fontSize: 13, color: "#b0b0bc", lineHeight: 1.55 }}>
+            <div>· <span style={{color:"#ffd166"}}>Yellow circle</span>: the test charge. Drag it around. Watch the cloud follow.</div>
+            <div>· <span style={{color:"#5b8def"}}>Blue dots</span>: electrons. Light, fast, and reactive — they pile up around a positive charge to shield it.</div>
+            <div>· <span style={{color:"#ff7a7a"}}>Red dots</span>: ions. Heavy, slow — they get pushed away from a positive charge but barely move on these timescales.</div>
+            <div>· <span style={{color:"#ffd166"}}>Yellow dashed circles</span>: 1λ<sub>D</sub>, 2λ<sub>D</sub>, 3λ<sub>D</sub> rings. Most shielding happens within the innermost ring.</div>
+            <div>· <span style={{color:"#ffd166"}}>Yellow curve at top</span>: the actual shielded potential φ(x). Compare with the gray dashed vacuum 1/r curve to see how shielding kills the long-range field.</div>
+          </div>
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "#08080d", borderLeft: "2px solid #ffd166" }}>
+            <div className="display" style={{ fontSize: 16, fontStyle: "italic", color: "#ffd166", marginBottom: 6 }}>
+              The Yukawa potential
+            </div>
+            <div style={{ fontSize: 14, color: "#fff", marginBottom: 8, fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+              φ(r) = (q / r) · exp(−r / λ<sub>D</sub>)
+            </div>
+            <div style={{ fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>
+              The 1/r is the bare Coulomb potential. The exp(−r/λ<sub>D</sub>) is plasma's contribution — it kills the field beyond λ<sub>D</sub>.
+              In math, this is called the <em>Yukawa potential</em>; same form shows up in nuclear physics for short-range forces.
+            </div>
+          </div>
+        </div>
+
+        {/* TRY THIS */}
+        <div className="viz-card" style={{ background: "#0d0d18" }}>
+          <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 10 }}>
+            Things to try
+          </div>
+          <div style={{ display: "grid", gap: 8, fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>
+            <div>· Crank density up. λ<sub>D</sub> shrinks. The electron cloud packs in tighter. Shielding becomes more local.</div>
+            <div>· Crank temperature up. λ<sub>D</sub> grows. Electrons have too much thermal energy to localize, so the cloud spreads out. Shielding gets weaker at any given radius.</div>
+            <div>· Flip the test charge to negative. Now ions are attracted (slowly), electrons are repelled.</div>
+            <div>· Toggle vacuum 1/r curve on. Compare to shielded — the difference is what the plasma is doing.</div>
+            <div>· Drag the test charge around quickly. The electron cloud lags behind. That lag is responsible for various wave phenomena in real plasmas.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(DebyeApp));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

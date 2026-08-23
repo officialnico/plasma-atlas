@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>|B| and Metric Coefficients — The Last Pieces</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070d;--s1:#0b1222;--bdr:#17253f;--tx:#dfe8f5;
+  --dim:#5a7094;--mut:#2f4468;--cyan:#1fd6e8;--green:#3ee886;
+  --amber:#f5c042;--red:#ef6461;--purple:#9b7ff0;--blue:#5b9bf5;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:900px;margin:0 auto;padding:24px 14px 80px;}
+
+.hero{text-align:center;padding:28px 16px 20px;position:relative;}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(91,155,245,0.03),transparent 60%);pointer-events:none;}
+.ey{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--blue);margin-bottom:10px;}
+.hero h1{font-size:clamp(22px,5vw,36px);font-weight:800;letter-spacing:-1px;margin-bottom:8px;}
+.hero h1 .hl{color:var(--blue);}
+.hero p{color:var(--dim);font-size:14px;font-weight:300;max-width:560px;margin:0 auto;line-height:1.6;}
+
+.tabs{display:flex;gap:3px;background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:3px;margin-bottom:24px;}
+.tab{flex:1;padding:10px 4px;border:none;background:transparent;color:var(--dim);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;border-radius:8px;cursor:pointer;transition:all .25s;text-align:center;}
+.tab:hover{color:var(--tx);}
+.tab.on{background:rgba(91,155,245,0.1);color:var(--blue);}
+.tc{display:none;}.tc.on{display:block;}
+
+.sec{margin-bottom:32px;}
+.stag{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--mut);margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+.stag::after{content:'';flex:1;height:1px;background:var(--bdr);}
+
+.call{background:var(--s1);border:1px solid var(--bdr);border-left:3px solid var(--blue);border-radius:0 13px 13px 0;padding:18px 20px;margin-bottom:18px;}
+.call.r{border-left-color:var(--red);}.call.g{border-left-color:var(--green);}.call.a{border-left-color:var(--amber);}.call.p{border-left-color:var(--purple);}
+.call p{font-size:15px;font-weight:400;line-height:1.7;}
+.hl{font-weight:700;}.hr{color:var(--red);}.hg{color:var(--green);}.hc{color:var(--cyan);}.ha{color:var(--amber);}.hp{color:var(--purple);}.hb{color:var(--blue);}
+
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+@media(max-width:600px){.cgrid{grid-template-columns:1fr;}}
+.card{background:var(--s1);border:1px solid var(--bdr);border-radius:13px;padding:18px;overflow:hidden;position:relative;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.card.b::before{background:linear-gradient(90deg,var(--blue),transparent);}
+.card.p::before{background:linear-gradient(90deg,var(--purple),transparent);}
+.card.a::before{background:linear-gradient(90deg,var(--amber),transparent);}
+.card.g::before{background:linear-gradient(90deg,var(--green),transparent);}
+.card.r::before{background:linear-gradient(90deg,var(--red),transparent);}
+.card h3{font-size:14px;font-weight:700;margin-bottom:4px;}
+.card.b h3{color:var(--blue);}.card.p h3{color:var(--purple);}.card.a h3{color:var(--amber);}.card.g h3{color:var(--green);}.card.r h3{color:var(--red);}
+.card p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.6;}
+.card.wide{grid-column:1/-1;}
+
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-bottom:14px;}
+.vbar{padding:10px 14px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--mut);}
+canvas{display:block;width:100%;}
+.vfoot{padding:8px 14px;border-top:1px solid var(--bdr);display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--dim);}
+.vleg{display:flex;align-items:center;gap:5px;}
+.vdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* Analogy boxes */
+.analogy{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;margin-bottom:16px;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;}
+@media(max-width:500px){.analogy{grid-template-columns:1fr;}}
+.analogy .icon{font-size:36px;line-height:1;}
+.analogy h3{font-size:14px;font-weight:700;margin-bottom:4px;}
+.analogy p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.6;}
+
+.expl{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:14px 16px;margin-bottom:14px;}
+.expl h3{font-size:13px;font-weight:700;margin-bottom:5px;}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:5px;}
+.expl b{color:var(--tx);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="hero">
+    <div class="ey">CHEASE → GENE · The Last Geometry Pieces</div>
+    <h1><span class="hl">|B|</span> and the <span class="hl">Metric Coefficients</span></h1>
+    <p>Field strength tells GENE how strong the magnetic field is at each point. The metrics tell it how to measure real distances in its weird coordinate system.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="bfield">|B| Field Strength</button>
+    <button class="tab" data-t="metrics">Metrics g^xx g^xy g^yy</button>
+    <button class="tab" data-t="all">All Together</button>
+  </div>
+
+  <!-- ==================== |B| ==================== -->
+  <div class="tc on" id="t-bfield">
+    <div class="sec">
+      <div class="stag">What |B| is</div>
+      <div class="call">
+        <p><span class="hl hb">|B|</span> is just how strong the magnetic field is at each point along the field line. It's not constant — it's <span class="hl">stronger on the inboard side</span> and <span class="hl">weaker on the outboard side</span> of the torus.</p>
+      </div>
+
+      <div class="analogy">
+        <div class="icon">🧲</div>
+        <div>
+          <h3 style="color:var(--blue)">Why it varies: the 1/R effect</h3>
+          <p>The toroidal field is created by external magnets. On the inboard side you're closer to the center of the torus (smaller R), so the field is stronger — it goes roughly as 1/R. On the outboard side, bigger R, weaker field. This is fundamental to how a tokamak works.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">See it</div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">|B| ON THE CROSS-SECTION — STRONGER INBOARD</span></div>
+        <canvas id="cBfield" style="height:380px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg"><div class="vdot" style="background:var(--blue)"></div> Brighter = stronger |B|</div>
+          <div class="vleg"><div class="vdot" style="background:var(--amber)"></div> Moving dot traces the field line</div>
+        </div>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">|B| ALONG THE FIELD LINE (z)</span></div>
+        <canvas id="cBprof" style="height:160px;"></canvas>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">Why GENE cares about |B|</div>
+      <div class="cgrid">
+        <div class="card b">
+          <h3>Particle trapping</h3>
+          <p>Particles bouncing between the strong-field (inboard) and weak-field (outboard) sides get "trapped" — they can't make it past the high-|B| region. The |B| profile determines where particles get trapped and how deep the magnetic well is. Trapped particles drive Trapped Electron Modes (TEM), a major turbulence source.</p>
+        </div>
+        <div class="card b">
+          <h3>Mirror force</h3>
+          <p>The variation in |B| creates a force on particles along the field line — like a magnetic mirror. Particles moving toward stronger |B| get pushed back. GENE needs the exact |B|(z) profile to compute this force correctly.</p>
+        </div>
+        <div class="card a">
+          <h3>Drift velocities</h3>
+          <p>The gradient of |B| causes particles to drift perpendicular to the field (∇B drift). This drift combines with the curvature drift and together they drive turbulence on the outboard side. GENE computes both from the |B| profile.</p>
+        </div>
+        <div class="card g">
+          <h3>It's simple but critical</h3>
+          <p>|B| is probably the easiest geometry quantity to understand — strong on inside, weak on outside. But it enters almost every equation GENE solves. Get it wrong and particle orbits, trapping, drifts, and the effective mass of fluctuations are all off.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">Compared to curvature</div>
+      <div class="expl">
+        <p>|B| and curvature are closely related but not the same thing. Where |B| is weak (outboard), curvature is bad. Where |B| is strong (inboard), curvature is good. They're correlated because both come from the same 1/R geometry of the torus. But they enter GENE's equations differently — |B| controls particle trapping, curvature controls the turbulence drive — so they're stored as separate arrays.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== METRICS ==================== -->
+  <div class="tc" id="t-metrics">
+    <div class="sec">
+      <div class="stag">The problem metrics solve</div>
+      <div class="call p">
+        <p>GENE works in a <span class="hl hp">field-aligned coordinate system</span> (x, y, z) where x = radial, y = binormal, z = along the field line. But this coordinate system is <span class="hl">curved and stretched</span> — one unit of x doesn't mean the same real-world distance everywhere. The metric coefficients tell GENE the conversion.</p>
+      </div>
+
+      <div class="analogy">
+        <div class="icon">🗺️</div>
+        <div>
+          <h3 style="color:var(--purple)">Map analogy</h3>
+          <p>Think of a Mercator map projection. On the map, Greenland looks huge, but it's actually much smaller than Africa. That's because the map distorts distances differently at different latitudes. The metric coefficients are like a table that says "at this latitude, 1 cm on the map = X km in reality." GENE's coordinate system has the same kind of distortion — the metrics correct for it.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">The three coefficients</div>
+      <div class="cgrid">
+        <div class="card p">
+          <h3>g^xx — radial stretching</h3>
+          <p>How much real-world radial distance corresponds to one unit of x in GENE's coordinates. Changes along the field line because the flux surfaces are closer together on the outboard side and farther apart on the inboard side. This directly scales the effective radial wavenumber k_x that GENE uses.</p>
+        </div>
+        <div class="card p">
+          <h3>g^yy — binormal stretching</h3>
+          <p>Same idea but for the y (binormal) direction — perpendicular to both the field line and the radial direction. This scales the effective binormal wavenumber k_y. It varies because the flux surface width changes as you go around poloidally.</p>
+        </div>
+        <div class="card p wide">
+          <h3>g^xy — the cross-term (this is the shear one)</h3>
+          <p>This is where <b>magnetic shear shows up geometrically</b>. Because neighboring field lines twist at different rates (that's shear), the x and y directions aren't perpendicular everywhere. g^xy measures how much they're tilted relative to each other. At the outboard midplane it's zero (x and y are perpendicular), but as you move along z it grows — proportional to ŝ. This is literally the geometric manifestation of the "twist-and-shift" we talked about with shear.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">See them</div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">METRIC COEFFICIENTS ALONG THE FIELD LINE</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--purple);">HOVER TO INSPECT</span></div>
+        <canvas id="cMetrics" style="height:280px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg"><div class="vdot" style="background:#a78bfa"></div> g^xx (radial)</div>
+          <div class="vleg"><div class="vdot" style="background:#7c5fcf"></div> g^yy (binormal)</div>
+          <div class="vleg"><div class="vdot" style="background:#c4a8ff"></div> g^xy (cross-term / shear)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">Why you should care</div>
+      <div class="expl">
+        <h3 style="color:var(--purple)">What the metrics actually do in GENE</h3>
+        <p>Every time GENE computes a spatial derivative, it multiplies by a metric coefficient. The perpendicular Laplacian — which determines how fluctuations spread — uses all three: <b>k_perp² = g^xx · k_x² + 2·g^xy · k_x · k_y + g^yy · k_y²</b>. So the metrics set the effective wavenumber at every point along the tube. Wrong metrics = wrong mode structure = wrong turbulence spectrum.</p>
+        <p>The key insight: <b>g^xy is the one that grows with z</b> because of shear. It starts at zero at the outboard midplane and keeps growing as you go along the field line. This means the effective perpendicular wavenumber increases away from the midplane, which is one of the main mechanisms by which shear stabilizes turbulence — it makes eddies "feel" like they're at shorter wavelengths, where damping is stronger.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ALL TOGETHER ==================== -->
+  <div class="tc" id="t-all">
+    <div class="sec">
+      <div class="stag">The complete geometry file</div>
+      <div class="call a">
+        <p>Here's everything GENE gets from CHEASE for one surface. Two numbers and six arrays. This is the <span class="hl ha">entire geometry</span> — there is nothing else. Hover across to see all values at each z-point, with the cross-section showing where you are.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:130px 1fr;gap:10px;margin-bottom:14px;align-items:start;">
+        <div>
+          <div class="viz" style="margin:0;">
+            <canvas id="cMini" style="height:140px;"></canvas>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:4px;">
+            <div style="flex:1;background:var(--s1);border:1px solid var(--bdr);border-radius:6px;padding:6px;text-align:center;">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);">2.50</div>
+              <div style="font-size:8px;color:var(--mut);">q</div>
+            </div>
+            <div style="flex:1;background:var(--s1);border:1px solid var(--bdr);border-radius:6px;padding:6px;text-align:center;">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--cyan);">1.85</div>
+              <div style="font-size:8px;color:var(--mut);">ŝ</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--dim);font-weight:300;line-height:1.6;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:12px;">
+          <b style="color:var(--tx)">Left:</b> where the dot is on the surface. <b style="color:var(--tx)">Right:</b> q and ŝ — single numbers for the whole surface. Below: everything that varies along z.
+        </div>
+      </div>
+
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">κ — CURVATURE</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--red);">TURBULENCE DRIVE</span></div>
+        <canvas id="aK" style="height:100px;"></canvas>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">|B| — FIELD STRENGTH</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--blue);">PARTICLE TRAPPING</span></div>
+        <canvas id="aB" style="height:100px;"></canvas>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">g^xx, g^xy, g^yy — METRIC COEFFICIENTS</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--purple);">DISTANCE CONVERSION</span></div>
+        <canvas id="aM" style="height:120px;"></canvas>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">JACOBIAN — GRID CELL VOLUME</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--green);">REAL-SPACE SIZE</span></div>
+        <canvas id="aJ" style="height:100px;"></canvas>
+      </div>
+
+      <div class="expl">
+        <h3 style="color:var(--amber)">What each piece does — one sentence each</h3>
+        <p><b style="color:var(--amber)">q</b> — how many long-way loops per short-way loop. Sets the twist-and-shift boundary condition.</p>
+        <p><b style="color:var(--cyan)">ŝ</b> — how fast q changes between surfaces. Determines mode coupling and g^xy growth.</p>
+        <p><b style="color:var(--red)">κ</b> — radial bending of the field line. Positive outboard drives turbulence, negative inboard stabilizes.</p>
+        <p><b style="color:var(--blue)">|B|</b> — magnetic field strength. Controls particle trapping and mirror force.</p>
+        <p><b style="color:var(--purple)">g^xx, g^xy, g^yy</b> — convert GENE's coordinates to real distances. Set the effective perpendicular wavenumber.</p>
+        <p><b style="color:var(--green)">Jacobian</b> — how big each grid cell is in real space. Needed for integrals and volume averaging.</p>
+      </div>
+
+      <div class="expl">
+        <h3 style="color:var(--green)">That's the whole geometry</h3>
+        <p>Two numbers. Six arrays. One surface. Every single thing GENE knows about the shape of the magnetic field comes from this file. The turbulence simulation — which might run on thousands of cores for days — is using nothing more than what you see on this screen.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const elong=1.4, tri=0.2, shat=1.85;
+let time=0, hoverFrac=-1;
+
+function kappa(th){return Math.cos(th+tri*Math.sin(th))*0.6/elong;}
+function bMag(th){return 1/(1+0.3*Math.cos(th));} // 1/R effect
+function gxx(th){return 1+0.3*Math.cos(th);}
+function gxy(th){return shat*(th);} // grows linearly with z due to shear
+function gyy(th){return 1+shat*shat*th*th+0.1*Math.cos(th);} // grows quadratically
+function jacobian(th){return (1+0.3*Math.cos(th))*elong;}
+function surfPt(theta,rFrac,maxR){
+  const r=maxR*rFrac;
+  return{x:r*Math.cos(theta+tri*Math.sin(theta)),y:r*elong*Math.sin(theta)};
+}
+
+// Canvas management
+const cIds=['cBfield','cBprof','cMetrics','cMini','aK','aB','aM','aJ'];
+const C={},X={},D={};
+function resizeAll(){
+  const dpr=window.devicePixelRatio||1;
+  cIds.forEach(id=>{
+    const c=document.getElementById(id);if(!c)return;
+    const r=c.getBoundingClientRect();if(r.width<1)return;
+    C[id]=c;X[id]=c.getContext('2d');
+    c.width=r.width*dpr;c.height=r.height*dpr;
+    X[id].setTransform(dpr,0,0,dpr,0,0);
+    D[id]={w:r.width,h:r.height};
+  });
+}
+
+// ============ |B| CROSS-SECTION ============
+function drawBfield(){
+  if(!D.cBfield)return;
+  const ctx=X.cBfield,W=D.cBfield.w,H=D.cBfield.h;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.37;
+
+  // |B| colored surfaces
+  const surfRhos=[0.15,0.3,0.45,0.6,0.75,0.85];
+  surfRhos.forEach(rho=>{
+    const nS=48;
+    for(let i=0;i<nS;i++){
+      const th0=(i/nS)*Math.PI*2,th1=((i+1)/nS)*Math.PI*2;
+      const sp0=surfPt(th0,rho,maxR),sp1=surfPt(th1,rho,maxR);
+      const b=bMag((th0+th1)/2);
+      // Color: bright blue for strong, dim for weak
+      const intensity=Math.floor((b-0.7)*255/0.7);
+      const r_=Math.max(20,Math.min(255,40+intensity*0.3))|0;
+      const g_=Math.max(20,Math.min(255,60+intensity*0.5))|0;
+      const b_=Math.max(40,Math.min(255,120+intensity))|0;
+      ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);
+      ctx.strokeStyle=`rgb(${r_},${g_},${b_})`;ctx.lineWidth=rho===0.6?4:2;ctx.stroke();
+    }
+  });
+
+  // Animated dot on ρ=0.6
+  const theta=time*0.8;
+  const sp=surfPt(theta%(Math.PI*2),0.6,maxR);
+  const hx=cx+sp.x,hy=cy-sp.y;
+  const bVal=bMag(theta%(Math.PI*2));
+  const bright=Math.floor((bVal-0.7)*255/0.7);
+
+  ctx.beginPath();ctx.arc(hx,hy,14,0,Math.PI*2);
+  const gr=ctx.createRadialGradient(hx,hy,0,hx,hy,14);
+  gr.addColorStop(0,`rgba(${80+bright*0.3|0},${100+bright*0.5|0},${180+bright|0},0.5)`);
+  gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gr;ctx.fill();
+  ctx.beginPath();ctx.arc(hx,hy,5,0,Math.PI*2);
+  ctx.fillStyle=`rgb(${80+bright*0.3|0},${100+bright*0.5|0},${180+bright|0})`;ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // Labels
+  ctx.font='700 11px "JetBrains Mono",monospace';ctx.textAlign='center';
+  ctx.fillStyle='rgba(91,155,245,0.7)';ctx.fillText('STRONG |B|',cx-maxR*0.7-30,cy);
+  ctx.font='300 9px "DM Sans"';ctx.fillStyle='rgba(91,155,245,0.35)';ctx.fillText('inboard (small R)',cx-maxR*0.7-30,cy+14);
+
+  ctx.font='700 11px "JetBrains Mono",monospace';ctx.fillStyle='rgba(91,155,245,0.35)';ctx.fillText('WEAK |B|',cx+maxR*0.7+30,cy);
+  ctx.font='300 9px "DM Sans"';ctx.fillStyle='rgba(91,155,245,0.2)';ctx.fillText('outboard (large R)',cx+maxR*0.7+30,cy+14);
+
+  // Value readout
+  ctx.font='600 10px "JetBrains Mono",monospace';ctx.fillStyle='rgba(91,155,245,0.6)';
+  ctx.textAlign='left';ctx.fillText(`|B| = ${bVal.toFixed(3)}`,10,20);
+}
+
+// ============ GENERIC 1D PLOT ============
+function drawPlot(id,fn,color,range,opts={}){
+  if(!D[id])return;
+  const ctx=X[id],W=D[id].w,H=D[id].h;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#080c14';ctx.fillRect(0,0,W,H);
+  const pad={l:44,r:14,t:8,b:opts.showLabels?22:10};
+  const w=W-pad.l-pad.r,h=H-pad.t-pad.b;
+  const[yMin,yMax]=range;
+  const toY=v=>pad.t+h-(v-yMin)/(yMax-yMin)*h;
+
+  // Zero line
+  if(opts.zero&&yMin<0&&yMax>0){
+    const zy=toY(0);ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+w,zy);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // Y axis ticks
+  ctx.font='7px "JetBrains Mono",monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let i=0;i<=2;i++){const v=yMin+(yMax-yMin)*(i/2);ctx.fillText(v.toFixed(1),pad.l-4,toY(v));}
+
+  // Multi-line support
+  const fns=Array.isArray(fn)?fn:[fn];
+  const colors=Array.isArray(color[0])?color:[color];
+  const labels=opts.labels||[];
+
+  fns.forEach((f,fi)=>{
+    const col=colors[fi]||colors[0];
+    const N=200;
+    // Use theta range -π to +π for metrics (so gxy shows the shear growth)
+    for(let i=0;i<N;i++){
+      const frac0=i/N, frac1=(i+1)/N;
+      const th0=(frac0-0.5)*2*Math.PI, th1=(frac1-0.5)*2*Math.PI;
+      const v0=f(th0),v1=f(th1);
+      ctx.beginPath();ctx.moveTo(pad.l+frac0*w,toY(v0));ctx.lineTo(pad.l+frac1*w,toY(v1));
+      ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},0.65)`;ctx.lineWidth=2;ctx.stroke();
+    }
+    // Label
+    if(labels[fi]){
+      const endV=f(Math.PI*0.9);
+      ctx.font='600 8px "JetBrains Mono",monospace';ctx.fillStyle=`rgba(${col[0]},${col[1]},${col[2]},0.5)`;
+      ctx.textAlign='right';ctx.fillText(labels[fi],pad.l+w,toY(endV)-4);
+    }
+  });
+
+  // Hover
+  if(hoverFrac>=0){
+    const hx=pad.l+hoverFrac*w;
+    ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(hx,pad.t);ctx.lineTo(hx,pad.t+h);ctx.stroke();ctx.setLineDash([]);
+    const th=(hoverFrac-0.5)*2*Math.PI;
+    fns.forEach((f,fi)=>{
+      const v=f(th);const col=colors[fi]||colors[0];
+      ctx.beginPath();ctx.arc(hx,toY(v),3.5,0,Math.PI*2);
+      ctx.fillStyle=`rgb(${col[0]},${col[1]},${col[2]})`;ctx.fill();
+    });
+    // Show value for first fn
+    const v=fns[0](th);const col=colors[0];
+    ctx.font='600 9px "JetBrains Mono",monospace';
+    ctx.fillStyle=`rgb(${col[0]},${col[1]},${col[2]})`;
+    ctx.textAlign=hoverFrac>0.85?'right':'left';
+    ctx.fillText(`${v>0?'+':''}${v.toFixed(3)}`,hoverFrac>0.85?hx-8:hx+8,toY(v)-8);
+  }
+
+  // X labels
+  if(opts.showLabels){
+    ctx.font='7px "JetBrains Mono",monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';
+    ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(w/4)*i,pad.t+h+3));
+  }
+}
+
+// ============ MINI CROSS-SECTION ============
+function drawMini(){
+  if(!D.cMini)return;
+  const ctx=X.cMini,W=D.cMini.w,H=D.cMini.h;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0b1222';ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.38;
+  for(let i=1;i<=5;i++){const f=i/5;ctx.beginPath();for(let j=0;j<=48;j++){const th=(j/48)*Math.PI*2;const sp=surfPt(th,f,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}ctx.closePath();ctx.strokeStyle=`rgba(31,214,232,${0.04+0.01*f})`;ctx.lineWidth=0.5;ctx.stroke();}
+  // Selected surface
+  ctx.beginPath();for(let j=0;j<=48;j++){const th=(j/48)*Math.PI*2;const sp=surfPt(th,0.6,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}ctx.closePath();ctx.strokeStyle='rgba(245,192,66,0.4)';ctx.lineWidth=2;ctx.stroke();
+  if(hoverFrac>=0){
+    const th=(hoverFrac-0.5)*Math.PI*2;const sp=surfPt(th,0.6,maxR);
+    ctx.beginPath();ctx.arc(cx+sp.x,cy-sp.y,10,0,Math.PI*2);
+    const gr=ctx.createRadialGradient(cx+sp.x,cy-sp.y,0,cx+sp.x,cy-sp.y,10);
+    gr.addColorStop(0,'rgba(245,192,66,0.5)');gr.addColorStop(1,'rgba(245,192,66,0)');ctx.fillStyle=gr;ctx.fill();
+    ctx.beginPath();ctx.arc(cx+sp.x,cy-sp.y,3.5,0,Math.PI*2);ctx.fillStyle='var(--amber)';ctx.fill();
+  }
+}
+
+// ============ HOVER ============
+function setupHover(id){
+  const c=document.getElementById(id);if(!c)return;
+  const getX=e=>e.touches?e.touches[0].clientX:e.clientX;
+  c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();hoverFrac=Math.max(0,Math.min(1,(getX(e)-r.left-44)/(r.width-44-14)));drawAll();});
+  c.addEventListener('mouseleave',()=>{hoverFrac=-1;drawAll();});
+  c.addEventListener('touchmove',e=>{e.preventDefault();const r=c.getBoundingClientRect();hoverFrac=Math.max(0,Math.min(1,(getX(e)-r.left-44)/(r.width-44-14)));drawAll();},{passive:false});
+  c.addEventListener('touchend',()=>{hoverFrac=-1;drawAll();});
+}
+['cBprof','cMetrics','aK','aB','aM','aJ'].forEach(setupHover);
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tc').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');document.getElementById('t-'+t.dataset.t).classList.add('on');
+  setTimeout(()=>{resizeAll();drawAll();},50);
+}));
+
+// ============ DRAW ============
+function drawAll(){
+  try{drawBfield();}catch(e){}
+  try{drawPlot('cBprof',bMag,[91,155,245],[0.7,1.4],{showLabels:true});}catch(e){}
+  try{drawPlot('cMetrics',[gxx,gxy,gyy],[[167,139,250],[196,168,255],[124,95,207]],[-4,8],{zero:true,showLabels:true,labels:['g^xx','g^xy','g^yy']});}catch(e){}
+  try{drawMini();}catch(e){}
+  // All-together tab
+  try{drawPlot('aK',kappa,[239,100,97],[-0.5,0.5],{zero:true});}catch(e){}
+  try{drawPlot('aB',bMag,[91,155,245],[0.7,1.4]);}catch(e){}
+  try{drawPlot('aM',[gxx,gxy,gyy],[[167,139,250],[196,168,255],[124,95,207]],[-4,8],{zero:true,labels:['g^xx','g^xy','g^yy']});}catch(e){}
+  try{drawPlot('aJ',jacobian,[62,232,134],[0.8,2.2],{showLabels:true});}catch(e){}
+}
+
+let lastT=0;
+function frame(ts){if(!lastT)lastT=ts;time+=(ts-lastT)/1000;lastT=ts;try{drawBfield();}catch(e){}requestAnimationFrame(frame);}
+window.addEventListener('resize',()=>{resizeAll();drawAll();});
+
+// Wait for layout to be ready
+function init(){resizeAll();drawAll();requestAnimationFrame(frame);}
+if(document.readyState==='complete'){setTimeout(init,100);}
+else{window.addEventListener('load',()=>setTimeout(init,100));}
+</script>
+</body>
+</html>

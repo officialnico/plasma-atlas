@@ -1,0 +1,393 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>partial derivative viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function PartialDerivativeVisualization() {
+  const canvasRef = useRef(null);
+  const [pointX, setPointX] = useState(1);
+  const [pointY, setPointY] = useState(1);
+  const [showSlice, setShowSlice] = useState(true);
+  const [showTangent, setShowTangent] = useState(true);
+  const [rotationY, setRotationY] = useState(0.5);
+  const [rotationX, setRotationX] = useState(0.4);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+
+  // f(x,y) = x²y² + x² + y³
+  const f = (x, y) => x * x * y * y + x * x + y * y * y;
+  
+  // ∂f/∂x = 2xy² + 2x
+  const dfdx = (x, y) => 2 * x * y * y + 2 * x;
+  
+  // Value at our point
+  const fValue = f(pointX, pointY);
+  const partialValue = dfdx(pointX, pointY);
+
+  // 3D projection
+  const project = (x, y, z, width, height) => {
+    // Apply rotations
+    let tempX = x * Math.cos(rotationY) - z * Math.sin(rotationY);
+    let tempZ = x * Math.sin(rotationY) + z * Math.cos(rotationY);
+    x = tempX;
+    z = tempZ;
+
+    let tempY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
+    tempZ = y * Math.sin(rotationX) + z * Math.cos(rotationX);
+    y = tempY;
+    z = tempZ;
+
+    const scale = 25;
+    const perspective = 500;
+    const factor = perspective / (perspective + z + 5);
+    
+    return {
+      x: width / 2 + x * scale * factor,
+      y: height / 2 - y * scale * factor,
+      z: z
+    };
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+
+    const range = 2;
+    const step = 0.15;
+    const zScale = 0.15; // Scale down z values for better visualization
+
+    // Collect all points for depth sorting
+    const surfaces = [];
+    
+    // Draw the main surface as a wireframe
+    for (let xi = -range; xi < range; xi += step) {
+      for (let yi = -range; yi < range; yi += step) {
+        const x1 = xi, y1 = yi;
+        const x2 = xi + step, y2 = yi + step;
+        
+        const z1 = f(x1, y1) * zScale;
+        const z2 = f(x2, y1) * zScale;
+        const z3 = f(x2, y2) * zScale;
+        const z4 = f(x1, y2) * zScale;
+        
+        const p1 = project(x1, z1, y1, width, height);
+        const p2 = project(x2, z2, y1, width, height);
+        const p3 = project(x2, z3, y2, width, height);
+        const p4 = project(x1, z4, y2, width, height);
+        
+        const avgZ = (p1.z + p2.z + p3.z + p4.z) / 4;
+        
+        surfaces.push({
+          type: 'surface',
+          points: [p1, p2, p3, p4],
+          z: avgZ,
+          color: `rgba(100, 150, 255, ${0.3 + 0.2 * (1 - (avgZ + 5) / 10)})`
+        });
+      }
+    }
+
+    // The slice at fixed y = pointY (shows f as function of x only)
+    if (showSlice) {
+      const slicePoints = [];
+      for (let xi = -range; xi <= range; xi += 0.05) {
+        const z = f(xi, pointY) * zScale;
+        const p = project(xi, z, pointY, width, height);
+        slicePoints.push({ ...p, xi, z });
+      }
+      surfaces.push({
+        type: 'slice',
+        points: slicePoints,
+        z: project(0, f(0, pointY) * zScale, pointY, width, height).z + 0.1
+      });
+    }
+
+    // Point on surface
+    const pointZ = fValue * zScale;
+    const pointProj = project(pointX, pointZ, pointY, width, height);
+    
+    // Tangent line in x direction
+    if (showTangent) {
+      const tangentLength = 0.8;
+      const slope = partialValue * zScale;
+      
+      const t1x = pointX - tangentLength;
+      const t1z = pointZ - slope * tangentLength;
+      const t2x = pointX + tangentLength;
+      const t2z = pointZ + slope * tangentLength;
+      
+      const t1 = project(t1x, t1z, pointY, width, height);
+      const t2 = project(t2x, t2z, pointY, width, height);
+      
+      surfaces.push({
+        type: 'tangent',
+        points: [t1, t2],
+        z: pointProj.z + 0.2
+      });
+    }
+
+    // Add point
+    surfaces.push({
+      type: 'point',
+      proj: pointProj,
+      z: pointProj.z + 0.3
+    });
+
+    // Draw axes
+    const axisLen = 2.5;
+    const origin = project(0, 0, 0, width, height);
+    const xEnd = project(axisLen, 0, 0, width, height);
+    const yEnd = project(0, axisLen, 0, width, height);
+    const zEnd = project(0, 0, axisLen, width, height);
+
+    // Sort by depth
+    surfaces.sort((a, b) => b.z - a.z);
+
+    // Draw surfaces
+    for (const item of surfaces) {
+      if (item.type === 'surface') {
+        ctx.strokeStyle = 'rgba(100, 150, 255, 0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(item.points[0].x, item.points[0].y);
+        for (let i = 1; i < item.points.length; i++) {
+          ctx.lineTo(item.points[i].x, item.points[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      } else if (item.type === 'slice') {
+        // Draw the slice curve (f as function of x at fixed y)
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(item.points[0].x, item.points[0].y);
+        for (let i = 1; i < item.points.length; i++) {
+          ctx.lineTo(item.points[i].x, item.points[i].y);
+        }
+        ctx.stroke();
+      } else if (item.type === 'tangent') {
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(item.points[0].x, item.points[0].y);
+        ctx.lineTo(item.points[1].x, item.points[1].y);
+        ctx.stroke();
+      } else if (item.type === 'point') {
+        ctx.fillStyle = '#2ecc71';
+        ctx.beginPath();
+        ctx.arc(item.proj.x, item.proj.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    // Draw axes on top
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    
+    // X axis
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(xEnd.x, xEnd.y);
+    ctx.stroke();
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText('x', xEnd.x + 5, xEnd.y);
+
+    // Y axis (vertical, for f value)
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(yEnd.x, yEnd.y);
+    ctx.stroke();
+    ctx.fillText('f', yEnd.x - 5, yEnd.y - 10);
+
+    // Z axis (depth, for y variable)
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(zEnd.x, zEnd.y);
+    ctx.stroke();
+    ctx.fillText('y', zEnd.x + 5, zEnd.y + 5);
+
+    // Vertical line from xy-plane to point
+    const baseProj = project(pointX, 0, pointY, width, height);
+    ctx.strokeStyle = 'rgba(46, 204, 113, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(baseProj.x, baseProj.y);
+    ctx.lineTo(pointProj.x, pointProj.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+  }, [pointX, pointY, rotationX, rotationY, showSlice, showTangent, fValue, partialValue]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    setRotationY(prev => prev + dx * 0.01);
+    setRotationX(prev => Math.max(-1, Math.min(1, prev + dy * 0.01)));
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-2xl font-bold mb-2 text-center">Partial Derivative ∂f/∂x</h1>
+      <p className="text-center text-gray-400 mb-4">f(x,y) = x²y² + x² + y³</p>
+      
+      <div className="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={550}
+            height={500}
+            className="border border-gray-600 rounded-lg cursor-grab active:cursor-grabbing w-full"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+          <p className="text-gray-400 text-sm mt-2 text-center">Drag to rotate the view</p>
+        </div>
+
+        <div className="lg:w-96 space-y-4">
+          
+          {/* Current point */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-3">Choose a point</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="flex justify-between mb-1">
+                  <span>x = </span>
+                  <span className="font-mono text-green-400">{pointX.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range"
+                  min="-1.8"
+                  max="1.8"
+                  step="0.1"
+                  value={pointX}
+                  onChange={(e) => setPointX(parseFloat(e.target.value))}
+                  className="w-full accent-green-500"
+                />
+              </div>
+              <div>
+                <label className="flex justify-between mb-1">
+                  <span>y = </span>
+                  <span className="font-mono text-green-400">{pointY.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range"
+                  min="-1.5"
+                  max="1.8"
+                  step="0.1"
+                  value={pointY}
+                  onChange={(e) => setPointY(parseFloat(e.target.value))}
+                  className="w-full accent-green-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Key insight */}
+          <div className="bg-yellow-900/40 border-2 border-yellow-600 p-4 rounded-lg">
+            <h2 className="font-semibold mb-2 text-yellow-400">The Yellow Slice</h2>
+            <p className="text-sm text-gray-300">
+              This is f(x, {pointY.toFixed(1)}) — the function with <strong>y frozen</strong> at {pointY.toFixed(1)}.
+            </p>
+            <p className="text-sm text-gray-300 mt-2">
+              It's now just a function of x. A regular 1D curve!
+            </p>
+          </div>
+
+          {/* Partial derivative result */}
+          <div className="bg-red-900/40 border-2 border-red-600 p-4 rounded-lg">
+            <h2 className="font-semibold mb-2 text-red-400">The Red Tangent Line</h2>
+            <p className="text-sm text-gray-300 mb-3">
+              Its slope is the <strong>partial derivative ∂f/∂x</strong> — how fast f changes as x moves (while y stays fixed).
+            </p>
+            <div className="font-mono text-sm bg-gray-800 p-2 rounded">
+              <p className="text-gray-400">∂f/∂x = 2xy² + 2x</p>
+              <p className="mt-1">= 2({pointX.toFixed(1)})({pointY.toFixed(1)})² + 2({pointX.toFixed(1)})</p>
+              <p className="text-red-400 font-bold text-lg">= {partialValue.toFixed(2)}</p>
+            </div>
+          </div>
+
+          {/* Function value */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-2">At this point:</h2>
+            <div className="font-mono text-sm space-y-1">
+              <p>f({pointX.toFixed(1)}, {pointY.toFixed(1)}) = <span className="text-green-400">{fValue.toFixed(2)}</span></p>
+              <p>∂f/∂x = <span className="text-red-400">{partialValue.toFixed(2)}</span></p>
+            </div>
+          </div>
+
+          {/* Toggle controls */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-2">Show/Hide</h2>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSlice}
+                  onChange={(e) => setShowSlice(e.target.checked)}
+                  className="accent-yellow-500"
+                />
+                <span className="text-yellow-400">Yellow slice (y fixed)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showTangent}
+                  onChange={(e) => setShowTangent(e.target.checked)}
+                  className="accent-red-500"
+                />
+                <span className="text-red-400">Red tangent line</span>
+              </label>
+            </div>
+          </div>
+
+          {/* The point */}
+          <div className="bg-blue-900/30 border border-blue-700 p-4 rounded-lg text-sm">
+            <p className="font-semibold mb-2">The key idea:</p>
+            <p className="text-gray-300">
+              ∂f/∂x treats y as a constant. You're asking: "If I walk in the x direction, how steep is the surface?"
+            </p>
+            <p className="text-gray-400 mt-2">
+              Move the y slider — the yellow curve changes shape, and so does the slope!
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PartialDerivativeVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,290 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>efit modes</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function EFITModes() {
+  const [mode, setMode] = useState("experiment");
+
+  const modes = {
+    experiment: {
+      title: "Experiment Mode",
+      subtitle: "\"A real plasma just happened — what did it look like?\"",
+      scenario: "A tokamak just ran shot #184802. Sensors recorded data for 5 seconds. Now scientists want to know the plasma shape and profiles at time t = 3.5 seconds.",
+      inputs: [
+        { name: "Coil positions", desc: "Where every coil is", type: "fixed", icon: "🔧", detail: "Same for every shot. Known from machine design." },
+        { name: "Coil currents", desc: "How much current in each coil at t=3.5s", type: "measured", icon: "📊", detail: "Measured by Rogowski coils on each power supply. Recorded in the shot database." },
+        { name: "Wall contour", desc: "Inner wall shape", type: "fixed", icon: "🔧", detail: "Same for every shot. Known from machine design." },
+        { name: "Magnetic probes", desc: "~40-80 sensors on the vessel wall", type: "measured", icon: "📊", detail: "Each probe measures the local magnetic field. This is the PRIMARY data EFIT fits to. The probes see the combined field from coils + plasma current." },
+        { name: "MSE pitch angles", desc: "~10-20 internal field direction measurements", type: "measured_optional", icon: "📊", detail: "Optional but improves accuracy. Measures the tilt of the magnetic field inside the plasma using light from neutral beam atoms." },
+        { name: "Pressure profile", desc: "T×n from Thomson scattering", type: "measured_optional", icon: "📊", detail: "Optional. Used in 'kinetic EFIT' mode. Constrains P'(ψ) to match the measured pressure. Without this, EFIT guesses P' shape." },
+      ],
+      process: "EFIT adjusts P'(ψ) and ff'(ψ) until the computed magnetic probe signals match the measured ones. It's solving an inverse problem — given the measurements, find the profiles.",
+      outputs: [
+        { name: "ψ(R,Z)", desc: "2D flux map — 4,225 numbers", computed: true },
+        { name: "P'(ψ)", desc: "Pressure derivative — COMPUTED by fitting to data", computed: true, highlight: true },
+        { name: "ff'(ψ)", desc: "Current function derivative — COMPUTED by fitting to data", computed: true, highlight: true },
+        { name: "P(ψ)", desc: "Pressure profile — integrated from P'", computed: true },
+        { name: "fpol(ψ)", desc: "R×B_toroidal — integrated from ff'", computed: true },
+        { name: "q(ψ)", desc: "Safety factor — derived from geometry", computed: true },
+        { name: "Boundary", desc: "Plasma edge (R,Z) points", computed: true },
+      ],
+    },
+    predictive: {
+      title: "Predictive Mode",
+      subtitle: "\"I'm designing a reactor — what will the plasma look like?\"",
+      scenario: "An engineer is designing SPARC. They want to know: if I set the coil currents to these values and the plasma has this pressure and current profile, what shape will the plasma be?",
+      inputs: [
+        { name: "Coil positions", desc: "Where every coil is", type: "fixed", icon: "🔧", detail: "From your reactor design." },
+        { name: "Coil currents", desc: "How much current in each coil", type: "chosen", icon: "✏️", detail: "You choose these. Part of your design." },
+        { name: "Wall contour", desc: "Inner wall shape", type: "fixed", icon: "🔧", detail: "From your reactor design." },
+        { name: "P'(ψ)", desc: "Pressure gradient profile", type: "chosen", icon: "✏️", detail: "YOU specify this. You're saying 'I want the pressure to drop at this rate from center to edge.' Usually a simple polynomial shape.", highlight: true },
+        { name: "ff'(ψ)", desc: "Current-related profile", type: "chosen", icon: "✏️", detail: "YOU specify this. You're saying 'I want the current distributed like this across the plasma.' Or you specify q(ψ) instead and EFIT derives ff'.", highlight: true },
+        { name: "Boundary shape OR I_p", desc: "Plasma edge shape or total current", type: "chosen", icon: "✏️", detail: "Fixed boundary: you specify the edge shape. Free boundary: you specify total current and EFIT finds the shape." },
+      ],
+      process: "EFIT takes your specified P'(ψ) and ff'(ψ), plugs them into the right side of the Grad-Shafranov equation, and solves for ψ(R,Z). No fitting, no measurements — just forward solving.",
+      outputs: [
+        { name: "ψ(R,Z)", desc: "2D flux map — 4,225 numbers", computed: true },
+        { name: "P'(ψ)", desc: "Pressure derivative — SAME AS YOUR INPUT", computed: false },
+        { name: "ff'(ψ)", desc: "Current function — SAME AS YOUR INPUT", computed: false },
+        { name: "P(ψ)", desc: "Pressure profile — integrated from your P'", computed: true },
+        { name: "fpol(ψ)", desc: "R×B_toroidal — integrated from your ff'", computed: true },
+        { name: "q(ψ)", desc: "Safety factor — derived from geometry", computed: true },
+        { name: "Boundary", desc: "Plasma edge (R,Z) points", computed: true },
+      ],
+    },
+  };
+
+  const m = modes[mode];
+
+  const typeColors = {
+    fixed: { bg: "#1a2030", border: "#3a4a5a", text: "#5c6a7a", label: "Fixed (machine design)" },
+    measured: { bg: "#1a2a2a", border: "#4ecdc4", text: "#4ecdc4", label: "Measured (from sensors)" },
+    measured_optional: { bg: "#1a2a2a", border: "#4ecdc488", text: "#4ecdc4", label: "Measured (optional)" },
+    chosen: { bg: "#2a1a2a", border: "#c9a3f5", text: "#c9a3f5", label: "You choose this" },
+  };
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          EFIT: TWO MODES, SAME OUTPUT
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          P' AND ff' ARE INPUTS IN ONE MODE, OUTPUTS IN THE OTHER
+        </p>
+
+        {/* Mode toggle */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+          {[
+            { id: "experiment", label: "🔬 Experiment mode", sub: "Fit to measurements" },
+            { id: "predictive", label: "✏️ Predictive mode", sub: "Specify profiles" },
+          ].map(v => (
+            <button key={v.id} onClick={() => setMode(v.id)}
+              style={{
+                flex: 1,
+                padding: "10px 14px",
+                background: mode === v.id ? "#1a2a3a" : "#12171f",
+                border: mode === v.id ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 6,
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ fontSize: 12, color: mode === v.id ? "#4ecdc4" : "#5c6a7a", fontWeight: 700, fontFamily: "inherit" }}>
+                {v.label}
+              </div>
+              <div style={{ fontSize: 9, color: "#3a4a5a", fontFamily: "inherit", marginTop: 2 }}>{v.sub}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Scenario */}
+        <div style={{
+          padding: "10px 14px",
+          background: "#1a2a3a",
+          borderRadius: "6px 6px 0 0",
+          borderLeft: "3px solid #4ecdc4",
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ecdc4" }}>{m.title}</div>
+          <div style={{ fontSize: 11, color: "#8a95a5", fontStyle: "italic", marginTop: 2 }}>{m.subtitle}</div>
+          <div style={{ fontSize: 11, color: "#5c6a7a", marginTop: 6, lineHeight: 1.7 }}>{m.scenario}</div>
+        </div>
+
+        {/* INPUTS */}
+        <div style={{
+          padding: "12px 14px",
+          background: "#12171f",
+          border: "1px solid #1e2630",
+          borderTop: "none",
+        }}>
+          <div style={{ fontSize: 11, color: "#e6ecf2", fontWeight: 700, marginBottom: 8 }}>
+            INPUTS →
+          </div>
+          {m.inputs.map((inp, i) => {
+            const tc = typeColors[inp.type];
+            return (
+              <div key={i} style={{
+                padding: "8px 10px",
+                marginBottom: 4,
+                background: inp.highlight ? `${tc.bg}` : tc.bg,
+                border: `1px solid ${inp.highlight ? tc.border : tc.border + "66"}`,
+                borderRadius: 4,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: 11, color: tc.text, fontWeight: 700 }}>
+                      {inp.icon} {inp.name}
+                    </span>
+                    {inp.highlight && (
+                      <span style={{
+                        marginLeft: 6, fontSize: 8, padding: "1px 5px",
+                        background: mode === "experiment" ? "rgba(78,205,196,0.15)" : "rgba(201,163,245,0.15)",
+                        border: `1px solid ${mode === "experiment" ? "#4ecdc4" : "#c9a3f5"}`,
+                        borderRadius: 3,
+                        color: mode === "experiment" ? "#4ecdc4" : "#c9a3f5",
+                      }}>
+                        {mode === "experiment" ? "EFIT COMPUTES THIS" : "YOU SPECIFY THIS"}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 8, color: "#3a4a5a" }}>{tc.label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 3, lineHeight: 1.6 }}>
+                  {inp.detail}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* PROCESS */}
+        <div style={{
+          padding: "10px 14px",
+          background: "#0d1117",
+          border: "1px solid #1e2630",
+          borderTop: "none",
+          textAlign: "center",
+        }}>
+          <div style={{ fontSize: 18, color: "#3a4a5a", marginBottom: 4 }}>↓</div>
+          <div style={{
+            display: "inline-block",
+            padding: "8px 16px",
+            background: "#1a2a3a",
+            borderRadius: 4,
+            border: "1px solid #4ecdc4",
+          }}>
+            <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>EFIT solves Grad-Shafranov</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 3, lineHeight: 1.6, textAlign: "left", maxWidth: 400 }}>
+              {m.process}
+            </div>
+          </div>
+          <div style={{ fontSize: 18, color: "#3a4a5a", marginTop: 4 }}>↓</div>
+        </div>
+
+        {/* OUTPUTS */}
+        <div style={{
+          padding: "12px 14px",
+          background: "#12171f",
+          border: "1px solid #1e2630",
+          borderTop: "none",
+          borderRadius: "0 0 6px 6px",
+        }}>
+          <div style={{ fontSize: 11, color: "#e6ecf2", fontWeight: 700, marginBottom: 8 }}>
+            → OUTPUTS (written to EQDSK file)
+          </div>
+          {m.outputs.map((out, i) => (
+            <div key={i} style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "6px 10px",
+              marginBottom: 3,
+              background: out.highlight ? (mode === "experiment" ? "rgba(78,205,196,0.08)" : "rgba(201,163,245,0.08)") : "#0a0e14",
+              border: out.highlight ? `1px solid ${mode === "experiment" ? "#4ecdc4" : "#c9a3f5"}44` : "1px solid #1a2030",
+              borderRadius: 4,
+            }}>
+              <div>
+                <span style={{
+                  fontSize: 11,
+                  color: out.highlight ? (mode === "experiment" ? "#4ecdc4" : "#c9a3f5") : "#a0aab8",
+                  fontWeight: out.highlight ? 700 : 400,
+                }}>
+                  {out.name}
+                </span>
+                <span style={{ fontSize: 9, color: "#5c6a7a", marginLeft: 8 }}>{out.desc}</span>
+              </div>
+              <span style={{
+                fontSize: 8, padding: "2px 6px", borderRadius: 3,
+                background: out.computed ? "rgba(78,205,196,0.1)" : "rgba(201,163,245,0.1)",
+                color: out.computed ? "#4ecdc4" : "#c9a3f5",
+                border: `1px solid ${out.computed ? "#4ecdc4" : "#c9a3f5"}33`,
+              }}>
+                {out.computed ? "computed" : "passed through"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* The key insight */}
+        <div style={{
+          marginTop: 12, padding: 12,
+          background: "rgba(201,163,245,0.05)",
+          borderRadius: 6,
+          border: "1px solid rgba(201,163,245,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            The switch
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            {mode === "experiment" ? (
+              <>
+                In experiment mode, P' and ff' are <span style={{ color: "#4ecdc4", fontWeight: 700 }}>OUTPUTS</span>. EFIT figures them out by fitting to the magnetic probe measurements. You don't know what the plasma's pressure or current profile was — EFIT reconstructs them for you.
+              </>
+            ) : (
+              <>
+                In predictive mode, P' and ff' are <span style={{ color: "#c9a3f5", fontWeight: 700 }}>INPUTS</span>. You specify them because you're designing a scenario. You're saying "I want a plasma with this pressure shape and this current shape" and EFIT tells you what the resulting equilibrium looks like.
+              </>
+            )}
+            <br /><br />
+            The EQDSK file looks identical either way. You can't tell from the file which mode produced it. It just has the final numbers.
+          </div>
+        </div>
+
+        {/* For your project */}
+        <div style={{
+          marginTop: 12, padding: 12,
+          background: "rgba(78,205,196,0.05)",
+          borderRadius: 6,
+          border: "1px solid rgba(78,205,196,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            For your quantum project
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            You'd use predictive mode. You specify the profiles for your reactor scenario, EFIT gives you the EQDSK file, and that EQDSK feeds into GENE where your quantum collision operator does its work. You don't need experimental data — you're designing, not reconstructing.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EFITModes));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

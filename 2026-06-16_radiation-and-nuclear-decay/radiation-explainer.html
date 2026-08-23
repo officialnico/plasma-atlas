@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radiation — A Visual Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f;
+    --bg2:#0d1020;
+    --ink:#eef0fb;
+    --muted:#8a90b4;
+    --line:rgba(255,255,255,.09);
+    /* energy palette: low energy -> high energy */
+    --radio:#ff5d73;
+    --micro:#ff9d5c;
+    --ir:#ffd166;
+    --vis:#7be08a;
+    --uv:#5cc8ff;
+    --xray:#7c8bff;
+    --gamma:#c98bff;
+    --neutron:#39c2ff;
+    --hot:#ff4d6d;
+    --safe:#5fe0a0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(124,139,255,.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(201,139,255,.12), transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Hanken Grotesk",sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .mono{font-family:"Space Mono",monospace}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+
+  /* ---------- HERO ---------- */
+  header{padding:72px 0 40px;position:relative}
+  .kicker{color:var(--neutron);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:26px;background:rgba(57,194,255,.06)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.6rem,9vw,4.6rem);line-height:.98;letter-spacing:-.02em;margin-bottom:22px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--radio),var(--ir),var(--vis),var(--uv),var(--gamma));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.18rem;color:#c7cbe6;max-width:54ch}
+  .lede b{color:var(--ink);font-weight:700}
+
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.7rem,5.5vw,2.4rem);letter-spacing:-.01em;line-height:1.05;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.85rem;color:var(--neutron);display:block;margin-bottom:14px;font-weight:700;letter-spacing:.2em}
+  .sub{color:var(--muted);margin-bottom:26px;max-width:58ch}
+  p+p{margin-top:14px}
+  .body{color:#c7cbe6}
+  .body b{color:var(--ink)}
+
+  /* ---------- TWO FAMILIES ---------- */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));border:1px solid var(--line);border-radius:16px;padding:22px}
+  .card h3{font-family:"Fraunces",serif;font-size:1.25rem;font-weight:600;margin-bottom:6px}
+  .card .icn{font-size:1.6rem;margin-bottom:10px;display:block}
+  .card p{font-size:.95rem;color:var(--muted)}
+  .card .ex{margin-top:12px;font-family:"Space Mono",monospace;font-size:.72rem;color:#a6abce;border-top:1px dashed var(--line);padding-top:10px}
+
+  /* ---------- canvases ---------- */
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(124,139,255,.08),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0 4px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;letter-spacing:.05em;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.18s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle.on{background:var(--neutron);color:#04121c;border-color:var(--neutron);font-weight:700}
+  .readout{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--muted)}
+
+  /* ---------- SPECTRUM ---------- */
+  .spectrum{display:flex;border-radius:14px;overflow:hidden;border:1px solid var(--line);height:64px;margin-top:6px}
+  .spectrum .band{flex:1;cursor:pointer;position:relative;transition:.2s;border:none}
+  .spectrum .band:hover{flex:1.4}
+  .spectrum .band.active{flex:1.7}
+  .spectrum .band span{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-family:"Space Mono",monospace;font-size:.58rem;color:rgba(0,0,0,.65);font-weight:700;letter-spacing:.02em}
+  .axis{display:flex;justify-content:space-between;margin-top:8px}
+  .axis span{font-family:"Space Mono",monospace;font-size:.66rem;color:var(--muted)}
+  .specinfo{margin-top:16px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:18px;min-height:120px}
+  .specinfo h4{font-family:"Fraunces",serif;font-size:1.4rem;font-weight:600;margin-bottom:4px}
+  .specinfo .stats{display:flex;gap:18px;flex-wrap:wrap;margin:12px 0}
+  .specinfo .stat{font-family:"Space Mono",monospace;font-size:.72rem;color:var(--muted)}
+  .specinfo .stat b{display:block;color:var(--ink);font-size:.92rem;margin-top:2px}
+  .pill{display:inline-block;font-family:"Space Mono",monospace;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:100px;font-weight:700}
+  .pill.no{background:rgba(95,224,160,.14);color:var(--safe);border:1px solid rgba(95,224,160,.3)}
+  .pill.yes{background:rgba(255,77,109,.14);color:var(--hot);border:1px solid rgba(255,77,109,.3)}
+
+  /* ---------- IONIZATION ---------- */
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--safe),var(--ir),var(--hot));outline:none;margin:8px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--neutron);box-shadow:0 0 12px rgba(57,194,255,.6)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--neutron)}
+  .ionstate{font-family:"Fraunces",serif;font-size:1.3rem;font-weight:600;margin-top:10px;transition:.2s}
+
+  /* ---------- PARTICLE ZOO ---------- */
+  .zoo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:560px){.zoo{grid-template-columns:1fr}}
+  .pcard{border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+  .pcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+  .pcard h4{font-family:"Fraunces",serif;font-size:1.2rem;margin-bottom:2px;display:flex;align-items:center;gap:8px}
+  .pcard .what{font-family:"Space Mono",monospace;font-size:.68rem;color:var(--c);letter-spacing:.04em;margin-bottom:10px}
+  .pcard p{font-size:.86rem;color:var(--muted)}
+  .pcard .props{display:flex;gap:14px;margin-top:10px;font-family:"Space Mono",monospace;font-size:.66rem;color:#a6abce}
+
+  /* ---------- SHIELDING ---------- */
+  .callout{margin-top:18px;border-left:3px solid var(--neutron);background:rgba(57,194,255,.06);padding:14px 18px;border-radius:0 12px 12px 0}
+  .callout b{color:var(--neutron)}
+  footer{padding:50px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce}
+  .glow{text-shadow:0 0 18px currentColor}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Field Guide · From the neutron conversation</span>
+  <h1>Radiation is just <em>energy on the move.</em></h1>
+  <p class="lede">It travels two ways: as <b>waves of pure energy</b> (light, X-rays, gamma rays) or as <b>tiny pieces of matter flying fast</b> (the alpha, beta, and neutron particles). Everything dangerous — and most things useful — comes down to <b>how much energy each one carries.</b> Scroll through and watch it happen.</p>
+</header>
+
+<!-- 1. TWO FAMILIES -->
+<section>
+  <h2><span class="num">01 / THE FAMILY TREE</span>Two ways energy travels</h2>
+  <p class="sub">Every kind of radiation belongs to one of these two branches.</p>
+  <div class="grid2">
+    <div class="card">
+      <span class="icn">〰️</span>
+      <h3>Electromagnetic</h3>
+      <p>Ripples in electric &amp; magnetic fields — no mass, always moving at the speed of light. This is light itself, plus radio, microwaves, X-rays and gamma rays.</p>
+      <div class="ex">radio · micro · infrared · visible · UV · x-ray · gamma</div>
+    </div>
+    <div class="card">
+      <span class="icn">⦿</span>
+      <h3>Particle</h3>
+      <p>Actual chunks of matter — bits of atoms — hurled outward at high speed. They have mass, and some carry electric charge.</p>
+      <div class="ex">alpha · beta · neutron · proton · cosmic rays</div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. WAVE / PARTICLE -->
+<section>
+  <h2><span class="num">02 / YOUR QUESTION</span>So are X-rays waves or particles?</h2>
+  <p class="sub body">Both. This is the famous trick of quantum mechanics. The <b>same</b> X-ray is correctly described as a smooth wave <b>and</b> as a stream of energy packets called <b>photons</b>. Neither picture is "more true" — you pick whichever explains what you're looking at. Flip the switch and watch the same beam change costume.</p>
+  <div class="controls">
+    <button class="toggle on" id="wpWave">view as a wave</button>
+    <button class="toggle" id="wpParticle">view as photons</button>
+  </div>
+  <div class="stage"><canvas id="wpCanvas"></canvas></div>
+  <p class="readout" id="wpNote" style="margin-top:12px">The wave view explains how X-rays diffract, bend, and form images. ↑</p>
+</section>
+
+<!-- 3. SPECTRUM -->
+<section>
+  <h2><span class="num">03 / THE LINEUP</span>The electromagnetic spectrum</h2>
+  <p class="sub body">It's all the <b>same stuff</b> — only the wavelength changes. Squeeze the waves tighter (shorter wavelength) and each photon punches harder. Tap a band to inspect it. Notice where things turn dangerous.</p>
+  <div class="spectrum" id="spectrum"></div>
+  <div class="axis"><span>← longer wave · low energy</span><span>short wave · high energy →</span></div>
+  <div class="specinfo" id="specinfo"></div>
+</section>
+
+<!-- 4. IONIZATION -->
+<section>
+  <h2><span class="num">04 / THE DANGER LINE</span>What makes radiation harmful</h2>
+  <p class="sub body">One idea separates "warms your soup" from "wrecks your DNA": can a single photon <b>kick an electron clean off an atom?</b> That's <b>ionization</b>. Below the threshold the atom just jiggles (heat). Above it, bonds break and DNA tears. Drag the energy up and watch the electron decide.</p>
+  <div class="stage"><canvas id="ionCanvas"></canvas></div>
+  <input type="range" id="ionSlider" min="0" max="20" value="3" step="0.1">
+  <div class="controls" style="justify-content:space-between">
+    <span class="readout">photon energy: <b id="ionEv" style="color:var(--ink)">3.0 eV</b></span>
+    <span class="readout">threshold ≈ 10 eV</span>
+  </div>
+  <div class="ionstate" id="ionState"></div>
+</section>
+
+<!-- 5. PARTICLE ZOO -->
+<section>
+  <h2><span class="num">05 / THE PARTICLES</span>The matter that flies at you</h2>
+  <p class="sub body">The other branch. These are real fragments of atoms — including the <b>neutron</b> from your reactor questions.</p>
+  <div class="zoo">
+    <div class="pcard" style="--c:var(--radio)">
+      <h4>Alpha <span>α</span></h4>
+      <div class="what">2 protons + 2 neutrons · charge +2</div>
+      <p>Big and slow. A helium nucleus. Brutal up close but stopped by skin — only dangerous if you breathe or swallow it.</p>
+      <div class="props"><span>mass: heavy</span><span>charge: +2</span></div>
+    </div>
+    <div class="pcard" style="--c:var(--vis)">
+      <h4>Beta <span>β</span></h4>
+      <div class="what">a single electron · charge −1</div>
+      <p>A fast electron spat out by a decaying nucleus. Light and quick; slips through skin but not through a sheet of aluminum.</p>
+      <div class="props"><span>mass: tiny</span><span>charge: −1</span></div>
+    </div>
+    <div class="pcard" style="--c:var(--gamma)">
+      <h4>Gamma / X-ray <span>γ</span></h4>
+      <div class="what">a photon · no mass · no charge</div>
+      <p>Pure energy from branch one, but lethal at the high end. No charge means nothing slows it easily — needs thick lead or concrete.</p>
+      <div class="props"><span>mass: 0</span><span>charge: 0</span></div>
+    </div>
+    <div class="pcard" style="--c:var(--neutron)">
+      <h4>Neutron <span>n</span></h4>
+      <div class="what">a bare neutron · no charge</div>
+      <p>Heavy <i>and</i> uncharged — a rare combo. It ignores electrons entirely and only stops by slamming into a nucleus. That's what makes it so penetrating.</p>
+      <div class="props"><span>mass: heavy</span><span>charge: 0</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. SHIELDING -->
+<section>
+  <h2><span class="num">06 / STOPPING IT</span>What blocks what</h2>
+  <p class="sub body">Each type is halted by something different. Watch them launch from the left and hit their wall.</p>
+  <div class="stage"><canvas id="shieldCanvas"></canvas></div>
+  <div class="callout body">
+    <b>The neutron twist</b> — Notice the neutron sails straight through lead, the very thing that stops gamma rays. With no charge, it doesn't "see" the dense electrons in metal. It's stopped by <b>water, plastic, or concrete</b> — materials packed with hydrogen. Why hydrogen? A neutron and a proton weigh almost the same, so a head-on bounce drains its energy fast — exactly the recoil-proton mechanism that makes neutrons so damaging to your (very watery) body.
+  </div>
+</section>
+
+<footer>
+  <p class="mono">RADIATION · A VISUAL FIELD GUIDE</p>
+  <p style="margin-top:8px">Built off the criticality-accident thread — Slotin's demon core and Tokai-mura were both intense bursts of neutrons + gamma, the two most penetrating things on this page. The "danger line" (ionization) and the recoil-proton trick are exactly why those exposures were so lethal.</p>
+</footer>
+
+</div>
+
+<script>
+/* ---------- shared canvas setup ---------- */
+function setup(canvas, h){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const w = canvas.clientWidth;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  canvas.style.height = h+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+
+/* ================= 2. WAVE / PARTICLE ================= */
+(function(){
+  const canvas = document.getElementById("wpCanvas");
+  let mode = "wave", S, t=0;
+  function size(){ S = setup(canvas, Math.min(220, Math.max(160, canvas.clientWidth*0.42))); }
+  size();
+  const bWave = document.getElementById("wpWave"), bPart = document.getElementById("wpParticle");
+  const note = document.getElementById("wpNote");
+  bWave.onclick=()=>{mode="wave";bWave.classList.add("on");bPart.classList.remove("on");note.textContent="The wave view explains how X-rays diffract, bend, and form images. ↑";};
+  bPart.onclick=()=>{mode="particle";bPart.classList.add("on");bWave.classList.remove("on");note.textContent="The photon view explains how a single X-ray knocks an electron off an atom — the danger below. ↑";};
+  function draw(){
+    const {ctx,w,h}=S; ctx.clearRect(0,0,w,h);
+    const midY=h/2;
+    if(mode==="wave"){
+      ctx.lineWidth=3; ctx.strokeStyle="#7c8bff"; ctx.shadowColor="#7c8bff"; ctx.shadowBlur=16;
+      ctx.beginPath();
+      for(let x=0;x<=w;x++){
+        const y=midY+Math.sin((x*0.06)-(t*0.12))*36;
+        x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.stroke(); ctx.shadowBlur=0;
+      ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='11px "Space Mono"';
+      ctx.fillText("one continuous oscillating wave",16,h-16);
+    } else {
+      const spacing=64, r=9;
+      ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='11px "Space Mono"';
+      ctx.fillText("discrete energy packets (photons)",16,h-16);
+      for(let i=0;i<Math.ceil(w/spacing)+1;i++){
+        let x=((i*spacing)-(t*1.6)%spacing);
+        x=((x%(w+spacing))+(w+spacing))%(w+spacing);
+        const grd=ctx.createRadialGradient(x,midY,0,x,midY,r*2.4);
+        grd.addColorStop(0,"#c98bff");grd.addColorStop(1,"rgba(201,139,255,0)");
+        ctx.fillStyle=grd;ctx.beginPath();ctx.arc(x,midY,r*2.4,0,7);ctx.fill();
+        ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(x,midY,r,0,7);ctx.fill();
+      }
+    }
+    t++; requestAnimationFrame(draw);
+  }
+  draw();
+  window.addEventListener("resize",size);
+})();
+
+/* ================= 3. SPECTRUM ================= */
+(function(){
+  const bands=[
+    {n:"Radio",c:"--radio",wl:"1 km – 1 m",fr:"low",e:"~1 peV – 1 µeV",ion:false,d:"Carries every broadcast, wifi, and phone signal. The energy per photon is absurdly tiny — it passes through you with zero drama."},
+    {n:"Micro",c:"--micro",wl:"1 m – 1 mm",fr:"↑",e:"~1 µeV – 1 meV",ion:false,d:"Just energetic enough to make water molecules spin and rub together. That friction is heat — which is precisely how your microwave oven cooks."},
+    {n:"Infrared",c:"--ir",wl:"1 mm – 700 nm",fr:"↑↑",e:"~1 meV – 1.7 eV",ion:false,d:"Felt as radiant warmth. Your body glows in it; night-vision cameras read it. Still pure heat, no bond-breaking."},
+    {n:"Visible",c:"--vis",wl:"700 – 400 nm",fr:"↑↑↑",e:"~1.7 – 3.1 eV",ion:false,d:"The one-octave sliver your eyes evolved to detect. Enough energy to trigger chemistry in your retina, but not to ionize."},
+    {n:"UV",c:"--uv",wl:"400 – 10 nm",fr:"high",e:"~3.1 – 124 eV",ion:"edge",d:"The crossover zone. Low UV just burns; high UV starts ripping electrons off atoms — this is where sunburn becomes DNA damage and skin cancer risk."},
+    {n:"X-ray",c:"--xray",wl:"10 – 0.01 nm",fr:"very high",e:"~124 eV – 124 keV",ion:true,d:"Now firmly ionizing. Punches through soft tissue but is absorbed by bone — which is exactly what makes a chest X-ray an image. From energetic electrons."},
+    {n:"Gamma",c:"--gamma",wl:"< 0.01 nm",fr:"extreme",e:"> ~100 keV",ion:true,d:"The hardest-hitting light there is, born in the nucleus itself. This is the gamma half of the reactor accidents — deeply penetrating and intensely ionizing."},
+  ];
+  const sp=document.getElementById("spectrum"), info=document.getElementById("specinfo");
+  function show(i){
+    const b=bands[i];
+    [...sp.children].forEach((el,j)=>el.classList.toggle("active",j===i));
+    let pill = b.ion===true?'<span class="pill yes">Ionizing · dangerous</span>'
+             : b.ion==="edge"?'<span class="pill yes">Ionizing begins here</span>'
+             : '<span class="pill no">Non-ionizing · safe-ish</span>';
+    info.innerHTML=`<h4 style="color:var(${b.c})">${b.n} ${pill}</h4>
+      <div class="stats">
+        <span class="stat">wavelength<b>${b.wl}</b></span>
+        <span class="stat">photon energy<b>${b.e}</b></span>
+      </div>
+      <p class="body" style="font-size:.95rem">${b.d}</p>`;
+  }
+  bands.forEach((b,i)=>{
+    const d=document.createElement("button");
+    d.className="band";d.style.background=`var(${b.c})`;
+    d.innerHTML=`<span>${b.n}</span>`;
+    d.onclick=()=>show(i);
+    sp.appendChild(d);
+  });
+  show(5); // start on X-ray (their question)
+})();
+
+/* ================= 4. IONIZATION ================= */
+(function(){
+  const canvas=document.getElementById("ionCanvas");
+  let S, t=0, ev=3, ejected=false, ejX=0,ejY=0,ejVX=0,ejVY=0, photonX=-50;
+  function size(){ S=setup(canvas, Math.min(240,Math.max(180,canvas.clientWidth*0.45))); }
+  size();
+  const slider=document.getElementById("ionSlider"), evLabel=document.getElementById("ionEv"), state=document.getElementById("ionState");
+  const TH=10;
+  function update(){
+    ev=parseFloat(slider.value);
+    evLabel.textContent=ev.toFixed(1)+" eV";
+    if(ev>=TH){ state.textContent="⚡ IONIZED — electron ejected, bond broken"; state.style.color="var(--hot)"; }
+    else { state.textContent="〰️ Just jiggling — atom absorbs it as heat"; state.style.color="var(--safe)"; }
+  }
+  slider.oninput=update; update();
+  function draw(){
+    const {ctx,w,h}=S; ctx.clearRect(0,0,w,h);
+    const cx=w*0.62, cy=h/2;
+    // nucleus
+    const ng=ctx.createRadialGradient(cx,cy,0,cx,cy,26);
+    ng.addColorStop(0,"#ff9d5c");ng.addColorStop(1,"rgba(255,93,115,.15)");
+    ctx.fillStyle=ng;ctx.beginPath();ctx.arc(cx,cy,26,0,7);ctx.fill();
+    ctx.fillStyle="#ff5d73";ctx.beginPath();ctx.arc(cx,cy,12,0,7);ctx.fill();
+    // orbit
+    const orad=46;
+    ctx.strokeStyle="rgba(255,255,255,.12)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.ellipse(cx,cy,orad,orad*0.62,0,0,7);ctx.stroke();
+    // incoming photon (only travels while not ejected, or loops)
+    const hot=ev>=TH;
+    photonX += (3+ev*0.25);
+    if(photonX>cx-orad && !ejected){
+      if(hot){ ejected=true; ejX=cx+Math.cos(0)*orad; ejY=cy; ejVX=4.2; ejVY=-2.6; }
+      else { photonX=-40; } // bounce/restart -> absorbed
+    }
+    if(photonX>w+40) photonX=-40;
+    if(!ejected || photonX<cx-orad){
+      const pc = hot? "#c98bff":"#5fe0a0";
+      ctx.fillStyle=pc;ctx.shadowColor=pc;ctx.shadowBlur=14;
+      ctx.beginPath();ctx.arc(photonX,cy,6,0,7);ctx.fill();ctx.shadowBlur=0;
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='10px "Space Mono"';
+      ctx.fillText("photon →",photonX-58,cy-14);
+    }
+    // electron
+    if(!ejected){
+      const a=t*0.05;
+      const ex=cx+Math.cos(a)*orad, ey=cy+Math.sin(a)*orad*0.62;
+      ctx.fillStyle="#5cc8ff";ctx.shadowColor="#5cc8ff";ctx.shadowBlur=12;
+      ctx.beginPath();ctx.arc(ex,ey,7,0,7);ctx.fill();ctx.shadowBlur=0;
+    } else {
+      ejX+=ejVX; ejY+=ejVY;
+      ctx.fillStyle="#5cc8ff";ctx.shadowColor="#5cc8ff";ctx.shadowBlur=16;
+      ctx.beginPath();ctx.arc(ejX,ejY,7,0,7);ctx.fill();ctx.shadowBlur=0;
+      // spark
+      ctx.strokeStyle="rgba(255,77,109,.5)";ctx.lineWidth=2;
+      for(let i=0;i<4;i++){const an=i*1.6+t*0.1;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(an)*18,cy+Math.sin(an)*18);ctx.stroke();}
+      if(ejX>w+30||ejY<-30){ ejected=false; photonX=-40; } // reset loop
+    }
+    // threshold tint
+    ctx.fillStyle = hot?"rgba(255,77,109,.05)":"rgba(95,224,160,.04)";
+    ctx.fillRect(0,0,w,h);
+    t++; requestAnimationFrame(draw);
+  }
+  draw();
+  window.addEventListener("resize",size);
+})();
+
+/* ================= 6. SHIELDING ================= */
+(function(){
+  const canvas=document.getElementById("shieldCanvas");
+  let S;
+  function size(){ S=setup(canvas, Math.min(330,Math.max(260,canvas.clientWidth*0.62))); }
+  size();
+  // lanes: name,color, barriers [{x,label,blocks}]
+  const lanes=[
+    {n:"α  alpha",  c:"#ff5d73", stop:0.30, mat:"paper"},
+    {n:"β  beta",   c:"#7be08a", stop:0.48, mat:"aluminum"},
+    {n:"γ  gamma",  c:"#c98bff", stop:0.80, mat:"thick lead"},
+    {n:"n  neutron",c:"#39c2ff", stop:1.10, mat:"passes lead → needs water"},
+  ];
+  let parts=[];
+  function laneY(i,h){ return (i+0.5)*(h/4); }
+  function spawn(){ for(let i=0;i<4;i++) if(Math.random()<0.5) parts.push({lane:i,x:0,done:false}); }
+  let frame=0;
+  function draw(){
+    const {ctx,w,h}=S; ctx.clearRect(0,0,w,h);
+    const lh=h/4, startX=8;
+    lanes.forEach((L,i)=>{
+      const y=laneY(i,h);
+      // lane label
+      ctx.fillStyle="rgba(255,255,255,.04)";ctx.fillRect(0,i*lh,w,lh-1);
+      ctx.fillStyle=L.c;ctx.font='bold 12px "Space Mono"';ctx.textBaseline="middle";
+      ctx.fillText(L.n, 10, y);
+      // source
+      ctx.fillStyle="rgba(255,255,255,.25)";ctx.beginPath();ctx.arc(startX+2,y,3,0,7);ctx.fill();
+      // barrier
+      const bx=startX + L.stop*(w-90);
+      if(bx < w-20){
+        ctx.fillStyle="rgba(255,255,255,.16)";ctx.fillRect(bx,i*lh+10,9,lh-22);
+        ctx.fillStyle="rgba(238,240,251,.55)";ctx.font='9px "Space Mono"';ctx.textAlign="left";
+        ctx.fillText(L.mat, bx+14, i*lh+18);
+      } else {
+        ctx.fillStyle="rgba(57,194,255,.7)";ctx.font='9px "Space Mono"';ctx.textAlign="left";
+        ctx.fillText(L.mat, w-200, i*lh+18);
+      }
+    });
+    // particles
+    parts.forEach(p=>{
+      const L=lanes[p.lane], y=laneY(p.lane,h);
+      const bx=startX + L.stop*(w-90);
+      if(!p.done){
+        p.x += 2.4 + p.lane*0.15;
+        if(p.x>=bx-4 && L.stop<1.0){ p.done=true; p.x=bx-4; }
+        if(p.x>w+10) p.done="gone";
+      }
+      if(p.done==="gone") return;
+      ctx.fillStyle=L.c;ctx.shadowColor=L.c;ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(startX+p.x,y,4,0,7);ctx.fill();ctx.shadowBlur=0;
+      if(p.done===true){ // little stopped puff
+        ctx.strokeStyle=L.c;ctx.globalAlpha=.5;ctx.beginPath();ctx.arc(startX+p.x,y,8,0,7);ctx.stroke();ctx.globalAlpha=1;
+      }
+    });
+    parts=parts.filter(p=>p.done!=="gone" && startX+p.x<w+20);
+    if(frame%26===0) spawn();
+    frame++;
+    requestAnimationFrame(draw);
+  }
+  draw();
+  window.addEventListener("resize",size);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>solenoid viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const SolenoidVisualization = () => {
+  const canvasRef = useRef(null);
+  const [solenoidCurrent, setSolenoidCurrent] = useState(0);
+  const [prevSolenoidCurrent, setPrevSolenoidCurrent] = useState(0);
+  const [plasmaCurrent, setPlasmaCurrent] = useState(0);
+  const [time, setTime] = useState(0);
+  const [isRamping, setIsRamping] = useState(false);
+  const [showFluxLines, setShowFluxLines] = useState(true);
+  const [showInducedCurrent, setShowInducedCurrent] = useState(true);
+  const [autoRamp, setAutoRamp] = useState(false);
+
+  // Track rate of change of solenoid current
+  useEffect(() => {
+    const dI_dt = solenoidCurrent - prevSolenoidCurrent;
+    
+    // Induced EMF (and thus plasma current) depends on RATE OF CHANGE
+    // Not the absolute value
+    setPlasmaCurrent(prev => {
+      const induced = -dI_dt * 5; // Faraday's law: EMF = -dΦ/dt
+      const decayed = prev * 0.95; // Current decays if no change
+      return decayed + induced;
+    });
+    
+    setPrevSolenoidCurrent(solenoidCurrent);
+    setIsRamping(Math.abs(dI_dt) > 0.01);
+  }, [solenoidCurrent]);
+
+  // Auto ramp mode
+  useEffect(() => {
+    if (!autoRamp) return;
+    
+    const interval = setInterval(() => {
+      setTime(t => t + 0.05);
+      // Ramp up then down
+      const rampValue = Math.sin(time * 0.5) * 50 + 50;
+      setSolenoidCurrent(rampValue);
+    }, 50);
+    
+    return () => clearInterval(interval);
+  }, [autoRamp, time]);
+
+  // Animation for visual effects
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime(t => t + 0.05);
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, width, height);
+
+    // === SIDE VIEW (LEFT) ===
+    const sideX = 200;
+    const sideY = 250;
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('SIDE VIEW (cross-section)', sideX, 30);
+
+    // Draw solenoid (central column)
+    const solenoidWidth = 40;
+    const solenoidHeight = 200;
+    
+    // Solenoid body
+    ctx.fillStyle = '#334';
+    ctx.fillRect(sideX - solenoidWidth/2, sideY - solenoidHeight/2, solenoidWidth, solenoidHeight);
+    
+    // Solenoid coil windings
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2;
+    const numWindings = 15;
+    for (let i = 0; i < numWindings; i++) {
+      const y = sideY - solenoidHeight/2 + 10 + i * (solenoidHeight - 20) / numWindings;
+      ctx.beginPath();
+      ctx.moveTo(sideX - solenoidWidth/2 - 5, y);
+      ctx.lineTo(sideX + solenoidWidth/2 + 5, y);
+      ctx.stroke();
+    }
+    
+    // Solenoid magnetic field lines (through the center)
+    if (showFluxLines && solenoidCurrent > 1) {
+      const fluxIntensity = solenoidCurrent / 100;
+      ctx.strokeStyle = `rgba(100, 200, 255, ${fluxIntensity * 0.7})`;
+      ctx.lineWidth = 2;
+      
+      // Field lines going UP through solenoid
+      for (let x = -15; x <= 15; x += 10) {
+        ctx.beginPath();
+        ctx.moveTo(sideX + x, sideY + solenoidHeight/2 + 20);
+        ctx.lineTo(sideX + x, sideY - solenoidHeight/2 - 20);
+        ctx.stroke();
+        
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(sideX + x, sideY - solenoidHeight/2 - 20);
+        ctx.lineTo(sideX + x - 5, sideY - solenoidHeight/2 - 10);
+        ctx.moveTo(sideX + x, sideY - solenoidHeight/2 - 20);
+        ctx.lineTo(sideX + x + 5, sideY - solenoidHeight/2 - 10);
+        ctx.stroke();
+      }
+      
+      // Flux indicator
+      ctx.fillStyle = '#6cf';
+      ctx.font = '12px Arial';
+      ctx.fillText(`Φ = ${solenoidCurrent.toFixed(0)} (flux)`, sideX, sideY - solenoidHeight/2 - 40);
+    }
+
+    // Draw plasma torus cross-sections (two circles on either side)
+    const plasmaRadius = 50;
+    const plasmaOffset = 120;
+    
+    // Left plasma cross-section
+    ctx.strokeStyle = '#a5f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(sideX - plasmaOffset, sideY, plasmaRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(170, 85, 255, 0.2)';
+    ctx.fill();
+    
+    // Right plasma cross-section
+    ctx.beginPath();
+    ctx.arc(sideX + plasmaOffset, sideY, plasmaRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fill();
+
+    // Show induced plasma current (circles with direction)
+    if (showInducedCurrent && Math.abs(plasmaCurrent) > 0.5) {
+      const currentIntensity = Math.min(Math.abs(plasmaCurrent) / 30, 1);
+      const currentDir = plasmaCurrent > 0 ? 1 : -1;
+      
+      // Left cross-section: current going INTO page (⊗) or OUT of page (⊙)
+      ctx.fillStyle = `rgba(255, 200, 50, ${currentIntensity})`;
+      ctx.beginPath();
+      ctx.arc(sideX - plasmaOffset, sideY, 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(currentDir > 0 ? '⊗' : '⊙', sideX - plasmaOffset, sideY);
+      
+      // Right cross-section: opposite direction
+      ctx.fillStyle = `rgba(255, 200, 50, ${currentIntensity})`;
+      ctx.beginPath();
+      ctx.arc(sideX + plasmaOffset, sideY, 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#000';
+      ctx.fillText(currentDir > 0 ? '⊙' : '⊗', sideX + plasmaOffset, sideY);
+      
+      // Label
+      ctx.fillStyle = '#fc5';
+      ctx.font = '12px Arial';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Induced I_plasma', sideX, sideY + plasmaRadius + 20);
+      ctx.fillText(`= ${Math.abs(plasmaCurrent).toFixed(1)} A`, sideX, sideY + plasmaRadius + 35);
+    }
+
+    // Labels for side view
+    ctx.fillStyle = '#888';
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('SOLENOID', sideX, sideY + solenoidHeight/2 + 20);
+    ctx.fillText('Plasma', sideX - plasmaOffset, sideY + plasmaRadius + 10);
+    ctx.fillText('Plasma', sideX + plasmaOffset, sideY + plasmaRadius + 10);
+
+    // === TOP VIEW (RIGHT) ===
+    const topX = 500;
+    const topY = 250;
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('TOP VIEW (looking down)', topX, 30);
+
+    // Draw torus outline
+    const R_outer = 120;
+    const R_inner = 50;
+    
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(topX, topY, R_outer, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(topX, topY, R_inner, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Fill plasma region
+    ctx.fillStyle = 'rgba(170, 85, 255, 0.15)';
+    ctx.beginPath();
+    ctx.arc(topX, topY, R_outer, 0, Math.PI * 2);
+    ctx.arc(topX, topY, R_inner, 0, Math.PI * 2, true);
+    ctx.fill();
+
+    // Draw solenoid in center (top view = circle)
+    const solenoidRadius = 35;
+    ctx.fillStyle = '#334';
+    ctx.beginPath();
+    ctx.arc(topX, topY, solenoidRadius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(topX, topY, solenoidRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Flux through center (dots showing field coming out of page)
+    if (showFluxLines && solenoidCurrent > 1) {
+      const fluxIntensity = solenoidCurrent / 100;
+      ctx.fillStyle = `rgba(100, 200, 255, ${fluxIntensity})`;
+      
+      for (let x = -20; x <= 20; x += 12) {
+        for (let y = -20; y <= 20; y += 12) {
+          if (x*x + y*y < solenoidRadius * solenoidRadius * 0.7) {
+            ctx.beginPath();
+            ctx.arc(topX + x, topY + y, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      
+      ctx.fillStyle = '#6cf';
+      ctx.font = '10px Arial';
+      ctx.fillText('Φ ↑', topX, topY);
+    }
+
+    // Show plasma current flowing around (toroidally)
+    if (showInducedCurrent && Math.abs(plasmaCurrent) > 0.5) {
+      const currentIntensity = Math.min(Math.abs(plasmaCurrent) / 30, 1);
+      const currentDir = plasmaCurrent > 0 ? 1 : -1;
+      
+      ctx.strokeStyle = `rgba(255, 200, 50, ${currentIntensity})`;
+      ctx.lineWidth = 4;
+      
+      // Draw current arrows around the plasma ring
+      const R_mid = (R_outer + R_inner) / 2;
+      const numArrows = 8;
+      
+      for (let i = 0; i < numArrows; i++) {
+        const angle = (i / numArrows) * Math.PI * 2 + time * currentDir * 0.5;
+        const x = topX + R_mid * Math.cos(angle);
+        const y = topY + R_mid * Math.sin(angle);
+        
+        // Arrow tangent to circle
+        const tangent = angle + (currentDir > 0 ? Math.PI/2 : -Math.PI/2);
+        const arrowLen = 20;
+        
+        ctx.beginPath();
+        ctx.moveTo(x - arrowLen/2 * Math.cos(tangent), y - arrowLen/2 * Math.sin(tangent));
+        ctx.lineTo(x + arrowLen/2 * Math.cos(tangent), y + arrowLen/2 * Math.sin(tangent));
+        ctx.stroke();
+        
+        // Arrowhead
+        ctx.fillStyle = `rgba(255, 200, 50, ${currentIntensity})`;
+        ctx.beginPath();
+        ctx.moveTo(x + arrowLen/2 * Math.cos(tangent), y + arrowLen/2 * Math.sin(tangent));
+        ctx.lineTo(x + arrowLen/2 * Math.cos(tangent) - 8 * Math.cos(tangent - Math.PI/6), 
+                   y + arrowLen/2 * Math.sin(tangent) - 8 * Math.sin(tangent - Math.PI/6));
+        ctx.lineTo(x + arrowLen/2 * Math.cos(tangent) - 8 * Math.cos(tangent + Math.PI/6), 
+                   y + arrowLen/2 * Math.sin(tangent) - 8 * Math.sin(tangent + Math.PI/6));
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      ctx.fillStyle = '#fc5';
+      ctx.font = '11px Arial';
+      ctx.fillText(`I_plasma ${currentDir > 0 ? '→' : '←'}`, topX, topY + R_outer + 25);
+    }
+
+    // Labels
+    ctx.fillStyle = '#888';
+    ctx.font = '11px Arial';
+    ctx.fillText('Solenoid', topX, topY + solenoidRadius + 15);
+
+    // === STATUS PANEL ===
+    ctx.fillStyle = '#222';
+    ctx.fillRect(10, height - 130, 280, 120);
+    ctx.strokeStyle = '#444';
+    ctx.strokeRect(10, height - 130, 280, 120);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText("Faraday's Law:", 20, height - 110);
+    
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#fc5';
+    ctx.fillText('EMF = -dΦ/dt', 20, height - 90);
+    
+    ctx.fillStyle = '#aaa';
+    ctx.font = '12px Arial';
+    ctx.fillText('Induced voltage depends on', 20, height - 70);
+    ctx.fillText('RATE OF CHANGE of flux,', 20, height - 55);
+    ctx.fillText('not the flux itself!', 20, height - 40);
+
+    // Ramping indicator
+    if (isRamping) {
+      ctx.fillStyle = '#5f5';
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText('⚡ RAMPING - Current induced!', 20, height - 20);
+    } else {
+      ctx.fillStyle = '#f55';
+      ctx.font = '14px Arial';
+      ctx.fillText('STEADY - No current induced', 20, height - 20);
+    }
+
+    // Rate of change indicator
+    ctx.fillStyle = '#222';
+    ctx.fillRect(width - 200, height - 80, 190, 70);
+    ctx.strokeStyle = '#444';
+    ctx.strokeRect(width - 200, height - 80, 190, 70);
+
+    const dI_dt = solenoidCurrent - prevSolenoidCurrent;
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Solenoid I: ${solenoidCurrent.toFixed(1)} A`, width - 190, height - 60);
+    ctx.fillText(`dI/dt: ${(dI_dt * 20).toFixed(1)} A/s`, width - 190, height - 42);
+    ctx.fillStyle = '#fc5';
+    ctx.fillText(`Plasma I: ${plasmaCurrent.toFixed(1)} A`, width - 190, height - 22);
+
+  }, [solenoidCurrent, prevSolenoidCurrent, plasmaCurrent, time, showFluxLines, showInducedCurrent, isRamping]);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold text-center mb-2">
+        How The Solenoid Induces Plasma Current
+      </h1>
+      <p className="text-center text-gray-400 mb-4">
+        It's transformer action - changing flux induces current
+      </p>
+
+      <div className="flex flex-col lg:flex-row gap-4 max-w-6xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={700}
+            height={500}
+            className="bg-gray-800 rounded-lg w-full"
+          />
+        </div>
+
+        <div className="w-full lg:w-64 space-y-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Solenoid Current</h3>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={solenoidCurrent}
+              onChange={e => setSolenoidCurrent(Number(e.target.value))}
+              className="w-full"
+            />
+            <p className="text-center text-sm mt-1">{solenoidCurrent.toFixed(0)} A</p>
+            <p className="text-xs text-gray-400 mt-2">
+              Drag the slider to CHANGE the current. The plasma current only appears when you're actively moving the slider!
+            </p>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Auto Ramp</h3>
+            <button
+              onClick={() => setAutoRamp(!autoRamp)}
+              className={`w-full py-2 rounded ${autoRamp ? 'bg-yellow-600' : 'bg-green-600'}`}
+            >
+              {autoRamp ? '⏸ Stop Ramping' : '▶ Auto Ramp'}
+            </button>
+            <p className="text-xs text-gray-400 mt-2">
+              Watch the plasma current appear as the solenoid ramps up and down
+            </p>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Display</h3>
+            <label className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                checked={showFluxLines}
+                onChange={e => setShowFluxLines(e.target.checked)}
+              />
+              Show magnetic flux
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showInducedCurrent}
+                onChange={e => setShowInducedCurrent(e.target.checked)}
+              />
+              Show induced current
+            </label>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Key Insight</h3>
+            <p className="text-gray-400 mb-2">
+              The solenoid field goes through the <span className="text-cyan-400">HOLE</span>, not through the plasma.
+            </p>
+            <p className="text-gray-400">
+              But CHANGING that flux induces current in the plasma (which loops around the hole like a secondary transformer winding).
+            </p>
+          </div>
+
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Try This</h3>
+            <ol className="text-gray-400 list-decimal list-inside space-y-1">
+              <li>Set slider to 0</li>
+              <li>Quickly drag to 100</li>
+              <li>Watch plasma current spike!</li>
+              <li>Hold steady - current dies</li>
+              <li>Drag back down - current reverses!</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(SolenoidVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

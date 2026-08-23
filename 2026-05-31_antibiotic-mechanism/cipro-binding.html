@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How a Drug Molecule "Finds" Its Target</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06110f; --bg2:#0a1a17; --ink:#dff5ec; --dim:#7fa298;
+    --dna:#3ff0c2; --dna2:#1fbf9a; --cipro:#ff7ac4; --mg:#ffd27a;
+    --water:#6fc6ff; --ser:#b6ff7a; --asp:#ff9d6c; --danger:#ff3b5c;
+    --line:rgba(63,240,194,.16); --panel:rgba(13,32,28,.6);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 700px at 75% -10%, rgba(255,122,196,.06), transparent 60%),
+      radial-gradient(900px 600px at 5% 110%, rgba(63,240,194,.07), transparent 55%),
+      linear-gradient(160deg,var(--bg),var(--bg2));
+    color:var(--ink); font-family:"Spline Sans Mono",ui-monospace,monospace;
+    min-height:100vh; display:flex; justify-content:center;
+    padding:24px 16px 60px;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background-image:radial-gradient(rgba(255,255,255,.022) 1px,transparent 1px);
+    background-size:3px 3px;mix-blend-mode:overlay}
+  .wrap{width:100%;max-width:920px;position:relative;z-index:2}
+  .kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);
+    display:flex;align-items:center;gap:10px}
+  .kicker::before{content:"";width:26px;height:1px;background:var(--dna2)}
+  h1{font-family:"Instrument Serif",serif;font-weight:400;font-size:clamp(32px,5.6vw,56px);
+    line-height:1.03;margin:6px 0 6px}
+  h1 em{font-style:italic;color:var(--cipro)}
+  .lede{color:var(--dim);font-size:13.5px;max-width:64ch;line-height:1.6}
+  .lede b{color:var(--ink)}
+
+  .tabs{display:flex;gap:6px;margin:22px 0 0;flex-wrap:wrap}
+  .tabs button{font-family:inherit;font-size:12.5px;color:var(--dim);cursor:pointer;
+    background:rgba(63,240,194,.05);border:1px solid var(--line);border-radius:10px 10px 0 0;
+    padding:11px 15px;transition:.2s;letter-spacing:.02em}
+  .tabs button.on{color:#04110d;background:var(--dna);font-weight:600;border-color:var(--dna)}
+  .tabs button:not(.on):hover{background:rgba(63,240,194,.13)}
+
+  .panel{border:1px solid var(--line);border-radius:0 14px 14px 14px;background:var(--panel);
+    backdrop-filter:blur(10px);overflow:hidden}
+  .stage{position:relative;background:linear-gradient(180deg,rgba(8,22,19,.55),rgba(5,14,12,.8))}
+  canvas{display:block;width:100%;height:auto}
+  svg{display:block;width:100%;height:auto}
+  .info{padding:18px 20px 22px;border-top:1px solid var(--line)}
+  .ititle{font-size:15px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:9px}
+  .itext{color:var(--dim);font-size:13.5px;line-height:1.62;min-height:60px}
+  .itext b{color:var(--ink);font-weight:600}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;letter-spacing:.04em;
+    border:1px solid currentColor}
+
+  .ctl{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px 0}
+  .ctl button{font-family:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;
+    background:rgba(63,240,194,.06);border:1px solid var(--line);border-radius:9px;
+    padding:9px 13px;transition:.2s}
+  .ctl button:hover{background:rgba(63,240,194,.15)}
+  .ctl button.act{background:var(--dna);color:#04110d;font-weight:600;border-color:var(--dna)}
+
+  .stat{position:absolute;top:12px;left:12px;font-size:11px;letter-spacing:.05em;color:var(--dim);
+    background:rgba(4,12,10,.7);border:1px solid var(--line);border-radius:9px;padding:9px 12px;
+    backdrop-filter:blur(6px);line-height:1.7}
+  .stat b{color:var(--ink)}
+  .stat .ok{color:var(--dna)} .stat .no{color:var(--dim)}
+
+  .hot{cursor:pointer;transition:.2s}
+  .hot:hover{filter:brightness(1.2)}
+  .lbl{font-family:"Spline Sans Mono",monospace;font-size:11px;fill:var(--dim);letter-spacing:.03em}
+  .lbl-on{fill:var(--ink);font-weight:600}
+  .none{display:none}
+  .foot{margin-top:20px;color:var(--dim);font-size:12px;line-height:1.6;border-left:2px solid var(--cipro);padding-left:13px}
+  .foot b{color:var(--ink)}
+  .switch{display:inline-flex;align-items:center;gap:10px;font-size:12.5px;color:var(--dim);margin-left:auto}
+  .toggle{width:46px;height:24px;border-radius:999px;background:rgba(255,255,255,.1);position:relative;cursor:pointer;transition:.25s;border:1px solid var(--line)}
+  .toggle.on{background:var(--danger)}
+  .toggle i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#cfe;transition:.25s}
+  .toggle.on i{left:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Molecular recognition · interactive</div>
+  <h1>How does <em>cipro</em> find<br>the one thing to grab?</h1>
+  <p class="lede">It doesn't search and it isn't alive. It's a rigid little shape — about <b>41 atoms</b> — that heat flings around at random, colliding with everything millions of times a second. It sticks <b>only</b> where the shape and the electric charges both happen to match. Four tabs, from the random bumping to the exact geometric grip.</p>
+
+  <div class="tabs">
+    <button class="on" data-t="0">1 · Is it alive?</button>
+    <button data-t="1">2 · The molecule</button>
+    <button data-t="2">3 · The grip</button>
+    <button data-t="3">4 · Resistance</button>
+  </div>
+
+  <!-- ============ TAB 0: DIFFUSION ============ -->
+  <div class="panel" data-panel="0">
+    <div class="stage">
+      <div class="stat" id="diffStat"></div>
+      <canvas id="diff"></canvas>
+    </div>
+    <div class="ctl">
+      <button id="dPlay" class="act">❚❚ Pause</button>
+      <button id="dReset">⟲ Reset</button>
+      <button id="dSlow">Slow motion</button>
+    </div>
+    <div class="info">
+      <div class="ititle"><span class="pill" style="color:var(--cipro)">no intent</span> Random bumping, not searching</div>
+      <div class="itext">Each <b style="color:var(--cipro)">pink</b> molecule is cipro; the <b style="color:var(--dim)">grey</b> ones are all the other junk floating in a cell. None of them aim. They're shoved around purely by thermal motion (Brownian motion) and ricochet off each other and the walls. The slot on the right is the <b>binding site</b> — the cut DNA–gyrase complex. When a cipro happens to drift in <b>facing the right way</b>, the matching shape and charges hold it and it locks. Grey molecules can enter the same slot and just fall back out — nothing holds them. Watch the counter: thousands of pointless collisions for each real bind. That randomness <i>is</i> the mechanism.</div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 1: THE MOLECULE ============ -->
+  <div class="panel none" data-panel="1">
+    <div class="stage"><svg id="mol" viewBox="0 0 920 460"></svg></div>
+    <div class="ctl" id="molCtl"></div>
+    <div class="info">
+      <div class="ititle" id="molTitle"><span class="pill" style="color:var(--mg)">tap a part</span> Ciprofloxacin · C₁₇H₁₈FN₃O₃</div>
+      <div class="itext" id="molText">A single, rigid organic molecule — not alive, no moving parts of its own. Its power comes entirely from its <b>shape</b> and where its <b>charged / H-bonding groups</b> sit. Tap each highlighted part to see what job it does when the molecule docks. Two regions do the real work: the flat core that slides into DNA, and the carboxyl + keto "claw" that grabs a metal ion.</div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 2: THE GRIP ============ -->
+  <div class="panel none" data-panel="2">
+    <div class="stage"><svg id="grip" viewBox="0 0 920 480"></svg></div>
+    <div class="ctl" id="gripCtl"></div>
+    <div class="info">
+      <div class="ititle" id="gripTitle"><span class="pill" style="color:var(--dna)">3 anchors</span> The geometric system</div>
+      <div class="itext" id="gripText">Cipro is held by <b>three</b> kinds of force at once — that combination is what makes it specific. It can only grab once gyrase has <b>cut</b> the DNA, because the drug slides into the gap the cut creates. Tap each interaction to isolate it.</div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 3: RESISTANCE ============ -->
+  <div class="panel none" data-panel="3">
+    <div class="stage"><svg id="res" viewBox="0 0 920 480"></svg></div>
+    <div class="ctl">
+      <div class="switch">Mutate enzyme &nbsp;Ser83 → Leu
+        <div class="toggle" id="mutToggle"><i></i></div>
+      </div>
+    </div>
+    <div class="info">
+      <div class="ititle" id="resTitle"><span class="pill" style="color:var(--ser)">healthy enzyme</span> Why one tiny change defeats it</div>
+      <div class="itext" id="resText">The grip depends on two specific amino-acid residues — <b>Ser83</b> and <b>Asp87</b> — offering the right atoms in the right spot for the water–metal bridge. Flip the switch to swap a single residue (Ser83 → Leu). Leu can't hold the water bridge: one anchor of three is gone, the grip falls apart, and the drug drifts back out. The bacterium is now <b>resistant</b> — even though everything else about the drug is unchanged. This exact mutation is common in Campylobacter across Southeast Asia, which is why cipro sometimes underperforms there.</div>
+    </div>
+  </div>
+
+  <p class="foot"><b>And you?</b> Your cells run a different enzyme (human topoisomerase II) whose pocket lacks this Ser/Asp geometry, so the water–metal bridge can't form and cipro binds it far too weakly to matter at normal doses. Same reason the drug grips bacteria and lets you go: it's all shape and charge, no intent on anyone's part.</p>
+</div>
+
+<script>
+/* ================= TAB SWITCHING ================= */
+const tabs=[...document.querySelectorAll('.tabs button')];
+const panels=[...document.querySelectorAll('[data-panel]')];
+let active=0;
+tabs.forEach(b=>b.addEventListener('click',()=>{
+  active=+b.dataset.t;
+  tabs.forEach(x=>x.classList.toggle('on',x===b));
+  panels.forEach(p=>p.classList.toggle('none',+p.dataset.panel!==active));
+  if(active===0) diffResize();
+}));
+
+/* ================= TAB 0: DIFFUSION ================= */
+const dc=document.getElementById('diff'), dctx=dc.getContext('2d');
+const stat=document.getElementById('diffStat');
+let DW,DH,DPR=Math.min(window.devicePixelRatio||1,2);
+let particles=[], bound=null, collisions=0, rejects=0, dplaying=true, dslow=false;
+const SITE={};
+
+function diffResize(){
+  const w=dc.parentElement.clientWidth;
+  DW=w; DH=Math.round(Math.min(420,Math.max(300,w*0.5)));
+  dc.width=DW*DPR; dc.height=DH*DPR; dc.style.height=DH+'px';
+  dctx.setTransform(DPR,0,0,DPR,0,0);
+  SITE.w=Math.min(120,DW*0.16); SITE.h=Math.min(150,DH*0.42);
+  SITE.x=DW-SITE.w-14; SITE.y=DH/2-SITE.h/2;
+}
+function spawn(){
+  particles=[]; bound=null; collisions=0; rejects=0;
+  const N=Math.round(DW/26);
+  for(let i=0;i<N;i++){
+    const cipro = Math.random()<0.4;
+    particles.push({
+      x:20+Math.random()*(DW-SITE.w-60), y:20+Math.random()*(DH-40),
+      vx:(Math.random()-.5)*2.4, vy:(Math.random()-.5)*2.4,
+      r: cipro?9:7, cipro, ang:Math.random()*6, va:(Math.random()-.5)*0.2
+    });
+  }
+}
+function drawCiproShape(p,glow){
+  dctx.save(); dctx.translate(p.x,p.y); dctx.rotate(p.ang);
+  dctx.beginPath();
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2;const x=Math.cos(a)*p.r,y=Math.sin(a)*p.r;i?dctx.lineTo(x,y):dctx.moveTo(x,y);}
+  dctx.closePath();
+  dctx.fillStyle='rgba(255,122,196,.85)';
+  dctx.strokeStyle='rgba(255,122,196,1)';dctx.lineWidth=1.5;
+  if(glow){dctx.shadowColor='rgba(255,122,196,.9)';dctx.shadowBlur=18;}
+  dctx.fill();dctx.stroke();
+  // little claw nub so orientation reads
+  dctx.beginPath();dctx.arc(p.r*0.9,0,2.4,0,7);dctx.fillStyle='var(--mg)';dctx.fillStyle='#ffd27a';dctx.fill();
+  dctx.restore();
+}
+function drawDecoy(p){
+  dctx.save();dctx.translate(p.x,p.y);
+  dctx.beginPath();dctx.arc(0,0,p.r,0,7);
+  dctx.fillStyle='rgba(127,162,152,.35)';dctx.strokeStyle='rgba(127,162,152,.6)';dctx.lineWidth=1.2;
+  dctx.fill();dctx.stroke();dctx.restore();
+}
+function diffTick(){
+  dctx.clearRect(0,0,DW,DH);
+  // binding site (the cut complex slot)
+  dctx.save();
+  dctx.fillStyle='rgba(63,240,194,.05)';
+  dctx.strokeStyle='rgba(63,240,194,.5)';dctx.lineWidth=1.5;
+  dctx.setLineDash([5,5]);
+  roundRect(dctx,SITE.x,SITE.y,SITE.w,SITE.h,12);dctx.fill();dctx.stroke();
+  dctx.setLineDash([]);
+  dctx.fillStyle='rgba(63,240,194,.8)';dctx.font='600 11px "Spline Sans Mono",monospace';
+  dctx.textAlign='center';
+  dctx.fillText('CUT-DNA',SITE.x+SITE.w/2,SITE.y-16);
+  dctx.fillText('SITE',SITE.x+SITE.w/2,SITE.y-3);
+  // a notch shape inside = required complementary form
+  dctx.beginPath();
+  dctx.moveTo(SITE.x+SITE.w*0.5,SITE.y+SITE.h*0.3);
+  dctx.lineTo(SITE.x+SITE.w*0.8,SITE.y+SITE.h*0.5);
+  dctx.lineTo(SITE.x+SITE.w*0.5,SITE.y+SITE.h*0.7);
+  dctx.strokeStyle='rgba(63,240,194,.3)';dctx.stroke();
+  dctx.restore();
+
+  const sp = dslow?0.3:1;
+  particles.forEach(p=>{
+    if(p===bound) return;
+    p.x+=p.vx*sp; p.y+=p.vy*sp; p.ang+=p.va*sp;
+    if(p.x<p.r){p.x=p.r;p.vx*=-1;} if(p.y<p.r){p.y=p.r;p.vy*=-1;}
+    if(p.y>DH-p.r){p.y=DH-p.r;p.vy*=-1;}
+    // right wall except where site is
+    if(p.x>DW-p.r){
+      const inSlotY = p.y>SITE.y && p.y<SITE.y+SITE.h;
+      if(p.x>SITE.x && inSlotY){
+        // entered the slot
+        collisions++;
+        if(p.cipro && !bound && Math.abs(((p.ang%(Math.PI*2))+Math.PI*2)%(Math.PI*2))<1.1){
+          // right molecule, right orientation -> bind
+          bound=p; p.bx=SITE.x+SITE.w*0.42; p.by=SITE.y+SITE.h*0.5;
+        } else {
+          rejects++; p.vx=-Math.abs(p.vx); // bounce back out
+        }
+      } else { p.x=DW-p.r; p.vx*=-1; }
+    }
+    // occasional random kick (brownian)
+    if(Math.random()<0.02){p.vx+=(Math.random()-.5)*0.6;p.vy+=(Math.random()-.5)*0.6;}
+    const s=Math.hypot(p.vx,p.vy); if(s>3){p.vx*=3/s;p.vy*=3/s;}
+    p.cipro?drawCiproShape(p,false):drawDecoy(p);
+  });
+  // animate bound one snapping in
+  if(bound){
+    bound.x+=(bound.bx-bound.x)*0.15; bound.y+=(bound.by-bound.y)*0.15;
+    bound.ang+=(0-((bound.ang%(Math.PI*2)))-0)*0.0; // settle
+    drawCiproShape(bound,true);
+    dctx.save();dctx.fillStyle='rgba(63,240,194,.95)';dctx.font='600 12px "Spline Sans Mono",monospace';
+    dctx.textAlign='center';dctx.fillText('✓ BOUND',bound.x,bound.y-bound.r-8);dctx.restore();
+  }
+  stat.innerHTML=`collisions w/ site: <b>${collisions}</b><br>`+
+    `wrong shape/charge → rejected: <span class="no">${rejects}</span><br>`+
+    `successful bind: <span class="ok">${bound?1:0}</span>`;
+  if(dplaying) requestAnimationFrame(diffTick);
+}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+document.getElementById('dPlay').addEventListener('click',e=>{
+  dplaying=!dplaying; e.target.textContent=dplaying?'❚❚ Pause':'► Play'; if(dplaying)diffTick();
+});
+document.getElementById('dReset').addEventListener('click',()=>{spawn();});
+document.getElementById('dSlow').addEventListener('click',e=>{dslow=!dslow;e.target.classList.toggle('act',dslow);});
+window.addEventListener('resize',()=>{if(active===0){diffResize();spawn();}});
+
+/* ================= TAB 1: THE MOLECULE ================= */
+const mol=document.getElementById('mol');
+const molTitle=document.getElementById('molTitle'), molText=document.getElementById('molText');
+function hex(cx,cy,r){let p=[];for(let i=0;i<6;i++){const a=(i*60-30)*Math.PI/180;p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}return p;}
+function poly(pts){return pts.map(p=>p.join(',')).join(' ');}
+const molParts={
+  core:{t:"Flat aromatic core (quinolone)",c:"--dna",d:"The two fused, flat rings are rigid and electron-rich. This flat plate is what <b>slides edge-on into the gap</b> in the cut DNA and stacks against the bases (π-stacking). Flat + rigid is the requirement — a floppy molecule couldn't wedge in."},
+  claw:{t:"Carboxyl + keto 'claw' (C3 / C4)",c:"--mg",d:"These two oxygens sit side by side and together <b>chelate a magnesium ion</b> — they pinch the Mg²⁺ like tweezers. This is the tether point. Mutate or block these and the drug loses its grip entirely."},
+  f:{t:"Fluorine atom (C6)",c:"--water",d:"A single fluorine. Small but it tunes the molecule's electronics and boosts how well it gets into bacterial cells. It's literally the 'fluoro' in <b>fluoro</b>quinolone."},
+  pip:{t:"Piperazine ring (C7)",c:"--cipro",d:"This ring is the part that improved cipro over older quinolones — it widens the spectrum of bacteria hit and helps the drug cross bacterial membranes. It points out of the pocket rather than into the grip."},
+  cp:{t:"Cyclopropyl group (N1)",c:"--ser",d:"A little three-carbon triangle on the ring nitrogen. It fills space in the binding pocket and improves potency — part of why cipro is stronger than its predecessors."}
+};
+function buildMol(){
+  const cx=380,cy=235,r=78;
+  const A=hex(cx-r*Math.cos(Math.PI/6),cy,r);          // left ring
+  const B=hex(cx+r*Math.cos(Math.PI/6),cy,r);          // right ring
+  let s='';
+  // glow defs
+  s+=`<defs><filter id="g" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  // bonds inside rings (aromatic feel) — fill
+  s+=`<polygon class="hot" data-p="core" points="${poly(A)}" fill="rgba(63,240,194,.10)" stroke="rgba(63,240,194,.75)" stroke-width="2.4"/>`;
+  s+=`<polygon class="hot" data-p="core" points="${poly(B)}" fill="rgba(63,240,194,.10)" stroke="rgba(63,240,194,.75)" stroke-width="2.4"/>`;
+  // inner double-bond hints
+  s+=`<polygon points="${poly(A.map(p=>[cx-r*Math.cos(Math.PI/6)+(p[0]-(cx-r*Math.cos(Math.PI/6)))*0.6,cy+(p[1]-cy)*0.6]))}" fill="none" stroke="rgba(63,240,194,.4)" stroke-width="1.4"/>`;
+  // F on left ring (top-left vertex)
+  const fv=A[1];
+  s+=`<g class="hot" data-p="f"><line x1="${fv[0]}" y1="${fv[1]}" x2="${fv[0]-34}" y2="${fv[1]-30}" stroke="rgba(111,198,255,.8)" stroke-width="2.2"/>
+    <circle cx="${fv[0]-40}" cy="${fv[1]-36}" r="15" fill="rgba(111,198,255,.18)" stroke="rgba(111,198,255,.9)" stroke-width="2"/>
+    <text x="${fv[0]-40}" y="${fv[1]-31}" text-anchor="middle" font-size="14" fill="#cfeaff" font-family="Spline Sans Mono">F</text></g>`;
+  // claw: COOH + C=O on right ring bottom vertices
+  const c3=B[3], c4=B[4];
+  s+=`<g class="hot" data-p="claw">
+    <line x1="${c3[0]}" y1="${c3[1]}" x2="${c3[0]+10}" y2="${c3[1]+38}" stroke="rgba(255,210,122,.85)" stroke-width="2.2"/>
+    <text x="${c3[0]+26}" y="${c3[1]+50}" font-size="13" fill="#ffe6b0" font-family="Spline Sans Mono">COOH</text>
+    <line x1="${c4[0]}" y1="${c4[1]}" x2="${c4[0]-6}" y2="${c4[1]+40}" stroke="rgba(255,210,122,.85)" stroke-width="2.2"/>
+    <text x="${c4[0]-26}" y="${c4[1]+54}" font-size="13" fill="#ffe6b0" font-family="Spline Sans Mono">C=O</text>
+    <path d="M ${c3[0]+10} ${c3[1]+58} Q ${(c3[0]+c4[0])/2} ${c3[1]+78} ${c4[0]-6} ${c4[1]+58}" fill="none" stroke="rgba(255,210,122,.5)" stroke-width="1.4" stroke-dasharray="3 3"/>
+    <text x="${(c3[0]+c4[0])/2}" y="${c3[1]+92}" text-anchor="middle" font-size="10.5" fill="rgba(255,210,122,.8)" font-family="Spline Sans Mono">Mg²⁺ claw</text></g>`;
+  // piperazine off right ring (right vertex)
+  const pv=B[0];
+  const pip=hex(pv[0]+58,pv[1],26);
+  s+=`<g class="hot" data-p="pip"><line x1="${pv[0]}" y1="${pv[1]}" x2="${pv[0]+32}" y2="${pv[1]}" stroke="rgba(255,122,196,.8)" stroke-width="2.2"/>
+    <polygon points="${poly(pip)}" fill="rgba(255,122,196,.14)" stroke="rgba(255,122,196,.9)" stroke-width="2"/>
+    <text x="${pv[0]+58}" y="${pv[1]+5}" text-anchor="middle" font-size="11" fill="#ffd0ec" font-family="Spline Sans Mono">N</text>
+    <text x="${pv[0]+58}" y="${pv[1]+50}" text-anchor="middle" font-size="11" fill="rgba(255,122,196,.85)" font-family="Spline Sans Mono">piperazine</text></g>`;
+  // cyclopropyl off N1 (bottom-left of right ring, the ring N)
+  const nv=B[2];
+  s+=`<g class="hot" data-p="cp"><line x1="${nv[0]}" y1="${nv[1]}" x2="${nv[0]+4}" y2="${nv[1]+34}" stroke="rgba(182,255,122,.8)" stroke-width="2.2"/>
+    <polygon points="${nv[0]+4},${nv[1]+34} ${nv[0]-12},${nv[1]+58} ${nv[0]+20},${nv[1]+58}" fill="rgba(182,255,122,.14)" stroke="rgba(182,255,122,.9)" stroke-width="2"/>
+    <text x="${nv[0]+4}" y="${nv[1]+80}" text-anchor="middle" font-size="11" fill="rgba(182,255,122,.85)" font-family="Spline Sans Mono">cyclopropyl</text>
+    <text x="${nv[0]-14}" y="${nv[1]+2}" font-size="11" fill="#cfe" font-family="Spline Sans Mono">N</text></g>`;
+  mol.innerHTML=s;
+  mol.querySelectorAll('.hot').forEach(el=>el.addEventListener('click',()=>{
+    const k=el.dataset.p, info=molParts[k];
+    mol.querySelectorAll('.hot').forEach(h=>h.style.filter='');
+    mol.querySelectorAll(`[data-p="${k}"]`).forEach(h=>h.style.filter='url(#g)');
+    molTitle.innerHTML=`<span class="pill" style="color:var(${info.c})">part</span> ${info.t}`;
+    molText.innerHTML=info.d;
+  }));
+}
+buildMol();
+
+/* ================= TAB 2 + 3: THE POCKET ================= */
+function pocketSVG(target, withResistance){
+  // base scene: cut DNA top & bottom plates, cipro core wedged in gap,
+  // claw -> Mg2+ -> 2 waters -> Ser83 & Asp87
+  const el=document.getElementById(target);
+  let mutated = withResistance && el.dataset.mut==='1';
+  const cx=460;
+  let s=`<defs><filter id="gg" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  // DNA plates (cut ends)
+  const dnaCol='rgba(63,240,194,';
+  function plate(y,label){return `<rect class="iact stack" data-i="stack" x="200" y="${y}" width="320" height="34" rx="8" fill="${dnaCol}.10)" stroke="${dnaCol}.7)" stroke-width="2"/>
+    <text x="210" y="${y+22}" font-size="11" fill="rgba(63,240,194,.85)" font-family="Spline Sans Mono">${label}</text>`;}
+  s+=plate(70,'cut DNA — upper base pairs');
+  s+=plate(330,'cut DNA — lower base pairs');
+  // gap label
+  s+=`<text x="360" y="60" text-anchor="middle" font-size="10.5" fill="var(--dim)" fill="rgba(127,162,152,.9)" font-family="Spline Sans Mono">↕ gap opened by the cut</text>`;
+  // cipro flat core wedged in gap (intercalated)
+  const ciproY = 175;
+  const slid = mutated? 230 : 0; // slides out when resistant
+  const ciproOpacity = mutated? 0.35 : 1;
+  s+=`<g id="ciproG" style="transition:transform .9s ease, opacity .9s" transform="translate(${slid},${mutated?-30:0})" opacity="${ciproOpacity}">
+    <rect x="270" y="${ciproY}" width="180" height="46" rx="10" fill="rgba(255,122,196,.16)" stroke="rgba(255,122,196,.95)" stroke-width="2.2"/>
+    <text x="360" y="${ciproY+22}" text-anchor="middle" font-size="12" fill="#ffd0ec" font-family="Spline Sans Mono">cipro flat core</text>
+    <text x="360" y="${ciproY+38}" text-anchor="middle" font-size="10" fill="rgba(255,122,196,.8)" font-family="Spline Sans Mono">(π-stacked into the cut)</text>
+    <!-- claw toward Mg -->
+    <path d="M 450 ${ciproY+23} q 40 0 58 4" fill="none" stroke="rgba(255,210,122,.9)" stroke-width="2.4"/>
+    <text x="478" y="${ciproY+8}" font-size="10" fill="rgba(255,210,122,.85)" font-family="Spline Sans Mono">COO⁻/C=O</text>
+  </g>`;
+  // stacking indicator lines
+  if(!mutated){
+    s+=`<g class="stackline">
+      <line x1="290" y1="104" x2="290" y2="175" stroke="rgba(63,240,194,.4)" stroke-width="1.4" stroke-dasharray="4 4"/>
+      <line x1="430" y1="104" x2="430" y2="175" stroke="rgba(63,240,194,.4)" stroke-width="1.4" stroke-dasharray="4 4"/>
+      <line x1="290" y1="221" x2="290" y2="330" stroke="rgba(63,240,194,.4)" stroke-width="1.4" stroke-dasharray="4 4"/>
+      <line x1="430" y1="221" x2="430" y2="330" stroke="rgba(63,240,194,.4)" stroke-width="1.4" stroke-dasharray="4 4"/>
+    </g>`;
+  }
+  // Mg2+ ion
+  const mgX=540, mgY=200;
+  s+=`<g class="iact mg" data-i="mg"><circle cx="${mgX}" cy="${mgY}" r="20" fill="rgba(255,210,122,.2)" stroke="rgba(255,210,122,1)" stroke-width="2.4"/>
+    <text x="${mgX}" y="${mgY+5}" text-anchor="middle" font-size="13" fill="#ffe6b0" font-family="Spline Sans Mono">Mg²⁺</text></g>`;
+  // claw->Mg coordination
+  if(!mutated) s+=`<line class="iact mg" data-i="mg" x1="510" y1="${ciproY+27}" x2="${mgX-16}" y2="${mgY-6}" stroke="rgba(255,210,122,.9)" stroke-width="2" stroke-dasharray="2 3"/>`;
+  // 2 waters around Mg
+  const waters=[[mgX+38,mgY-32],[mgX+38,mgY+32]];
+  waters.forEach((w,i)=>{
+    s+=`<g class="iact wbridge" data-i="wbridge"><circle cx="${w[0]}" cy="${w[1]}" r="13" fill="rgba(111,198,255,.18)" stroke="rgba(111,198,255,.9)" stroke-width="1.8"/>
+      <text x="${w[0]}" y="${w[1]+4}" text-anchor="middle" font-size="10" fill="#cfeaff" font-family="Spline Sans Mono">H₂O</text></g>`;
+    s+=`<line class="iact wbridge" data-i="wbridge" x1="${mgX+15}" y1="${mgY+(i?12:-12)}" x2="${w[0]-11}" y2="${w[1]}" stroke="rgba(111,198,255,.7)" stroke-width="1.6" stroke-dasharray="2 3"/>`;
+  });
+  // residues Ser83 (top) and Asp87 (bottom)
+  const serMut=mutated;
+  const serName=serMut?'Leu83':'Ser83';
+  const serCol=serMut?'rgba(255,59,92,':'rgba(182,255,122,';
+  s+=`<g class="iact wbridge" data-i="wbridge"><rect x="660" y="${waters[0][1]-18}" width="78" height="34" rx="8" fill="${serCol}.14)" stroke="${serCol}.95)" stroke-width="2"/>
+    <text x="699" y="${waters[0][1]+4}" text-anchor="middle" font-size="12" fill="${serMut?'#ffb3c0':'#dcffc0'}" font-family="Spline Sans Mono">${serName}</text></g>`;
+  s+=`<g class="iact wbridge" data-i="wbridge"><rect x="660" y="${waters[1][1]-18}" width="78" height="34" rx="8" fill="rgba(255,157,108,.14)" stroke="rgba(255,157,108,.95)" stroke-width="2"/>
+    <text x="699" y="${waters[1][1]+4}" text-anchor="middle" font-size="12" fill="#ffd2b8" font-family="Spline Sans Mono">Asp87</text></g>`;
+  // H-bonds water->residue
+  if(serMut){
+    s+=`<line x1="${waters[0][0]+13}" y1="${waters[0][1]}" x2="655" y2="${waters[0][1]}" stroke="rgba(255,59,92,.9)" stroke-width="2" stroke-dasharray="3 4"/>
+      <text x="640" y="${waters[0][1]-14}" text-anchor="end" font-size="10.5" fill="#ff6f80" font-family="Spline Sans Mono">✕ bridge broken</text>`;
+  } else {
+    s+=`<line class="iact wbridge" data-i="wbridge" x1="${waters[0][0]+13}" y1="${waters[0][1]}" x2="655" y2="${waters[0][1]}" stroke="rgba(182,255,122,.8)" stroke-width="1.8" stroke-dasharray="2 3"/>`;
+  }
+  s+=`<line class="iact wbridge" data-i="wbridge" x1="${waters[1][0]+13}" y1="${waters[1][1]}" x2="655" y2="${waters[1][1]}" stroke="rgba(255,157,108,.8)" stroke-width="1.8" stroke-dasharray="2 3"/>`;
+  el.innerHTML=s;
+  return el;
+}
+
+/* Tab 2 interactions */
+const gripTitle=document.getElementById('gripTitle'), gripText=document.getElementById('gripText');
+const gripCtl=document.getElementById('gripCtl');
+const gripInfo={
+  all:{t:"All three at once",c:"--dna",d:"Cipro is held by <b>three</b> simultaneous grips: (1) its flat core wedges and π-stacks into the cut DNA, (2) its oxygen claw chelates a <b>Mg²⁺</b> ion, and (3) that Mg²⁺ holds <b>water molecules</b> that hydrogen-bond to the enzyme's <b>Ser83</b> and <b>Asp87</b>. No single one is strong — together they lock it tight, and only at a cut site."},
+  stack:{t:"① π-stacking into the cut DNA",c:"--dna",d:"The flat aromatic core slides into the gap the cut created and stacks face-to-face against the DNA bases — like a card slipped into a deck. This is <b>why it only works after gyrase cuts</b>: no cut, no gap, nowhere to wedge."},
+  mg:{t:"② Magnesium claw (chelation)",c:"--mg",d:"Cipro's carboxyl + keto oxygens pinch a <b>Mg²⁺</b> ion between them. The metal becomes a hub — the drug grabs the metal, and the metal reaches onward to the enzyme."},
+  wbridge:{t:"③ Water–metal–ion bridge",c:"--water",d:"The Mg²⁺ holds <b>water molecules</b>, and those waters hydrogen-bond to <b>Ser83</b> and <b>Asp87</b> on the enzyme. This relay — drug → metal → water → protein — is the actual tether to gyrase. It's the part resistance attacks."}
+};
+function buildGripCtl(){
+  gripCtl.innerHTML='';
+  Object.keys(gripInfo).forEach((k,i)=>{
+    const b=document.createElement('button');
+    b.textContent={all:'Show all',stack:'① π-stack',mg:'② Mg²⁺ claw',wbridge:'③ Water bridge'}[k];
+    if(i===0)b.classList.add('act');
+    b.addEventListener('click',()=>{
+      gripCtl.querySelectorAll('button').forEach(x=>x.classList.remove('act'));b.classList.add('act');
+      const g=document.getElementById('grip');
+      g.querySelectorAll('.iact').forEach(e=>e.style.filter='');
+      if(k!=='all') g.querySelectorAll(`[data-i="${k}"]`).forEach(e=>e.style.filter='url(#gg)');
+      const inf=gripInfo[k];
+      gripTitle.innerHTML=`<span class="pill" style="color:var(${inf.c})">${k==='all'?'3 anchors':'anchor'}</span> ${inf.t}`;
+      gripText.innerHTML=inf.d;
+    });
+    gripCtl.appendChild(b);
+  });
+}
+const gripEl=document.getElementById('grip'); gripEl.dataset.mut='0';
+pocketSVG('grip',false); buildGripCtl();
+
+/* Tab 3 resistance toggle */
+const resEl=document.getElementById('res'); resEl.dataset.mut='0';
+pocketSVG('res',true);
+const mutToggle=document.getElementById('mutToggle');
+const resTitle=document.getElementById('resTitle'), resText=document.getElementById('resText');
+mutToggle.addEventListener('click',()=>{
+  const on=resEl.dataset.mut==='1';
+  resEl.dataset.mut=on?'0':'1';
+  mutToggle.classList.toggle('on',!on);
+  pocketSVG('res',true);
+  if(!on){
+    resTitle.innerHTML=`<span class="pill" style="color:var(--danger)">resistant</span> One residue swapped — grip lost`;
+    resText.innerHTML=`<b>Ser83 → Leu.</b> Leucine has no oxygen to hold the water bridge, so anchor ③ snaps. With only the stack and the Mg claw left — both too weak alone — cipro can't stay seated and <b>drifts back out</b> (watch it slide). The enzyme works fine; the drug just can't hold on. That's molecular resistance: a single amino-acid change in the binding pocket. The drug never changed at all.`;
+  } else {
+    resTitle.innerHTML=`<span class="pill" style="color:var(--ser)">healthy enzyme</span> Why one tiny change defeats it`;
+    resText.innerHTML=`The grip depends on two specific residues — <b>Ser83</b> and <b>Asp87</b> — offering the right atoms for the water–metal bridge. Flip the switch to swap one (Ser83 → Leu) and watch the grip collapse.`;
+  }
+});
+
+/* init diffusion */
+diffResize(); spawn(); diffTick();
+</script>
+</body>
+</html>

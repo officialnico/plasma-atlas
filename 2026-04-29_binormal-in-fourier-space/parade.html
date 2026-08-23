@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The parade — visualizing v · ∂f/∂x</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; overflow-x: hidden; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+
+h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em; margin-bottom: 6px; color: #fff; }
+.sub { color: #a8a59c; font-size: 14px; line-height: 1.6; max-width: 800px; margin-bottom: 20px; }
+
+.card {
+  background: rgba(12,12,18,0.85);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 18px;
+}
+
+.viz { background: #050508; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); overflow: hidden; }
+.viz canvas { display: block; width: 100%; }
+.viz .controls {
+  display: flex; gap: 14px; padding: 10px 14px;
+  background: rgba(0,0,0,0.4);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-wrap: wrap; align-items: center;
+}
+.btn {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  color: #e8e6e0; padding: 6px 14px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; cursor: pointer;
+}
+.btn:hover { background: rgba(255,255,255,0.12); }
+.btn.primary { background: #d4a04a; color: #1a1408; border-color: #d4a04a; font-weight: 600; }
+
+.slider-block { display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+.slider-block input[type=range] {
+  width: 110px; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  border-radius: 2px; outline: none;
+}
+.slider-block input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+  cursor: pointer; border: none;
+}
+.green input[type=range] { background: rgba(74,157,110,0.2); }
+.green input[type=range]::-webkit-slider-thumb { background: #5fc28e; box-shadow: 0 0 0 3px rgba(74,157,110,0.25); }
+.green span.lbl { color: #6fdb9e; }
+.green span.val { color: #6fdb9e; font-weight: 600; min-width: 40px; text-align: right; }
+.amber input[type=range] { background: rgba(212,160,74,0.2); }
+.amber input[type=range]::-webkit-slider-thumb { background: #d4a04a; box-shadow: 0 0 0 3px rgba(212,160,74,0.25); }
+.amber span.lbl { color: #d4a04a; }
+.amber span.val { color: #d4a04a; font-weight: 600; min-width: 40px; text-align: right; }
+
+.shape-buttons { display: flex; gap: 4px; }
+.shape-btn {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  color: #e8e6e0; padding: 5px 10px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; cursor: pointer;
+}
+.shape-btn.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; font-weight: 600; }
+
+.legend {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  margin-top: 14px; font-size: 12px;
+  color: #a8a59c; line-height: 1.5;
+}
+.legend .item { display: flex; align-items: center; gap: 6px; }
+.legend .swatch { width: 14px; height: 14px; border-radius: 50%; }
+
+.hint {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(91,141,191,0.05);
+  border-left: 2px solid #7badd6;
+  border-radius: 4px;
+  font-size: 13px; line-height: 1.55; color: #d4cfc0;
+}
+.hint strong { color: #fff; }
+
+.tag-x { color: #ff8b8b; font-weight: 600; }
+.tag-v { color: #6fdb9e; font-weight: 600; }
+.tag-f { color: #d4a04a; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>The parade — visualized</h1>
+<p class="sub"><span class="tag-v">v</span> = how fast the marchers walk. <span class="tag-f">f</span> = density of marchers at each location. The gold figure is YOU, standing at a fixed spot watching them pass. The bottom shows live counts: density at your spot, and how it's changing.</p>
+
+<div class="card">
+<div class="viz">
+  <canvas id="parade" height="380"></canvas>
+  <div class="controls">
+    <button class="btn primary" id="play">▶ play</button>
+    <button class="btn" id="reset">reset</button>
+    <div class="slider-block green">
+      <span class="lbl">v (march speed)</span>
+      <input type="range" id="vSl" min="-1.0" max="1.0" step="0.05" value="0.4">
+      <span class="val" id="vSlV">0.40</span>
+    </div>
+    <div class="slider-block amber">
+      <span class="lbl">your position</span>
+      <input type="range" id="obsSl" min="0.1" max="0.9" step="0.01" value="0.5">
+      <span class="val" id="obsSlV">0.50</span>
+    </div>
+    <div class="shape-buttons" id="shapeBtns">
+      <button class="shape-btn on" data-shape="bump">bump</button>
+      <button class="shape-btn" data-shape="step">step</button>
+      <button class="shape-btn" data-shape="ramp">ramp</button>
+      <button class="shape-btn" data-shape="dip">dip</button>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="item"><div class="swatch" style="background:#ff6b6b"></div>marchers (each dot = a person)</div>
+  <div class="item"><div class="swatch" style="background:#d4a04a"></div>YOU (fixed observer)</div>
+  <div class="item"><div class="swatch" style="background:#6fdb9e"></div>v arrow (march direction & speed)</div>
+</div>
+
+<div class="hint">
+<strong>What you're seeing, top to bottom:</strong>
+<br>1. <em>The street</em> — marchers (red dots) walking past you (gold figure). Faster v = they zip by; v=0 = stationary; negative v = parading backward.
+<br>2. <em>Density curve f(x)</em> — smooth line showing how packed the crowd is at each location.
+<br>3. <em>Your readout</em> — the density right at your spot (count of nearby marchers in last frame), updating live.
+<br>4. <em>The math</em> — the slope ∂f/∂x AT your position, multiplied by v, equals how fast f is changing at your spot.
+</div>
+</div>
+
+<div class="card">
+<h2 style="font-family: Fraunces; font-weight: 600; font-size: 18px; color: #fff; margin-bottom: 10px;">Try these experiments</h2>
+<ol style="margin-left: 20px; line-height: 1.85; color: #d4cfc0; font-size: 14px;">
+<li><strong>Stand on the front edge of the bump.</strong> Move your slider to about 0.6 (just past the peak). Press play with v positive. Watch your readout: density at your spot is <em>rising</em> because the bump is sweeping toward you. The bump's leading edge is steeper here — bigger ∂f/∂x means a bigger rise rate.</li>
+<li><strong>Stand on the back edge.</strong> Slide to about 0.4 (just before the peak). With v positive, density at your spot is <em>falling</em> — the bump is moving away, and emptier ground is sweeping in.</li>
+<li><strong>Stand on the peak.</strong> Slide to 0.5. ∂f/∂x = 0 (top of the bump, momentarily flat). Even though v is fast, the bump is locally symmetric — density at your spot is briefly stable. Then it falls.</li>
+<li><strong>Set v = 0.</strong> Nothing scrolls. Density at your spot doesn't change at all — even with a steep gradient. Why? Because the term is v · ∂f/∂x, and v = 0 zeros it out.</li>
+<li><strong>Try the "step" shape.</strong> Stand on the rising edge — sharpest gradient possible. With v positive, density rises rapidly through the step.</li>
+<li><strong>Reverse v</strong> (drag negative). Everything flips — density rises where it was falling.</li>
+</ol>
+</div>
+
+</div>
+
+<script>
+// =================
+// State
+// =================
+const state = {
+  v: 0.4,
+  obsX: 0.5,         // your position (normalized 0..1)
+  shape: 'bump',     // density shape
+  marchers: [],      // array of {x: 0..1}
+  playing: false,
+  density: 0,        // measured density at observer
+  prevDensity: 0,
+  dDensityDT: 0      // d(density)/dt at observer
+};
+
+// =================
+// Density profile f(x)
+// =================
+function fProfile(x) {
+  if (state.shape === 'bump') {
+    return 0.2 + 1.0 * Math.exp(-Math.pow((x - 0.3) / 0.13, 2));
+  }
+  if (state.shape === 'step') {
+    return 0.2 + 0.9 / (1 + Math.exp(-(x - 0.4) * 30));
+  }
+  if (state.shape === 'ramp') {
+    return 0.15 + 1.0 * Math.max(0, Math.min(1, (x - 0.1) / 0.8));
+  }
+  if (state.shape === 'dip') {
+    return 1.0 - 0.85 * Math.exp(-Math.pow((x - 0.5) / 0.15, 2));
+  }
+  return 0.5;
+}
+
+// Slope by finite difference
+function slopeAt(x) {
+  const eps = 0.005;
+  return (fProfile(x + eps) - fProfile(x - eps)) / (2 * eps);
+}
+
+// =================
+// Marchers
+// =================
+// We use rejection sampling to keep marcher density consistent with f(x).
+// Each frame, marchers move at speed v; if they leave the box, respawn from upstream.
+function initMarchers() {
+  state.marchers = [];
+  const TARGET_COUNT = 220;
+  // Sample marchers proportional to f(x).
+  // Simple approach: max f over the domain, then rejection sample.
+  let maxF = 0;
+  for (let i = 0; i <= 100; i++) maxF = Math.max(maxF, fProfile(i / 100));
+  let attempts = 0;
+  while (state.marchers.length < TARGET_COUNT && attempts < 50000) {
+    attempts++;
+    const x = Math.random();
+    const fx = fProfile(x);
+    if (Math.random() * maxF < fx) {
+      state.marchers.push({ x, jitter: (Math.random() - 0.5) * 0.6 });
+    }
+  }
+}
+
+function stepMarchers(dt) {
+  for (const m of state.marchers) {
+    m.x += state.v * dt * 0.4;
+  }
+  // Respawn marchers that wander off the visible area.
+  // The respawn rate from each side should reflect f at that side.
+  // Trick: when a marcher exits one side, respawn it on the other side at a position
+  // sampled with weight f.
+  // BUT: to keep density stable, we should spawn proportional to f(x) on the entry side.
+  // Simpler approach — when leaving, sample new x by rejection from f, but only on the entry side
+  // close to the boundary. We'll spawn within a small slab and let the speed carry it in.
+  let maxF = 0;
+  for (let i = 0; i <= 100; i++) maxF = Math.max(maxF, fProfile(i / 100));
+
+  for (const m of state.marchers) {
+    if (state.v >= 0 && m.x > 1.05) {
+      // exited right; respawn near left boundary, sample x in [0, 0.05] weighted by f
+      let attempts = 0;
+      while (attempts++ < 100) {
+        const x = Math.random() * 0.05;
+        if (Math.random() * maxF < fProfile(x)) { m.x = x; break; }
+      }
+      m.jitter = (Math.random() - 0.5) * 0.6;
+    } else if (state.v < 0 && m.x < -0.05) {
+      let attempts = 0;
+      while (attempts++ < 100) {
+        const x = 0.95 + Math.random() * 0.05;
+        if (Math.random() * maxF < fProfile(x)) { m.x = x; break; }
+      }
+      m.jitter = (Math.random() - 0.5) * 0.6;
+    }
+  }
+}
+
+// =================
+// Measure density at observer (count nearby marchers)
+// =================
+const OBS_WINDOW = 0.04;  // count marchers within ±this of observer
+
+function measureDensity() {
+  let count = 0;
+  for (const m of state.marchers) {
+    if (Math.abs(m.x - state.obsX) < OBS_WINDOW) count++;
+  }
+  // Convert count → density (count per unit window per (total/integral_f))
+  // Just normalize so it's roughly 0..1.5 range.
+  return count / 18;
+}
+
+// =================
+// Drawing
+// =================
+const canvas = document.getElementById('parade');
+
+function setupCanvas(canvas, h) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+function draw() {
+  const { ctx, w, h } = setupCanvas(canvas, 380);
+  ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+
+  const padL = 50, padR = 16;
+  const pw = w - padL - padR;
+
+  // ============= Layout =============
+  // Top: street (marchers) — y range 30..100
+  // Middle: density curve f(x) — y range 130..240
+  // Bottom: math/readout strip — y range 270..360
+  const streetTop = 30, streetH = 90;
+  const fTop = 145, fH = 110;
+  const mathTop = 280;
+
+  // ============= 1. THE STREET =============
+  // Background
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fillRect(padL, streetTop, pw, streetH);
+  // Lane lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 0.5;
+  for (let y = streetTop + 18; y < streetTop + streetH; y += 18) {
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + pw, y); ctx.stroke();
+  }
+  // marchers
+  for (const m of state.marchers) {
+    if (m.x < -0.05 || m.x > 1.05) continue;
+    const px = padL + m.x * pw;
+    const py = streetTop + streetH * 0.5 + m.jitter * streetH * 0.35;
+    ctx.fillStyle = '#ff6b6b';
+    ctx.beginPath(); ctx.arc(px, py, 2.8, 0, Math.PI*2); ctx.fill();
+  }
+  // observer (gold figure)
+  const obsPx = padL + state.obsX * pw;
+  // Mark a vertical band at observer ±OBS_WINDOW
+  ctx.fillStyle = 'rgba(212,160,74,0.10)';
+  ctx.fillRect(obsPx - OBS_WINDOW * pw, streetTop, OBS_WINDOW * 2 * pw, streetH);
+  // Observer figure (simple stick figure)
+  ctx.fillStyle = '#d4a04a';
+  ctx.beginPath();
+  ctx.arc(obsPx, streetTop + 20, 5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(obsPx, streetTop + 25); ctx.lineTo(obsPx, streetTop + 50);
+  ctx.moveTo(obsPx - 8, streetTop + 35); ctx.lineTo(obsPx + 8, streetTop + 35);
+  ctx.moveTo(obsPx, streetTop + 50); ctx.lineTo(obsPx - 7, streetTop + 65);
+  ctx.moveTo(obsPx, streetTop + 50); ctx.lineTo(obsPx + 7, streetTop + 65);
+  ctx.stroke();
+  // observer label
+  ctx.fillStyle = '#d4a04a'; ctx.font = 'bold 10px JetBrains Mono';
+  ctx.fillText('YOU', obsPx - 14, streetTop + 80);
+
+  // v arrow above the street
+  const arrowY = 18;
+  const arrowMidX = padL + pw / 2;
+  const arrowLen = state.v * pw * 0.3;
+  ctx.strokeStyle = '#5fc28e'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(arrowMidX - arrowLen / 2, arrowY);
+  ctx.lineTo(arrowMidX + arrowLen / 2, arrowY);
+  ctx.stroke();
+  if (Math.abs(arrowLen) > 8) {
+    const sign = Math.sign(arrowLen);
+    ctx.fillStyle = '#5fc28e';
+    ctx.beginPath();
+    ctx.moveTo(arrowMidX + arrowLen / 2, arrowY);
+    ctx.lineTo(arrowMidX + arrowLen / 2 - sign * 9, arrowY - 5);
+    ctx.lineTo(arrowMidX + arrowLen / 2 - sign * 9, arrowY + 5);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = '#5fc28e'; ctx.font = 'bold 10px JetBrains Mono';
+  ctx.fillText(`v = ${state.v.toFixed(2)}`, arrowMidX + Math.abs(arrowLen)/2 + 12, arrowY + 4);
+
+  // street label
+  ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('1.  the street — marchers walking past', padL, streetTop - 4);
+
+  // ============= 2. DENSITY CURVE f(x) =============
+  ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('2.  density f(x) — how packed the crowd is at each x', padL, fTop - 4);
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, fTop + fH); ctx.lineTo(padL + pw, fTop + fH);
+  ctx.moveTo(padL, fTop); ctx.lineTo(padL, fTop + fH);
+  ctx.stroke();
+
+  // Filled area
+  ctx.fillStyle = 'rgba(212,160,74,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(padL, fTop + fH);
+  const N = 200;
+  for (let i = 0; i <= N; i++) {
+    const x = i / N;
+    const fy = fProfile(x);
+    const px = padL + x * pw;
+    const py = fTop + fH - fy * fH * 0.85;
+    ctx.lineTo(px, py);
+  }
+  ctx.lineTo(padL + pw, fTop + fH);
+  ctx.closePath(); ctx.fill();
+
+  // Curve
+  ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const x = i / N;
+    const fy = fProfile(x);
+    const px = padL + x * pw;
+    const py = fTop + fH - fy * fH * 0.85;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Vertical line at observer
+  ctx.strokeStyle = 'rgba(212,160,74,0.5)';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(obsPx, fTop); ctx.lineTo(obsPx, fTop + fH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Tangent line at observer
+  const fObs = fProfile(state.obsX);
+  const slope = slopeAt(state.obsX);
+  const obsFY = fTop + fH - fObs * fH * 0.85;
+  // tangent line endpoints — show slope
+  const tLen = pw * 0.16;
+  const dyForTangent = -slope * fH * 0.85 * (tLen / pw);
+  ctx.strokeStyle = 'rgba(91,141,191,0.8)'; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(obsPx - tLen/2, obsFY + dyForTangent/2);
+  ctx.lineTo(obsPx + tLen/2, obsFY - dyForTangent/2);
+  ctx.stroke();
+  ctx.fillStyle = '#7badd6';
+  ctx.font = 'bold 9px JetBrains Mono';
+  ctx.fillText(`slope = ∂f/∂x = ${slope.toFixed(2)}`, obsPx + tLen/2 + 6, obsFY - dyForTangent/2 - 4);
+
+  // Observer point on curve
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(obsPx, obsFY, 6, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#d4a04a';
+  ctx.beginPath(); ctx.arc(obsPx, obsFY, 4, 0, Math.PI*2); ctx.fill();
+
+  // ============= 3. MATH READOUT =============
+  ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('3.  the math at your spot:', padL, mathTop - 4);
+
+  const product = state.v * slope;
+  const dfdt = -product;
+
+  ctx.font = '12px JetBrains Mono';
+  let xt = padL;
+  // v
+  ctx.fillStyle = '#6fdb9e';
+  ctx.fillText(`v = ${state.v.toFixed(2)}`, xt, mathTop + 18);
+  xt += 110;
+  // ∂f/∂x
+  ctx.fillStyle = '#7badd6';
+  ctx.fillText(`∂f/∂x = ${slope.toFixed(2)}`, xt, mathTop + 18);
+  xt += 130;
+  // product
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`v · ∂f/∂x = ${(product >= 0 ? '+' : '') + product.toFixed(2)}`, xt, mathTop + 18);
+
+  // Arrow showing what happens to f at observer
+  const dfArrowX = padL;
+  const dfArrowY = mathTop + 50;
+  ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText(`So at YOUR spot, f is changing at rate:`, dfArrowX, dfArrowY);
+  // The actual rate
+  ctx.font = 'bold 14px JetBrains Mono';
+  ctx.fillStyle = dfdt >= 0.05 ? '#ff8e8e' : (dfdt <= -0.05 ? '#7eb8ff' : '#aaa');
+  let label = `∂f/∂t = ${(dfdt >= 0 ? '+' : '') + dfdt.toFixed(2)}`;
+  if (dfdt > 0.05) label += '   (density is rising — crowd sweeping in)';
+  else if (dfdt < -0.05) label += '   (density is falling — crowd leaving)';
+  else label += '   (~stable here)';
+  ctx.fillText(label, dfArrowX, dfArrowY + 22);
+
+  // Show measured (actual) density at observer for sanity check
+  ctx.fillStyle = '#888'; ctx.font = '9px JetBrains Mono';
+  ctx.fillText(`measured count near you: ${state.density.toFixed(2)}  (matches f(${state.obsX.toFixed(2)}) ≈ ${fObs.toFixed(2)})`, padL, mathTop + 90);
+}
+
+// =================
+// Animate
+// =================
+let last = performance.now();
+function loop(t) {
+  const dt = Math.min((t - last) / 1000, 0.05);
+  last = t;
+  if (state.playing) stepMarchers(dt);
+  // Smooth measurement of density
+  const newD = measureDensity();
+  state.density = state.density * 0.85 + newD * 0.15;
+  draw();
+  requestAnimationFrame(loop);
+}
+
+initMarchers();
+requestAnimationFrame(loop);
+
+// =================
+// UI bindings
+// =================
+document.getElementById('play').addEventListener('click', e => {
+  state.playing = !state.playing;
+  e.target.textContent = state.playing ? '⏸ pause' : '▶ play';
+  e.target.classList.toggle('primary', !state.playing);
+});
+document.getElementById('reset').addEventListener('click', initMarchers);
+
+const vSl = document.getElementById('vSl'), vSlV = document.getElementById('vSlV');
+vSl.addEventListener('input', () => { state.v = parseFloat(vSl.value); vSlV.textContent = state.v.toFixed(2); });
+
+const obsSl = document.getElementById('obsSl'), obsSlV = document.getElementById('obsSlV');
+obsSl.addEventListener('input', () => { state.obsX = parseFloat(obsSl.value); obsSlV.textContent = state.obsX.toFixed(2); });
+
+document.querySelectorAll('.shape-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    state.shape = btn.dataset.shape;
+    initMarchers();
+  });
+});
+</script>
+</body>
+</html>

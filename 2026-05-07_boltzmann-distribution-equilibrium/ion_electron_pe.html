@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculating Potential Energy · Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg-2: #14141c;
+  --paper: #f8f4ea;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --proton: #e85d3c;
+  --electron: #4ab8d8;
+  --result: #ffd54f;
+  --rule: rgba(248, 244, 234, 0.12);
+  --paper-line: rgba(26, 20, 16, 0.15);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--paper);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 20%, rgba(232, 93, 60, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 70% 80%, rgba(74, 184, 216, 0.06), transparent 60%),
+    var(--bg);
+}
+
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 36px 28px 60px;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 22px;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--result);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--result);
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  max-width: 24ch;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--result);
+}
+
+.sub {
+  margin-top: 14px;
+  font-size: 14.5px;
+  color: var(--ink-dim);
+  line-height: 1.7;
+  max-width: 64ch;
+}
+.sub strong { color: var(--paper); font-weight: 400; }
+
+/* ---------- LAYOUT ---------- */
+.lab {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 980px) {
+  .lab { grid-template-columns: 1fr; }
+}
+
+/* ---------- STAGE ---------- */
+.stage {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.stage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.stage-header .num { color: var(--result); }
+
+#stageCanvas {
+  width: 100%;
+  height: 460px;
+  display: block;
+  cursor: grab;
+}
+#stageCanvas:active { cursor: grabbing; }
+
+.stage-foot {
+  padding: 14px 20px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.legend-dot.proton { background: var(--proton); }
+.legend-dot.electron { background: var(--electron); }
+
+/* ---------- CALC PANEL ---------- */
+.calc {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+  padding: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.calc-header {
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--paper-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.calc-header .label {
+  color: var(--proton);
+  font-weight: 600;
+}
+
+.calc-body {
+  padding: 22px;
+  flex: 1;
+}
+
+/* Formula with substitutions */
+.formula-step {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--paper-line);
+}
+.formula-step:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.step-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+}
+.step-label .nm {
+  display: inline-block;
+  width: 18px;
+  color: var(--proton);
+  font-weight: 600;
+}
+
+.formula-line {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.formula-line .var { font-weight: 500; }
+.formula-line .num-val { color: var(--proton); font-style: normal; font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 17px; }
+.formula-line .neg { color: var(--electron); font-style: normal; font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 17px; }
+.formula-line .equals { color: var(--ink-dim); font-style: normal; padding: 0 8px; }
+.formula-line .op { color: var(--ink-dim); font-style: normal; padding: 0 4px; }
+
+.note-line {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* Final result */
+.result-block {
+  margin-top: 4px;
+  padding: 18px 22px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.result-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--result);
+  margin-bottom: 6px;
+}
+.result-value {
+  font-family: 'Fraunces', serif;
+  font-size: 36px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.result-value .unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: var(--ink-dim);
+  margin-left: 10px;
+  letter-spacing: 0.1em;
+}
+.result-meaning {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.6;
+  font-style: italic;
+}
+.result-meaning strong { color: var(--paper); font-weight: 400; }
+
+/* ---------- BIG EXPLANATION ---------- */
+.explainer {
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 32px;
+  margin-bottom: 28px;
+}
+
+.explainer h2 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  margin-bottom: 14px;
+  color: var(--paper);
+  letter-spacing: -0.01em;
+}
+.explainer p {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-dim);
+  margin-bottom: 14px;
+  max-width: 70ch;
+}
+.explainer p:last-child { margin-bottom: 0; }
+.explainer strong { color: var(--paper); font-weight: 400; }
+.explainer em { color: var(--result); font-style: italic; }
+.explainer code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--electron);
+  background: rgba(74, 184, 216, 0.08);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* Sign convention guide */
+.sign-guide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 18px;
+}
+@media (max-width: 700px) { .sign-guide { grid-template-columns: 1fr; } }
+
+.sign-card {
+  border: 1px solid var(--rule);
+  padding: 14px 16px;
+  border-radius: 2px;
+  background: rgba(248, 244, 234, 0.02);
+}
+.sign-card.attractive { border-left: 3px solid var(--electron); }
+.sign-card.repulsive { border-left: 3px solid var(--proton); }
+.sign-card .title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sign-card.attractive .title { color: var(--electron); }
+.sign-card.repulsive .title { color: var(--proton); }
+.sign-card .text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+/* ---------- BUTTONS ---------- */
+.button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 22px;
+  border-top: 1px solid var(--paper-line);
+}
+
+button {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 9px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+button.primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+button.primary:hover {
+  background: var(--proton);
+  border-color: var(--proton);
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">interactive worked example</div>
+    <h1>One ion. One electron.<br>The math, <em>line by line</em>.</h1>
+    <p class="sub">
+      Drag the electron anywhere on the stage. The panel on the right shows you exactly how the
+      potential energy is calculated at each instant — every constant, every substitution, every step.
+      <strong>No black boxes.</strong>
+    </p>
+  </header>
+
+  <div class="lab">
+
+    <!-- LEFT: Stage -->
+    <div class="stage">
+      <div class="stage-header">
+        <span><span class="num">stage</span> &nbsp; · &nbsp; drag the electron</span>
+        <span id="distanceReadout">r = — pm</span>
+      </div>
+      <canvas id="stageCanvas"></canvas>
+      <div class="stage-foot">
+        <div class="legend-item">
+          <span class="legend-dot proton"></span>
+          <span>proton · q₁ = +1e</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot electron"></span>
+          <span>electron · q₂ = −1e</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Live calculation -->
+    <div class="calc">
+      <div class="calc-header">
+        <span class="label">live calculation</span>
+        &nbsp;·&nbsp; coulomb potential energy
+      </div>
+
+      <div class="calc-body">
+
+        <!-- Step A: The formula -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">A</span> the formula</div>
+          <div class="formula-line">
+            <span class="var">U</span><span class="equals">=</span><span class="var">k</span><span class="op">·</span><span class="var">q₁</span><span class="op">·</span><span class="var">q₂</span> / <span class="var">r</span>
+          </div>
+          <div class="note-line">
+            Coulomb's law for potential energy. <em>k</em> = 8.99 × 10⁹ N·m²/C², the
+            constant that converts charge·charge/distance into energy.
+          </div>
+        </div>
+
+        <!-- Step B: Substitutions -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">B</span> plug in values</div>
+          <div class="formula-line">
+            <span class="var">q₁</span> <span class="equals">=</span> <span class="num-val">+1.602 × 10⁻¹⁹ C</span>
+          </div>
+          <div class="formula-line" style="margin-top: 6px;">
+            <span class="var">q₂</span> <span class="equals">=</span> <span class="neg">−1.602 × 10⁻¹⁹ C</span>
+          </div>
+          <div class="formula-line" style="margin-top: 6px;">
+            <span class="var">r</span> <span class="equals">=</span> <span id="rVal" class="num-val">— pm</span>
+          </div>
+        </div>
+
+        <!-- Step C: Numerator -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">C</span> compute q₁ · q₂</div>
+          <div class="formula-line">
+            <span class="num-val">(+1.602e−19)</span> <span class="op">×</span> <span class="neg">(−1.602e−19)</span>
+          </div>
+          <div class="formula-line" style="margin-top: 6px;">
+            <span class="equals">=</span> <span class="neg">−2.566 × 10⁻³⁸ C²</span>
+          </div>
+          <div class="note-line">
+            <em>Negative</em> because opposite signs. This is the seed of the negative U for attractive cases.
+          </div>
+        </div>
+
+        <!-- Step D: Final assembly -->
+        <div class="formula-step">
+          <div class="step-label"><span class="nm">D</span> assemble</div>
+          <div class="formula-line">
+            <span class="var">U</span> <span class="equals">=</span> <span class="num-val">(8.99e9)</span> <span class="op">×</span> <span class="neg">(−2.566e−38)</span> / <span id="rValD" class="num-val">— m</span>
+          </div>
+          <div class="formula-line" style="margin-top: 6px;">
+            <span class="equals">=</span> <span id="uJoules" class="neg">— J</span>
+          </div>
+          <div class="note-line">
+            Joules are tiny here, so we usually convert to <strong>electron-volts</strong> (eV) by dividing by e = 1.602e−19.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Final result -->
+      <div class="result-block">
+        <div class="result-label">→ potential energy</div>
+        <div class="result-value">
+          <span id="uEV">—</span><span class="unit">eV</span>
+        </div>
+        <div class="result-meaning" id="meaning">
+          drag the electron to see the value...
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button class="primary" id="snapBohr">snap to Bohr radius (53 pm)</button>
+        <button id="snapFar">far away (1000 pm)</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ---------- EXPLAINER ---------- -->
+  <div class="explainer">
+    <h2>Why is U negative?</h2>
+    <p>
+      <strong>Negative potential energy means "bound."</strong>
+      The electron <em>wants</em> to be near the proton because they attract — so getting close is a downhill
+      situation, energetically. The electron has <strong>less</strong> energy when it's near the proton than
+      when it's far away. Less than what? Less than zero, our reference point at infinity.
+    </p>
+    <p>
+      To set the electron <em>free</em> — to drag it from where it is out to infinity — you'd have to
+      <em>do work on it</em>, supplying that missing energy. The amount of work needed is exactly |U|.
+      That's the binding energy.
+    </p>
+
+    <div class="sign-guide">
+      <div class="sign-card attractive">
+        <div class="title">opposite charges → attractive → U &lt; 0</div>
+        <div class="text">
+          Like an electron bound to a proton. Bringing them closer releases energy (could come out as a photon, kinetic energy, etc).
+          Pulling them apart costs energy.
+        </div>
+      </div>
+      <div class="sign-card repulsive">
+        <div class="title">like charges → repulsive → U &gt; 0</div>
+        <div class="text">
+          Like two electrons or two protons. Bringing them closer requires <em>doing work against</em> the repulsion.
+          Letting them go releases that stored work as kinetic energy as they fly apart.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explainer">
+    <h2>How this connects to Boltzmann</h2>
+    <p>
+      The U you're computing right here is exactly what goes into <code>n = n₀ · exp(−U/k<sub>B</sub>T)</code>.
+      In a plasma at temperature T, electrons spend more time where U is more negative (near positive ions) and
+      less time where U is more positive (away from them).
+    </p>
+    <p>
+      At room temperature, k<sub>B</sub>T ≈ 0.025 eV. Compare that to the U values you're seeing here —
+      typically <strong>tens of eV near the proton</strong>. The ratio U/k<sub>B</sub>T is enormous, which is why
+      bound atoms are so stable: thermal energy can't break them apart at room temperature.
+      In a hot plasma at T ≈ 10⁴–10⁶ K, k<sub>B</sub>T grows to 1–100 eV, and now thermal energy <em>can</em>
+      compete with binding — atoms ionize and the plasma forms.
+    </p>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('stageCanvas');
+let ctx = canvas.getContext('2d');
+
+function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: rect.width, h: rect.height };
+}
+
+let dim = setupCanvas();
+
+// Physics constants
+const k_e = 8.99e9;          // Coulomb constant
+const e_charge = 1.602e-19;  // elementary charge in C
+const PIXELS_PER_PM = 2;     // 1 pm = 2 px on screen
+const BOHR_PM = 53;          // Bohr radius
+
+// Particles
+let proton = { x: 0, y: 0, r: 18 };
+let electron = { x: 0, y: 0, r: 11, dragging: false };
+
+function reset() {
+  proton.x = dim.w * 0.5;
+  proton.y = dim.h * 0.5;
+  electron.x = dim.w * 0.5 + BOHR_PM * PIXELS_PER_PM;
+  electron.y = dim.h * 0.5;
+}
+
+window.addEventListener('resize', () => {
+  dim = setupCanvas();
+  reset();
+});
+reset();
+
+// Drag handling
+function getEventPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches) {
+    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+  }
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function startDrag(pos) {
+  if (Math.hypot(pos.x - electron.x, pos.y - electron.y) < electron.r * 2.5) {
+    electron.dragging = true;
+  }
+}
+
+function moveDrag(pos) {
+  if (!electron.dragging) return;
+  // prevent going inside proton
+  const dx = pos.x - proton.x;
+  const dy = pos.y - proton.y;
+  const dist = Math.hypot(dx, dy);
+  const minDist = proton.r + electron.r + 2;
+  if (dist < minDist) {
+    const angle = Math.atan2(dy, dx);
+    electron.x = proton.x + Math.cos(angle) * minDist;
+    electron.y = proton.y + Math.sin(angle) * minDist;
+  } else {
+    electron.x = Math.max(electron.r, Math.min(dim.w - electron.r, pos.x));
+    electron.y = Math.max(electron.r, Math.min(dim.h - electron.r, pos.y));
+  }
+}
+
+canvas.addEventListener('mousedown', e => startDrag(getEventPos(e)));
+canvas.addEventListener('mousemove', e => moveDrag(getEventPos(e)));
+canvas.addEventListener('mouseup', () => electron.dragging = false);
+canvas.addEventListener('mouseleave', () => electron.dragging = false);
+canvas.addEventListener('touchstart', e => { startDrag(getEventPos(e)); e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchmove', e => { moveDrag(getEventPos(e)); e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend', () => electron.dragging = false);
+
+document.getElementById('snapBohr').addEventListener('click', () => {
+  electron.x = proton.x + BOHR_PM * PIXELS_PER_PM;
+  electron.y = proton.y;
+});
+document.getElementById('snapFar').addEventListener('click', () => {
+  electron.x = proton.x + 1000 * PIXELS_PER_PM;
+  electron.y = proton.y;
+  // clamp to canvas
+  electron.x = Math.min(electron.x, dim.w - electron.r);
+});
+
+// Format numbers
+function fmtSci(n, decimals = 3) {
+  if (n === 0) return '0';
+  const exp = Math.floor(Math.log10(Math.abs(n)));
+  const mantissa = n / Math.pow(10, exp);
+  return `${mantissa.toFixed(decimals)} × 10${supExp(exp)}`;
+}
+function supExp(n) {
+  const map = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+  return String(n).split('').map(c => map[c] || c).join('');
+}
+
+// Draw loop
+function draw() {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(248, 244, 234, 0.03)';
+  ctx.lineWidth = 1;
+  const gs = 30;
+  for (let x = 0; x < dim.w; x += gs) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, dim.h); ctx.stroke();
+  }
+  for (let y = 0; y < dim.h; y += gs) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(dim.w, y); ctx.stroke();
+  }
+
+  // Distance line + label
+  const dx = electron.x - proton.x;
+  const dy = electron.y - proton.y;
+  const distPx = Math.hypot(dx, dy);
+  const distPm = distPx / PIXELS_PER_PM;
+
+  // Draw connecting line
+  ctx.strokeStyle = 'rgba(255, 213, 79, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  ctx.moveTo(proton.x, proton.y);
+  ctx.lineTo(electron.x, electron.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Distance label on line
+  const midX = (proton.x + electron.x) / 2;
+  const midY = (proton.y + electron.y) / 2;
+  const angle = Math.atan2(dy, dx);
+  const offsetX = Math.sin(angle) * 14;
+  const offsetY = -Math.cos(angle) * 14;
+  ctx.fillStyle = 'rgba(255, 213, 79, 0.95)';
+  ctx.font = "bold 11px 'JetBrains Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`r = ${distPm.toFixed(0)} pm`, midX + offsetX, midY + offsetY);
+
+  // Faint potential field around proton (concentric circles)
+  ctx.strokeStyle = 'rgba(232, 93, 60, 0.06)';
+  ctx.lineWidth = 1;
+  for (let r = 50; r < 600; r += 50) {
+    ctx.beginPath();
+    ctx.arc(proton.x, proton.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Proton
+  const protonGlow = ctx.createRadialGradient(proton.x, proton.y, 0, proton.x, proton.y, 60);
+  protonGlow.addColorStop(0, 'rgba(232, 93, 60, 0.4)');
+  protonGlow.addColorStop(1, 'rgba(232, 93, 60, 0)');
+  ctx.fillStyle = protonGlow;
+  ctx.beginPath();
+  ctx.arc(proton.x, proton.y, 60, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#e85d3c';
+  ctx.beginPath();
+  ctx.arc(proton.x, proton.y, proton.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = "bold 18px 'Fraunces', serif";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('+', proton.x, proton.y + 1);
+
+  // Proton label
+  ctx.fillStyle = 'rgba(248, 244, 234, 0.5)';
+  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.fillText('PROTON', proton.x, proton.y - proton.r - 12);
+
+  // Electron glow
+  const eGlow = ctx.createRadialGradient(electron.x, electron.y, 0, electron.x, electron.y, 30);
+  eGlow.addColorStop(0, 'rgba(74, 184, 216, 0.5)');
+  eGlow.addColorStop(1, 'rgba(74, 184, 216, 0)');
+  ctx.fillStyle = eGlow;
+  ctx.beginPath();
+  ctx.arc(electron.x, electron.y, 30, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#4ab8d8';
+  ctx.beginPath();
+  ctx.arc(electron.x, electron.y, electron.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = "bold 13px 'Fraunces', serif";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('−', electron.x, electron.y + 1);
+
+  // Electron label
+  ctx.fillStyle = 'rgba(248, 244, 234, 0.5)';
+  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.fillText('ELECTRON', electron.x, electron.y - electron.r - 12);
+
+  // Update calc panel
+  updateCalc(distPm);
+
+  requestAnimationFrame(draw);
+}
+
+function updateCalc(distPm) {
+  // Distance in meters
+  const r_m = distPm * 1e-12; // pm → m
+  // U in joules: U = k * q1 * q2 / r
+  // q1 = +1.602e-19, q2 = -1.602e-19
+  const U_J = (k_e * (+e_charge) * (-e_charge)) / r_m;
+  const U_eV = U_J / e_charge;
+
+  // Distance readout in stage header
+  document.getElementById('distanceReadout').textContent = `r = ${distPm.toFixed(0)} pm`;
+
+  // r value display
+  document.getElementById('rVal').textContent = `${distPm.toFixed(0)} pm  =  ${fmtSci(r_m, 3)} m`;
+  document.getElementById('rValD').textContent = fmtSci(r_m, 3) + ' m';
+
+  // U in joules
+  document.getElementById('uJoules').textContent = fmtSci(U_J, 3) + ' J';
+
+  // U in eV (the headline number)
+  document.getElementById('uEV').textContent = U_eV.toFixed(2);
+
+  // Meaning text
+  const meaning = document.getElementById('meaning');
+  if (distPm < 60) {
+    meaning.innerHTML = `<strong>Strongly bound.</strong> At this distance the electron is firmly held by the proton.
+    You'd need to supply ${Math.abs(U_eV).toFixed(1)} eV of energy to free it.`;
+  } else if (distPm < 200) {
+    meaning.innerHTML = `<strong>Loosely bound.</strong> The electron is still attracted but not as deeply.
+    Less work to ionize: ${Math.abs(U_eV).toFixed(1)} eV.`;
+  } else if (distPm < 600) {
+    meaning.innerHTML = `<strong>Weakly bound.</strong> Far from the proton, U approaches zero.
+    Only ${Math.abs(U_eV).toFixed(2)} eV separates this state from "free."`;
+  } else {
+    meaning.innerHTML = `<strong>Almost free.</strong> At this distance, U is barely below zero.
+    Compared to room-temperature thermal energy (k<sub>B</sub>T ≈ 0.025 eV), this electron is essentially unbound.`;
+  }
+}
+
+draw();
+</script>
+
+</body>
+</html>

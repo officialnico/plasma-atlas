@@ -1,0 +1,1220 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gyrokinetic visualizations</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const COLORS = {
+  bg: "#0a0c10",
+  surface: "#12151c",
+  border: "#1e2330",
+  text: "#9ca3b4",
+  heading: "#e2e5ed",
+  accent: "#f0a050",
+  blue: "#5cb8f0",
+  purple: "#a388f0",
+  green: "#4ade80",
+  red: "#fb7185",
+  dim: "#4a5068",
+};
+
+// ─── Visualization 1: Particle Gyration ───
+function GyrationViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const cx = W / 2;
+    const cy = H / 2;
+    const R = Math.min(W, H) * 0.22;
+    const omega = 2.5; // cyclotron freq (rad/s visual)
+    const vPar = 40; // parallel velocity in px/s
+
+    const trail = [];
+    const maxTrail = 200;
+
+    function draw() {
+      const t = timeRef.current;
+      ctx.clearRect(0, 0, W, H);
+
+      // B field indicator: out of screen (dot-in-circle) for top-down view
+      ctx.beginPath();
+      ctx.arc(W - 36, 28, 10, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS.dim;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(W - 36, 28, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.dim;
+      ctx.fill();
+
+      ctx.font = "600 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.dim;
+      ctx.textAlign = "right";
+      ctx.fillText("B (out of screen)", W - 52, 32);
+
+      // Top-down view: for a positive ion with B out of screen,
+      // Lorentz force F = qv×B gives clockwise gyration.
+      // clockwise: angle decreases, so use negative omega
+      const angle = -omega * t;
+      const px = cx + R * Math.cos(angle);
+      const py = cy + R * Math.sin(angle);
+
+      // Guiding center
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.blue;
+      ctx.fill();
+
+      // Larmor radius line
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(px, py);
+      ctx.strokeStyle = COLORS.blue + "60";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // ρ label
+      const mx = (cx + px) / 2;
+      const my = (cy + py) / 2;
+      ctx.font = "italic 12px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.blue;
+      ctx.textAlign = "center";
+      ctx.fillText("ρ", mx - 10, my - 6);
+
+      // Orbit circle (dashed)
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS.border;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Trail
+      trail.push({ x: px, y: py });
+      if (trail.length > maxTrail) trail.shift();
+
+      for (let i = 1; i < trail.length; i++) {
+        const alpha = i / trail.length;
+        ctx.beginPath();
+        ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+        ctx.lineTo(trail[i].x, trail[i].y);
+        ctx.strokeStyle = `rgba(240,160,80,${alpha * 0.6})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Particle
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.accent;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS.accent + "40";
+      ctx.lineWidth = 8;
+      ctx.stroke();
+
+      // Velocity arrow (tangent to circle)
+      const vx = -R * omega * Math.sin(angle);
+      const vy = R * omega * Math.cos(angle);
+      const vLen = Math.sqrt(vx * vx + vy * vy);
+      const arrowLen = 30;
+      const ax = px + (vx / vLen) * arrowLen;
+      const ay = py + (vy / vLen) * arrowLen;
+
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(ax, ay);
+      ctx.strokeStyle = COLORS.green;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Arrowhead
+      const aAngle = Math.atan2(ay - py, ax - px);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - 8 * Math.cos(aAngle - 0.4), ay - 8 * Math.sin(aAngle - 0.4));
+      ctx.lineTo(ax - 8 * Math.cos(aAngle + 0.4), ay - 8 * Math.sin(aAngle + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = COLORS.green;
+      ctx.fill();
+
+      // Labels
+      ctx.font = "500 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.green;
+      ctx.textAlign = "left";
+      ctx.fillText("v⊥", ax + 6, ay - 2);
+
+      ctx.fillStyle = COLORS.blue;
+      ctx.textAlign = "center";
+      ctx.fillText("guiding center", cx, cy + 18);
+
+      ctx.fillStyle = COLORS.accent;
+      ctx.fillText("ion", px, py - 14);
+
+      timeRef.current += 0.025;
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: 300, display: "block" }} />;
+}
+
+// ─── Visualization 2: 3D Helix (side view) ───
+function HelixViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const R = 35;
+    const omega = 3;
+    const vPar = 50;
+
+    function draw() {
+      const t = timeRef.current;
+      ctx.clearRect(0, 0, W, H);
+
+      // B field line (horizontal)
+      ctx.strokeStyle = COLORS.dim;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(30, H / 2);
+      ctx.lineTo(W - 30, H / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font = "600 12px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.dim;
+      ctx.textAlign = "right";
+      ctx.fillText("B →", W - 20, H / 2 - 10);
+
+      // Draw helix trail
+      const points = [];
+      const numPoints = 300;
+      const startT = t - numPoints * 0.02;
+
+      for (let i = 0; i < numPoints; i++) {
+        const ti = startT + i * 0.02;
+        const x = 60 + ((ti * vPar) % (W - 120));
+        const y = H / 2 + R * Math.sin(omega * ti);
+        const z = Math.cos(omega * ti); // depth for opacity
+        points.push({ x, y, z });
+      }
+
+      for (let i = 1; i < points.length; i++) {
+        const alpha = (i / points.length) * 0.7;
+        const depth = (points[i].z + 1) / 2; // 0 to 1
+        ctx.beginPath();
+        ctx.moveTo(points[i - 1].x, points[i - 1].y);
+        ctx.lineTo(points[i].x, points[i].y);
+        ctx.strokeStyle = `rgba(240,160,80,${alpha * (0.3 + 0.7 * depth)})`;
+        ctx.lineWidth = 1.5 + depth;
+        ctx.stroke();
+      }
+
+      // Current particle position
+      const px = 60 + ((t * vPar) % (W - 120));
+      const py = H / 2 + R * Math.sin(omega * t);
+
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.accent;
+      ctx.fill();
+
+      // v∥ arrow
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + 35, py);
+      ctx.strokeStyle = COLORS.blue;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px + 35, py);
+      ctx.lineTo(px + 28, py - 5);
+      ctx.lineTo(px + 28, py + 5);
+      ctx.closePath();
+      ctx.fillStyle = COLORS.blue;
+      ctx.fill();
+
+      ctx.font = "500 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.blue;
+      ctx.textAlign = "left";
+      ctx.fillText("v∥", px + 38, py + 4);
+
+      // Labels
+      ctx.fillStyle = COLORS.text;
+      ctx.textAlign = "center";
+      ctx.font = "12px 'DM Sans', sans-serif";
+      ctx.fillText("Side view: particle spirals along field line", W / 2, H - 16);
+
+      timeRef.current += 0.025;
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: 220, display: "block" }} />;
+}
+
+// ─── Visualization 3: Gyro-Averaging / FLR ───
+function FLRViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+  const [kPerp, setKPerp] = useState(0.3);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const ringR = 40;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    function draw() {
+      const t = timeRef.current;
+      ctx.clearRect(0, 0, W, H);
+
+      // Draw the wave pattern (φ fluctuation) as vertical stripes
+      for (let x = 0; x < W; x++) {
+        const val = Math.sin(kPerp * (x - W/2) * 0.15);
+        const r = val > 0 ? Math.floor(val * 40) : 0;
+        const b = val < 0 ? Math.floor(-val * 40) : 0;
+        ctx.fillStyle = `rgba(${80 + r}, ${60 + Math.abs(Math.floor(val * 15))}, ${80 + b}, 0.25)`;
+        ctx.fillRect(x, 0, 1, H);
+      }
+
+      // Label the wave
+      ctx.font = "500 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.text;
+      ctx.textAlign = "center";
+      ctx.fillText("φ fluctuation (wave)", W / 2, 20);
+
+      // The ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS.accent;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Sample points on ring showing the potential they see
+      const nSamples = 36;
+      let sumPhi = 0;
+      for (let i = 0; i < nSamples; i++) {
+        const angle = (i / nSamples) * Math.PI * 2 + t * 0.5;
+        const sx = cx + ringR * Math.cos(angle);
+        const sy = cy + ringR * Math.sin(angle);
+        const phiVal = Math.sin(kPerp * (sx - W/2) * 0.15);
+        sumPhi += phiVal;
+
+        const col = phiVal > 0 ? COLORS.green : COLORS.red;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = col;
+        ctx.globalAlpha = 0.4 + Math.abs(phiVal) * 0.6;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      const avgPhi = sumPhi / nSamples;
+
+      // Guiding center
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.blue;
+      ctx.fill();
+
+      // Info
+      ctx.font = "500 12px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.heading;
+      ctx.textAlign = "center";
+      ctx.fillText(`k⊥ρ ≈ ${(kPerp * ringR * 0.15).toFixed(1)}`, W / 2, H - 50);
+
+      ctx.fillStyle = COLORS.blue;
+      ctx.fillText(`⟨φ⟩ ring average = ${avgPhi.toFixed(2)}`, W / 2, H - 30);
+
+      const kRho = kPerp * ringR * 0.15;
+      // Approximate J0 for display
+      const j0Approx = besselJ0(kRho);
+      ctx.fillStyle = COLORS.purple;
+      ctx.fillText(`J₀(k⊥ρ) ≈ ${j0Approx.toFixed(2)}`, W / 2, H - 10);
+
+      timeRef.current += 0.02;
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, [kPerp]);
+
+  return (
+    <div>
+      <canvas ref={canvasRef} style={{ width: "100%", height: 280, display: "block" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", justifyContent: "center" }}>
+        <span style={{ fontSize: 12, color: COLORS.text }}>Long wavelength</span>
+        <input
+          type="range" min="0.1" max="3" step="0.05" value={kPerp}
+          onChange={(e) => setKPerp(parseFloat(e.target.value))}
+          style={{ width: 160, accentColor: COLORS.accent }}
+        />
+        <span style={{ fontSize: 12, color: COLORS.text }}>Short wavelength</span>
+      </div>
+    </div>
+  );
+}
+
+function besselJ0(x) {
+  // Series approximation of J0
+  let sum = 0;
+  for (let k = 0; k < 20; k++) {
+    const sign = k % 2 === 0 ? 1 : -1;
+    let factK = 1;
+    for (let i = 2; i <= k; i++) factK *= i;
+    sum += (sign * Math.pow(x / 2, 2 * k)) / (factK * factK);
+  }
+  return sum;
+}
+
+// ─── Visualization 4: Fourier Decomposition ───
+function FourierViz() {
+  const canvasRef = useRef(null);
+  const [modes, setModes] = useState([
+    { k: 1, amp: 1.0, on: true },
+    { k: 3, amp: 0.5, on: true },
+    { k: 7, amp: 0.3, on: true },
+    { k: 12, amp: 0.15, on: true },
+  ]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, W, H);
+
+    const topH = H * 0.45;
+    const botY = H * 0.55;
+    const botH = H * 0.4;
+    const pad = 40;
+
+    // Draw individual modes on top
+    const modeColors = [COLORS.accent, COLORS.blue, COLORS.purple, COLORS.green];
+    const activeModes = modes.filter((m) => m.on);
+
+    activeModes.forEach((mode, idx) => {
+      ctx.beginPath();
+      for (let x = pad; x < W - pad; x++) {
+        const normX = (x - pad) / (W - 2 * pad);
+        const val = mode.amp * Math.sin(mode.k * normX * Math.PI * 2);
+        const y = topH / 2 + val * (topH * 0.35);
+        if (x === pad) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = modeColors[idx % 4] + "80";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+
+    // Draw composite on bottom
+    ctx.beginPath();
+    for (let x = pad; x < W - pad; x++) {
+      const normX = (x - pad) / (W - 2 * pad);
+      let val = 0;
+      activeModes.forEach((m) => {
+        val += m.amp * Math.sin(m.k * normX * Math.PI * 2);
+      });
+      const y = botY + botH / 2 + val * (botH * 0.28);
+      if (x === pad) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = COLORS.heading;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Center lines
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(pad, topH / 2);
+    ctx.lineTo(W - pad, topH / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pad, botY + botH / 2);
+    ctx.lineTo(W - pad, botY + botH / 2);
+    ctx.stroke();
+
+    // Labels
+    ctx.font = "500 11px 'DM Sans', sans-serif";
+    ctx.fillStyle = COLORS.text;
+    ctx.textAlign = "left";
+    ctx.fillText("Individual Fourier modes (different k)", pad, 16);
+    ctx.fillText("Sum = the turbulent pattern", pad, botY + 12);
+  }, [modes]);
+
+  const toggle = (idx) => {
+    setModes((prev) => prev.map((m, i) => (i === idx ? { ...m, on: !m.on } : m)));
+  };
+
+  const modeColors = [COLORS.accent, COLORS.blue, COLORS.purple, COLORS.green];
+
+  return (
+    <div>
+      <canvas ref={canvasRef} style={{ width: "100%", height: 300, display: "block" }} />
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", padding: "8px 0" }}>
+        {modes.map((m, i) => (
+          <button
+            key={i}
+            onClick={() => toggle(i)}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 4,
+              border: `1px solid ${m.on ? modeColors[i] : COLORS.border}`,
+              background: m.on ? modeColors[i] + "20" : "transparent",
+              color: m.on ? modeColors[i] : COLORS.dim,
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            k={m.k}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Visualization 5: Bessel Function J0 ───
+function BesselViz() {
+  const canvasRef = useRef(null);
+  const [hoverX, setHoverX] = useState(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, W, H);
+
+    const pad = 50;
+    const plotW = W - 2 * pad;
+    const plotH = H - 80;
+    const plotY = 30;
+    const xMax = 12;
+    const yMin = -0.5;
+    const yMax = 1.1;
+
+    // Grid
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth = 0.5;
+    for (let v = -0.4; v <= 1; v += 0.2) {
+      const y = plotY + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(pad + plotW, y);
+      ctx.stroke();
+
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = COLORS.dim;
+      ctx.textAlign = "right";
+      ctx.fillText(v.toFixed(1), pad - 6, y + 3);
+    }
+
+    // Zero line
+    const zeroY = plotY + plotH - ((0 - yMin) / (yMax - yMin)) * plotH;
+    ctx.strokeStyle = COLORS.dim;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, zeroY);
+    ctx.lineTo(pad + plotW, zeroY);
+    ctx.stroke();
+
+    // J0 curve
+    ctx.beginPath();
+    for (let px = 0; px <= plotW; px++) {
+      const x = (px / plotW) * xMax;
+      const j0 = besselJ0(x);
+      const y = plotY + plotH - ((j0 - yMin) / (yMax - yMin)) * plotH;
+      if (px === 0) ctx.moveTo(pad + px, y);
+      else ctx.lineTo(pad + px, y);
+    }
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Shade the "FLR suppression" region
+    ctx.fillStyle = COLORS.accent + "08";
+    ctx.fillRect(pad + plotW * (1 / xMax), plotY, plotW * (1 - 1 / xMax), plotH);
+
+    // Annotations
+    ctx.font = "500 11px 'DM Sans', sans-serif";
+    ctx.fillStyle = COLORS.green;
+    ctx.textAlign = "left";
+    ctx.fillText("≈ point particle", pad + 4, plotY + 20);
+
+    ctx.fillStyle = COLORS.red;
+    ctx.textAlign = "center";
+    ctx.fillText("FLR suppression zone →", pad + plotW * (4 / xMax), plotY + 20);
+
+    // X axis labels
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    for (let v = 0; v <= xMax; v += 2) {
+      const x = pad + (v / xMax) * plotW;
+      ctx.fillText(v.toString(), x, plotY + plotH + 18);
+    }
+    ctx.font = "500 12px 'DM Sans', sans-serif";
+    ctx.fillStyle = COLORS.text;
+    ctx.fillText("k⊥ρ", pad + plotW / 2, plotY + plotH + 35);
+
+    // Y axis label
+    ctx.save();
+    ctx.translate(16, plotY + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("J₀(k⊥ρ)", 0, 0);
+    ctx.restore();
+
+    // Hover crosshair
+    if (hoverX !== null) {
+      const xVal = (hoverX / plotW) * xMax;
+      const j0 = besselJ0(xVal);
+      const y = plotY + plotH - ((j0 - yMin) / (yMax - yMin)) * plotH;
+
+      ctx.beginPath();
+      ctx.arc(pad + hoverX, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.accent;
+      ctx.fill();
+
+      ctx.font = "600 12px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = COLORS.heading;
+      ctx.textAlign = "left";
+      ctx.fillText(`k⊥ρ = ${xVal.toFixed(1)}, J₀ = ${j0.toFixed(3)}`, pad + hoverX + 10, y - 10);
+    }
+  }, [hoverX]);
+
+  const handleMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left - 50;
+    const plotW = rect.width - 100;
+    if (x >= 0 && x <= plotW) setHoverX(x);
+    else setHoverX(null);
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ width: "100%", height: 260, display: "block", cursor: "crosshair" }}
+      onMouseMove={handleMove}
+      onTouchMove={(e) => {
+        const touch = e.touches[0];
+        handleMove({ clientX: touch.clientX, currentTarget: e.currentTarget });
+      }}
+      onMouseLeave={() => setHoverX(null)}
+    />
+  );
+}
+
+// ─── Visualization 6: Landau Damping ───
+function LandauViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const pad = 50;
+    const plotW = W - 2 * pad;
+    const plotH = H - 80;
+    const plotY = 40;
+
+    function draw() {
+      const t = timeRef.current;
+      ctx.clearRect(0, 0, W, H);
+
+      const vPhase = 0.45; // phase velocity (normalized position on x-axis)
+
+      // Distribution function f(v∥)
+      ctx.beginPath();
+      for (let px = 0; px <= plotW; px++) {
+        const v = (px / plotW) * 2 - 0.3; // v range
+        const f = Math.exp(-((v - 0.4) ** 2) / (2 * 0.12 ** 2));
+        const y = plotY + plotH - f * plotH * 0.85;
+        if (px === 0) ctx.moveTo(pad + px, y);
+        else ctx.lineTo(pad + px, y);
+      }
+      ctx.strokeStyle = COLORS.blue;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Shade under curve
+      ctx.beginPath();
+      for (let px = 0; px <= plotW; px++) {
+        const v = (px / plotW) * 2 - 0.3;
+        const f = Math.exp(-((v - 0.4) ** 2) / (2 * 0.12 ** 2));
+        const y = plotY + plotH - f * plotH * 0.85;
+        if (px === 0) ctx.moveTo(pad + px, y);
+        else ctx.lineTo(pad + px, y);
+      }
+      ctx.lineTo(pad + plotW, plotY + plotH);
+      ctx.lineTo(pad, plotY + plotH);
+      ctx.closePath();
+      ctx.fillStyle = COLORS.blue + "10";
+      ctx.fill();
+
+      // v_phase line
+      const vPhaseX = pad + ((vPhase + 0.3) / 2) * plotW;
+      ctx.beginPath();
+      ctx.moveTo(vPhaseX, plotY);
+      ctx.lineTo(vPhaseX, plotY + plotH);
+      ctx.strokeStyle = COLORS.accent;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Slope annotation
+      ctx.font = "600 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.accent;
+      ctx.textAlign = "center";
+      ctx.fillText("v_phase", vPhaseX, plotY - 8);
+
+      // Particles slower than wave (gain energy) - animated dots
+      const nParticles = 8;
+      for (let i = 0; i < nParticles; i++) {
+        const baseV = vPhase - 0.06 - i * 0.012;
+        const px_pos = pad + ((baseV + 0.3) / 2) * plotW;
+        const f = Math.exp(-((baseV - 0.4) ** 2) / (2 * 0.12 ** 2));
+        const py = plotY + plotH - f * plotH * 0.85;
+
+        // Arrow pointing right (gaining energy from wave)
+        const wobble = Math.sin(t * 2 + i) * 3;
+        ctx.beginPath();
+        ctx.arc(px_pos + wobble, py, 3, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.green;
+        ctx.fill();
+      }
+
+      // Particles faster than wave (lose energy)
+      for (let i = 0; i < 4; i++) {
+        const baseV = vPhase + 0.03 + i * 0.015;
+        const px_pos = pad + ((baseV + 0.3) / 2) * plotW;
+        const f = Math.exp(-((baseV - 0.4) ** 2) / (2 * 0.12 ** 2));
+        const py = plotY + plotH - f * plotH * 0.85;
+
+        const wobble = Math.sin(t * 2 + i + 1) * 3;
+        ctx.beginPath();
+        ctx.arc(px_pos + wobble, py, 3, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.red;
+        ctx.fill();
+      }
+
+      // Legend
+      ctx.font = "500 11px 'DM Sans', sans-serif";
+
+      ctx.fillStyle = COLORS.green;
+      ctx.textAlign = "left";
+      ctx.fillText("● slower particles (gain energy from wave)", pad, H - 30);
+      ctx.fillStyle = COLORS.red;
+      ctx.fillText("● faster particles (give energy to wave)", pad, H - 14);
+
+      ctx.fillStyle = COLORS.text;
+      ctx.textAlign = "right";
+      ctx.fillText("More slow than fast → net wave damping", W - pad, H - 22);
+
+      // Axis labels
+      ctx.fillStyle = COLORS.text;
+      ctx.textAlign = "center";
+      ctx.fillText("v∥", pad + plotW / 2, plotY + plotH + 22);
+
+      ctx.save();
+      ctx.translate(16, plotY + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("f(v∥)", 0, 0);
+      ctx.restore();
+
+      // Slope indicator near vPhase
+      ctx.fillStyle = COLORS.heading;
+      ctx.font = "500 10px 'DM Sans', sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("df/dv∥ < 0 here", vPhaseX + 8, plotY + 28);
+      ctx.fillText("→ wave loses energy", vPhaseX + 8, plotY + 42);
+
+      timeRef.current += 0.03;
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: 300, display: "block" }} />;
+}
+
+// ─── Visualization 7: Turbulent Eddies ───
+function EddyViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Generate eddies
+    const eddies = [];
+    for (let i = 0; i < 12; i++) {
+      eddies.push({
+        x: 40 + Math.random() * (W - 80),
+        y: 30 + Math.random() * (H - 90),
+        r: 12 + Math.random() * 28,
+        speed: 0.5 + Math.random() * 2,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+
+    function draw() {
+      const t = timeRef.current;
+      ctx.clearRect(0, 0, W, H);
+
+      // Radial gradient background suggesting temperature
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, "rgba(251,113,133,0.08)");
+      grad.addColorStop(0.5, "rgba(251,113,133,0.03)");
+      grad.addColorStop(1, "rgba(92,184,240,0.08)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Labels
+      ctx.font = "600 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.red;
+      ctx.textAlign = "left";
+      ctx.fillText("HOT (core)", 10, 18);
+      ctx.fillStyle = COLORS.blue;
+      ctx.textAlign = "right";
+      ctx.fillText("COOL (edge)", W - 10, 18);
+
+      ctx.fillStyle = COLORS.dim;
+      ctx.textAlign = "center";
+      ctx.fillText("← radial direction (outward) →", W / 2, H - 8);
+
+      // B field going into page indicator
+      ctx.font = "500 10px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.dim;
+      ctx.textAlign = "right";
+      ctx.fillText("B ⊗ (into screen)", W - 10, H - 8);
+
+      // Draw eddies
+      eddies.forEach((e) => {
+        const angle = e.dir * e.speed * t + e.phase;
+        ctx.save();
+        ctx.translate(e.x, e.y);
+
+        // Swirl lines
+        const nArms = 3;
+        for (let arm = 0; arm < nArms; arm++) {
+          const armOffset = (arm / nArms) * Math.PI * 2;
+          ctx.beginPath();
+          for (let s = 0; s < 30; s++) {
+            const frac = s / 30;
+            const spiralR = e.r * frac;
+            const spiralAngle = angle + armOffset + frac * Math.PI * 2;
+            const sx = spiralR * Math.cos(spiralAngle);
+            const sy = spiralR * Math.sin(spiralAngle);
+            if (s === 0) ctx.moveTo(sx, sy);
+            else ctx.lineTo(sx, sy);
+          }
+          ctx.strokeStyle = `rgba(240,160,80,${0.15 + 0.15 * Math.sin(t + e.phase)})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(0, 0, 2, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.accent + "60";
+        ctx.fill();
+
+        ctx.restore();
+      });
+
+      // Show a "hot blob" drifting outward
+      const blobX = (W * 0.3) + ((t * 12) % (W * 0.4));
+      const blobY = H / 2 + 20 * Math.sin(t * 1.5);
+      ctx.beginPath();
+      ctx.arc(blobX, blobY, 8, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.red + "50";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(blobX, blobY, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS.red;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Arrow showing outward transport
+      ctx.beginPath();
+      ctx.moveTo(blobX + 10, blobY);
+      ctx.lineTo(blobX + 25, blobY);
+      ctx.strokeStyle = COLORS.red;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(blobX + 25, blobY);
+      ctx.lineTo(blobX + 20, blobY - 4);
+      ctx.lineTo(blobX + 20, blobY + 4);
+      ctx.closePath();
+      ctx.fillStyle = COLORS.red;
+      ctx.fill();
+
+      ctx.font = "500 9px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.red;
+      ctx.textAlign = "center";
+      ctx.fillText("hot blob", blobX, blobY - 14);
+
+      timeRef.current += 0.02;
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: 260, display: "block" }} />;
+}
+
+// ─── Visualization 8: Self-Consistent Loop ───
+function LoopViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const cx = W / 2;
+    const cy = H / 2;
+    const R = Math.min(W, H) * 0.3;
+
+    const steps = [
+      { label: "Evolve f", sublabel: "(Vlasov eq.)", color: COLORS.blue },
+      { label: "Get ρ_charge", sublabel: "(integrate f)", color: COLORS.green },
+      { label: "Solve for φ", sublabel: "(Poisson eq.)", color: COLORS.accent },
+      { label: "Compute drifts", sublabel: "(E×B)", color: COLORS.purple },
+    ];
+
+    function draw() {
+      const t = timeRef.current;
+      ctx.clearRect(0, 0, W, H);
+
+      const n = steps.length;
+
+      // Draw connecting arcs
+      for (let i = 0; i < n; i++) {
+        const a1 = (i / n) * Math.PI * 2 - Math.PI / 2;
+        const a2 = ((i + 1) / n) * Math.PI * 2 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, R, a1 + 0.25, a2 - 0.25);
+        ctx.strokeStyle = COLORS.border;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Arrow at end of arc
+        const aEnd = a2 - 0.28;
+        const arrowX = cx + R * Math.cos(aEnd);
+        const arrowY = cy + R * Math.sin(aEnd);
+        const tangentAngle = aEnd + Math.PI / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY);
+        ctx.lineTo(arrowX - 8 * Math.cos(tangentAngle - 0.4), arrowY - 8 * Math.sin(tangentAngle - 0.4));
+        ctx.lineTo(arrowX - 8 * Math.cos(tangentAngle + 0.4), arrowY - 8 * Math.sin(tangentAngle + 0.4));
+        ctx.closePath();
+        ctx.fillStyle = COLORS.dim;
+        ctx.fill();
+      }
+
+      // Animated "pulse" traveling around the loop
+      const pulseAngle = ((t * 0.4) % 1) * Math.PI * 2 - Math.PI / 2;
+      const pulseX = cx + R * Math.cos(pulseAngle);
+      const pulseY = cy + R * Math.sin(pulseAngle);
+
+      ctx.beginPath();
+      ctx.arc(pulseX, pulseY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.accent;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(pulseX, pulseY, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS.accent + "40";
+      ctx.lineWidth = 10;
+      ctx.stroke();
+
+      // Draw step nodes
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+        const nx = cx + R * Math.cos(angle);
+        const ny = cy + R * Math.sin(angle);
+
+        // Highlight active step
+        const pulseProgress = ((t * 0.4) % 1) * n;
+        const isActive = Math.floor(pulseProgress) === i;
+
+        ctx.beginPath();
+        ctx.arc(nx, ny, isActive ? 30 : 26, 0, Math.PI * 2);
+        ctx.fillStyle = isActive ? steps[i].color + "30" : COLORS.surface;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(nx, ny, isActive ? 30 : 26, 0, Math.PI * 2);
+        ctx.strokeStyle = steps[i].color;
+        ctx.lineWidth = isActive ? 2.5 : 1.5;
+        ctx.stroke();
+
+        ctx.font = "600 10px 'DM Sans', sans-serif";
+        ctx.fillStyle = steps[i].color;
+        ctx.textAlign = "center";
+        ctx.fillText(steps[i].label, nx, ny - 2);
+
+        ctx.font = "400 9px 'DM Sans', sans-serif";
+        ctx.fillStyle = COLORS.text;
+        ctx.fillText(steps[i].sublabel, nx, ny + 11);
+      }
+
+      // Center label
+      ctx.font = "500 12px 'DM Sans', sans-serif";
+      ctx.fillStyle = COLORS.heading;
+      ctx.textAlign = "center";
+      ctx.fillText("Self-consistent", cx, cy - 6);
+      ctx.fillText("loop", cx, cy + 10);
+
+      timeRef.current += 0.015;
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: 300, display: "block" }} />;
+}
+
+// ─── Main App ───
+const sections = [
+  {
+    id: "gyration",
+    num: "01",
+    title: "Particle Gyration (Top View)",
+    desc: "An ion orbits its guiding center in the plane perpendicular to B. The orange trail shows the circular path; ρ is the Larmor radius. The green arrow is the perpendicular velocity v⊥ — always tangent to the circle.",
+    Viz: GyrationViz,
+  },
+  {
+    id: "helix",
+    num: "02",
+    title: "Helical Motion (Side View)",
+    desc: "The same particle seen from the side. It streams along the field line at v∥ while gyrating, tracing a helix. The depth shading shows the 3D spiral projected onto 2D.",
+    Viz: HelixViz,
+  },
+  {
+    id: "eddies",
+    num: "03",
+    title: "Turbulent Eddies & Radial Transport",
+    desc: "Eddies swirl in the plane perpendicular to B. The hot core is on the left, the cooler edge on the right. A hot blob (red) gets kicked outward by the eddies — this is turbulent transport, carrying heat toward the wall.",
+    Viz: EddyViz,
+  },
+  {
+    id: "fourier",
+    num: "04",
+    title: "Fourier Decomposition",
+    desc: "Any turbulent pattern (bottom) is a sum of simple sine waves at different wavenumbers k (top). Toggle modes on/off to see how they combine. Higher k = smaller eddies.",
+    Viz: FourierViz,
+  },
+  {
+    id: "flr",
+    num: "05",
+    title: "Gyro-Averaging & FLR Effects",
+    desc: "The orange ring samples the wave (φ fluctuation) at every point on its circumference. Green dots see positive φ, red dots see negative. At low k⊥ρ, the ring sees nearly uniform φ. Drag the slider to increase k⊥ — watch the ring average cancel out as the wavelength shrinks below the ring size.",
+    Viz: FLRViz,
+  },
+  {
+    id: "bessel",
+    num: "06",
+    title: "The Bessel Function J₀",
+    desc: "J₀(k⊥ρ) quantifies the FLR smoothing. At k⊥ρ = 0, J₀ = 1 (no smoothing). As k⊥ρ grows, J₀ drops and oscillates — the ion ring averages away the wave. Hover/touch to read values.",
+    Viz: BesselViz,
+  },
+  {
+    id: "landau",
+    num: "07",
+    title: "Landau Damping",
+    desc: "The blue curve is the distribution function f(v∥) — a Maxwellian. The dashed orange line marks the wave's phase velocity. Particles just slower than the wave (green dots) gain energy from it. Particles just faster (red dots) lose energy. Since the slope df/dv∥ is negative at v_phase, there are more slow particles than fast → net energy flows from wave to particles → the wave damps. No collisions needed.",
+    Viz: LandauViz,
+  },
+  {
+    id: "loop",
+    num: "08",
+    title: "The Self-Consistent Loop",
+    desc: "GENE runs this loop every timestep. The Vlasov equation evolves f → integrate f to get charge density → solve Poisson for φ → φ drives E×B drifts → drifts feed back into the Vlasov equation. The orange pulse circling represents the flow of computation.",
+    Viz: LoopViz,
+  },
+];
+
+function App() {
+  return (
+    <div style={{ background: COLORS.bg, minHeight: "100vh", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "32px 16px 64px" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 40, paddingBottom: 24, borderBottom: `1px solid ${COLORS.border}` }}>
+          <div style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 11,
+            color: COLORS.accent,
+            textTransform: "uppercase",
+            letterSpacing: "0.15em",
+            marginBottom: 12,
+          }}>
+            Interactive Visualizations
+          </div>
+          <h1 style={{
+            fontSize: 26,
+            fontWeight: 600,
+            color: COLORS.heading,
+            lineHeight: 1.3,
+            margin: 0,
+          }}>
+            Gyrokinetic Plasma Turbulence
+          </h1>
+          <p style={{ color: COLORS.text, fontSize: 14, marginTop: 8 }}>
+            Animated demonstrations of each core concept
+          </p>
+        </div>
+
+        {/* Sections */}
+        {sections.map((s) => (
+          <div key={s.id} style={{ marginBottom: 48 }}>
+            <div style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 10,
+              color: COLORS.accent,
+              textTransform: "uppercase",
+              letterSpacing: "0.15em",
+              marginBottom: 4,
+            }}>
+              {s.num}
+            </div>
+            <h2 style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: COLORS.heading,
+              margin: "0 0 8px 0",
+            }}>
+              {s.title}
+            </h2>
+            <p style={{
+              fontSize: 13,
+              color: COLORS.text,
+              lineHeight: 1.65,
+              margin: "0 0 16px 0",
+            }}>
+              {s.desc}
+            </p>
+            <div style={{
+              background: COLORS.surface,
+              borderRadius: 8,
+              border: `1px solid ${COLORS.border}`,
+              overflow: "hidden",
+            }}>
+              <s.Viz />
+            </div>
+          </div>
+        ))}
+
+        {/* Footer note */}
+        <div style={{
+          textAlign: "center",
+          fontSize: 12,
+          color: COLORS.dim,
+          borderTop: `1px solid ${COLORS.border}`,
+          paddingTop: 20,
+        }}>
+          All animations are schematic — proportions are exaggerated for clarity.
+          <br />Real tokamak values: ρ_ion ~ mm, eddy sizes ~ mm–cm, machine size ~ meters.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

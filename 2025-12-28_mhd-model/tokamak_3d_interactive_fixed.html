@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D Tokamak Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #e0e0e0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 30, 60, 0.95);
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 20px;
+            width: 280px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            z-index: 100;
+        }
+
+        .controls h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            color: #00ff88;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            padding: 10px;
+            border: 2px solid #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background: rgba(0, 255, 136, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+            transform: scale(1.05);
+        }
+
+        button.active {
+            background: #00ff88;
+            color: #0a0e27;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+        }
+
+        .slider-container {
+            margin-bottom: 12px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(0, 255, 136, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+            accent-color: #00ff88;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+        }
+
+        .value-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+            font-size: 11px;
+            color: #00ccff;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 30, 60, 0.95);
+            border: 2px solid #00ccff;
+            border-radius: 8px;
+            padding: 15px;
+            width: 280px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(0, 204, 255, 0.3);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .info-panel h3 {
+            color: #00ccff;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-item {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .info-label {
+            color: #00ccff;
+        }
+
+        .info-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 30, 60, 0.95);
+            border: 2px solid #ff00ff;
+            border-radius: 8px;
+            padding: 15px;
+            width: 220px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.3);
+            font-size: 11px;
+        }
+
+        .legend h3 {
+            color: #ff00ff;
+            margin-bottom: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 12px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(20, 30, 60, 0.95);
+            border: 2px solid #ffaa00;
+            border-radius: 8px;
+            padding: 15px;
+            width: 220px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.3);
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        .instructions h3 {
+            color: #ffaa00;
+            margin-bottom: 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .instruction-item {
+            margin-bottom: 6px;
+            color: #e0e0e0;
+        }
+
+        .instruction-key {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+
+        .mode-indicator {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 30, 60, 0.95);
+            border: 2px solid #ff00ff;
+            border-radius: 8px;
+            padding: 12px 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.3);
+            text-align: center;
+            z-index: 100;
+        }
+
+        .mode-indicator .label {
+            font-size: 10px;
+            color: #00ccff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .mode-indicator .value {
+            font-size: 18px;
+            color: #ff00ff;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff88;
+            font-size: 20px;
+            text-align: center;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading">Initializing Tokamak...</div>
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+        <h2>⚙️ Display Mode</h2>
+        <div class="button-group">
+            <button class="mode-btn active" data-mode="pressure">Pressure</button>
+            <button class="mode-btn" data-mode="density">Density</button>
+            <button class="mode-btn" data-mode="velocity">Velocity</button>
+            <button class="mode-btn" data-mode="turbulence">Turbulence</button>
+        </div>
+        <div class="button-group">
+            <button class="mode-btn" data-mode="combined">Combined</button>
+        </div>
+
+        <h2>🎨 Visualization</h2>
+        <div class="control-group">
+            <label>Opacity</label>
+            <div class="slider-container">
+                <input type="range" id="opacitySlider" min="0" max="1" step="0.1" value="0.8">
+                <div class="value-display">
+                    <span>Low</span>
+                    <span id="opacityValue">0.8</span>
+                    <span>High</span>
+                </div>
+            </div>
+        </div>
+
+        <h2>📊 Animation</h2>
+        <div class="button-group">
+            <button id="playBtn" class="active">⏸ Pause</button>
+            <button id="resetBtn">⟲ Reset</button>
+        </div>
+
+        <div class="control-group">
+            <label>Rotation Speed</label>
+            <div class="slider-container">
+                <input type="range" id="speedSlider" min="0" max="2" step="0.1" value="1">
+                <div class="value-display">
+                    <span>Slow</span>
+                    <span id="speedValue">1x</span>
+                    <span>Fast</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mode-indicator">
+        <div class="label">Current View</div>
+        <div class="value" id="modeDisplay">Pressure</div>
+    </div>
+
+    <div class="legend">
+        <h3>🌈 Color Scale</h3>
+        <div id="legendContent"></div>
+    </div>
+
+    <div class="info-panel">
+        <h3>📡 Plasma Stats</h3>
+        <div class="info-item">
+            <span class="info-label">Major Radius:</span>
+            <span class="info-value">3.0 m</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Minor Radius:</span>
+            <span class="info-value">0.6 m</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Temperature:</span>
+            <span class="info-value" id="tempValue">10 keV</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Density:</span>
+            <span class="info-value" id="densityValue">1e19 m⁻³</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">B-field:</span>
+            <span class="info-value">2.0 T</span>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <h3>🎮 Controls</h3>
+        <div class="instruction-item">
+            <span class="instruction-key">Left Mouse:</span> Rotate
+        </div>
+        <div class="instruction-item">
+            <span class="instruction-key">Right Mouse:</span> Pan
+        </div>
+        <div class="instruction-item">
+            <span class="instruction-key">Scroll:</span> Zoom
+        </div>
+        <div class="instruction-item">
+            <span class="instruction-key">Space:</span> Play/Pause
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class TokamakVisualizer {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                
+                // Scene setup
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x0a0e27);
+                
+                this.camera = new THREE.PerspectiveCamera(
+                    75,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    10000
+                );
+                
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: this.canvas, 
+                    antialias: true,
+                    alpha: true,
+                    precision: 'highp'
+                });
+
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.shadowMap.enabled = true;
+
+                this.camera.position.set(0, 3, 5);
+                this.camera.lookAt(0, 0, 0);
+
+                // Parameters
+                this.majorRadius = 3.0;
+                this.minorRadius = 0.6;
+                this.mode = 'pressure';
+                this.isAnimating = true;
+                this.time = 0;
+                this.opacity = 0.8;
+                this.speed = 1;
+
+                // Mouse controls
+                this.controls = {
+                    isRotating: false,
+                    previousMousePosition: { x: 0, y: 0 }
+                };
+
+                this.init();
+                this.setupEventListeners();
+                this.animate();
+                
+                // Hide loading message
+                document.querySelector('.loading').style.display = 'none';
+            }
+
+            init() {
+                // Add lights
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                this.scene.add(ambientLight);
+
+                const pointLight1 = new THREE.PointLight(0x00ff88, 1.5, 200);
+                pointLight1.position.set(5, 5, 5);
+                this.scene.add(pointLight1);
+
+                const pointLight2 = new THREE.PointLight(0x00ccff, 1, 200);
+                pointLight2.position.set(-5, 3, -5);
+                this.scene.add(pointLight2);
+
+                // Create main tokamak torus
+                this.createTokamak();
+                
+                // Add origin point for reference
+                const origin = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.1, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xff00ff })
+                );
+                this.scene.add(origin);
+
+                this.updateLegend();
+            }
+
+            createTokamak() {
+                // Create detailed torus geometry
+                const segments = 64;
+                const tubeSegments = 32;
+                
+                const torusGeometry = new THREE.TorusGeometry(
+                    this.majorRadius,
+                    this.minorRadius,
+                    tubeSegments,
+                    segments
+                );
+
+                // Create material with vertex colors
+                const torusMaterial = new THREE.MeshPhongMaterial({
+                    vertexColors: true,
+                    emissive: 0x001a33,
+                    shininess: 100,
+                    wireframe: false,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: this.opacity
+                });
+
+                this.torusMesh = new THREE.Mesh(torusGeometry, torusMaterial);
+                this.torusGeometry = torusGeometry;
+
+                // Color the torus
+                this.colorTorus('pressure');
+
+                this.scene.add(this.torusMesh);
+
+                // Add wireframe overlay
+                const wireframeMaterial = new THREE.MeshBasicMaterial({
+                    wireframe: true,
+                    color: 0x00ff88,
+                    transparent: true,
+                    opacity: 0.1,
+                    linewidth: 1
+                });
+
+                const wireframeMesh = new THREE.Mesh(torusGeometry, wireframeMaterial);
+                this.scene.add(wireframeMesh);
+            }
+
+            colorTorus(mode) {
+                const positions = this.torusGeometry.attributes.position.array;
+                const colors = new Float32Array(positions.length);
+
+                for (let i = 0; i < positions.length; i += 3) {
+                    const x = positions[i];
+                    const y = positions[i + 1];
+                    const z = positions[i + 2];
+
+                    let value;
+
+                    if (mode === 'pressure') {
+                        // Pressure peaks at center, decreases toward edge
+                        const distance = Math.sqrt(x * x + z * z);
+                        const fromCenter = Math.abs(distance - this.majorRadius);
+                        value = Math.max(0, 1 - (fromCenter / this.majorRadius) * 0.5);
+                    } 
+                    else if (mode === 'velocity') {
+                        // Circular motion pattern
+                        const angle = Math.atan2(z, x);
+                        const poloidal = Math.atan2(y, Math.sqrt(x*x + z*z) - this.majorRadius);
+                        value = Math.abs(Math.sin(angle * 2 + this.time)) * 0.7 + 
+                               Math.abs(Math.sin(poloidal * 3)) * 0.3;
+                    }
+                    else if (mode === 'turbulence') {
+                        // Complex turbulent pattern
+                        const t1 = Math.sin(x * 6 + this.time * 0.5) * Math.cos(y * 6) * Math.sin(z * 6);
+                        const t2 = Math.sin(x * 3.3) * Math.cos(z * 3.3 + this.time);
+                        value = Math.abs(t1 * 0.6 + t2 * 0.4);
+                    }
+                    else if (mode === 'combined') {
+                        // Combine all three
+                        const distance = Math.sqrt(x * x + z * z);
+                        const p = Math.max(0, 1 - (Math.abs(distance - this.majorRadius) / this.majorRadius) * 0.5);
+                        const v = Math.abs(Math.sin(Math.atan2(z, x) * 2));
+                        const t = Math.abs(Math.sin(x * 5) * Math.cos(z * 5));
+                        value = p * 0.5 + v * 0.25 + t * 0.25;
+                    }
+
+                    // Convert value to color
+                    const hue = value * 0.8;
+                    const rgb = this.hslToRgb(hue, 1, 0.4 + value * 0.3);
+
+                    colors[i] = rgb.r;
+                    colors[i + 1] = rgb.g;
+                    colors[i + 2] = rgb.b;
+                }
+
+                this.torusGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            }
+
+            hslToRgb(h, s, l) {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1/6) return p + (q - p) * 6 * t;
+                    if (t < 1/2) return q;
+                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                    return p;
+                };
+
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                
+                return {
+                    r: hue2rgb(p, q, h + 1/3),
+                    g: hue2rgb(p, q, h),
+                    b: hue2rgb(p, q, h - 1/3)
+                };
+            }
+
+            updateLegend() {
+                const legendContent = document.getElementById('legendContent');
+                const modes = {
+                    'pressure': [
+                        { color: '#ff0000', label: 'High (Core)' },
+                        { color: '#ffaa00', label: 'Medium' },
+                        { color: '#0066ff', label: 'Low (Edge)' }
+                    ],
+                    'velocity': [
+                        { color: '#ff3333', label: 'Fast Flow' },
+                        { color: '#00ff88', label: 'Medium' },
+                        { color: '#0088ff', label: 'Slow' }
+                    ],
+                    'turbulence': [
+                        { color: '#ff0000', label: 'High' },
+                        { color: '#ffff00', label: 'Medium' },
+                        { color: '#0000ff', label: 'Low' }
+                    ],
+                    'combined': [
+                        { color: '#ff0000', label: 'High Activity' },
+                        { color: '#ffaa00', label: 'Medium' },
+                        { color: '#0066ff', label: 'Low' }
+                    ]
+                };
+
+                const current = modes[this.mode];
+                let html = '';
+                current.forEach(item => {
+                    html += `
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: ${item.color}"></div>
+                            <span>${item.label}</span>
+                        </div>
+                    `;
+                });
+                legendContent.innerHTML = html;
+            }
+
+            setupEventListeners() {
+                // Mode buttons
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.setMode(e.target.dataset.mode);
+                    });
+                });
+
+                // Opacity slider
+                document.getElementById('opacitySlider').addEventListener('input', (e) => {
+                    this.opacity = parseFloat(e.target.value);
+                    this.torusMesh.material.opacity = this.opacity;
+                    document.getElementById('opacityValue').textContent = this.opacity.toFixed(1);
+                });
+
+                // Speed slider
+                document.getElementById('speedSlider').addEventListener('input', (e) => {
+                    this.speed = parseFloat(e.target.value);
+                    document.getElementById('speedValue').textContent = this.speed.toFixed(1) + 'x';
+                });
+
+                // Play/Pause
+                document.getElementById('playBtn').addEventListener('click', () => {
+                    this.isAnimating = !this.isAnimating;
+                    document.getElementById('playBtn').textContent = this.isAnimating ? '⏸ Pause' : '▶ Play';
+                    document.getElementById('playBtn').classList.toggle('active');
+                });
+
+                // Reset
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.time = 0;
+                    this.camera.position.set(0, 3, 5);
+                    this.camera.lookAt(0, 0, 0);
+                });
+
+                // Mouse controls
+                this.canvas.addEventListener('mousedown', (e) => {
+                    this.controls.isRotating = e.button === 0;
+                    this.controls.previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                this.canvas.addEventListener('mousemove', (e) => {
+                    if (this.controls.isRotating) {
+                        const deltaX = e.clientX - this.controls.previousMousePosition.x;
+                        const deltaY = e.clientY - this.controls.previousMousePosition.y;
+
+                        const radius = this.camera.position.length();
+                        const theta = Math.atan2(this.camera.position.z, this.camera.position.x);
+                        const phi = Math.acos(Math.max(-1, Math.min(1, this.camera.position.y / radius)));
+
+                        const newPhi = phi - deltaY * 0.01;
+                        const newTheta = theta - deltaX * 0.01;
+
+                        this.camera.position.x = radius * Math.sin(newPhi) * Math.cos(newTheta);
+                        this.camera.position.y = radius * Math.cos(newPhi);
+                        this.camera.position.z = radius * Math.sin(newPhi) * Math.sin(newTheta);
+                        this.camera.lookAt(0, 0, 0);
+                    }
+
+                    this.controls.previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                this.canvas.addEventListener('mouseup', () => {
+                    this.controls.isRotating = false;
+                });
+
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+                // Zoom
+                this.canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const currentDistance = this.camera.position.length();
+                    const newDistance = currentDistance + (e.deltaY > 0 ? 0.2 : -0.2);
+                    
+                    if (newDistance > 2 && newDistance < 20) {
+                        const scale = newDistance / currentDistance;
+                        this.camera.position.multiplyScalar(scale);
+                    }
+                });
+
+                // Space for play/pause
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        document.getElementById('playBtn').click();
+                    }
+                });
+
+                // Resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            setMode(newMode) {
+                this.mode = newMode;
+                this.colorTorus(newMode);
+                document.getElementById('modeDisplay').textContent = newMode.toUpperCase();
+                this.updateLegend();
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+
+                if (this.isAnimating) {
+                    this.time += 0.01 * this.speed;
+                    this.colorTorus(this.mode);
+                }
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // Initialize when document loads
+        window.addEventListener('DOMContentLoaded', () => {
+            new TokamakVisualizer();
+        });
+    </script>
+</body>
+</html>

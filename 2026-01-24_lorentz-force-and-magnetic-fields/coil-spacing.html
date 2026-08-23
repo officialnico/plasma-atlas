@@ -1,0 +1,331 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>coil spacing</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const CoilSpacingVisualization = () => {
+  const canvasRef = useRef(null);
+  const [numCoils, setNumCoils] = useState(12);
+  const [showFieldStrength, setShowFieldStrength] = useState(true);
+  const [showFieldLines, setShowFieldLines] = useState(true);
+  const [animateParticle, setAnimateParticle] = useState(true);
+  const [time, setTime] = useState(0);
+
+  useEffect(() => {
+    if (!animateParticle) return;
+    const interval = setInterval(() => {
+      setTime(t => t + 0.02);
+    }, 16);
+    return () => clearInterval(interval);
+  }, [animateParticle]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    // Clear
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, width, height);
+    
+    const R_major = 150; // Major radius (center of tube)
+    const R_inner = 80;  // Inner edge of torus
+    const R_outer = 220; // Outer edge of torus
+    
+    // Draw torus cross-section (top view - the donut from above)
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 2;
+    
+    // Outer circle
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, R_outer, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Inner circle (the hole)
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, R_inner, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Fill plasma region with gradient showing field strength
+    if (showFieldStrength) {
+      for (let r = R_inner; r <= R_outer; r += 2) {
+        const strength = R_inner / r; // B ∝ 1/R
+        const alpha = strength * 0.5;
+        ctx.strokeStyle = `rgba(170, 85, 255, ${alpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    
+    // Draw the coils (as lines radiating from center)
+    ctx.lineWidth = 3;
+    
+    for (let i = 0; i < numCoils; i++) {
+      const angle = (i / numCoils) * Math.PI * 2;
+      
+      // Each coil goes from inner to outer radius
+      const x1 = centerX + R_inner * Math.cos(angle);
+      const y1 = centerY + R_inner * Math.sin(angle);
+      const x2 = centerX + R_outer * Math.cos(angle);
+      const y2 = centerY + R_outer * Math.sin(angle);
+      
+      // Coil color
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      
+      // Draw coil "dots" at inner and outer positions
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(x1, y1, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x2, y2, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Draw field lines (circles going around - toroidal direction)
+    if (showFieldLines) {
+      ctx.setLineDash([5, 10]);
+      ctx.lineWidth = 1;
+      
+      const fieldRadii = [R_inner + 20, R_major, R_outer - 20];
+      
+      fieldRadii.forEach(r => {
+        const strength = R_inner / r;
+        ctx.strokeStyle = `rgba(170, 85, 255, ${0.3 + strength * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      
+      ctx.setLineDash([]);
+    }
+    
+    // Measure and show spacing at inner vs outer
+    const angle1 = 0;
+    const angle2 = (1 / numCoils) * Math.PI * 2;
+    
+    // Inner spacing
+    const inner_x1 = centerX + R_inner * Math.cos(angle1);
+    const inner_y1 = centerY + R_inner * Math.sin(angle1);
+    const inner_x2 = centerX + R_inner * Math.cos(angle2);
+    const inner_y2 = centerY + R_inner * Math.sin(angle2);
+    const innerSpacing = Math.sqrt((inner_x2 - inner_x1)**2 + (inner_y2 - inner_y1)**2);
+    
+    // Outer spacing
+    const outer_x1 = centerX + R_outer * Math.cos(angle1);
+    const outer_y1 = centerY + R_outer * Math.sin(angle1);
+    const outer_x2 = centerX + R_outer * Math.cos(angle2);
+    const outer_y2 = centerY + R_outer * Math.sin(angle2);
+    const outerSpacing = Math.sqrt((outer_x2 - outer_x1)**2 + (outer_y2 - outer_y1)**2);
+    
+    // Draw spacing indicators
+    ctx.strokeStyle = '#55ff55';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    
+    // Inner spacing line
+    ctx.beginPath();
+    ctx.moveTo(inner_x1, inner_y1);
+    ctx.lineTo(inner_x2, inner_y2);
+    ctx.stroke();
+    
+    // Outer spacing line  
+    ctx.strokeStyle = '#ff5555';
+    ctx.beginPath();
+    ctx.moveTo(outer_x1, outer_y1);
+    ctx.lineTo(outer_x2, outer_y2);
+    ctx.stroke();
+    
+    // Labels for center
+    ctx.fillStyle = '#888';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('CENTER', centerX, centerY - 10);
+    ctx.fillText('(hole)', centerX, centerY + 10);
+    
+    // Draw annotations
+    ctx.fillStyle = '#55ff55';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`INSIDE: ${innerSpacing.toFixed(0)}px apart`, 20, 30);
+    ctx.fillText('Coils CLOSE together', 20, 50);
+    ctx.fillText('→ STRONG field', 20, 70);
+    
+    ctx.fillStyle = '#ff5555';
+    ctx.textAlign = 'right';
+    ctx.fillText(`OUTSIDE: ${outerSpacing.toFixed(0)}px apart`, width - 20, 30);
+    ctx.fillText('Coils FAR apart', width - 20, 50);
+    ctx.fillText('→ WEAK field', width - 20, 70);
+    
+    // Draw a particle experiencing different field strengths
+    if (animateParticle) {
+      // Particle oscillates between inner and outer
+      const particleAngle = time * 0.5;
+      const particleR = R_major + Math.sin(time * 2) * 50;
+      
+      const px = centerX + particleR * Math.cos(particleAngle);
+      const py = centerY + particleR * Math.sin(particleAngle);
+      
+      // Calculate local field strength
+      const localB = R_inner / particleR;
+      
+      // Draw particle
+      const gradient = ctx.createRadialGradient(px, py, 0, px, py, 15);
+      gradient.addColorStop(0, 'rgba(255, 200, 100, 0.9)');
+      gradient.addColorStop(1, 'rgba(255, 200, 100, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(px, py, 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffcc66';
+      ctx.beginPath();
+      ctx.arc(px, py, 8, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('+', px, py);
+      
+      // Show local field strength
+      ctx.fillStyle = '#ffcc66';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`B = ${localB.toFixed(2)} (relative)`, px + 15, py - 10);
+      
+      // Show which region
+      if (particleR < R_major) {
+        ctx.fillStyle = '#55ff55';
+        ctx.fillText('STRONG FIELD', px + 15, py + 10);
+      } else {
+        ctx.fillStyle = '#ff5555';
+        ctx.fillText('WEAK FIELD', px + 15, py + 10);
+      }
+    }
+    
+    // Formula
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('B ∝ 1/R', centerX, height - 60);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('Field strength is inversely proportional to distance from center', centerX, height - 40);
+    ctx.fillText('(Same # of coils, smaller circumference = higher density)', centerX, height - 20);
+    
+  }, [numCoils, showFieldStrength, showFieldLines, animateParticle, time]);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold text-center mb-2">
+        Why Is The Field Stronger Inside?
+      </h1>
+      <p className="text-center text-gray-400 mb-4">
+        It's just geometry - the coils are bunched closer together on the inside
+      </p>
+      
+      <div className="flex flex-col lg:flex-row gap-4 max-w-5xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={600}
+            height={550}
+            className="bg-gray-800 rounded-lg w-full"
+          />
+        </div>
+        
+        <div className="w-full lg:w-64 space-y-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Number of Coils</h3>
+            <input
+              type="range"
+              min="4"
+              max="24"
+              value={numCoils}
+              onChange={e => setNumCoils(Number(e.target.value))}
+              className="w-full"
+            />
+            <p className="text-center text-sm text-gray-400 mt-1">{numCoils} coils</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Notice: same number of coils, but they're closer together on the inside!
+            </p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Display</h3>
+            <label className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                checked={showFieldStrength}
+                onChange={e => setShowFieldStrength(e.target.checked)}
+              />
+              Show field strength (purple glow)
+            </label>
+            <label className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                checked={showFieldLines}
+                onChange={e => setShowFieldLines(e.target.checked)}
+              />
+              Show field lines
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={animateParticle}
+                onChange={e => setAnimateParticle(e.target.checked)}
+              />
+              Animate particle
+            </label>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">The Math</h3>
+            <p className="text-gray-400 mb-2">
+              Inner circumference: <span className="text-green-400">2πR_inner</span> (small)
+            </p>
+            <p className="text-gray-400 mb-2">
+              Outer circumference: <span className="text-red-400">2πR_outer</span> (big)
+            </p>
+            <p className="text-gray-400">
+              Same {numCoils} coils spread over different distances → different densities → different field strengths
+            </p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Why This Matters</h3>
+            <p className="text-gray-400">
+              This field gradient causes particles to <span className="text-red-400">drift vertically</span>. That's why we need the poloidal field to create the twist - to cancel out that drift!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CoilSpacingVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

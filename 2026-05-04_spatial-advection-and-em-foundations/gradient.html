@@ -1,0 +1,701 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gradient</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function GradientVisualizer() {
+  const [view, setView] = useState("3d"); // "1d", "2d", "3d"
+  const [point1d, setPoint1d] = useState(2.0);
+  const [point2d, setPoint2d] = useState({ x: 0.0, y: 0.5 });
+  const [shape, setShape] = useState("hill");
+  const [showField, setShowField] = useState(true);
+  const [rotateY, setRotateY] = useState(0.6);
+  const [rotateX, setRotateX] = useState(0.55);
+
+  // ---------- distribution functions ----------
+  // 1D
+  const f1 = (x) => {
+    if (shape === "hill") return Math.exp(-Math.pow((x - 2) / 1.2, 2));
+    if (shape === "double")
+      return 0.8 * Math.exp(-Math.pow((x - 1) / 0.7, 2)) + 0.7 * Math.exp(-Math.pow((x - 3.5) / 0.7, 2));
+    if (shape === "wave") return 0.5 + 0.4 * Math.sin(x * 1.2);
+    return 0;
+  };
+  const df1 = (x) => {
+    const h = 0.001;
+    return (f1(x + h) - f1(x - h)) / (2 * h);
+  };
+
+  // 2D — height field f(x,y) over [-2.5, 2.5]^2
+  const f2 = (x, y) => {
+    if (shape === "hill") return Math.exp(-(x * x + y * y) / 1.5);
+    if (shape === "double")
+      return 0.85 * Math.exp(-((x - 1) ** 2 + (y - 0.5) ** 2) / 0.8) +
+             0.75 * Math.exp(-((x + 1) ** 2 + (y + 0.5) ** 2) / 0.8);
+    if (shape === "wave") return 0.5 + 0.35 * Math.sin(x * 1.3) * Math.cos(y * 1.3);
+    return 0;
+  };
+  const grad2 = (x, y) => {
+    const h = 0.001;
+    return {
+      gx: (f2(x + h, y) - f2(x - h, y)) / (2 * h),
+      gy: (f2(x, y + h) - f2(x, y - h)) / (2 * h),
+    };
+  };
+
+  // ---------- 1D view ----------
+  const W1 = 720, H1 = 320;
+  const xMin1 = 0, xMax1 = 5;
+  const xPx1 = (x) => 30 + ((x - xMin1) / (xMax1 - xMin1)) * (W1 - 60);
+  const yPx1 = (y) => H1 - 40 - y * (H1 - 80);
+
+  const path1Initial = useMemo(() => {
+    let d = "";
+    for (let i = 0; i <= 200; i++) {
+      const x = xMin1 + (i / 200) * (xMax1 - xMin1);
+      d += `${i === 0 ? "M" : "L"}${xPx1(x).toFixed(2)},${yPx1(f1(x)).toFixed(2)} `;
+    }
+    return d;
+  }, [shape]);
+
+  const slope1 = df1(point1d);
+  const fAtPoint1 = f1(point1d);
+
+  // tangent line at point
+  const tangentLen = 60;
+  const tx1 = xPx1(point1d), ty1 = yPx1(fAtPoint1);
+  // slope in screen coords: dy_screen/dx_screen
+  // dx_data per pixel: (xMax-xMin)/(W-60) , dy_data per pixel: -1/(H-80)
+  // tangent: dy_screen = -slope * (dx_data/dx_screen)^-1 ... easier: parametric
+  const dxPerData = (W1 - 60) / (xMax1 - xMin1);
+  const dyPerData = -(H1 - 80);
+  const tangentDx = tangentLen / Math.sqrt(1 + slope1 * slope1) * Math.sign(1) ;
+  // direction vector in screen pixels:
+  const vecDx = 1 * dxPerData;
+  const vecDy = slope1 * dyPerData;
+  const len = Math.sqrt(vecDx * vecDx + vecDy * vecDy);
+  const ux = vecDx / len, uy = vecDy / len;
+
+  // ---------- 2D view (top-down with vector field) ----------
+  const W2 = 480, H2 = 480;
+  const xMin2 = -2.5, xMax2 = 2.5;
+  const x2Px = (x) => 30 + ((x - xMin2) / (xMax2 - xMin2)) * (W2 - 60);
+  const y2Px = (y) => H2 - 30 - ((y - xMin2) / (xMax2 - xMin2)) * (H2 - 60);
+
+  // contour heatmap: sample a grid and color
+  const heatGrid = useMemo(() => {
+    const N = 60;
+    const cells = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = xMin2 + ((i + 0.5) / N) * (xMax2 - xMin2);
+        const y = xMin2 + ((j + 0.5) / N) * (xMax2 - xMin2);
+        const v = f2(x, y);
+        cells.push({ x, y, v });
+      }
+    }
+    return cells;
+  }, [shape]);
+
+  const fieldArrows = useMemo(() => {
+    const N = 14;
+    const arr = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = xMin2 + ((i + 0.5) / N) * (xMax2 - xMin2);
+        const y = xMin2 + ((j + 0.5) / N) * (xMax2 - xMin2);
+        const { gx, gy } = grad2(x, y);
+        arr.push({ x, y, gx, gy });
+      }
+    }
+    return arr;
+  }, [shape]);
+
+  // ---------- 3D view ----------
+  const W3 = 720, H3 = 480;
+  const cx3 = W3 / 2, cy3 = H3 / 2 + 40;
+  // simple isometric-like projection with two angles
+  const project = (x, y, z) => {
+    // rotate around Y first, then around X
+    const cy = Math.cos(rotateY), sy = Math.sin(rotateY);
+    const cx = Math.cos(rotateX), sx = Math.sin(rotateX);
+    // rot Y: (x', y, z') = (x*cy + z*sy, y, -x*sy + z*cy)
+    let x1 = x * cy + y * sy;
+    let y1 = z; // height becomes y screen-ish
+    let z1 = -x * sy + y * cy;
+    // rot X (tilt)
+    let x2 = x1;
+    let y2 = y1 * cx - z1 * sx;
+    let z2 = y1 * sx + z1 * cx;
+    const scale = 70;
+    return { px: cx3 + x2 * scale, py: cy3 - y2 * scale, depth: z2 };
+  };
+
+  // build 3D surface as a wireframe mesh
+  const meshLines = useMemo(() => {
+    const N = 30;
+    const lines = [];
+    const heightScale = 1.5;
+    // x-direction lines (varying y constant)
+    for (let j = 0; j <= N; j++) {
+      const y = xMin2 + (j / N) * (xMax2 - xMin2);
+      let pts = [];
+      for (let i = 0; i <= N; i++) {
+        const x = xMin2 + (i / N) * (xMax2 - xMin2);
+        const z = f2(x, y) * heightScale;
+        const p = project(x, y, z);
+        pts.push({ ...p, x, y, z, fval: f2(x, y) });
+      }
+      lines.push({ pts, dir: "x" });
+    }
+    // y-direction lines
+    for (let i = 0; i <= N; i++) {
+      const x = xMin2 + (i / N) * (xMax2 - xMin2);
+      let pts = [];
+      for (let j = 0; j <= N; j++) {
+        const y = xMin2 + (j / N) * (xMax2 - xMin2);
+        const z = f2(x, y) * heightScale;
+        const p = project(x, y, z);
+        pts.push({ ...p, x, y, z, fval: f2(x, y) });
+      }
+      lines.push({ pts, dir: "y" });
+    }
+    return lines;
+  }, [shape, rotateY, rotateX]);
+
+  const point3 = useMemo(() => {
+    const z = f2(point2d.x, point2d.y) * 1.5;
+    return project(point2d.x, point2d.y, z);
+  }, [point2d, rotateY, rotateX]);
+
+  const grad3 = useMemo(() => {
+    const { gx, gy } = grad2(point2d.x, point2d.y);
+    const z = f2(point2d.x, point2d.y) * 1.5;
+    // gradient vector arrow head, base at point
+    const len = 0.8;
+    const mag = Math.sqrt(gx * gx + gy * gy) || 1;
+    const ux = (gx / mag) * len;
+    const uy = (gy / mag) * len;
+    const baseTip = project(point2d.x + ux, point2d.y + uy, z);
+    return { gx, gy, mag, baseTip, ux, uy };
+  }, [point2d, rotateY, rotateX]);
+
+  // ---------- drag handlers ----------
+  const svg2Ref = useRef(null);
+  const svg3Ref = useRef(null);
+
+  const handle2dPointer = (e) => {
+    if (e.buttons !== 1 && e.type !== "pointerdown") return;
+    const r = svg2Ref.current.getBoundingClientRect();
+    const sx = ((e.clientX - r.left) / r.width) * W2;
+    const sy = ((e.clientY - r.top) / r.height) * H2;
+    const x = xMin2 + ((sx - 30) / (W2 - 60)) * (xMax2 - xMin2);
+    const y = xMin2 + ((H2 - 30 - sy) / (H2 - 60)) * (xMax2 - xMin2);
+    if (x >= xMin2 && x <= xMax2 && y >= xMin2 && y <= xMax2) {
+      setPoint2d({ x, y });
+    }
+  };
+
+  const drag3Ref = useRef({ active: false, lastX: 0, lastY: 0 });
+  const handle3dDown = (e) => {
+    drag3Ref.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+  };
+  const handle3dMove = (e) => {
+    if (!drag3Ref.current.active) return;
+    const dx = e.clientX - drag3Ref.current.lastX;
+    const dy = e.clientY - drag3Ref.current.lastY;
+    setRotateY((r) => r + dx * 0.01);
+    setRotateX((r) => Math.max(0.1, Math.min(1.4, r - dy * 0.01)));
+    drag3Ref.current.lastX = e.clientX;
+    drag3Ref.current.lastY = e.clientY;
+  };
+  const handle3dUp = () => {
+    drag3Ref.current.active = false;
+  };
+
+  // heatmap color
+  const heatColor = (v) => {
+    // v in [0, 1] roughly; clamp
+    const t = Math.max(0, Math.min(1, v));
+    // dark teal -> orange
+    const r = Math.floor(20 + t * 235);
+    const g = Math.floor(30 + t * 90);
+    const b = Math.floor(60 - t * 30);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0a0a0f",
+        color: "#e8e8ee",
+        fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+        padding: "32px 24px",
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent;
+          border: 1px solid #2a2a35;
+          color: #e8e8ee;
+          padding: 8px 14px;
+          font-family: inherit;
+          font-size: 12px;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 20px; }
+        .stat-pill {
+          background: #0d0d18;
+          border: 1px solid #1f1f2c;
+          padding: 10px 14px;
+          font-size: 12px;
+        }
+        .stat-pill .lbl {
+          font-size: 10px;
+          letter-spacing: 0.2em;
+          color: #666;
+          margin-bottom: 4px;
+        }
+        .stat-pill .val { font-size: 16px; color: #fff; font-family: 'Fraunces', serif; font-style: italic; }
+      `}</style>
+
+      <div style={{ maxWidth: 920, margin: "0 auto" }}>
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 12 }}>
+            GRADIENT · INPUTS & OUTPUTS
+          </div>
+          <h1 className="display" style={{ fontSize: 48, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            What goes in, what comes out
+          </h1>
+          <p style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 700, color: "#b0b0bc", marginTop: 16 }}>
+            <span style={{color:"#ff5c3a"}}>Yes.</span> Give ∂f/∂x a point — it returns the slope of f at that spot, in
+            the +x direction. Positive output → f is climbing as you move right. Negative → f is dropping. Zero → flat.
+            In multiple dimensions, you get one slope per axis, and stacking them gives the
+            <em> gradient vector</em> ∇f, which points the way "uphill."
+          </p>
+        </div>
+
+        {/* MODE */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <button className={`control-btn ${view === "1d" ? "active" : ""}`} onClick={() => setView("1d")}>
+            1D · ∂f/∂x is a number
+          </button>
+          <button className={`control-btn ${view === "2d" ? "active" : ""}`} onClick={() => setView("2d")}>
+            2D · ∇f is a vector
+          </button>
+          <button className={`control-btn ${view === "3d" ? "active" : ""}`} onClick={() => setView("3d")}>
+            3D Surface
+          </button>
+        </div>
+
+        {/* ============ 1D VIEW ============ */}
+        {view === "1d" && (
+          <div className="viz-card" style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666", marginBottom: 12 }}>
+              f(x) WITH TANGENT AT YOUR POINT — drag the slider
+            </div>
+            <svg width="100%" viewBox={`0 0 ${W1} ${H1}`}>
+              {/* baseline */}
+              <line x1={30} y1={H1 - 40} x2={W1 - 30} y2={H1 - 40} stroke="#2a2a35" />
+              {[0, 1, 2, 3, 4, 5].map((t) => (
+                <text key={t} x={xPx1(t)} y={H1 - 22} fontSize="10" fill="#555" textAnchor="middle">
+                  {t}
+                </text>
+              ))}
+              {/* curve */}
+              <path d={path1Initial} fill="none" stroke="#5b8def" strokeWidth="2" />
+              {/* tangent */}
+              <line
+                x1={tx1 - ux * 90}
+                y1={ty1 - uy * 90}
+                x2={tx1 + ux * 90}
+                y2={ty1 + uy * 90}
+                stroke="#ff5c3a"
+                strokeWidth="2.5"
+              />
+              {/* point */}
+              <circle cx={tx1} cy={ty1} r="6" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+              {/* drop line */}
+              <line x1={tx1} y1={ty1} x2={tx1} y2={H1 - 40} stroke="#3a3a4a" strokeDasharray="3,3" />
+              <text x={tx1} y={H1 - 5} fontSize="10" fill="#ffd166" textAnchor="middle" fontStyle="italic">
+                x = {point1d.toFixed(2)}
+              </text>
+              {/* slope arrow indicator */}
+              <g transform={`translate(${W1 - 130}, 30)`}>
+                <text fontSize="10" fill="#666" letterSpacing="0.1em">SLOPE DIRECTION</text>
+                <line x1="0" y1="20" x2={slope1 > 0 ? 60 : -60} y2={slope1 > 0 ? -20 : 20} stroke="#ff5c3a" strokeWidth="2" transform="translate(60, 0)" />
+              </g>
+            </svg>
+
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 11, color: "#666", letterSpacing: "0.2em", marginBottom: 6 }}>
+                INPUT · POINT x = {point1d.toFixed(2)}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.01"
+                value={point1d}
+                onChange={(e) => setPoint1d(parseFloat(e.target.value))}
+                style={{ width: "100%" }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
+              <div className="stat-pill">
+                <div className="lbl">INPUT</div>
+                <div className="val">x = {point1d.toFixed(3)}</div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">f(x) — value there</div>
+                <div className="val">{fAtPoint1.toFixed(3)}</div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">∂f/∂x — output</div>
+                <div className="val" style={{ color: slope1 > 0 ? "#5b8def" : slope1 < 0 ? "#ff5c3a" : "#888" }}>
+                  {slope1 > 0 ? "+" : ""}
+                  {slope1.toFixed(3)}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#888", marginTop: 14, lineHeight: 1.6 }}>
+              {slope1 > 0.05
+                ? `Output is positive (+${slope1.toFixed(2)}) → f is climbing as you move toward larger x. The orange tangent line tilts up-right.`
+                : slope1 < -0.05
+                ? `Output is negative (${slope1.toFixed(2)}) → f is dropping as you move toward larger x. The tangent tilts down-right.`
+                : `Output ≈ 0 → you're at a peak, valley, or flat region. The tangent is horizontal.`}
+            </div>
+          </div>
+        )}
+
+        {/* ============ 2D VIEW ============ */}
+        {view === "2d" && (
+          <div className="viz-card" style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666", marginBottom: 12 }}>
+              f(x, y) FROM ABOVE · CLICK & DRAG ANYWHERE
+            </div>
+            <svg
+              ref={svg2Ref}
+              width="100%"
+              viewBox={`0 0 ${W2} ${H2}`}
+              style={{ display: "block", cursor: "crosshair", touchAction: "none" }}
+              onPointerDown={handle2dPointer}
+              onPointerMove={handle2dPointer}
+            >
+              {/* heatmap */}
+              {heatGrid.map((c, i) => {
+                const sz = (W2 - 60) / 60 + 1;
+                return (
+                  <rect
+                    key={i}
+                    x={x2Px(c.x) - sz / 2}
+                    y={y2Px(c.y) - sz / 2}
+                    width={sz}
+                    height={sz}
+                    fill={heatColor(c.v)}
+                  />
+                );
+              })}
+
+              {/* gradient field */}
+              {showField &&
+                fieldArrows.map((a, i) => {
+                  const mag = Math.sqrt(a.gx * a.gx + a.gy * a.gy);
+                  if (mag < 0.02) return null;
+                  const sc = 0.25;
+                  const x1 = x2Px(a.x);
+                  const y1 = y2Px(a.y);
+                  const x2 = x2Px(a.x + a.gx * sc);
+                  const y2 = y2Px(a.y + a.gy * sc);
+                  return (
+                    <g key={i}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff" strokeOpacity="0.6" strokeWidth="1" />
+                      <circle cx={x2} cy={y2} r="1.5" fill="#fff" opacity="0.8" />
+                    </g>
+                  );
+                })}
+
+              {/* user point */}
+              <g>
+                <circle cx={x2Px(point2d.x)} cy={y2Px(point2d.y)} r="14" fill="none" stroke="#ffd166" strokeWidth="1" opacity="0.4" />
+                <circle cx={x2Px(point2d.x)} cy={y2Px(point2d.y)} r="6" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+                {/* gradient arrow */}
+                {(() => {
+                  const { gx, gy } = grad2(point2d.x, point2d.y);
+                  const mag = Math.sqrt(gx * gx + gy * gy);
+                  if (mag < 0.01) return null;
+                  const sc = 0.7;
+                  const x1 = x2Px(point2d.x);
+                  const y1 = y2Px(point2d.y);
+                  const x2 = x2Px(point2d.x + gx * sc);
+                  const y2 = y2Px(point2d.y + gy * sc);
+                  // arrowhead
+                  const ang = Math.atan2(y2 - y1, x2 - x1);
+                  const ah = 8;
+                  return (
+                    <g>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#ff5c3a" strokeWidth="3" />
+                      <polygon
+                        points={`${x2},${y2} ${x2 - ah * Math.cos(ang - 0.5)},${y2 - ah * Math.sin(ang - 0.5)} ${x2 - ah * Math.cos(ang + 0.5)},${y2 - ah * Math.sin(ang + 0.5)}`}
+                        fill="#ff5c3a"
+                      />
+                    </g>
+                  );
+                })()}
+              </g>
+
+              {/* axes labels */}
+              <text x={W2 - 10} y={H2 - 12} fontSize="11" fill="#888" textAnchor="end" fontStyle="italic">x →</text>
+              <text x={20} y={20} fontSize="11" fill="#888" textAnchor="start" fontStyle="italic">y</text>
+            </svg>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
+              <div className="stat-pill">
+                <div className="lbl">INPUT (x, y)</div>
+                <div className="val">({point2d.x.toFixed(2)}, {point2d.y.toFixed(2)})</div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">∂f/∂x</div>
+                <div className="val" style={{color: grad2(point2d.x, point2d.y).gx > 0 ? "#5b8def" : "#ff5c3a"}}>
+                  {grad2(point2d.x, point2d.y).gx.toFixed(3)}
+                </div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">∂f/∂y</div>
+                <div className="val" style={{color: grad2(point2d.x, point2d.y).gy > 0 ? "#5b8def" : "#ff5c3a"}}>
+                  {grad2(point2d.x, point2d.y).gy.toFixed(3)}
+                </div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">|∇f| — steepness</div>
+                <div className="val">
+                  {(() => {
+                    const { gx, gy } = grad2(point2d.x, point2d.y);
+                    return Math.sqrt(gx * gx + gy * gy).toFixed(3);
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#888", marginTop: 14, lineHeight: 1.6 }}>
+              The orange arrow is ∇f at your point — it always points uphill, perpendicular to the local contour line.
+              Length = how steep. Background brightness = value of f. White arrows show the field everywhere.
+            </div>
+          </div>
+        )}
+
+        {/* ============ 3D VIEW ============ */}
+        {view === "3d" && (
+          <div className="viz-card" style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666", marginBottom: 12 }}>
+              f(x, y) AS A SURFACE · DRAG TO ROTATE · USE 2D TAB TO MOVE THE POINT
+            </div>
+            <svg
+              ref={svg3Ref}
+              width="100%"
+              viewBox={`0 0 ${W3} ${H3}`}
+              style={{ display: "block", cursor: "grab", touchAction: "none" }}
+              onPointerDown={handle3dDown}
+              onPointerMove={handle3dMove}
+              onPointerUp={handle3dUp}
+              onPointerLeave={handle3dUp}
+            >
+              {/* mesh */}
+              {meshLines.map((line, li) => {
+                let d = "";
+                line.pts.forEach((p, i) => {
+                  d += `${i === 0 ? "M" : "L"}${p.px.toFixed(2)},${p.py.toFixed(2)} `;
+                });
+                // color by avg height
+                const avgH = line.pts.reduce((s, p) => s + p.fval, 0) / line.pts.length;
+                const c = heatColor(avgH);
+                return <path key={li} d={d} fill="none" stroke={c} strokeOpacity="0.5" strokeWidth="1" />;
+              })}
+
+              {/* the user point as a vertical pin from base to surface */}
+              {(() => {
+                const base = project(point2d.x, point2d.y, 0);
+                return (
+                  <line
+                    x1={base.px}
+                    y1={base.py}
+                    x2={point3.px}
+                    y2={point3.py}
+                    stroke="#ffd166"
+                    strokeWidth="1.5"
+                    strokeDasharray="3,3"
+                    opacity="0.7"
+                  />
+                );
+              })()}
+
+              {/* gradient vector arrow on the surface */}
+              {grad3.mag > 0.02 && (() => {
+                const ang = Math.atan2(grad3.baseTip.py - point3.py, grad3.baseTip.px - point3.px);
+                const ah = 10;
+                return (
+                  <g>
+                    <line
+                      x1={point3.px}
+                      y1={point3.py}
+                      x2={grad3.baseTip.px}
+                      y2={grad3.baseTip.py}
+                      stroke="#ff5c3a"
+                      strokeWidth="3"
+                    />
+                    <polygon
+                      points={`${grad3.baseTip.px},${grad3.baseTip.py} ${grad3.baseTip.px - ah * Math.cos(ang - 0.5)},${grad3.baseTip.py - ah * Math.sin(ang - 0.5)} ${grad3.baseTip.px - ah * Math.cos(ang + 0.5)},${grad3.baseTip.py - ah * Math.sin(ang + 0.5)}`}
+                      fill="#ff5c3a"
+                    />
+                  </g>
+                );
+              })()}
+
+              {/* point sphere */}
+              <circle cx={point3.px} cy={point3.py} r="6" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+
+              {/* axes hint */}
+              {(() => {
+                const o = project(0, 0, 0);
+                const ax = project(2.5, 0, 0);
+                const ay = project(0, 2.5, 0);
+                const az = project(0, 0, 1.5);
+                return (
+                  <g>
+                    <line x1={o.px} y1={o.py} x2={ax.px} y2={ax.py} stroke="#666" strokeWidth="1" />
+                    <text x={ax.px + 6} y={ax.py + 4} fontSize="11" fill="#888" fontStyle="italic">x</text>
+                    <line x1={o.px} y1={o.py} x2={ay.px} y2={ay.py} stroke="#666" strokeWidth="1" />
+                    <text x={ay.px + 6} y={ay.py + 4} fontSize="11" fill="#888" fontStyle="italic">y</text>
+                    <line x1={o.px} y1={o.py} x2={az.px} y2={az.py} stroke="#666" strokeWidth="1" />
+                    <text x={az.px + 6} y={az.py + 4} fontSize="11" fill="#888" fontStyle="italic">f</text>
+                  </g>
+                );
+              })()}
+            </svg>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
+              <div className="stat-pill">
+                <div className="lbl">POINT</div>
+                <div className="val">({point2d.x.toFixed(2)}, {point2d.y.toFixed(2)})</div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">f at point</div>
+                <div className="val">{f2(point2d.x, point2d.y).toFixed(3)}</div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">∇f vector</div>
+                <div className="val">({grad3.gx.toFixed(2)}, {grad3.gy.toFixed(2)})</div>
+              </div>
+              <div className="stat-pill">
+                <div className="lbl">|∇f|</div>
+                <div className="val">{grad3.mag.toFixed(3)}</div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#888", marginTop: 14, lineHeight: 1.6 }}>
+              The orange arrow lies <em>flat</em> on the (x, y) plane at the surface — it shows which horizontal
+              direction makes you climb fastest. It does <em>not</em> point up the slope along the surface; it points along the
+              floor toward the steepest ascent. Walk that direction and you go up. Walk perpendicular and you stay level.
+            </div>
+          </div>
+        )}
+
+        {/* CONTROLS */}
+        <div className="viz-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className={`control-btn ${shape === "hill" ? "active" : ""}`} onClick={() => setShape("hill")}>
+              Single hill
+            </button>
+            <button className={`control-btn ${shape === "double" ? "active" : ""}`} onClick={() => setShape("double")}>
+              Two peaks
+            </button>
+            <button className={`control-btn ${shape === "wave" ? "active" : ""}`} onClick={() => setShape("wave")}>
+              Wave
+            </button>
+            {view === "2d" && (
+              <button className={`control-btn ${showField ? "active" : ""}`} onClick={() => setShowField((s) => !s)}>
+                {showField ? "Hide" : "Show"} field
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ANSWER PANEL */}
+        <div className="viz-card" style={{ marginBottom: 20, background: "#0d0d18" }}>
+          <h2 className="display" style={{ fontSize: 24, fontStyle: "italic", margin: "0 0 14px 0", fontWeight: 600 }}>
+            Inputs & outputs, plainly
+          </h2>
+          <div style={{ display: "grid", gap: 12 }}>
+            <Row
+              tag="∂f/∂x"
+              color="#5b8def"
+              io="input: a point (x, [y, z, ...]) · output: ONE number"
+              text="The slope of f along the x-axis at that point. Sign = direction (positive means f goes up as x increases). Zero = flat in the x-direction. It tells you nothing about y or z."
+            />
+            <Row
+              tag="∇f"
+              color="#ff5c3a"
+              io="input: a point · output: a VECTOR (one number per spatial axis)"
+              text="In 3D: ∇f = (∂f/∂x, ∂f/∂y, ∂f/∂z). It points in the direction of fastest increase of f. Length = how steep that increase is. Perpendicular to level sets (contours)."
+            />
+            <Row
+              tag="v · ∂f/∂x"
+              color="#ffd166"
+              io="input: point and velocity v · output: ONE number"
+              text="(Streaming term, scalar form.) How fast f at this point is changing because particles with velocity v are sweeping across the local gradient."
+            />
+            <Row
+              tag="v · ∇f"
+              color="#9d8df1"
+              io="input: point + velocity vector v · output: ONE number (a dot product)"
+              text="The full 3D streaming term. v · ∇f = vₓ·∂f/∂x + vᵧ·∂f/∂y + v_z·∂f/∂z. The dot product collapses the gradient vector and the velocity vector into a single scalar — the rate."
+            />
+          </div>
+        </div>
+
+        <div style={{ fontSize: 12, color: "#555", textAlign: "center" }}>
+          Try: drag your point to a peak in 2D — the gradient arrow shrinks to nothing.
+          Drag it to a steep slope — it grows and points uphill.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ tag, color, io, text }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 16, alignItems: "start" }}>
+      <div className="display" style={{ fontSize: 22, fontStyle: "italic", color, fontWeight: 600 }}>
+        {tag}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: "#888", letterSpacing: "0.1em", marginBottom: 4, textTransform: "uppercase" }}>{io}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.55, color: "#b0b0bc" }}>{text}</div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Row));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

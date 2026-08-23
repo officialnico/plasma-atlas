@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magnetic Field Atlas — B(x,y) for five sources</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --bg: #f5f1e8;
+    --bg-paper: #ede7d8;
+    --ink: #1a1714;
+    --ink-soft: #4a4339;
+    --ink-faint: #8a8275;
+    --rule: #c9bfa8;
+    --accent: #b8341a;
+    --accent-blue: #1d4fa8;
+    --field: #5a3818;
+    --grid: #d8cfb8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(184, 52, 26, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 85% 90%, rgba(29, 79, 168, 0.04) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    opacity: 0.06;
+    pointer-events: none;
+    z-index: 0;
+    mix-blend-mode: multiply;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* Masthead */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 24px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 32px;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: clamp(40px, 6vw, 72px);
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .tagline {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+    line-height: 1.7;
+  }
+
+  .tagline strong { color: var(--ink); }
+
+  .lede {
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 0 24px;
+    margin-bottom: 40px;
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 800px;
+  }
+
+  /* Tab nav */
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .tab {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--ink-faint);
+    border: none;
+    padding: 14px 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+
+  .tab:hover { color: var(--ink); }
+
+  .tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+    font-weight: 700;
+  }
+
+  .tab .num {
+    color: var(--accent);
+    margin-right: 8px;
+    font-weight: 700;
+  }
+
+  /* Panel */
+  .panel {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 0;
+    border: 1px solid var(--rule);
+    border-top: none;
+    background: var(--bg-paper);
+    margin-bottom: 48px;
+  }
+
+  .canvas-side {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-right: 1px solid var(--rule);
+    overflow: hidden;
+    background: var(--bg-paper);
+  }
+
+  .canvas-side canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .canvas-label {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--bg-paper);
+    padding: 4px 8px;
+    border: 1px solid var(--rule);
+    z-index: 5;
+  }
+
+  .canvas-coords {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    background: var(--bg-paper);
+    padding: 6px 10px;
+    border: 1px solid var(--rule);
+    z-index: 5;
+    line-height: 1.5;
+    text-align: right;
+    pointer-events: none;
+  }
+
+  .canvas-coords .axis-x { color: var(--accent); }
+  .canvas-coords .axis-y { color: var(--accent-blue); }
+  .canvas-coords .mag { color: var(--field); }
+
+  /* Info side */
+  .info-side {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .info-side h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: 28px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .info-side h2 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .formula-block {
+    background: var(--bg);
+    border-left: 3px solid var(--accent);
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--ink);
+  }
+
+  .formula-block .var { color: var(--accent); font-weight: 700; }
+  .formula-block .small { font-size: 10px; color: var(--ink-faint); display: block; margin-top: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .description {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+  }
+
+  .description strong { color: var(--ink); }
+
+  .controls h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 12px;
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-soft);
+  }
+
+  .slider-row label {
+    min-width: 70px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .slider-row .value {
+    min-width: 36px;
+    color: var(--accent);
+    font-weight: 700;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 1px;
+    background: var(--ink-faint);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    cursor: pointer;
+    border-radius: 0;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+  }
+
+  .toggle-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .toggle-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink-faint);
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn:hover { border-color: var(--ink); }
+  .toggle-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  /* Footer */
+  .footer-note {
+    border-top: 1px solid var(--rule);
+    padding-top: 24px;
+    margin-top: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .panel { grid-template-columns: 1fr; }
+    .canvas-side { border-right: none; border-bottom: 1px solid var(--rule); }
+    .masthead { grid-template-columns: 1fr; }
+    .tagline { text-align: left; }
+    .tabs { overflow-x: auto; flex-wrap: nowrap; }
+    .tab { white-space: nowrap; }
+  }
+
+  /* Hidden panel state */
+  .panel:not(.active) { display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Vol. II · Field Atlas</div>
+      <h1>B(x,&nbsp;y),<br><em>charted five ways.</em></h1>
+    </div>
+    <div class="tagline">
+      <strong>HOVER</strong> for direction & magnitude<br>
+      <strong>DRAG</strong> sliders to tune<br>
+      <strong>SWITCH TABS</strong> for each formula
+    </div>
+  </header>
+
+  <p class="lede">
+    A magnetic field is a vector at every point in space. Different sources give different patterns. Here are the five formulas you'll meet first — each one rendered as the function it really is, evaluated on a grid.
+  </p>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="0"><span class="num">01</span>Wire</button>
+    <button class="tab" data-tab="1"><span class="num">02</span>Dipole</button>
+    <button class="tab" data-tab="2"><span class="num">03</span>Two poles</button>
+    <button class="tab" data-tab="3"><span class="num">04</span>Uniform</button>
+    <button class="tab" data-tab="4"><span class="num">05</span>Loop pair</button>
+  </nav>
+
+  <!-- ============ PANEL 1: WIRE ============ -->
+  <section class="panel active" data-panel="0">
+    <div class="canvas-side">
+      <div class="canvas-label">01 · Infinite wire (current ⊙ out of page)</div>
+      <canvas id="canvas-0"></canvas>
+      <div class="canvas-coords" id="coords-0">
+        <span class="axis-x">x</span> = 0.00<br>
+        <span class="axis-y">y</span> = 0.00<br>
+        <span class="mag">|B|</span> = —
+      </div>
+    </div>
+    <div class="info-side">
+      <h2>Infinite <em>wire</em></h2>
+      <div class="formula-block">
+        B<sub>x</sub> = −<span class="var">k</span>·y / (x² + y²)<br>
+        B<sub>y</sub> = +<span class="var">k</span>·x / (x² + y²)
+        <span class="small">k = μ₀I / (2π)</span>
+      </div>
+      <p class="description">
+        Current flowing straight up out of the page at the origin. The field <strong>circles the wire</strong> counterclockwise (right-hand rule: thumb up, fingers curl). Magnitude falls off as <strong>1/r</strong> — strong near the wire, weak far away.
+      </p>
+      <div class="controls">
+        <h3>Parameters</h3>
+        <div class="slider-row">
+          <label>Current k</label>
+          <input type="range" id="wire-k" min="0.5" max="5" step="0.1" value="2">
+          <span class="value" id="wire-k-val">2.0</span>
+        </div>
+        <div class="slider-row">
+          <label>Direction</label>
+          <div class="toggle-row" style="flex:1; justify-content:flex-end;">
+            <button class="toggle-btn active" id="wire-out">⊙ out</button>
+            <button class="toggle-btn" id="wire-in">⊗ in</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 2: DIPOLE ============ -->
+  <section class="panel" data-panel="1">
+    <div class="canvas-side">
+      <div class="canvas-label">02 · Magnetic dipole (moment along x-axis)</div>
+      <canvas id="canvas-1"></canvas>
+      <div class="canvas-coords" id="coords-1">
+        <span class="axis-x">x</span> = 0.00<br>
+        <span class="axis-y">y</span> = 0.00<br>
+        <span class="mag">|B|</span> = —
+      </div>
+    </div>
+    <div class="info-side">
+      <h2>Pure <em>dipole</em></h2>
+      <div class="formula-block">
+        B<sub>x</sub> = <span class="var">k</span>·(x² − y²) / (x² + y²)²<br>
+        B<sub>y</sub> = <span class="var">k</span>·2xy / (x² + y²)²
+        <span class="small">k = μ₀m / 2π</span>
+      </div>
+      <p class="description">
+        The idealized "point dipole" — a magnet shrunk to a single point with moment <strong>m</strong> pointing along +x. Two characteristic lobes: field bursts out the +x side, loops around, returns through the −x side. Falls off as <strong>1/r²</strong>.
+      </p>
+      <div class="controls">
+        <h3>Parameters</h3>
+        <div class="slider-row">
+          <label>Moment k</label>
+          <input type="range" id="dipole-k" min="0.5" max="5" step="0.1" value="2">
+          <span class="value" id="dipole-k-val">2.0</span>
+        </div>
+        <div class="slider-row">
+          <label>Tilt</label>
+          <input type="range" id="dipole-tilt" min="-180" max="180" step="5" value="0">
+          <span class="value" id="dipole-tilt-val">0°</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 3: TWO POLES ============ -->
+  <section class="panel" data-panel="2">
+    <div class="canvas-side">
+      <div class="canvas-label">03 · Two point poles (the visualizer model)</div>
+      <canvas id="canvas-2"></canvas>
+      <div class="canvas-coords" id="coords-2">
+        <span class="axis-x">x</span> = 0.00<br>
+        <span class="axis-y">y</span> = 0.00<br>
+        <span class="mag">|B|</span> = —
+      </div>
+    </div>
+    <div class="info-side">
+      <h2>Two <em>point poles</em></h2>
+      <div class="formula-block">
+        B<sub>x</sub> = k·[(x−x₊)/r₊² − (x−x₋)/r₋²]<br>
+        B<sub>y</sub> = k·[(y−y₊)/r₊² − (y−y₋)/r₋²]
+        <span class="small">r± = distance to each pole</span>
+      </div>
+      <p class="description">
+        A <strong>+pole</strong> (red, north) and <strong>−pole</strong> (blue, south) treated as Coulomb-like sources. Same shape as the dipole when poles are close, but you can pull them apart and watch the field stretch. <em>This is exactly the model in your other visualizer.</em>
+      </p>
+      <div class="controls">
+        <h3>Parameters</h3>
+        <div class="slider-row">
+          <label>Separation</label>
+          <input type="range" id="poles-sep" min="0.2" max="2.5" step="0.05" value="0.8">
+          <span class="value" id="poles-sep-val">0.80</span>
+        </div>
+        <div class="slider-row">
+          <label>Strength</label>
+          <input type="range" id="poles-k" min="0.5" max="3" step="0.1" value="1.5">
+          <span class="value" id="poles-k-val">1.5</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 4: UNIFORM ============ -->
+  <section class="panel" data-panel="3">
+    <div class="canvas-side">
+      <div class="canvas-label">04 · Uniform field (solenoid interior)</div>
+      <canvas id="canvas-3"></canvas>
+      <div class="canvas-coords" id="coords-3">
+        <span class="axis-x">x</span> = 0.00<br>
+        <span class="axis-y">y</span> = 0.00<br>
+        <span class="mag">|B|</span> = —
+      </div>
+    </div>
+    <div class="info-side">
+      <h2>Uniform <em>field</em></h2>
+      <div class="formula-block">
+        B<sub>x</sub> = B₀·cos(θ)<br>
+        B<sub>y</sub> = B₀·sin(θ)
+        <span class="small">constant everywhere</span>
+      </div>
+      <p class="description">
+        Same vector at every point. This is what you get <strong>inside an ideal solenoid</strong> (B = μ₀nI), or far from any localized source. Boring to look at — but it's the cleanest place to do physics, which is why labs use solenoids and Helmholtz coils.
+      </p>
+      <div class="controls">
+        <h3>Parameters</h3>
+        <div class="slider-row">
+          <label>Strength</label>
+          <input type="range" id="uniform-mag" min="0.3" max="3" step="0.1" value="1.5">
+          <span class="value" id="uniform-mag-val">1.5</span>
+        </div>
+        <div class="slider-row">
+          <label>Angle θ</label>
+          <input type="range" id="uniform-angle" min="0" max="360" step="5" value="0">
+          <span class="value" id="uniform-angle-val">0°</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 5: LOOP PAIR (Helmholtz-ish) ============ -->
+  <section class="panel" data-panel="4">
+    <div class="canvas-side">
+      <div class="canvas-label">05 · Pair of parallel wires (cross-section)</div>
+      <canvas id="canvas-4"></canvas>
+      <div class="canvas-coords" id="coords-4">
+        <span class="axis-x">x</span> = 0.00<br>
+        <span class="axis-y">y</span> = 0.00<br>
+        <span class="mag">|B|</span> = —
+      </div>
+    </div>
+    <div class="info-side">
+      <h2>Two parallel <em>wires</em></h2>
+      <div class="formula-block">
+        B = B<sub>wire₁</sub> + B<sub>wire₂</sub>
+        <span class="small">superposition of two wire fields</span>
+      </div>
+      <p class="description">
+        Cross-section of two long parallel wires. <strong>Same direction</strong> currents (both ⊙) attract — fields add between them at the top/bottom and cancel along the line connecting them. <strong>Opposite</strong> currents (⊙ and ⊗) repel — fields cancel between, add outside.
+      </p>
+      <div class="controls">
+        <h3>Parameters</h3>
+        <div class="slider-row">
+          <label>Spacing</label>
+          <input type="range" id="pair-sep" min="0.4" max="2.5" step="0.05" value="1.2">
+          <span class="value" id="pair-sep-val">1.20</span>
+        </div>
+        <div class="slider-row">
+          <label>Currents</label>
+          <div class="toggle-row" style="flex:1; justify-content:flex-end;">
+            <button class="toggle-btn active" id="pair-same">⊙ ⊙</button>
+            <button class="toggle-btn" id="pair-opp">⊙ ⊗</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="footer-note">
+    All fields rendered with arrow direction & color-coded magnitude · log scale
+  </p>
+</div>
+
+<script>
+(() => {
+  // ============ FIELD FUNCTIONS ============
+  // Each returns [Bx, By] given world coords (x, y) in [-2, 2] roughly
+
+  const fields = {
+    // 0: Infinite wire at origin
+    wire: (x, y, params) => {
+      const r2 = x*x + y*y + 1e-6;
+      const sign = params.dir === 'out' ? 1 : -1;
+      return [-params.k * y / r2 * sign, params.k * x / r2 * sign];
+    },
+
+    // 1: Pure dipole at origin with tilt
+    dipole: (x, y, params) => {
+      // Rotate coords so moment is along x
+      const c = Math.cos(-params.tilt);
+      const s = Math.sin(-params.tilt);
+      const xr = c*x - s*y;
+      const yr = s*x + c*y;
+      const r2 = xr*xr + yr*yr + 1e-6;
+      const r4 = r2 * r2;
+      const Bxr = params.k * (xr*xr - yr*yr) / r4;
+      const Byr = params.k * 2*xr*yr / r4;
+      // Rotate back
+      const c2 = Math.cos(params.tilt);
+      const s2 = Math.sin(params.tilt);
+      return [c2*Bxr - s2*Byr, s2*Bxr + c2*Byr];
+    },
+
+    // 2: Two point poles
+    twoPoles: (x, y, params) => {
+      const sep = params.sep;
+      const k = params.k;
+      // +pole at (-sep/2, 0), -pole at (+sep/2, 0)  [N on left]
+      const dx1 = x - (-sep/2), dy1 = y;
+      const r1sq = dx1*dx1 + dy1*dy1 + 0.01;
+      const dx2 = x - (sep/2), dy2 = y;
+      const r2sq = dx2*dx2 + dy2*dy2 + 0.01;
+      return [
+        k * (dx1/r1sq - dx2/r2sq),
+        k * (dy1/r1sq - dy2/r2sq)
+      ];
+    },
+
+    // 3: Uniform field
+    uniform: (x, y, params) => {
+      return [params.mag * Math.cos(params.angle), params.mag * Math.sin(params.angle)];
+    },
+
+    // 4: Two parallel wires (cross section)
+    pair: (x, y, params) => {
+      const sep = params.sep;
+      const sign1 = 1;
+      const sign2 = params.same ? 1 : -1;
+      // Wire 1 at (-sep/2, 0)
+      const dx1 = x - (-sep/2), dy1 = y;
+      const r1sq = dx1*dx1 + dy1*dy1 + 1e-6;
+      const Bx1 = -dy1 / r1sq * sign1;
+      const By1 = dx1 / r1sq * sign1;
+      // Wire 2 at (+sep/2, 0)
+      const dx2 = x - (sep/2), dy2 = y;
+      const r2sq = dx2*dx2 + dy2*dy2 + 1e-6;
+      const Bx2 = -dy2 / r2sq * sign2;
+      const By2 = dx2 / r2sq * sign2;
+      return [Bx1 + Bx2, By1 + By2];
+    }
+  };
+
+  // ============ PARAMETERS (mutable) ============
+  const params = {
+    wire: { k: 2.0, dir: 'out' },
+    dipole: { k: 2.0, tilt: 0 },
+    twoPoles: { sep: 0.8, k: 1.5 },
+    uniform: { mag: 1.5, angle: 0 },
+    pair: { sep: 1.2, same: true }
+  };
+
+  // ============ CANVAS RENDERERS ============
+  const VIEW = 4.5; // world view extent (-VIEW/2 to +VIEW/2)
+  const GRID_N = 22; // arrow grid resolution
+
+  // Each canvas tracks its own hover state
+  const canvasData = [
+    { id: 'canvas-0', coordsId: 'coords-0', field: 'wire', sources: () => [{x:0, y:0, type:'wire', dir: params.wire.dir}] },
+    { id: 'canvas-1', coordsId: 'coords-1', field: 'dipole', sources: () => {
+        const c = Math.cos(params.dipole.tilt), s = Math.sin(params.dipole.tilt);
+        return [{x: 0, y: 0, type: 'dipole', dx: c*0.15, dy: s*0.15}];
+      }
+    },
+    { id: 'canvas-2', coordsId: 'coords-2', field: 'twoPoles', sources: () => [
+        {x: -params.twoPoles.sep/2, y: 0, type: 'pole', polarity: 'N'},
+        {x: params.twoPoles.sep/2, y: 0, type: 'pole', polarity: 'S'}
+      ]
+    },
+    { id: 'canvas-3', coordsId: 'coords-3', field: 'uniform', sources: () => [] },
+    { id: 'canvas-4', coordsId: 'coords-4', field: 'pair', sources: () => [
+        {x: -params.pair.sep/2, y: 0, type: 'wire', dir: 'out'},
+        {x: params.pair.sep/2, y: 0, type: 'wire', dir: params.pair.same ? 'out' : 'in'}
+      ]
+    }
+  ];
+
+  function worldToScreen(wx, wy, W, H) {
+    const sx = (wx + VIEW/2) / VIEW * W;
+    const sy = H - (wy + VIEW/2) / VIEW * H; // flip y
+    return [sx, sy];
+  }
+
+  function screenToWorld(sx, sy, W, H) {
+    const wx = sx / W * VIEW - VIEW/2;
+    const wy = (H - sy) / H * VIEW - VIEW/2;
+    return [wx, wy];
+  }
+
+  function magToColor(mag) {
+    // Map magnitude (log) to a warm-cool palette
+    const t = Math.min(1, Math.log(1 + mag * 2) / 3);
+    // Interpolate from cool (low) to hot (high)
+    if (t < 0.33) {
+      const u = t / 0.33;
+      // navy → terracotta
+      const r = Math.round(29 + (90 - 29) * u);
+      const g = Math.round(79 + (56 - 79) * u);
+      const b = Math.round(168 + (24 - 168) * u);
+      return `rgba(${r},${g},${b},0.85)`;
+    } else if (t < 0.66) {
+      const u = (t - 0.33) / 0.33;
+      // brown → red
+      const r = Math.round(90 + (184 - 90) * u);
+      const g = Math.round(56 + (52 - 56) * u);
+      const b = Math.round(24 + (26 - 24) * u);
+      return `rgba(${r},${g},${b},0.9)`;
+    } else {
+      const u = (t - 0.66) / 0.34;
+      // red → bright
+      const r = Math.round(184 + (220 - 184) * u);
+      const g = Math.round(52 + (90 - 52) * u);
+      const b = Math.round(26 + (40 - 26) * u);
+      return `rgba(${r},${g},${b},0.95)`;
+    }
+  }
+
+  function drawArrow(ctx, x, y, dx, dy, color, scale = 1) {
+    const len = Math.hypot(dx, dy);
+    if (len < 0.001) return;
+    const angle = Math.atan2(dy, dx);
+    const drawLen = Math.min(scale * 14, scale * 22);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    // Shaft
+    ctx.beginPath();
+    ctx.moveTo(-drawLen/2, 0);
+    ctx.lineTo(drawLen/2 - 3, 0);
+    ctx.stroke();
+    // Head
+    ctx.beginPath();
+    ctx.moveTo(drawLen/2, 0);
+    ctx.lineTo(drawLen/2 - 5, -3);
+    ctx.lineTo(drawLen/2 - 5, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSource(ctx, src, W, H) {
+    const [sx, sy] = worldToScreen(src.x, src.y, W, H);
+    ctx.save();
+    if (src.type === 'wire') {
+      // Circle with dot or X
+      ctx.fillStyle = 'rgba(245, 241, 232, 1)';
+      ctx.strokeStyle = '#1a1714';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 11, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+      if (src.dir === 'out') {
+        ctx.fillStyle = '#1a1714';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.5, 0, Math.PI*2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = '#1a1714';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(sx-5, sy-5); ctx.lineTo(sx+5, sy+5);
+        ctx.moveTo(sx+5, sy-5); ctx.lineTo(sx-5, sy+5);
+        ctx.stroke();
+      }
+    } else if (src.type === 'pole') {
+      const color = src.polarity === 'N' ? '#b8341a' : '#1d4fa8';
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 9, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#f5f1e8';
+      ctx.font = '700 10px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(src.polarity, sx, sy);
+    } else if (src.type === 'dipole') {
+      // small bar
+      const dx = src.dx, dy = src.dy;
+      const [ex, ey] = worldToScreen(src.x + dx, src.y + dy, W, H);
+      const [bx, by] = worldToScreen(src.x - dx, src.y - dy, W, H);
+      ctx.strokeStyle = '#1a1714';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      // N marker
+      ctx.fillStyle = '#b8341a';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#1d4fa8';
+      ctx.beginPath();
+      ctx.arc(bx, by, 6, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawGridAndAxes(ctx, W, H) {
+    // Light grid every 1 world unit
+    ctx.save();
+    ctx.strokeStyle = 'rgba(216, 207, 184, 0.6)';
+    ctx.lineWidth = 0.5;
+    for (let v = -2; v <= 2; v++) {
+      const [x1, y1] = worldToScreen(v, -2.5, W, H);
+      const [x2, y2] = worldToScreen(v, 2.5, W, H);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      const [a1, b1] = worldToScreen(-2.5, v, W, H);
+      const [a2, b2] = worldToScreen(2.5, v, W, H);
+      ctx.beginPath(); ctx.moveTo(a1, b1); ctx.lineTo(a2, b2); ctx.stroke();
+    }
+    // Axes (slightly darker)
+    ctx.strokeStyle = 'rgba(138, 130, 117, 0.5)';
+    ctx.lineWidth = 1;
+    const [x1, y1] = worldToScreen(0, -2.5, W, H);
+    const [x2, y2] = worldToScreen(0, 2.5, W, H);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    const [a1, b1] = worldToScreen(-2.5, 0, W, H);
+    const [a2, b2] = worldToScreen(2.5, 0, W, H);
+    ctx.beginPath(); ctx.moveTo(a1, b1); ctx.lineTo(a2, b2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function renderField(canvasInfo, hover) {
+    const canvas = document.getElementById(canvasInfo.id);
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    if (canvas.width !== W * dpr) {
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    ctx.clearRect(0, 0, W, H);
+
+    drawGridAndAxes(ctx, W, H);
+
+    const fieldFn = fields[canvasInfo.field];
+    const p = params[canvasInfo.field];
+
+    // Draw arrow grid
+    const step = VIEW / GRID_N;
+    for (let i = 0; i <= GRID_N; i++) {
+      for (let j = 0; j <= GRID_N; j++) {
+        const wx = -VIEW/2 + i * step;
+        const wy = -VIEW/2 + j * step;
+        const [bx, by] = fieldFn(wx, wy, p);
+        const mag = Math.hypot(bx, by);
+        if (mag < 1e-4) continue;
+        const [sx, sy] = worldToScreen(wx, wy, W, H);
+        // normalize and draw arrow with length scaled by log(mag)
+        const norm = mag;
+        const ux = bx / norm;
+        const uy = -by / norm; // flip y for screen
+        const lengthScale = Math.min(1.0, 0.3 + 0.4 * Math.log(1 + mag));
+        drawArrow(ctx, sx, sy, ux, uy, magToColor(mag), lengthScale);
+      }
+    }
+
+    // Sources on top
+    canvasInfo.sources().forEach(src => drawSource(ctx, src, W, H));
+
+    // Hover indicator
+    if (hover) {
+      const [hx, hy] = hover;
+      const [sx, sy] = worldToScreen(hx, hy, W, H);
+      const [bx, by] = fieldFn(hx, hy, p);
+      const mag = Math.hypot(bx, by);
+
+      // Crosshair
+      ctx.save();
+      ctx.strokeStyle = 'rgba(26, 23, 20, 0.4)';
+      ctx.setLineDash([2, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx - 30, sy); ctx.lineTo(sx + 30, sy);
+      ctx.moveTo(sx, sy - 30); ctx.lineTo(sx, sy + 30);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Big arrow at hover point
+      if (mag > 1e-4) {
+        const ux = bx / mag;
+        const uy = -by / mag;
+        const angle = Math.atan2(uy, ux);
+        ctx.translate(sx, sy);
+        ctx.rotate(angle);
+        ctx.strokeStyle = '#1a1714';
+        ctx.fillStyle = '#1a1714';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        const L = 38;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(L - 6, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(L, 0);
+        ctx.lineTo(L - 9, -5);
+        ctx.lineTo(L - 9, 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Update coords readout
+      const coordsEl = document.getElementById(canvasInfo.coordsId);
+      coordsEl.innerHTML = `
+        <span class="axis-x">x</span> = ${hx.toFixed(2)}<br>
+        <span class="axis-y">y</span> = ${hy.toFixed(2)}<br>
+        <span class="mag">|B|</span> = ${mag < 100 ? mag.toFixed(2) : mag.toExponential(1)}
+      `;
+    }
+  }
+
+  // ============ HOVER & RENDER LOOP ============
+  const hoverState = {};
+
+  canvasData.forEach(info => {
+    const canvas = document.getElementById(info.id);
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const [wx, wy] = screenToWorld(sx, sy, rect.width, rect.height);
+      hoverState[info.id] = [wx, wy];
+      renderField(info, hoverState[info.id]);
+    });
+    canvas.addEventListener('mouseleave', () => {
+      hoverState[info.id] = null;
+      const coordsEl = document.getElementById(info.coordsId);
+      coordsEl.innerHTML = `
+        <span class="axis-x">x</span> = 0.00<br>
+        <span class="axis-y">y</span> = 0.00<br>
+        <span class="mag">|B|</span> = —
+      `;
+      renderField(info, null);
+    });
+  });
+
+  function renderAll() {
+    canvasData.forEach(info => renderField(info, hoverState[info.id] || null));
+  }
+
+  window.addEventListener('resize', renderAll);
+
+  // ============ TAB SWITCHING ============
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      panels.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      panels[+t.dataset.tab].classList.add('active');
+      // Re-render the now-visible panel (canvas needs layout)
+      requestAnimationFrame(renderAll);
+    });
+  });
+
+  // ============ CONTROLS ============
+  // Wire
+  document.getElementById('wire-k').addEventListener('input', e => {
+    params.wire.k = +e.target.value;
+    document.getElementById('wire-k-val').textContent = params.wire.k.toFixed(1);
+    renderAll();
+  });
+  document.getElementById('wire-out').addEventListener('click', () => {
+    params.wire.dir = 'out';
+    document.getElementById('wire-out').classList.add('active');
+    document.getElementById('wire-in').classList.remove('active');
+    renderAll();
+  });
+  document.getElementById('wire-in').addEventListener('click', () => {
+    params.wire.dir = 'in';
+    document.getElementById('wire-in').classList.add('active');
+    document.getElementById('wire-out').classList.remove('active');
+    renderAll();
+  });
+
+  // Dipole
+  document.getElementById('dipole-k').addEventListener('input', e => {
+    params.dipole.k = +e.target.value;
+    document.getElementById('dipole-k-val').textContent = params.dipole.k.toFixed(1);
+    renderAll();
+  });
+  document.getElementById('dipole-tilt').addEventListener('input', e => {
+    const deg = +e.target.value;
+    params.dipole.tilt = deg * Math.PI / 180;
+    document.getElementById('dipole-tilt-val').textContent = deg + '°';
+    renderAll();
+  });
+
+  // Two poles
+  document.getElementById('poles-sep').addEventListener('input', e => {
+    params.twoPoles.sep = +e.target.value;
+    document.getElementById('poles-sep-val').textContent = params.twoPoles.sep.toFixed(2);
+    renderAll();
+  });
+  document.getElementById('poles-k').addEventListener('input', e => {
+    params.twoPoles.k = +e.target.value;
+    document.getElementById('poles-k-val').textContent = params.twoPoles.k.toFixed(1);
+    renderAll();
+  });
+
+  // Uniform
+  document.getElementById('uniform-mag').addEventListener('input', e => {
+    params.uniform.mag = +e.target.value;
+    document.getElementById('uniform-mag-val').textContent = params.uniform.mag.toFixed(1);
+    renderAll();
+  });
+  document.getElementById('uniform-angle').addEventListener('input', e => {
+    const deg = +e.target.value;
+    params.uniform.angle = deg * Math.PI / 180;
+    document.getElementById('uniform-angle-val').textContent = deg + '°';
+    renderAll();
+  });
+
+  // Pair
+  document.getElementById('pair-sep').addEventListener('input', e => {
+    params.pair.sep = +e.target.value;
+    document.getElementById('pair-sep-val').textContent = params.pair.sep.toFixed(2);
+    renderAll();
+  });
+  document.getElementById('pair-same').addEventListener('click', () => {
+    params.pair.same = true;
+    document.getElementById('pair-same').classList.add('active');
+    document.getElementById('pair-opp').classList.remove('active');
+    renderAll();
+  });
+  document.getElementById('pair-opp').addEventListener('click', () => {
+    params.pair.same = false;
+    document.getElementById('pair-opp').classList.add('active');
+    document.getElementById('pair-same').classList.remove('active');
+    renderAll();
+  });
+
+  // Initial render
+  requestAnimationFrame(renderAll);
+})();
+</script>
+</body>
+</html>

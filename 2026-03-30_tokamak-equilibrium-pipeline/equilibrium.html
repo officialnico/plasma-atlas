@@ -1,0 +1,411 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>equilibrium</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function EquilibriumViz() {
+  const [pressure, setPressure] = useState(50);
+  const [fieldStrength, setFieldStrength] = useState(50);
+  const [showForces, setShowForces] = useState(true);
+  const [animating, setAnimating] = useState(false);
+  const animRef = useRef(null);
+
+  // Plasma size depends on balance between pressure and field
+  const balance = pressure / Math.max(fieldStrength, 1);
+  const plasmaScale = 0.3 + balance * 0.4;
+  const clampedScale = Math.max(0.15, Math.min(0.95, plasmaScale));
+  const isEquilibrium = Math.abs(pressure - fieldStrength) < 8;
+  const isExpanding = pressure > fieldStrength + 8;
+  const isCompressing = fieldStrength > pressure + 8;
+
+  // Plasma shape parameters that change with balance
+  const a = 0.42 * clampedScale;
+  const kappa = 1.75;
+  const delta = 0.40;
+  const R0 = 1.18;
+  const asin_d = Math.asin(delta);
+
+  const svgW = 600, svgH = 520;
+  const pad = { l: 60, r: 40, t: 30, b: 40 };
+  const plotW = svgW - pad.l - pad.r;
+  const plotH = svgH - pad.t - pad.b;
+  const Rmin = 0.5, Rmax = 1.9, Zmin = -1.1, Zmax = 1.1;
+  const toX = (R) => pad.l + ((R - Rmin) / (Rmax - Rmin)) * plotW;
+  const toY = (Z) => pad.t + ((Zmax - Z) / (Zmax - Zmin)) * plotH;
+
+  // Generate plasma boundary
+  function getContour(scale = 1.0, nPts = 200) {
+    const pts = [];
+    for (let t = 0; t <= nPts; t++) {
+      const theta = (2 * Math.PI * t) / nPts;
+      const r = a * scale;
+      const R = R0 + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Z = kappa * r * Math.sin(theta);
+      pts.push({ R, Z });
+    }
+    return pts;
+  }
+
+  const boundaryPts = getContour(1.0);
+  const boundaryPath = boundaryPts.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`).join(" ") + " Z";
+
+  // Inner flux surfaces
+  const innerSurfaces = [0.25, 0.5, 0.75].map(s => {
+    const pts = getContour(s);
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`).join(" ") + " Z";
+  });
+
+  // Pressure arrows (pointing outward from center)
+  function getPressureArrows() {
+    const arrows = [];
+    const nArrows = 16;
+    for (let t = 0; t < nArrows; t++) {
+      const theta = (2 * Math.PI * t) / nArrows;
+      const r = a * 0.85;
+      const Rp = R0 + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Zp = kappa * r * Math.sin(theta);
+
+      // Outward direction (away from magnetic axis)
+      const dR = Rp - R0;
+      const dZ = Zp - 0;
+      const len = Math.sqrt(dR * dR + dZ * dZ);
+      if (len < 0.01) continue;
+
+      const arrowLen = 12 + pressure * 0.25;
+      const nx = (dR / len) * arrowLen;
+      const ny = (dZ / len) * arrowLen;
+
+      arrows.push({
+        x1: toX(Rp), y1: toY(Zp),
+        x2: toX(Rp) + nx, y2: toY(Zp) - ny,
+      });
+    }
+    return arrows;
+  }
+
+  // Magnetic field arrows (pointing inward toward center)
+  function getFieldArrows() {
+    const arrows = [];
+    const nArrows = 16;
+    for (let t = 0; t < nArrows; t++) {
+      const theta = (2 * Math.PI * t) / nArrows;
+      const r = a * 1.2;
+      const Rp = R0 + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Zp = kappa * r * Math.sin(theta);
+
+      // Inward direction (toward magnetic axis)
+      const dR = R0 - Rp;
+      const dZ = 0 - Zp;
+      const len = Math.sqrt(dR * dR + dZ * dZ);
+      if (len < 0.01) continue;
+
+      const arrowLen = 12 + fieldStrength * 0.25;
+      const nx = (dR / len) * arrowLen;
+      const ny = (dZ / len) * arrowLen;
+
+      arrows.push({
+        x1: toX(Rp), y1: toY(Zp),
+        x2: toX(Rp) + nx, y2: toY(Zp) - ny,
+      });
+    }
+    return arrows;
+  }
+
+  const pressureArrows = getPressureArrows();
+  const fieldArrows = getFieldArrows();
+
+  // Wall contour
+  const wallPts = [];
+  for (let t = 0; t <= 200; t++) {
+    const theta = (2 * Math.PI * t) / 200;
+    const R = R0 + 0.55 * Math.cos(theta + asin_d * Math.sin(theta));
+    const Z = 0.95 * Math.sin(theta);
+    wallPts.push(`${toX(R)},${toY(Z)}`);
+  }
+
+  // Pulsing animation for non-equilibrium
+  const [pulse, setPulse] = useState(0);
+  useEffect(() => {
+    if (!isEquilibrium) {
+      const interval = setInterval(() => {
+        setPulse(p => (p + 0.05) % (Math.PI * 2));
+      }, 50);
+      return () => clearInterval(interval);
+    } else {
+      setPulse(0);
+    }
+  }, [isEquilibrium]);
+
+  const pulseOffset = isEquilibrium ? 0 : Math.sin(pulse) * 3;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          WHAT IS EQUILIBRIUM?
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          PRESSURE PUSHING OUT vs MAGNETIC FIELD PUSHING IN — DRAG THE SLIDERS
+        </p>
+
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          {/* Main visualization */}
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 10,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={pad.l} y={pad.t} width={plotW} height={plotH} fill="#060a0e" stroke="#1e2630" />
+
+              {/* Wall */}
+              <polygon points={wallPts.join(" ")} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3} />
+              <text x={toX(1.72)} y={toY(0.75)} fill="rgba(255,255,255,0.15)" fontSize={9}>wall</text>
+
+              {/* Magnetic field region glow */}
+              <defs>
+                <radialGradient id="fieldGlow" cx="50%" cy="50%">
+                  <stop offset="0%" stopColor="transparent" />
+                  <stop offset={`${60 + fieldStrength * 0.3}%`} stopColor="rgba(138,180,248,0.05)" />
+                  <stop offset="100%" stopColor="rgba(138,180,248,0.12)" />
+                </radialGradient>
+                <radialGradient id="pressureGlow" cx="50%" cy="50%">
+                  <stop offset="0%" stopColor={`rgba(255,107,107,${0.05 + pressure * 0.003})`} />
+                  <stop offset="70%" stopColor="rgba(255,107,107,0.02)" />
+                  <stop offset="100%" stopColor="transparent" />
+                </radialGradient>
+              </defs>
+
+              {/* Field glow */}
+              <ellipse cx={toX(R0)} cy={toY(0)} rx={toX(R0 + 0.55) - toX(R0)} ry={toY(0) - toY(0.95)} fill="url(#fieldGlow)" />
+
+              {/* Pressure glow inside plasma */}
+              <ellipse cx={toX(R0)} cy={toY(0)} rx={(toX(R0 + a) - toX(R0)) + pulseOffset} ry={(toY(0) - toY(a * kappa)) + pulseOffset} fill="url(#pressureGlow)" />
+
+              {/* Inner flux surfaces */}
+              {innerSurfaces.map((path, i) => (
+                <path key={i} d={path} fill="none" stroke="rgba(78,205,196,0.2)" strokeWidth={1} />
+              ))}
+
+              {/* Plasma boundary */}
+              <path
+                d={boundaryPath}
+                fill={`rgba(78,205,196,${0.05 + pressure * 0.001})`}
+                stroke={isEquilibrium ? "#4ecdc4" : isExpanding ? "#ff6b6b" : "#8ab4f8"}
+                strokeWidth={2.5}
+              />
+
+              {/* Magnetic axis */}
+              <circle cx={toX(R0)} cy={toY(0)} r={4} fill="none" stroke="#ff6b6b" strokeWidth={1.5} />
+              <circle cx={toX(R0)} cy={toY(0)} r={1.5} fill="#ff6b6b" />
+
+              {/* Pressure arrows (outward, red/orange) */}
+              {showForces && pressureArrows.map((arr, i) => {
+                const dx = arr.x2 - arr.x1;
+                const dy = arr.y2 - arr.y1;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                const ux = dx / len, uy = dy / len;
+                return (
+                  <g key={`p${i}`} opacity={0.7 + pressure * 0.003}>
+                    <line x1={arr.x1} y1={arr.y1} x2={arr.x2} y2={arr.y2}
+                      stroke="#ff6b6b" strokeWidth={2} />
+                    <polygon
+                      points={`${arr.x2},${arr.y2} ${arr.x2 - ux * 6 - uy * 4},${arr.y2 - uy * 6 + ux * 4} ${arr.x2 - ux * 6 + uy * 4},${arr.y2 - uy * 6 - ux * 4}`}
+                      fill="#ff6b6b"
+                    />
+                  </g>
+                );
+              })}
+
+              {/* Field arrows (inward, blue) */}
+              {showForces && fieldArrows.map((arr, i) => {
+                const dx = arr.x2 - arr.x1;
+                const dy = arr.y2 - arr.y1;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                const ux = dx / len, uy = dy / len;
+                return (
+                  <g key={`f${i}`} opacity={0.7 + fieldStrength * 0.003}>
+                    <line x1={arr.x1} y1={arr.y1} x2={arr.x2} y2={arr.y2}
+                      stroke="#8ab4f8" strokeWidth={2} />
+                    <polygon
+                      points={`${arr.x2},${arr.y2} ${arr.x2 - ux * 6 - uy * 4},${arr.y2 - uy * 6 + ux * 4} ${arr.x2 - ux * 6 + uy * 4},${arr.y2 - uy * 6 - ux * 4}`}
+                      fill="#8ab4f8"
+                    />
+                  </g>
+                );
+              })}
+
+              {/* Status indicator */}
+              <rect x={svgW / 2 - 100} y={pad.t + 5} width={200} height={32} rx={6}
+                fill={isEquilibrium ? "rgba(78,205,196,0.15)" : isExpanding ? "rgba(255,107,107,0.15)" : "rgba(138,180,248,0.15)"}
+                stroke={isEquilibrium ? "#4ecdc4" : isExpanding ? "#ff6b6b" : "#8ab4f8"}
+              />
+              <text x={svgW / 2} y={pad.t + 26} textAnchor="middle"
+                fill={isEquilibrium ? "#4ecdc4" : isExpanding ? "#ff6b6b" : "#8ab4f8"}
+                fontSize={13} fontWeight={700}
+              >
+                {isEquilibrium ? "✓ EQUILIBRIUM — forces balanced" :
+                 isExpanding ? "⚠ EXPANDING — pressure wins" :
+                 "⚠ COMPRESSING — field wins"}
+              </text>
+
+              {/* Legend */}
+              <line x1={pad.l + 10} y1={svgH - 18} x2={pad.l + 30} y2={svgH - 18} stroke="#ff6b6b" strokeWidth={2} />
+              <text x={pad.l + 35} y={svgH - 14} fill="#ff6b6b" fontSize={10}>Pressure (pushing OUT)</text>
+              <line x1={pad.l + 210} y1={svgH - 18} x2={pad.l + 230} y2={svgH - 18} stroke="#8ab4f8" strokeWidth={2} />
+              <text x={pad.l + 235} y={svgH - 14} fill="#8ab4f8" fontSize={10}>Magnetic field (pushing IN)</text>
+            </svg>
+          </div>
+
+          {/* Controls panel */}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            {/* Pressure slider */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: "#ff6b6b", fontWeight: 700 }}>Pressure</span>
+                <span style={{ fontSize: 12, color: "#ff6b6b" }}>{(pressure * 0.05).toFixed(1)} MPa</span>
+              </div>
+              <input
+                type="range" min={5} max={95} value={pressure}
+                onChange={e => setPressure(Number(e.target.value))}
+                style={{ width: "100%", accentColor: "#ff6b6b" }}
+              />
+              <div style={{ fontSize: 11, color: "#5c6a7a", marginTop: 4 }}>
+                Hot dense plasma pushing outward in all directions
+              </div>
+            </div>
+
+            {/* Field slider */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: "#8ab4f8", fontWeight: 700 }}>Magnetic field</span>
+                <span style={{ fontSize: 12, color: "#8ab4f8" }}>{(fieldStrength * 0.24).toFixed(1)} T</span>
+              </div>
+              <input
+                type="range" min={5} max={95} value={fieldStrength}
+                onChange={e => setFieldStrength(Number(e.target.value))}
+                style={{ width: "100%", accentColor: "#8ab4f8" }}
+              />
+              <div style={{ fontSize: 11, color: "#5c6a7a", marginTop: 4 }}>
+                Magnetic cage squeezing the plasma inward
+              </div>
+            </div>
+
+            {/* Toggle */}
+            <button
+              onClick={() => setShowForces(!showForces)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                background: showForces ? "#1a2a3a" : "#12171f",
+                border: "1px solid #1e2630",
+                borderRadius: 4,
+                color: "#5c6a7a",
+                fontFamily: "inherit",
+                fontSize: 11,
+                cursor: "pointer",
+                marginBottom: 12,
+              }}
+            >
+              {showForces ? "Hide" : "Show"} force arrows
+            </button>
+
+            {/* Explanation */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                What's happening
+              </div>
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.8 }}>
+                {isEquilibrium ? (
+                  <>
+                    The red arrows (pressure out) and blue arrows (field in) are about the same length. Forces balance everywhere. The plasma holds its shape. This is equilibrium.
+                    <br /><br />
+                    EFIT finds the exact shape where this balance holds at every single point simultaneously. The ψ map in the EQDSK file describes this balanced state.
+                  </>
+                ) : isExpanding ? (
+                  <>
+                    Pressure is winning. The red arrows are longer than the blue. The plasma wants to expand outward. In reality this would push the plasma into the wall — a disruption. The operators would either reduce heating or increase the magnetic field to restore balance.
+                  </>
+                ) : (
+                  <>
+                    The magnetic field is winning. The blue arrows are longer than the red. The plasma is getting squeezed smaller. In reality you'd either increase heating power or reduce the field to let the plasma fill more of the vessel.
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* The equation */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                The equation
+              </div>
+              <div style={{
+                padding: "12px",
+                background: "#060a0e",
+                borderRadius: 4,
+                textAlign: "center",
+                marginBottom: 10,
+              }}>
+                <span style={{ color: "#ff6b6b", fontSize: 16, fontWeight: 700 }}>∇P</span>
+                <span style={{ color: "#5c6a7a", fontSize: 16 }}> = </span>
+                <span style={{ color: "#8ab4f8", fontSize: 16, fontWeight: 700 }}>J × B</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#5c6a7a", lineHeight: 1.7 }}>
+                <span style={{ color: "#ff6b6b" }}>∇P</span> = how fast pressure changes (outward push)
+                <br />
+                <span style={{ color: "#8ab4f8" }}>J × B</span> = current × magnetic field (inward push)
+                <br /><br />
+                When these are equal everywhere: equilibrium.
+                <br />
+                The shape where they balance: the ψ map.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EquilibriumViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

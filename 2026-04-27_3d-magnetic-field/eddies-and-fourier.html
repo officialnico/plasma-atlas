@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eddies, y, and Fourier — the whole picture</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  p { margin-bottom:1rem; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+
+  h2 {
+    color:#e2e5ed;
+    font-size:1.1rem;
+    font-weight:600;
+    margin:1.8rem 0 0.5rem;
+    padding-top:1.2rem;
+    border-top:1px solid #252a36;
+  }
+  h2 .num {
+    font-family:'IBM Plex Mono',monospace;
+    color:#f0a050;
+    font-size:0.85rem;
+    margin-right:0.6rem;
+  }
+
+  .viz {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    overflow:hidden;
+    margin:1rem 0 1.5rem;
+  }
+  .viz canvas { width:100%; display:block; }
+  .viz-tag {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 4px;
+  }
+
+  .ctrl {
+    display:flex; gap:8px; padding:10px 14px;
+    border-top:1px solid #252a36;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .ctrl button {
+    padding:6px 14px;
+    border-radius:4px;
+    border:1px solid #252a36;
+    background:transparent;
+    color:#8a8f9f;
+    font-size:0.78rem;
+    cursor:pointer;
+    font-family:'DM Sans',sans-serif;
+    transition:all 0.15s;
+  }
+  .ctrl button.on {
+    border-color:#f0a050;
+    color:#f0a050;
+    background:rgba(240,160,80,0.1);
+  }
+
+  .myth {
+    background:rgba(251, 113, 133, 0.06);
+    border:1px solid rgba(251, 113, 133, 0.3);
+    border-radius:6px;
+    padding:0.9rem 1.1rem;
+    margin:1rem 0;
+    font-size:0.92rem;
+  }
+  .myth-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#fb7185;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+
+  .truth {
+    background:rgba(74, 222, 128, 0.06);
+    border:1px solid rgba(74, 222, 128, 0.3);
+    border-radius:6px;
+    padding:0.9rem 1.1rem;
+    margin:1rem 0;
+    font-size:0.92rem;
+  }
+  .truth-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#4ade80;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+
+  .summary {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    padding:1rem 1.2rem;
+    margin:1.5rem 0;
+    font-size:0.92rem;
+  }
+  .summary-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.6rem;
+    display:block;
+  }
+
+  .triple {
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:1px;
+    background:#252a36;
+    border:1px solid #252a36;
+    border-radius:6px;
+    overflow:hidden;
+    margin:1rem 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.78rem;
+  }
+  .triple > div { background:#12151c; padding:14px 12px; }
+  .triple .axis-name {
+    font-size:1.1rem;
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  .triple .x { color:#fb7185; }
+  .triple .y { color:#4ade80; }
+  .triple .z { color:#5cb8f0; }
+  .triple .field { color:#8a8f9f; line-height:1.7; margin-bottom:8px; }
+  .triple .field .label { color:#6b7084; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; display:block; margin-bottom:2px; }
+  .triple .yes { color:#4ade80; }
+  .triple .no { color:#fb7185; }
+  @media (max-width:560px) {
+    .triple { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Eddies, y, and Fourier — the whole picture</h1>
+<p class="sub">Three separate things that often get conflated</p>
+
+<p>There are three different questions tangled together, and once you separate them, the picture becomes much clearer:</p>
+<p>1. What shape are the eddies?<br>
+2. Why do we Fourier-transform y specifically?<br>
+3. Why does it matter computationally?</p>
+
+<h2><span class="num">01</span>What shape are the eddies?</h2>
+
+<p>The eddies have a clear shape, and it's <strong>not</strong> "binormal-shaped." The eddies are <em>parallel-elongated</em>: long along B, short across B. They look like noodles or spaghetti running along field lines.</p>
+
+<div class="viz">
+  <div class="viz-tag">Eddy shape — long along B, narrow perpendicular</div>
+  <canvas id="c-eddy-shape" height="320"></canvas>
+  <div class="ctrl">
+    <button id="bs-3d" class="on">3D view</button>
+    <button id="bs-perp">perpendicular cross-section</button>
+  </div>
+</div>
+
+<p>Toggle the views. In 3D, you see the eddy as a stretched tube along B. In the perpendicular cross-section, you see it from the end — it's roughly circular, about as wide in x as in y. <strong>The eddies don't prefer x or y.</strong> They're isotropic in the perpendicular plane.</p>
+
+<div class="myth">
+  <span class="myth-label">Common confusion</span>
+  <p style="margin-bottom:0">"We Fourier-transform y because the eddies are formed in the y direction." → <strong>This is wrong.</strong> Eddies extend equally in both x and y perpendicular to B. The reason for Fouriering y is mathematical, not because of eddy geometry.</p>
+</div>
+
+<h2><span class="num">02</span>Why Fourier in y, then?</h2>
+
+<p>Three independent properties of y, none of which are about eddy shape:</p>
+
+<div class="triple">
+  <div>
+    <div class="axis-name x">x</div>
+    <div class="field">
+      <span class="label">background uniform?</span>
+      <span class="no">no — gradient</span>
+    </div>
+    <div class="field">
+      <span class="label">naturally periodic?</span>
+      <span class="no">no</span>
+    </div>
+    <div class="field">
+      <span class="label">modes decouple?</span>
+      <span class="no">no</span>
+    </div>
+  </div>
+  <div>
+    <div class="axis-name y">y</div>
+    <div class="field">
+      <span class="label">background uniform?</span>
+      <span class="yes">yes</span>
+    </div>
+    <div class="field">
+      <span class="label">naturally periodic?</span>
+      <span class="yes">yes</span>
+    </div>
+    <div class="field">
+      <span class="label">modes decouple?</span>
+      <span class="yes">yes ✓</span>
+    </div>
+  </div>
+  <div>
+    <div class="axis-name z">z</div>
+    <div class="field">
+      <span class="label">background uniform?</span>
+      <span class="no">no — |B| varies</span>
+    </div>
+    <div class="field">
+      <span class="label">naturally periodic?</span>
+      <span class="no">no (twisted)</span>
+    </div>
+    <div class="field">
+      <span class="label">modes decouple?</span>
+      <span class="no">no</span>
+    </div>
+  </div>
+</div>
+
+<p>This is purely about <strong>where the math works</strong>, not about eddy shape. y wins all three.</p>
+
+<h2><span class="num">03</span>Why does it matter?</h2>
+
+<p>If you store wiggles as Fourier modes in y, and the background is uniform in y, then each k_y mode is its own little decoupled simulation. You can put each k_y on its own processor. They don't need to share data with each other (except for nonlinear interactions, which we'll set aside). <strong>That's a massive parallelization win.</strong></p>
+
+<div class="viz">
+  <div class="viz-tag">Each k_y is its own world — parallel computation</div>
+  <canvas id="c-parallel" height="380"></canvas>
+</div>
+
+<p>Eight strips, each one a different k_y mode. They evolve at their own pace, with their own frequency and growth rate, completely independently of each other. GENE distributes these across compute nodes and runs them in parallel.</p>
+
+<p>Try this with x: you can't. The k_x modes don't decouple — they mix together because the background is non-uniform. So you'd have to do everything together, on one processor, with constant communication. Painful.</p>
+
+<h2><span class="num">04</span>Putting all three together</h2>
+
+<div class="truth">
+  <span class="truth-label">The actual chain of reasoning</span>
+  <p style="margin-bottom:0.5rem">1. Drift-wave physics produces eddies that are <strong>elongated along B</strong> and <strong>small in the perpendicular plane</strong>. Both x and y matter for resolving these eddies.</p>
+  <p style="margin-bottom:0.5rem">2. The flux surface is <strong>statistically symmetric in y</strong> (rotational symmetry around the binormal). So the background plasma profile depends on x but not on y.</p>
+  <p style="margin-bottom:0.5rem">3. Statistical symmetry in y means y-translation is a symmetry of the equations, which means <strong>k_y is a good quantum number</strong> — different k_y modes don't mix at the linear level.</p>
+  <p style="margin-bottom:0">4. Therefore: store y as Fourier (each k_y on its own processor), store x and z as real-space grids (because the background varies there). This is the GENE architecture, full stop.</p>
+</div>
+
+<div class="summary">
+  <span class="summary-label">One-line summary</span>
+  <p style="margin-bottom:0">Eddies have shape because of physics. y gets Fourier-treated because of <em>symmetry</em>, which is a separate fact. The two are related (both come from the geometry of the field) but they are not the same fact.</p>
+</div>
+
+<script>
+(function(){
+  const C = {
+    bg:'#0c0e13', surface:'#12151c', border:'#252a36',
+    text:'#b8bcc8', dim:'#6b7084', heading:'#e2e5ed',
+    accent:'#f0a050', blue:'#5cb8f0', green:'#4ade80',
+    red:'#fb7185', purple:'#a388f0'
+  };
+  const F = "'DM Sans',sans-serif";
+  const M = "'IBM Plex Mono',monospace";
+
+  function init(id) {
+    const cv = document.getElementById(id);
+    if (!cv) return null;
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth;
+    const H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H + 'px';
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    ctx.scale(dpr, dpr);
+    return {c:cv, x:ctx, W, H};
+  }
+
+  // ── Eddy shape: 3D view + perpendicular cross-section ──
+  (function(){
+    const s = init('c-eddy-shape'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+    let view = '3d';
+
+    document.getElementById('bs-3d').addEventListener('click', () => {
+      view = '3d';
+      document.getElementById('bs-3d').classList.add('on');
+      document.getElementById('bs-perp').classList.remove('on');
+    });
+    document.getElementById('bs-perp').addEventListener('click', () => {
+      view = 'perp';
+      document.getElementById('bs-perp').classList.add('on');
+      document.getElementById('bs-3d').classList.remove('on');
+    });
+
+    function draw3d() {
+      const cx = W/2, cy = H/2;
+
+      // Coordinate axes (perspective)
+      // B goes diagonally up-right (long axis)
+      // x goes up-left (radial)
+      // y goes right-down (binormal)
+
+      const bDir = {x: 0.85, y: -0.3};   // along B
+      const xDir = {x: -0.4, y: -0.6};   // radial
+      const yDir = {x: 0.4, y: 0.5};     // binormal
+
+      // Draw faded background grid
+      ctx.strokeStyle = C.border + '40';
+      ctx.lineWidth = 0.5;
+      for (let i = -8; i <= 8; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + i*30*bDir.x - 200*xDir.x, cy + i*30*bDir.y - 200*xDir.y);
+        ctx.lineTo(cx + i*30*bDir.x + 200*xDir.x, cy + i*30*bDir.y + 200*xDir.y);
+        ctx.stroke();
+      }
+
+      // Draw the eddy as a long stretched ellipse
+      // Length along B: ~250 px
+      // Width across: ~22 px
+      const eddyLen = 240;
+      const eddyW = 22;
+
+      // Several eddies (showing turbulent ensemble)
+      const eddies = [
+        {posPerp: -55, phase: 0, sign: 1},
+        {posPerp: -15, phase: 1.3, sign: -1},
+        {posPerp: 25, phase: 0.7, sign: 1},
+        {posPerp: 65, phase: 2.1, sign: -1},
+      ];
+
+      eddies.forEach(e => {
+        // Center of eddy: shifted perpendicular to B
+        const perpDir = {x: -bDir.y, y: bDir.x}; // 90° from B (in this 2D projection)
+        const ex = cx + e.posPerp * perpDir.x;
+        const ey = cy + e.posPerp * perpDir.y;
+
+        // Pulse amplitude
+        const amp = 0.7 + 0.3 * Math.sin(t * 1.5 + e.phase);
+
+        // Draw stretched eddy
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.rotate(Math.atan2(bDir.y, bDir.x));
+
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, eddyLen/2);
+        const baseColor = e.sign > 0 ? '252, 113, 133' : '74, 222, 128';
+        grad.addColorStop(0, `rgba(${baseColor}, ${0.6 * amp})`);
+        grad.addColorStop(0.7, `rgba(${baseColor}, ${0.2 * amp})`);
+        grad.addColorStop(1, `rgba(${baseColor}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, eddyLen/2, eddyW/2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Outline
+        ctx.beginPath();
+        ctx.ellipse(0, 0, eddyLen/2, eddyW/2, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${baseColor}, ${0.5 * amp})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // Coordinate frame
+      const frameOx = 70, frameOy = H - 60;
+      const frameLen = 38;
+
+      // B
+      ctx.beginPath();
+      ctx.moveTo(frameOx, frameOy);
+      ctx.lineTo(frameOx + frameLen * bDir.x, frameOy + frameLen * bDir.y);
+      ctx.strokeStyle = C.blue;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawArrowHead(ctx, frameOx + frameLen * bDir.x, frameOy + frameLen * bDir.y,
+                    Math.atan2(bDir.y, bDir.x), C.blue);
+      ctx.font = '600 11px ' + M;
+      ctx.fillStyle = C.blue;
+      ctx.textAlign = 'left';
+      ctx.fillText('B (z)', frameOx + frameLen * bDir.x + 5, frameOy + frameLen * bDir.y);
+
+      // x
+      ctx.beginPath();
+      ctx.moveTo(frameOx, frameOy);
+      ctx.lineTo(frameOx + frameLen * xDir.x, frameOy + frameLen * xDir.y);
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawArrowHead(ctx, frameOx + frameLen * xDir.x, frameOy + frameLen * xDir.y,
+                    Math.atan2(xDir.y, xDir.x), C.red);
+      ctx.fillStyle = C.red;
+      ctx.fillText('x', frameOx + frameLen * xDir.x - 14, frameOy + frameLen * xDir.y);
+
+      // y
+      ctx.beginPath();
+      ctx.moveTo(frameOx, frameOy);
+      ctx.lineTo(frameOx + frameLen * yDir.x, frameOy + frameLen * yDir.y);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawArrowHead(ctx, frameOx + frameLen * yDir.x, frameOy + frameLen * yDir.y,
+                    Math.atan2(yDir.y, yDir.x), C.green);
+      ctx.fillStyle = C.green;
+      ctx.fillText('y', frameOx + frameLen * yDir.x + 5, frameOy + frameLen * yDir.y + 10);
+
+      // Annotation
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'right';
+      ctx.fillText('eddies stretched along B (~30m long)', W - 20, 30);
+      ctx.fillText('thin perpendicular (~5mm wide)', W - 20, 46);
+    }
+
+    function drawArrowHead(ctx, x, y, angle, color) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 7*Math.cos(angle - 0.4), y - 7*Math.sin(angle - 0.4));
+      ctx.lineTo(x - 7*Math.cos(angle + 0.4), y - 7*Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
+    function drawPerp() {
+      const cx = W/2, cy = H/2;
+      const boxSize = 200;
+
+      // Draw "B coming out of page" symbol at center, large
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.strokeStyle = C.blue + '60';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = C.blue + '60';
+      ctx.fill();
+
+      // Scatter of roughly circular eddies
+      const eddies = [
+        {ex: -50, ey: -45, r: 12, sign: 1, phase: 0},
+        {ex: 30, ey: -55, r: 10, sign: -1, phase: 1.3},
+        {ex: 55, ey: 10, r: 14, sign: 1, phase: 0.7},
+        {ex: -20, ey: 25, r: 9, sign: -1, phase: 2.1},
+        {ex: -65, ey: 50, r: 11, sign: 1, phase: 1.7},
+        {ex: 50, ey: 60, r: 13, sign: -1, phase: 0.4},
+        {ex: 0, ey: -25, r: 8, sign: 1, phase: 2.8},
+        {ex: 80, ey: -10, r: 10, sign: 1, phase: 1.0},
+        {ex: -75, ey: -10, r: 12, sign: -1, phase: 0.2},
+      ];
+
+      eddies.forEach(e => {
+        const amp = 0.6 + 0.4 * Math.sin(t * 1.5 + e.phase);
+        const grad = ctx.createRadialGradient(cx + e.ex, cy + e.ey, 0, cx + e.ex, cy + e.ey, e.r);
+        const baseColor = e.sign > 0 ? '252, 113, 133' : '74, 222, 128';
+        grad.addColorStop(0, `rgba(${baseColor}, ${0.7 * amp})`);
+        grad.addColorStop(1, `rgba(${baseColor}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx + e.ex, cy + e.ey, e.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Coordinate frame: x and y in the page
+      const frameLen = 50;
+
+      // x (up)
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy - frameLen);
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawArrowHead(ctx, cx, cy - frameLen, -Math.PI/2, C.red);
+      ctx.font = '600 12px ' + M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign = 'center';
+      ctx.fillText('x', cx, cy - frameLen - 10);
+
+      // y (right)
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + frameLen, cy);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawArrowHead(ctx, cx + frameLen, cy, 0, C.green);
+      ctx.fillStyle = C.green;
+      ctx.textAlign = 'left';
+      ctx.fillText('y', cx + frameLen + 8, cy + 4);
+
+      // B label
+      ctx.font = '600 11px ' + M;
+      ctx.fillStyle = C.blue;
+      ctx.textAlign = 'left';
+      ctx.fillText('B ⊙ (out of page)', cx + 22, cy - 8);
+
+      // Note
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText('Eddies are roughly circular in (x, y) — not preferring either direction', W/2, H - 18);
+    }
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+      if (view === '3d') draw3d();
+      else drawPerp();
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── Parallel evolution of independent k_y modes ──
+  (function(){
+    const s = init('c-parallel'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 80, padR = 30, padT = 30, padB = 30;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      const N_MODES = 8;
+      const rowH = plotH / N_MODES;
+      const ks = [1, 2, 3, 4, 5, 6, 8, 10];
+      const omegas = [0.6, 1.0, 1.3, 1.7, 2.0, 2.3, 2.6, 2.9];
+      const growthRates = [0.12, 0.18, 0.22, 0.20, 0.15, 0.10, 0.05, 0.02];
+
+      ctx.font = '500 10px ' + F;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      ctx.fillText('Each k_y mode evolves independently (its own frequency, its own growth)', W/2, padT - 12);
+
+      for (let m = 0; m < N_MODES; m++) {
+        const k = ks[m];
+        const omega = omegas[m];
+        const growth = growthRates[m];
+        const yMid = padT + rowH * (m + 0.5);
+
+        // CPU label
+        ctx.font = '500 9px ' + M;
+        ctx.fillStyle = C.dim;
+        ctx.textAlign = 'right';
+        ctx.fillText(`CPU ${m+1}`, padL - 60, yMid + 3);
+        ctx.fillStyle = C.green;
+        ctx.fillText(`k_y=${k}`, padL - 12, yMid + 3);
+
+        // Center axis
+        ctx.strokeStyle = C.border;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(padL, yMid);
+        ctx.lineTo(padL + plotW, yMid);
+        ctx.stroke();
+
+        // Saturation envelope (different for each mode)
+        const envelope = Math.tanh(t * growth) * 0.85;
+        const amp = rowH * 0.34 * envelope;
+
+        // The wave
+        ctx.beginPath();
+        ctx.strokeStyle = C.green;
+        ctx.lineWidth = 1.6;
+        for (let i = 0; i <= plotW; i++) {
+          const phase = (i / plotW) * Math.PI * 2 * k - t * omega;
+          const y = yMid + amp * Math.sin(phase);
+          if (i === 0) ctx.moveTo(padL + i, y);
+          else ctx.lineTo(padL + i, y);
+        }
+        ctx.stroke();
+
+        // Indicator that they're separate processes — vertical separator
+        if (m < N_MODES - 1) {
+          ctx.strokeStyle = C.border + '40';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(padL - 4, yMid + rowH/2);
+          ctx.lineTo(padL + plotW, yMid + rowH/2);
+          ctx.stroke();
+        }
+      }
+
+      // Bottom note
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText('No data sharing needed → embarrassingly parallel', W/2, H - 8);
+    }
+    draw();
+  })();
+
+})();
+</script>
+
+</body>
+</html>

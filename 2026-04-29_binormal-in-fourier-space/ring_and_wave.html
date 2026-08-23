@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>16 measurement points: ring ↔ sine wave</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; overflow-x: hidden; }
+
+.wrap { padding: 22px; max-width: 1400px; margin: 0 auto; }
+
+h1 {
+  font-family: 'Fraunces', serif; font-weight: 700;
+  font-size: 26px; letter-spacing: -0.02em;
+  margin-bottom: 4px; color: #fff;
+}
+.lede {
+  font-family: 'Fraunces', serif; color: #a8a59c;
+  font-size: 13.5px; line-height: 1.55; margin-bottom: 18px;
+  max-width: 820px;
+}
+
+.controls {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+}
+.controls span.lbl { color: #888; padding-right: 6px; }
+.toggle {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #e8e6e0; padding: 7px 13px; border-radius: 3px;
+  cursor: pointer; transition: all 0.15s;
+  font-family: inherit; font-size: inherit;
+}
+.toggle:hover { background: rgba(255,255,255,0.12); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+
+.mode-stepper {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(74, 157, 110, 0.06);
+  border: 1px solid rgba(74, 157, 110, 0.25);
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+}
+.mode-stepper button {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #e8e6e0; padding: 6px 14px; border-radius: 3px;
+  cursor: pointer; font-family: inherit;
+}
+.mode-stepper button:hover { background: rgba(74, 157, 110, 0.2); }
+.mode-stepper .info { color: #5fc28e; font-weight: 600; flex: 1; }
+.mode-stepper .desc { color: #d4cfc0; font-style: italic; font-family: 'Fraunces', serif; font-size: 12px; }
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+
+.card {
+  background: rgba(12, 12, 18, 0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 16px;
+}
+.card h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: #d4a04a; margin-bottom: 4px;
+}
+.card .sub {
+  font-family: 'Fraunces', serif; font-size: 12.5px;
+  color: #d4cfc0; margin-bottom: 10px; font-style: italic;
+}
+.card canvas { width: 100%; display: block; }
+#ringCanvas { height: 460px; }
+#waveCanvas { height: 460px; }
+
+.summary {
+  background: rgba(212, 160, 74, 0.06);
+  border-left: 3px solid #d4a04a;
+  border-radius: 4px;
+  padding: 14px 18px;
+  font-family: 'Fraunces', serif; font-size: 13.5px; line-height: 1.6;
+  color: #e8e6e0;
+}
+.summary code {
+  font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+  background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px;
+}
+.summary strong { color: #d4a04a; }
+
+.tag-y { color: #5fc28e; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The 16 points — ring and sine wave together</h1>
+  <p class="lede">Same 16 measurements, two views. <strong style="color:#fff">Left</strong>: where each point sits on the toroidal ring (real space — what you'd actually measure). <strong style="color:#fff">Right</strong>: those same 16 values plotted as a graph (vertical axis = δT, horizontal axis = position around the ring). The orange curve is the underlying sine wave; the dots are the discrete samples GENE actually stores.</p>
+
+  <div class="mode-stepper">
+    <button id="modePrev">← prev</button>
+    <button id="modeNext">next →</button>
+    <div class="info" id="modeInfo">k<sub>y</sub> = 1</div>
+    <div class="desc" id="modeDesc">one full wavelength fits around the ring</div>
+  </div>
+
+  <div class="controls">
+    <span class="lbl">show:</span>
+    <button class="toggle on" id="ptsBtn">16 points</button>
+    <button class="toggle on" id="curveBtn">underlying sine wave</button>
+    <button class="toggle on" id="connectBtn">connect ring ↔ wave</button>
+    <button class="toggle" id="sumBtn">show full δT (sum of all modes)</button>
+  </div>
+
+  <div class="panels">
+    <div class="card">
+      <h2>Toroidal ring (real space)</h2>
+      <div class="sub">Top-down view. Each dot is a measurement of δT at one of 16 grid points. Color: red = positive, blue = negative.</div>
+      <canvas id="ringCanvas"></canvas>
+    </div>
+    <div class="card">
+      <h2>δT(y) plotted against y</h2>
+      <div class="sub">Vertical axis: δT value at that point. Horizontal axis: position around the ring (y from 0 to 2π).</div>
+      <canvas id="waveCanvas"></canvas>
+    </div>
+  </div>
+
+  <div class="summary">
+    <strong>What you're looking at:</strong> step through k<sub>y</sub> = 0, 1, 2, ... 15. For each k<sub>y</sub>, the 16 dots show the values of <code>cos(k<sub>y</sub> · y)</code> sampled at the 16 grid points. As k<sub>y</sub> grows, more wavelengths fit around the ring. At k<sub>y</sub> = 8 you hit the Nyquist limit — that's the highest frequency 16 points can resolve. Beyond that, aliasing kicks in (try k<sub>y</sub> = 9 — it looks like k<sub>y</sub> = 7 in reverse).
+    <p style="margin-top: 10px; font-size: 13px;">Toggle <strong>show full δT</strong> to see what real turbulence looks like: a superposition of many of these modes. The 16 dots on the ring are the actual numbers GENE stores — and equivalently, the 16 Fourier amplitudes are also what GENE stores. They're the same data.</p>
+  </div>
+</div>
+
+<script>
+const NY = 16;
+const state = {
+  modeIdx: 1,
+  showPts: true,
+  showCurve: true,
+  showConnect: true,
+  showSum: false
+};
+
+// Random spectrum for the "full δT" view
+const AMPS = new Array(NY).fill(0).map((_, k) => {
+  if (k === 0) return 0;
+  return Math.exp(-Math.pow((k - 4) / 3, 2)) * (0.5 + 0.8 * Math.sin(k * 1.7));
+});
+const PHASES = new Array(NY).fill(0).map((_, k) => k * 1.31 + 0.7);
+
+// ---- bind ----
+document.getElementById('modeNext').addEventListener('click', () => {
+  state.modeIdx = (state.modeIdx + 1) % NY;
+  redraw();
+});
+document.getElementById('modePrev').addEventListener('click', () => {
+  state.modeIdx = (state.modeIdx - 1 + NY) % NY;
+  redraw();
+});
+document.getElementById('ptsBtn').addEventListener('click', e => {
+  state.showPts = !state.showPts; e.target.classList.toggle('on', state.showPts); redraw();
+});
+document.getElementById('curveBtn').addEventListener('click', e => {
+  state.showCurve = !state.showCurve; e.target.classList.toggle('on', state.showCurve); redraw();
+});
+document.getElementById('connectBtn').addEventListener('click', e => {
+  state.showConnect = !state.showConnect; e.target.classList.toggle('on', state.showConnect); redraw();
+});
+document.getElementById('sumBtn').addEventListener('click', e => {
+  state.showSum = !state.showSum; e.target.classList.toggle('on', state.showSum); redraw();
+});
+
+function setupCanvas(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+// Color for a δT value (diverging: red positive, blue negative)
+function deltaColor(v) {
+  const c = Math.max(-1, Math.min(1, v));
+  if (c >= 0) {
+    return `rgb(${(245 - 30*c)|0}, ${(220 - 150*c)|0}, ${(200 - 130*c)|0})`;
+  }
+  return `rgb(${(245 + 100*c)|0}, ${(220 + 70*c)|0}, ${(200 + 20*c)|0})`;
+}
+
+// Compute the 16 sample values
+function getSamples() {
+  const samples = [];
+  for (let i = 0; i < NY; i++) {
+    const y = (i / NY) * Math.PI * 2;
+    let v;
+    if (state.showSum) {
+      v = 0;
+      for (let k = 1; k < NY; k++) {
+        v += AMPS[k] * Math.cos(k * y + PHASES[k]);
+      }
+      v /= 4; // normalize down so values stay roughly in [-1, 1]
+    } else {
+      v = state.modeIdx === 0 ? 1 : Math.cos(state.modeIdx * y);
+    }
+    samples.push({ y, v });
+  }
+  return samples;
+}
+
+// Underlying continuous curve
+function continuousCurve(y) {
+  if (state.showSum) {
+    let v = 0;
+    for (let k = 1; k < NY; k++) {
+      v += AMPS[k] * Math.cos(k * y + PHASES[k]);
+    }
+    return v / 4;
+  }
+  return state.modeIdx === 0 ? 1 : Math.cos(state.modeIdx * y);
+}
+
+// ============ RING ============
+function drawRing() {
+  const canvas = document.getElementById('ringCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w/2, cy = h/2;
+  const Rmax = Math.min(w, h) * 0.4;
+
+  // Outer ring (donut outboard edge) and inner (inboard edge)
+  const Router = Rmax;
+  const Rinner = Rmax * 0.5;
+
+  // Donut filled in dark grey
+  ctx.fillStyle = 'rgba(40, 40, 50, 0.4)';
+  ctx.beginPath(); ctx.arc(cx, cy, Router, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#08080d';
+  ctx.beginPath(); ctx.arc(cx, cy, Rinner, 0, Math.PI*2); ctx.fill();
+
+  // Outline
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, Router, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, Rinner, 0, Math.PI*2); ctx.stroke();
+
+  // The ring where measurements happen (one flux surface, outboard)
+  const Rring = (Router + Rinner) / 2 + Rmax * 0.18;
+  ctx.strokeStyle = 'rgba(212, 160, 74, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, Rring, 0, Math.PI*2); ctx.stroke();
+
+  const samples = getSamples();
+
+  // Underlying continuous curve (drawn on the ring as a subtle wavy band)
+  if (state.showCurve) {
+    ctx.strokeStyle = 'rgba(212, 160, 74, 0.35)';
+    ctx.lineWidth = 1;
+    const N = 300;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const y = (i/N) * Math.PI * 2;
+      const v = continuousCurve(y);
+      const r = Rring + v * 14; // small radial deflection
+      const px = cx + r * Math.cos(y - Math.PI/2);
+      const py = cy + r * Math.sin(y - Math.PI/2);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // 16 points on the ring
+  if (state.showPts) {
+    samples.forEach((s, i) => {
+      const angle = s.y - Math.PI/2;
+      const px = cx + Rring * Math.cos(angle);
+      const py = cy + Rring * Math.sin(angle);
+
+      // tick mark
+      ctx.strokeStyle = 'rgba(212, 160, 74, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + (Rring - 6) * Math.cos(angle), cy + (Rring - 6) * Math.sin(angle));
+      ctx.lineTo(cx + (Rring + 6) * Math.cos(angle), cy + (Rring + 6) * Math.sin(angle));
+      ctx.stroke();
+
+      // dot colored by value
+      ctx.fillStyle = deltaColor(s.v);
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI*2); ctx.stroke();
+
+      // index label, just outside the ring
+      const labelR = Rring + 22;
+      ctx.fillStyle = '#a8a59c';
+      ctx.font = '10px JetBrains Mono';
+      const lx = cx + labelR * Math.cos(angle) - 6;
+      const ly = cy + labelR * Math.sin(angle) + 4;
+      ctx.fillText(i.toString(), lx, ly);
+    });
+  }
+
+  // Center label
+  ctx.fillStyle = '#888';
+  ctx.font = 'italic 11px Fraunces';
+  ctx.fillText('toroidal cut (top-down)', cx - 70, h - 12);
+  ctx.fillStyle = '#5fc28e';
+  ctx.font = 'bold 11px JetBrains Mono';
+  ctx.fillText('y direction →', cx - 50, cy);
+
+  // Direction arrow indicating y goes around the ring
+  ctx.strokeStyle = '#5fc28e';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rring + 38, -Math.PI/2 - 0.3, -Math.PI/2 + 0.3);
+  ctx.stroke();
+  // arrowhead
+  const aa = -Math.PI/2 + 0.3;
+  const ax = cx + (Rring + 38) * Math.cos(aa);
+  const ay = cy + (Rring + 38) * Math.sin(aa);
+  ctx.fillStyle = '#5fc28e';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - 5, ay - 6);
+  ctx.lineTo(ax + 6, ay - 3);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ============ WAVE PLOT ============
+function drawWave() {
+  const canvas = document.getElementById('waveCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 50, padR = 30, padT = 40, padB = 50;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  // Background
+  ctx.fillStyle = 'rgba(20, 20, 28, 0.4)';
+  ctx.fillRect(padL, padT, plotW, plotH);
+
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  // y axis
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.stroke();
+  // x axis
+  ctx.beginPath(); ctx.moveTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
+  // zero line
+  const yMid = padT + plotH / 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.moveTo(padL, yMid); ctx.lineTo(padL + plotW, yMid); ctx.stroke();
+
+  // Tick marks on x axis (one per grid point)
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillStyle = '#a8a59c';
+  ctx.font = '9px JetBrains Mono';
+  for (let i = 0; i < NY; i++) {
+    const px = padL + (i / NY) * plotW;
+    ctx.beginPath();
+    ctx.moveTo(px, padT + plotH);
+    ctx.lineTo(px, padT + plotH + 4);
+    ctx.stroke();
+    if (i % 2 === 0) {
+      ctx.fillText(i.toString(), px - 4, padT + plotH + 16);
+    }
+  }
+  // x axis label
+  ctx.fillStyle = '#e8e6e0';
+  ctx.font = 'italic 11px Fraunces';
+  ctx.fillText('grid index (= position around the ring, y)', padL + plotW/2 - 110, padT + plotH + 36);
+  // y axis label
+  ctx.save();
+  ctx.translate(20, padT + plotH/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('δT value', -28, 0);
+  ctx.restore();
+
+  // Tick marks on y axis
+  ctx.fillStyle = '#a8a59c';
+  ctx.font = '9px JetBrains Mono';
+  ctx.fillText('+1', padL - 22, padT + 4);
+  ctx.fillText(' 0', padL - 22, yMid + 3);
+  ctx.fillText('-1', padL - 22, padT + plotH);
+
+  // Underlying continuous curve
+  if (state.showCurve) {
+    ctx.strokeStyle = 'rgba(212, 160, 74, 0.7)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    const N = 400;
+    for (let i = 0; i <= N; i++) {
+      const y = (i/N) * Math.PI * 2;
+      const v = continuousCurve(y);
+      const px = padL + (i/N) * plotW;
+      const py = yMid - v * (plotH / 2 * 0.85);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // 16 sample points
+  const samples = getSamples();
+  if (state.showPts) {
+    samples.forEach((s, i) => {
+      const px = padL + (i / NY) * plotW;
+      const py = yMid - s.v * (plotH / 2 * 0.85);
+
+      // vertical stem
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(px, yMid); ctx.lineTo(px, py); ctx.stroke();
+
+      // dot
+      ctx.fillStyle = deltaColor(s.v);
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI*2); ctx.stroke();
+    });
+  }
+
+  // Title showing function
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px JetBrains Mono';
+  let formula;
+  if (state.showSum) {
+    formula = 'δT(y) = Σ aₖ cos(kᵧ y + φₖ)   [all 16 modes]';
+  } else if (state.modeIdx === 0) {
+    formula = 'δT(y) = 1   [kᵧ = 0, the constant mode]';
+  } else {
+    formula = `δT(y) = cos(${state.modeIdx} · y)   [kᵧ = ${state.modeIdx}]`;
+  }
+  ctx.fillText(formula, padL, padT - 12);
+}
+
+// ============ Mode info ============
+function updateModeInfo() {
+  const info = document.getElementById('modeInfo');
+  const desc = document.getElementById('modeDesc');
+  if (state.showSum) {
+    info.innerHTML = 'all modes';
+    desc.textContent = 'this is what a real turbulent fluctuation looks like';
+    return;
+  }
+  const k = state.modeIdx;
+  info.innerHTML = `k<sub>y</sub> = ${k}`;
+  if (k === 0) desc.textContent = 'the constant (DC) mode — same value everywhere';
+  else if (k === 1) desc.textContent = 'one full wavelength fits around the ring';
+  else if (k === 8) desc.textContent = 'Nyquist limit — highest frequency 16 points can resolve';
+  else if (k > 8) desc.textContent = `aliased — looks like k=${NY - k} going backwards`;
+  else desc.textContent = `${k} full wavelengths fit around the ring`;
+}
+
+function redraw() {
+  drawRing();
+  drawWave();
+  updateModeInfo();
+}
+redraw();
+window.addEventListener('resize', redraw);
+</script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track the particles, or track the distribution?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080b16;--bg2:#0d1224;--panel:#121830;--panel2:#171e3b;--line:#26305a;
+  --ink:#eaeefb;--muted:#8b95bd;--faint:#5a648c;--mag:#ff5d8f;--amber:#f9a03f;
+  --gold:#ffd35e;--violet:#9a6bff;--cyan:#4fd6e0;--good:#6fe0a8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;
+  line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+.mono{font-family:'IBM Plex Mono',monospace}
+header{padding:54px 0 26px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.3em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+h1{font-family:'Spectral',serif;font-weight:400;font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;letter-spacing:-.02em;margin:0}
+h1 em{font-style:italic;color:var(--mag)}
+.sub{max-width:680px;margin:20px 0 0;font-size:1.1rem;color:#dde3f6}
+
+.lab{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:30px 0 0}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 16px 18px;overflow:hidden}
+.cell h3{font-family:'Spectral',serif;font-weight:500;font-size:1.18rem;margin:2px 0 2px}
+.cell .tag{color:var(--faint)}
+.cell.pic h3{color:var(--cyan)} .cell.grid h3{color:var(--gold)}
+.cell .sumline{font-size:.9rem;color:#c3cbe8;margin:6px 0 12px;min-height:38px}
+canvas.sim{width:100%;display:block;background:#0a0e1f;border:1px solid var(--line);border-radius:10px}
+.readout{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:var(--muted);margin-top:10px}
+.readout b{color:#fff;font-weight:500}
+
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:22px 0 4px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:.84rem;background:#0e1430;color:var(--ink);
+  border:1px solid var(--line);border-radius:10px;padding:9px 18px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--mag)} .btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btn.primary{background:rgba(255,93,143,.16);border-color:var(--mag);color:#fff}
+.sliderrow{display:flex;align-items:center;gap:12px;flex:1;min-width:260px}
+.sliderrow label{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;flex:1;min-width:120px;
+  background:linear-gradient(90deg,var(--violet),var(--cyan));outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--cyan);cursor:pointer;box-shadow:0 0 12px rgba(79,214,224,.6)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--cyan);cursor:pointer}
+.timepill{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--gold)}
+
+.note{border-left:2px solid var(--mag);padding:6px 0 6px 20px;margin:30px 0 0;color:#dde3f6}
+.note.cyan{border-color:var(--cyan)}
+table.cmp{width:100%;border-collapse:collapse;margin:34px 0 10px;font-size:.92rem}
+table.cmp th,table.cmp td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}
+table.cmp th{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:500}
+table.cmp td:first-child{color:var(--muted)}
+.pic-c{color:var(--cyan)} .grid-c{color:var(--gold)}
+footer{padding:30px 0 70px;color:var(--faint);font-size:.86rem}
+@media(max-width:720px){.stage{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <p class="eyebrow">Same plasma · two philosophies · running live</p>
+  <h1>Track the particles,<br>or track the <em>distribution?</em></h1>
+  <p class="sub">Both panels below are simulating the <span class="mono">identical</span> two-stream problem from your notebook. Left tracks super-particles directly — your instinct. Right tracks the smooth heat-map. Press play, then drag the particle slider and watch the trade happen in real time.</p>
+</div></header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="cell pic">
+      <div class="lab tag">your instinct</div>
+      <h3>Track the particles · PIC</h3>
+      <div class="sumline">Push a cloud of super-particles by Newton's laws. Cyan = right-moving beam, magenta = left-moving. Simple and intuitive — but grainy.</div>
+      <canvas id="picCv" class="sim" width="520" height="380"></canvas>
+      <div class="readout"><span>super-particles: <b id="npLabel">4000</b></span><span>noise ∝ 1/√N → <b id="noiseLabel">±1.6%</b></span></div>
+    </div>
+    <div class="cell grid">
+      <div class="lab tag">the distribution view</div>
+      <h3>Track the distribution · Vlasov grid</h3>
+      <div class="sumline">Carry the smooth heat-map f(x,v) on a fixed mesh and flow it. No particles, no sampling — therefore no noise.</div>
+      <canvas id="gridCv" class="sim" width="520" height="380"></canvas>
+      <div class="readout"><span>grid: <b id="gridLabel">32 × 96</b></span><span>noise → <b style="color:var(--good)">none</b></span></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="play">Pause</button>
+    <button class="btn" id="reset">Reset</button>
+    <div class="sliderrow">
+      <label>PIC super-particles</label>
+      <input type="range" id="npart" min="500" max="12000" step="500" value="4000">
+      <span class="mono" id="npVal" style="color:var(--cyan);min-width:54px;text-align:right">4000</span>
+    </div>
+    <span class="timepill" id="timepill">t = 0.0</span>
+  </div>
+
+  <div class="note"><strong>What to look for.</strong> Both start identical and roll up into the same cat's-eye vortex — the physics agrees. But the left panel is <em>speckled</em>, and that speckle is the cost of sampling. Now slide the particle count <span class="mono">down</span> to 500: the left vortex dissolves into static while the right stays razor-sharp. Slide it back up to 12,000 and the speckle calms — but notice it never fully disappears, and the panel runs slower. That's the √N tax in your hands: to halve the noise you must quadruple the particles.</div>
+
+  <div class="note cyan"><strong>And the flip side.</strong> The right panel pays a tax too — just not where you can see it yet. As the vortex tightens, the heat-map keeps growing finer and finer stripes (the filamentation from your notebook). Eventually those stripes get thinner than the grid can hold. PIC never has that problem; a particle is happy at any velocity. Neither method is free — they just send the bill to different places.</div>
+
+  <table class="cmp">
+    <tr><th>question</th><th class="pic-c">track particles (PIC)</th><th class="grid-c">track distribution (Vlasov)</th></tr>
+    <tr><td>core idea</td><td>push sample particles by Newton</td><td>flow the smooth heat-map</td></tr>
+    <tr><td>how many "things" stored</td><td>millions of super-particles</td><td>values on an (x,v) mesh / a few coefficients</td></tr>
+    <tr><td>statistical noise</td><td>yes — the defining headache</td><td class="grid-c">none</td></tr>
+    <tr><td>cost of a calm Maxwellian</td><td>still millions of particles</td><td class="grid-c">tiny (one bump)</td></tr>
+    <tr><td>where it struggles</td><td>quiet results, fine velocity detail</td><td>velocity filaments, high dimensions</td></tr>
+    <tr><td>ease of writing / wild geometry</td><td class="pic-c">very easy, very flexible</td><td>more delicate</td></tr>
+    <tr><td>who uses it</td><td>most large-scale plasma & accelerator codes</td><td>kinetic theory, Landau-damping studies, the Hermite method</td></tr>
+  </table>
+  <footer>Both panels solve the same self-consistent field (charge → Poisson → field → push). Left: particle-in-cell with cloud-in-cell deposition. Right: grid Vlasov via semi-Lagrangian advection. k=0.5, two beams at ±1.5.</footer>
+</div>
+
+<script>
+/* ---------- shared physics setup ---------- */
+const k=0.5, L=2*Math.PI/k, Nx=32, dx=L/Nx;
+const Nv=96, vmax=4.0, dv=2*vmax/Nv;
+const v0=1.5, vt=0.4, A=0.05;
+const dt=0.05, SUB=3;
+const xc=[]; for(let i=0;i<Nx;i++)xc.push((i+0.5)*dx - dx/2 + dx/2); // i*dx grid points
+for(let i=0;i<Nx;i++)xc[i]=i*dx;
+const vc=[]; for(let j=0;j<Nv;j++)vc.push(-vmax+(j+0.5)*dv);
+const REDUCE=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+const PLASMA=[[13,8,135],[75,3,161],[125,3,168],[168,34,150],[203,70,121],[229,107,93],[248,148,65],[253,195,40],[240,249,33]];
+function cmap(t){t=Math.max(0,Math.min(1,t));const s=t*8,i=s|0,f=s-i,a=PLASMA[i],b=PLASMA[Math.min(i+1,8)];
+  return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+function fit(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{ctx:x,w:r.width,h:r.height};}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+/* ---------- shared field solve: rho(x) on Nx grid -> E(x) (periodic, spectral) ---------- */
+const COS=[],SIN=[]; // precompute DFT tables
+for(let kk=0;kk<Nx;kk++){COS[kk]=[];SIN[kk]=[];for(let n=0;n<Nx;n++){const a=2*Math.PI*kk*n/Nx;COS[kk][n]=Math.cos(a);SIN[kk][n]=Math.sin(a);}}
+function solveE(rho){
+  const Re=new Float64Array(Nx), Im=new Float64Array(Nx);
+  for(let kk=0;kk<Nx;kk++){let sr=0,si=0;for(let n=0;n<Nx;n++){sr+=rho[n]*COS[kk][n];si-=rho[n]*SIN[kk][n];}Re[kk]=sr;Im[kk]=si;}
+  // E_hat = rho_hat/(i*kxk); kxk = 2pi*freq/L
+  const ER=new Float64Array(Nx), EI=new Float64Array(Nx);
+  for(let kk=0;kk<Nx;kk++){const freq=(kk<=Nx/2)?kk:kk-Nx;const kxk=2*Math.PI*freq/L;
+    if(kk===0||kxk===0){ER[kk]=0;EI[kk]=0;}else{ // divide by i*kxk  => multiply by -i/kxk
+      ER[kk]=Im[kk]/kxk; EI[kk]=-Re[kk]/kxk;}}
+  const E=new Float64Array(Nx);
+  for(let n=0;n<Nx;n++){let s=0;for(let kk=0;kk<Nx;kk++){s+=ER[kk]*COS[kk][n]-EI[kk]*SIN[kk][n];}E[n]=s/Nx;}
+  return E;
+}
+
+/* ================= PIC =================== */
+const PIC={x:null,v:null,N:4000};
+function picInit(N){
+  PIC.N=N; PIC.x=new Float64Array(N); PIC.v=new Float64Array(N);
+  const rng=mulberry32(12345);
+  for(let i=0;i<N;i++){
+    let x=rng()*L; x -= (A/k)*Math.sin(k*x);           // coherent density seed
+    PIC.x[i]=((x%L)+L)%L;
+    let g=0;for(let j=0;j<3;j++)g+=rng();g=(g/3-0.5)*2; // ~[-1,1]
+    PIC.v[i]=(i%2?v0:-v0)+g*vt;
+  }
+}
+function picStep(){
+  const n=PIC.N, wgt=1/n*Nx; // density normalization so mean ~1
+  const dens=new Float64Array(Nx);
+  for(let i=0;i<n;i++){const xs=PIC.x[i]/dx, i0=Math.floor(xs)%Nx, fr=xs-Math.floor(xs);
+    dens[(i0+Nx)%Nx]+=(1-fr)*wgt; dens[(i0+1)%Nx]+=fr*wgt;}
+  let mean=0;for(let i=0;i<Nx;i++)mean+=dens[i];mean/=Nx;
+  const rho=new Float64Array(Nx);for(let i=0;i<Nx;i++)rho[i]=mean-dens[i];
+  const E=solveE(rho);
+  for(let i=0;i<n;i++){const xs=PIC.x[i]/dx,i0=Math.floor(xs),fr=xs-i0;
+    const Ei=E[((i0%Nx)+Nx)%Nx]*(1-fr)+E[(((i0+1)%Nx)+Nx)%Nx]*fr;
+    PIC.v[i]+=(-Ei)*dt;                                // a = -E
+    PIC.x[i]+=PIC.v[i]*dt; PIC.x[i]=((PIC.x[i]%L)+L)%L;
+  }
+}
+function picDraw(){
+  const {ctx,w,h}=fit(picCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  const pad=8,X=x=>pad+x/L*(w-2*pad),Y=v=>{const t=(v+vmax)/(2*vmax);return (h-pad)-t*(h-2*pad);};
+  ctx.strokeStyle='rgba(255,255,255,.10)';ctx.beginPath();ctx.moveTo(pad,Y(0));ctx.lineTo(w-pad,Y(0));ctx.stroke();
+  for(let i=0;i<PIC.N;i++){const vv=PIC.v[i];if(vv<-vmax||vv>vmax)continue;
+    ctx.fillStyle=vv>=0?'rgba(79,214,224,.55)':'rgba(255,93,143,.55)';
+    ctx.fillRect(X(PIC.x[i]),Y(vv),1.5,1.5);}
+}
+
+/* ================= GRID (semi-Lagrangian) =================== */
+let f=new Float64Array(Nx*Nv), fmax=1;
+const IDX=(i,j)=>i*Nv+j;
+function gridInit(){
+  f=new Float64Array(Nx*Nv);fmax=0;
+  for(let i=0;i<Nx;i++){const ramp=1+A*Math.cos(k*xc[i]);
+    for(let j=0;j<Nv;j++){const vv=vc[j];
+      const val=(Math.exp(-(vv-v0)*(vv-v0)/(2*vt*vt))+Math.exp(-(vv+v0)*(vv+v0)/(2*vt*vt)))*ramp;
+      f[IDX(i,j)]=val;if(val>fmax)fmax=val;}}
+}
+function advX(frac){const g=new Float64Array(Nx*Nv);
+  for(let j=0;j<Nv;j++){const sh=vc[j]*dt*frac/dx;
+    for(let i=0;i<Nx;i++){let src=i-sh;let i0=Math.floor(src);const fr=src-i0;i0=((i0%Nx)+Nx)%Nx;const i1=(i0+1)%Nx;
+      g[IDX(i,j)]=f[IDX(i0,j)]*(1-fr)+f[IDX(i1,j)]*fr;}}
+  f=g;}
+function advV(E){const g=new Float64Array(Nx*Nv);
+  for(let i=0;i<Nx;i++){const sh=(-E[i])*dt/dv;
+    for(let j=0;j<Nv;j++){let src=j-sh;let j0=Math.floor(src);const fr=src-j0;
+      const a=(j0>=0&&j0<Nv)?f[IDX(i,j0)]:0, b=(j0+1>=0&&j0+1<Nv)?f[IDX(i,j0+1)]:0;
+      g[IDX(i,j)]=a*(1-fr)+b*fr;}}
+  f=g;}
+function gridRho(){const rho=new Float64Array(Nx);let mean=0;
+  for(let i=0;i<Nx;i++){let s=0;for(let j=0;j<Nv;j++)s+=f[IDX(i,j)];s*=dv;rho[i]=s;mean+=s;}
+  mean/=Nx;for(let i=0;i<Nx;i++)rho[i]=mean-rho[i];return rho;}
+function gridStep(){advX(0.5);const E=solveE(gridRho());advV(E);advX(0.5);}
+function gridDraw(){
+  const {ctx,w,h}=fit(gridCv);const pad=8;
+  const cw=(w-2*pad)/Nx, ch=(h-2*pad)/Nv;
+  ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  for(let i=0;i<Nx;i++)for(let j=0;j<Nv;j++){const val=f[IDX(i,j)]/fmax;
+    if(val<0.02)continue;const c=cmap(val);ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+    ctx.fillRect(pad+i*cw, (h-pad)-(j+1)*ch, cw+0.6, ch+0.6);}
+}
+
+/* ================= driver =================== */
+const picCv=document.getElementById('picCv'),gridCv=document.getElementById('gridCv');
+const playBtn=document.getElementById('play'),resetBtn=document.getElementById('reset');
+const npart=document.getElementById('npart'),npVal=document.getElementById('npVal');
+const npLabel=document.getElementById('npLabel'),noiseLabel=document.getElementById('noiseLabel');
+const timepill=document.getElementById('timepill');
+let playing=!REDUCE, T=0;
+function updNoise(){const N=PIC.N;npVal.textContent=N;npLabel.textContent=N;
+  noiseLabel.textContent='±'+(100/Math.sqrt(N)).toFixed(1)+'%';}
+function resetAll(){T=0;picInit(+npart.value);gridInit();updNoise();picDraw();gridDraw();timepill.textContent='t = 0.0';}
+function frame(){
+  if(playing){for(let s=0;s<SUB;s++){picStep();gridStep();T+=dt;}timepill.textContent='t = '+T.toFixed(1);}
+  picDraw();gridDraw();requestAnimationFrame(frame);
+}
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';});
+resetBtn.addEventListener('click',resetAll);
+npart.addEventListener('input',()=>{picInit(+npart.value);updNoise();picDraw();});
+window.addEventListener('resize',()=>{picDraw();gridDraw();});
+resetAll();playBtn.textContent=playing?'Pause':'Play';
+if(REDUCE){for(let s=0;s<240;s++){picStep();gridStep();T+=dt;}timepill.textContent='t = '+T.toFixed(1);picDraw();gridDraw();}
+else requestAnimationFrame(frame);
+</script>
+</body>
+</html>

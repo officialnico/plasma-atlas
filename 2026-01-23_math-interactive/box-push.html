@@ -1,0 +1,361 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>box push</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function BoxPushVisualization() {
+  const canvasRef = useRef(null);
+  const [angle, setAngle] = useState(30); // degrees from horizontal
+  const [forceMagnitude, setForceMagnitude] = useState(100);
+  const [boxPosition, setBoxPosition] = useState(100);
+  const [isAnimating, setIsAnimating] = useState(false);
+  
+  const angleRad = (angle * Math.PI) / 180;
+  
+  // The floor direction is just horizontal: (1, 0)
+  // Force direction: (cos(angle), sin(angle))
+  // Dot product: F · D = |F| * cos(angle) * |D|
+  // Since D is unit vector (1,0), dot product = |F| * cos(angle)
+  
+  const usefulForce = forceMagnitude * Math.cos(angleRad);
+  const wastedForce = forceMagnitude * Math.sin(angleRad);
+  
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    // Sky gradient
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.7);
+    skyGradient.addColorStop(0, '#1a1a2e');
+    skyGradient.addColorStop(1, '#16213e');
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Floor
+    const floorY = height - 100;
+    ctx.fillStyle = '#2d4a3e';
+    ctx.fillRect(0, floorY, width, 100);
+    
+    // Floor texture lines
+    ctx.strokeStyle = '#3d5a4e';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < width; i += 30) {
+      ctx.beginPath();
+      ctx.moveTo(i, floorY);
+      ctx.lineTo(i + 15, height);
+      ctx.stroke();
+    }
+    
+    // Box
+    const boxWidth = 80;
+    const boxHeight = 80;
+    const boxX = boxPosition;
+    const boxY = floorY - boxHeight;
+    
+    // Box shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(boxX + 10, floorY - 5, boxWidth, 10);
+    
+    // Box body
+    const boxGradient = ctx.createLinearGradient(boxX, boxY, boxX + boxWidth, boxY + boxHeight);
+    boxGradient.addColorStop(0, '#8B4513');
+    boxGradient.addColorStop(1, '#654321');
+    ctx.fillStyle = boxGradient;
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    
+    // Box outline
+    ctx.strokeStyle = '#5a3510';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+    
+    // Box tape/stripe
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(boxX + boxWidth/2 - 8, boxY, 16, boxHeight);
+    ctx.fillRect(boxX, boxY + boxHeight/2 - 8, boxWidth, 16);
+    
+    // Force arrow starting point (on the box)
+    const forceStartX = boxX + boxWidth + 5;
+    const forceStartY = boxY + boxHeight / 2;
+    
+    // Force vector (scaled for display)
+    const forceScale = 1.5;
+    const forceEndX = forceStartX + Math.cos(angleRad) * forceMagnitude * forceScale;
+    const forceEndY = forceStartY - Math.sin(angleRad) * forceMagnitude * forceScale;
+    
+    // Draw useful force component (horizontal part) - GREEN
+    const usefulEndX = forceStartX + usefulForce * forceScale;
+    const usefulEndY = forceStartY;
+    
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(forceStartX, forceStartY);
+    ctx.lineTo(usefulEndX, usefulEndY);
+    ctx.stroke();
+    
+    // Arrowhead for useful force
+    if (usefulForce > 5) {
+      ctx.fillStyle = '#2ecc71';
+      ctx.beginPath();
+      ctx.moveTo(usefulEndX + 15, usefulEndY);
+      ctx.lineTo(usefulEndX - 5, usefulEndY - 10);
+      ctx.lineTo(usefulEndX - 5, usefulEndY + 10);
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    // Draw wasted force component (vertical part) - RED, dashed
+    if (Math.abs(wastedForce) > 5) {
+      ctx.strokeStyle = 'rgba(231, 76, 60, 0.6)';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(usefulEndX, usefulEndY);
+      ctx.lineTo(usefulEndX, usefulEndY - wastedForce * forceScale);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    
+    // Draw main force arrow - YELLOW
+    ctx.strokeStyle = '#f1c40f';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(forceStartX, forceStartY);
+    ctx.lineTo(forceEndX, forceEndY);
+    ctx.stroke();
+    
+    // Arrowhead for main force
+    const arrowAngle = Math.atan2(-(forceEndY - forceStartY), forceEndX - forceStartX);
+    ctx.fillStyle = '#f1c40f';
+    ctx.beginPath();
+    ctx.moveTo(forceEndX + 15 * Math.cos(arrowAngle), forceEndY - 15 * Math.sin(arrowAngle));
+    ctx.lineTo(forceEndX - 10 * Math.cos(arrowAngle - Math.PI/6), forceEndY + 10 * Math.sin(arrowAngle - Math.PI/6));
+    ctx.lineTo(forceEndX - 10 * Math.cos(arrowAngle + Math.PI/6), forceEndY + 10 * Math.sin(arrowAngle + Math.PI/6));
+    ctx.closePath();
+    ctx.fill();
+    
+    // Right angle marker
+    if (Math.abs(wastedForce) > 10 && usefulForce > 10) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(usefulEndX - 15, usefulEndY);
+      ctx.lineTo(usefulEndX - 15, usefulEndY - 15);
+      ctx.lineTo(usefulEndX, usefulEndY - 15);
+      ctx.stroke();
+    }
+    
+    // Labels on the diagram
+    ctx.font = 'bold 16px Arial';
+    
+    // Force label
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillText('Your Push', forceEndX - 30, forceEndY - 20);
+    ctx.fillText(`(${forceMagnitude}N)`, forceEndX - 25, forceEndY - 3);
+    
+    // Useful force label
+    if (usefulForce > 20) {
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillText('Moves box →', forceStartX + 20, forceStartY + 30);
+    }
+    
+    // Wasted force label
+    if (wastedForce > 30) {
+      ctx.fillStyle = '#e74c3c';
+      ctx.globalAlpha = 0.8;
+      ctx.fillText('Wasted', usefulEndX + 10, forceStartY - wastedForce * forceScale / 2);
+      ctx.fillText('(into floor)', usefulEndX + 10, forceStartY - wastedForce * forceScale / 2 + 18);
+      ctx.globalAlpha = 1;
+    }
+    
+    // Direction arrow on floor
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(50, floorY + 30);
+    ctx.lineTo(width - 50, floorY + 30);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(width - 50, floorY + 30);
+    ctx.lineTo(width - 65, floorY + 22);
+    ctx.lineTo(width - 65, floorY + 38);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '14px Arial';
+    ctx.fillText('Box can only move this direction', width/2 - 80, floorY + 55);
+    
+  }, [angle, forceMagnitude, boxPosition, usefulForce, wastedForce]);
+  
+  // Animation
+  useEffect(() => {
+    if (!isAnimating) return;
+    
+    const interval = setInterval(() => {
+      setBoxPosition(prev => {
+        const newPos = prev + usefulForce * 0.02;
+        if (newPos > 400) {
+          setIsAnimating(false);
+          return 100;
+        }
+        return newPos;
+      });
+    }, 30);
+    
+    return () => clearInterval(interval);
+  }, [isAnimating, usefulForce]);
+
+  const efficiency = Math.cos(angleRad) * 100;
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-2xl font-bold mb-2 text-center">Dot Product = How Much Push Actually Moves The Box</h1>
+      
+      <div className="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={600}
+            height={400}
+            className="border border-gray-600 rounded-lg w-full"
+          />
+          
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="flex justify-between mb-2">
+                <span>Push Angle</span>
+                <span className="font-mono text-yellow-400">{angle}°</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="89"
+                value={angle}
+                onChange={(e) => setAngle(parseInt(e.target.value))}
+                className="w-full accent-yellow-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0° (straight at box)</span>
+                <span>90° (straight down)</span>
+              </div>
+            </div>
+            
+            <div>
+              <label className="flex justify-between mb-2">
+                <span>Push Strength</span>
+                <span className="font-mono text-yellow-400">{forceMagnitude}N</span>
+              </label>
+              <input
+                type="range"
+                min="20"
+                max="150"
+                value={forceMagnitude}
+                onChange={(e) => setForceMagnitude(parseInt(e.target.value))}
+                className="w-full accent-yellow-500"
+              />
+            </div>
+            
+            <button
+              onClick={() => { setBoxPosition(100); setIsAnimating(true); }}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
+            >
+              Push the Box!
+            </button>
+          </div>
+        </div>
+
+        <div className="lg:w-80 space-y-4">
+          
+          {/* Main result */}
+          <div className="bg-gray-800 p-5 rounded-lg border-2 border-green-600">
+            <h2 className="text-gray-400 mb-2">Force that actually moves the box:</h2>
+            <div className="text-4xl font-bold font-mono text-green-400">
+              {usefulForce.toFixed(1)}N
+            </div>
+            <p className="text-sm text-gray-400 mt-2">
+              out of {forceMagnitude}N total push
+            </p>
+          </div>
+          
+          {/* The math */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-3">This IS the dot product:</h2>
+            <div className="font-mono text-sm space-y-2">
+              <p><span className="text-yellow-400">F</span> · <span className="text-gray-400">D</span> = |F| × cos(θ)</p>
+              <p className="text-gray-400">= {forceMagnitude} × cos({angle}°)</p>
+              <p className="text-gray-400">= {forceMagnitude} × {Math.cos(angleRad).toFixed(3)}</p>
+              <p className="text-green-400 font-bold text-lg">= {usefulForce.toFixed(1)}N</p>
+            </div>
+          </div>
+          
+          {/* Efficiency meter */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-2">Push Efficiency</h2>
+            <div className="h-6 bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-300"
+                style={{ width: `${efficiency}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-sm mt-2">
+              <span className={efficiency < 50 ? 'text-red-400' : efficiency < 80 ? 'text-yellow-400' : 'text-green-400'}>
+                {efficiency.toFixed(0)}% efficient
+              </span>
+              <span className="text-red-400">
+                {(100 - efficiency).toFixed(0)}% wasted
+              </span>
+            </div>
+          </div>
+          
+          {/* Breakdown */}
+          <div className="bg-gray-800 p-4 rounded-lg space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-yellow-400">Your total push:</span>
+              <span className="font-mono">{forceMagnitude}N</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-green-400">→ Moves box:</span>
+              <span className="font-mono text-green-400">{usefulForce.toFixed(1)}N</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-red-400">↓ Pushes into floor:</span>
+              <span className="font-mono text-red-400">{wastedForce.toFixed(1)}N</span>
+            </div>
+          </div>
+
+          {/* Insight */}
+          <div className="bg-blue-900/30 border border-blue-700 p-4 rounded-lg">
+            <p className="text-sm">
+              {angle === 0 && "Perfect! All your force moves the box. Dot product = full force."}
+              {angle > 0 && angle < 45 && "Most of your push moves the box, some is wasted pushing down."}
+              {angle >= 45 && angle < 70 && "You're wasting a lot of effort pushing into the floor!"}
+              {angle >= 70 && angle < 85 && "Almost all your effort is wasted. The box barely moves."}
+              {angle >= 85 && "You're basically just pushing the box into the ground. Nearly zero movement!"}
+            </p>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(BoxPushVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

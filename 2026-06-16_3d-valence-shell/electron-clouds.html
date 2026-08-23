@@ -1,0 +1,507 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Electron Clouds — flythrough</title>
+<style>
+  :root{
+    --bg:#04060d;
+    --ink:#e8eefc;
+    --dim:#7f8db0;
+    --line:rgba(150,180,255,.16);
+    --panel:rgba(10,16,30,.62);
+    --s1:#ffb14e;  /* shell 1 */
+    --s2:#39d6e6;  /* shell 2 */
+    --s3:#c479ff;  /* shell 3 */
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:"Helvetica Neue",Inter,system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;-webkit-user-select:none;user-select:none}
+  canvas{display:block;position:fixed;inset:0}
+
+  /* ---- loading ---- */
+  #load{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;z-index:50;gap:18px;transition:opacity .6s}
+  #load.gone{opacity:0;pointer-events:none}
+  .ring{width:46px;height:46px;border:2px solid var(--line);border-top-color:var(--s2);
+    border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #load p{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+
+  /* ---- HUD frame ---- */
+  .hud{position:fixed;z-index:20;pointer-events:none}
+  .hud > *{pointer-events:auto}
+
+  /* title block, top-left */
+  #brand{top:18px;left:18px;max-width:min(40vw,360px)}
+  #brand h1{font-size:15px;font-weight:600;letter-spacing:.02em;line-height:1.15}
+  #brand .sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--dim);
+    text-transform:uppercase;margin-top:6px}
+  #brand p{font-size:12.5px;line-height:1.5;color:var(--dim);margin-top:11px}
+  #brand p b{color:var(--ink);font-weight:600}
+
+  /* element rail, top-right */
+  #rail{top:18px;right:18px;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:230px}
+  .el{font-family:var(--mono);font-size:12px;width:38px;height:38px;border:1px solid var(--line);
+    background:var(--panel);color:var(--dim);border-radius:8px;cursor:pointer;
+    backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;
+    justify-content:center;line-height:1;transition:.16s}
+  .el small{font-size:8px;color:var(--dim);margin-top:3px;letter-spacing:.04em}
+  .el:hover{border-color:rgba(150,180,255,.4);color:var(--ink)}
+  .el.on{background:rgba(57,214,230,.12);border-color:var(--s2);color:#fff}
+  .el.on small{color:var(--s2)}
+
+  /* readout panel, bottom-left */
+  #panel{left:18px;bottom:18px;width:288px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;backdrop-filter:blur(12px);overflow:hidden}
+  #panel .top{padding:13px 15px 11px;border-bottom:1px solid var(--line);display:flex;
+    align-items:baseline;justify-content:space-between}
+  #panel .top .name{font-size:18px;font-weight:600}
+  #panel .top .name span{color:var(--dim);font-size:12px;font-weight:400;margin-left:7px}
+  #panel .top .ecount{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:right}
+  #panel .top .ecount b{display:block;color:var(--ink);font-size:19px;font-weight:600}
+  #legend{padding:8px 9px 10px}
+  .lrow{display:flex;align-items:center;gap:9px;padding:6px 6px;border-radius:8px;cursor:pointer;transition:.12s}
+  .lrow:hover{background:rgba(150,180,255,.06)}
+  .lrow.off{opacity:.32}
+  .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 9px currentColor}
+  .lrow .lbl{font-family:var(--mono);font-size:12.5px;flex:1}
+  .lrow .lbl .vbadge{font-family:var(--sans);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--s3);border:1px solid var(--s3);border-radius:5px;padding:1px 4px;margin-left:7px;vertical-align:1px}
+  .lrow .e{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .lrow .shape{font-size:10px;color:var(--dim);width:54px;text-align:right;font-family:var(--mono)}
+
+  /* controls hint + buttons, bottom-right */
+  #ctl{right:18px;bottom:18px;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:9px}
+  .keys{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.7;background:var(--panel);
+    border:1px solid var(--line);border-radius:11px;backdrop-filter:blur(10px);padding:10px 13px;text-align:left}
+  .keys kbd{display:inline-block;min-width:17px;text-align:center;padding:1px 5px;margin:0 1px;
+    background:rgba(150,180,255,.1);border:1px solid var(--line);border-radius:4px;color:var(--ink);font-size:10px}
+  .btns{display:flex;gap:7px}
+  .btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;padding:9px 13px;border-radius:9px;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;backdrop-filter:blur(10px);transition:.15s}
+  .btn:hover{border-color:rgba(150,180,255,.45)}
+  .btn.live{background:rgba(57,214,230,.16);border-color:var(--s2)}
+
+  /* immersive flag */
+  #flytag{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:25;
+    font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--dim);
+    background:var(--panel);border:1px solid var(--line);padding:9px 16px;border-radius:30px;
+    backdrop-filter:blur(8px);opacity:0;transition:opacity .3s;pointer-events:none;text-transform:uppercase}
+  #flytag.show{opacity:1}
+  .reticle{position:fixed;top:50%;left:50%;width:5px;height:5px;border-radius:50%;
+    background:rgba(232,238,252,.55);transform:translate(-50%,-50%);z-index:24;opacity:0;transition:.3s;pointer-events:none}
+  .reticle.show{opacity:1}
+
+  @media (max-width:720px){
+    #brand p,.keys{display:none}
+    #brand{max-width:52vw}
+    #panel{width:min(70vw,288px)}
+    #rail{max-width:46vw}
+  }
+</style>
+
+<div id="load"><div class="ring"></div><p id="loadtxt">computing wavefunctions…</p></div>
+
+<div id="flytag">click to fly &nbsp;·&nbsp; esc to release</div>
+<div class="reticle" id="reticle"></div>
+
+<div class="hud" id="brand">
+  <h1>Electron Clouds</h1>
+  <div class="sub">probability density · hydrogenic orbitals</div>
+  <p>An electron has no fixed path. Each fuzzy cloud is where it’s <b>likely</b> to be — sampled from |ψ|². A <b>shell</b> isn’t one ring: it’s several orbitals layered in space, each holding up to <b>2 electrons</b>. The dark gaps are <b>nodes</b>, where the electron never appears.</p>
+</div>
+
+<div class="hud" id="rail"></div>
+
+<div class="hud" id="panel">
+  <div class="top">
+    <div class="name" id="elname">—</div>
+    <div class="ecount">electrons<b id="etot">0</b></div>
+  </div>
+  <div id="legend"></div>
+</div>
+
+<div class="hud" id="ctl">
+  <div class="keys">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &nbsp; <kbd>Q</kbd><kbd>E</kbd> down/up<br>
+    drag look &nbsp;·&nbsp; scroll dolly &nbsp;·&nbsp; <kbd>⇧</kbd> boost
+  </div>
+  <div class="btns">
+    <button class="btn" id="guides">guides</button>
+    <button class="btn" id="fly">fly mode</button>
+    <button class="btn" id="reset">recenter</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   1.  HYDROGENIC WAVEFUNCTIONS  (Bohr radius a0 = 1 world unit)
+   We sample points so their spatial density ∝ |ψ|², i.e. the
+   actual probability of finding the electron there.
+   ============================================================ */
+
+// Radial part R_nl(r). Normalisation is irrelevant for sampling.
+function R(n,l,r){
+  const e=Math.exp;
+  switch(n*10+l){
+    case 10: return 2*e(-r);                                   // 1s
+    case 20: return (2-r)*e(-r/2);                             // 2s  (node at r=2)
+    case 21: return r*e(-r/2);                                 // 2p
+    case 30: return (27-18*r+2*r*r)*e(-r/3);                   // 3s  (two nodes)
+    case 31: return r*(6-r)*e(-r/3);                           // 3p
+    case 32: return r*r*e(-r/3);                               // 3d
+  }
+  return 0;
+}
+
+// Real angular factor for a unit direction (x,y,z). Constants drop out.
+function ang(type,x,y,z){
+  switch(type){
+    case 's'    : return 1;
+    case 'px'   : return x;
+    case 'py'   : return y;
+    case 'pz'   : return z;
+    case 'dz2'  : return 3*z*z-1;          // = (3z²−r²)/r² with r=1
+    case 'dxz'  : return x*z;
+    case 'dyz'  : return y*z;
+    case 'dxy'  : return x*y;
+    case 'dx2y2': return x*x-y*y;
+  }
+  return 0;
+}
+
+function rand_in_sphere(rmax){
+  // uniform inside sphere
+  const u=Math.random(), c=Math.random()*2-1, ph=Math.random()*Math.PI*2;
+  const r=rmax*Math.cbrt(u), s=Math.sqrt(1-c*c);
+  return [r*s*Math.cos(ph), r*s*Math.sin(ph), r*c, r];
+}
+
+// Generate a point cloud for one orbital via rejection sampling on |ψ|².
+function genOrbital(n,l,type,count){
+  const rmax = n===1?7 : n===2?18 : 34;
+  // estimate peak density
+  let peak=0;
+  for(let i=0;i<9000;i++){
+    const p=rand_in_sphere(rmax), r=p[3]; if(r<1e-4)continue;
+    const v=R(n,l,r)*ang(type,p[0]/r,p[1]/r,p[2]/r); const d=v*v;
+    if(d>peak)peak=d;
+  }
+  peak*=1.04;
+  const pos=new Float32Array(count*3);
+  let got=0,tries=0,cap=count*250;
+  while(got<count && tries<cap){
+    tries++;
+    const p=rand_in_sphere(rmax), r=p[3]; if(r<1e-4)continue;
+    const v=R(n,l,r)*ang(type,p[0]/r,p[1]/r,p[2]/r);
+    if(Math.random()*peak < v*v){
+      pos[got*3]=p[0]; pos[got*3+1]=p[1]; pos[got*3+2]=p[2]; got++;
+    }
+  }
+  return pos.subarray(0,got*3);
+}
+
+/* ============================================================
+   2.  ATOM DATA
+   subshells listed with the orbital orientations they contain
+   and how many electrons actually occupy them in this element.
+   ============================================================ */
+const ORIENT = {
+  s:['s'], p:['px','py','pz'], d:['dz2','dxz','dyz','dxy','dx2y2']
+};
+
+// helper to write a config: [n, 'l', electrons]
+const ELEMENTS = {
+  H : {Z:1 , name:'Hydrogen', cfg:[[1,'s',1]]},
+  He: {Z:2 , name:'Helium'  , cfg:[[1,'s',2]]},
+  Li: {Z:3 , name:'Lithium' , cfg:[[1,'s',2],[2,'s',1]]},
+  C : {Z:6 , name:'Carbon'  , cfg:[[1,'s',2],[2,'s',2],[2,'p',2]]},
+  O : {Z:8 , name:'Oxygen'  , cfg:[[1,'s',2],[2,'s',2],[2,'p',4]]},
+  Ne: {Z:10, name:'Neon'    , cfg:[[1,'s',2],[2,'s',2],[2,'p',6]]},
+  Na: {Z:11, name:'Sodium'  , cfg:[[1,'s',2],[2,'s',2],[2,'p',6],[3,'s',1]]},
+  Ar: {Z:18, name:'Argon'   , cfg:[[1,'s',2],[2,'s',2],[2,'p',6],[3,'s',2],[3,'p',6]]},
+};
+const ORDER = ['H','He','Li','C','O','Ne','Na','Ar'];
+
+const SHELL_COLOR = {1:0xffb14e, 2:0x39d6e6, 3:0xc479ff};
+const SHELL_GUIDE_R = {1:3.2, 2:9.5, 3:20};   // characteristic radius for guide spheres & camera fit
+const PTS_PER_ORBITAL = 1900;
+
+/* ============================================================
+   3.  THREE.JS SCENE
+   ============================================================ */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x04060d, 0.006);
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 4000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// soft round glowing sprite for each point
+function sprite(){
+  const c=document.createElement('canvas'); c.width=c.height=64;
+  const g=c.getContext('2d'), grd=g.createRadialGradient(32,32,0,32,32,32);
+  grd.addColorStop(0,'rgba(255,255,255,1)');
+  grd.addColorStop(0.25,'rgba(255,255,255,0.85)');
+  grd.addColorStop(0.55,'rgba(255,255,255,0.25)');
+  grd.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=grd; g.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(c); t.needsUpdate=true; return t;
+}
+const SPRITE = sprite();
+
+// distant starfield for depth/orientation while flying
+(function stars(){
+  const N=1400, p=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    const r=600+Math.random()*1800, u=Math.random()*2-1, ph=Math.random()*6.283, s=Math.sqrt(1-u*u);
+    p[i*3]=r*s*Math.cos(ph); p[i*3+1]=r*s*Math.sin(ph); p[i*3+2]=r*u;
+  }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  const m=new THREE.PointsMaterial({size:2,color:0x6678aa,transparent:true,opacity:.6,depthWrite:false});
+  scene.add(new THREE.Points(g,m));
+})();
+
+// nucleus
+const nucleus = new THREE.Group();
+(function(){
+  const core=new THREE.Mesh(new THREE.SphereGeometry(0.55,24,24),
+    new THREE.MeshBasicMaterial({color:0xfff4e0}));
+  nucleus.add(core);
+  const halo=new THREE.Mesh(new THREE.SphereGeometry(1.05,20,20),
+    new THREE.MeshBasicMaterial({color:0xffd089,transparent:true,opacity:.22,blending:THREE.AdditiveBlending,depthWrite:false}));
+  nucleus.add(halo);
+})();
+scene.add(nucleus);
+
+/* ---- orbital cloud cache ---- */
+const cache = {};                       // key "n l type" -> Float32Array
+function cloudFor(n,l,type){
+  const k=n+l+type;
+  if(!cache[k]) cache[k]=genOrbital(n,l,type,PTS_PER_ORBITAL);
+  return cache[k];
+}
+
+const cloudGroup = new THREE.Group(); scene.add(cloudGroup);
+const guideGroup = new THREE.Group(); scene.add(guideGroup);
+let showGuides=false;
+
+// state of subshell visibility toggles {key:true/false} ; key = "n l"
+let subVisible = {};
+let current = 'Ne';
+
+function build(sym){
+  current=sym;
+  // clear
+  while(cloudGroup.children.length) cloudGroup.remove(cloudGroup.children[0]);
+  while(guideGroup.children.length) guideGroup.remove(guideGroup.children[0]);
+
+  const el=ELEMENTS[sym];
+  const valence = Math.max(...el.cfg.map(c=>c[0]));   // outermost shell present
+  const shellsPresent = [...new Set(el.cfg.map(c=>c[0]))];
+
+  el.cfg.forEach(([n,l,e])=>{
+    const key=n+' '+l;
+    if(subVisible[key]===undefined) subVisible[key]=true;
+    const isVal = (n===valence);
+    const orients = ORIENT[l];
+    const lq = (l==='s'?0 : l==='p'?1:2);
+    const col = new THREE.Color(SHELL_COLOR[n]);
+    orients.forEach(type=>{
+      const pos=cloudFor(n,lq,type);
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      const m=new THREE.PointsMaterial({
+        size: (n===1?0.5:n===2?0.42:0.5),
+        map:SPRITE, color:col,
+        transparent:true, opacity: isVal?0.95:0.5,
+        blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true
+      });
+      const pts=new THREE.Points(g,m);
+      pts.userData={key,isVal};
+      pts.visible = subVisible[key];
+      cloudGroup.add(pts);
+    });
+  });
+
+  // guide spheres
+  shellsPresent.forEach(n=>{
+    const geo=new THREE.SphereGeometry(SHELL_GUIDE_R[n],32,18);
+    const mat=new THREE.MeshBasicMaterial({color:SHELL_COLOR[n],wireframe:true,transparent:true,opacity:.07});
+    const m=new THREE.Mesh(geo,mat); m.userData.shell=n; guideGroup.add(m);
+  });
+  guideGroup.visible=showGuides;
+
+  buildLegend(el,valence);
+  recenter(valence);
+}
+
+/* ============================================================
+   4.  UI
+   ============================================================ */
+const railEl=document.getElementById('rail');
+ORDER.forEach(sym=>{
+  const el=ELEMENTS[sym];
+  const b=document.createElement('button'); b.className='el'; b.dataset.sym=sym;
+  b.innerHTML=`${sym}<small>${el.Z}</small>`;
+  b.onclick=()=>{ subVisible={}; setActiveEl(sym); build(sym); };
+  railEl.appendChild(b);
+});
+function setActiveEl(sym){
+  [...railEl.children].forEach(c=>c.classList.toggle('on',c.dataset.sym===sym));
+}
+
+function buildLegend(el,valence){
+  document.getElementById('elname').innerHTML = `${el.name} <span>${current}</span>`;
+  document.getElementById('etot').textContent = el.cfg.reduce((a,c)=>a+c[2],0);
+  const leg=document.getElementById('legend'); leg.innerHTML='';
+  const shapeName={s:'sphere',p:'dumbbell',d:'cloverleaf'};
+  el.cfg.forEach(([n,l,e])=>{
+    const key=n+' '+l;
+    const isVal=(n===valence);
+    const row=document.createElement('div'); row.className='lrow'+(subVisible[key]?'':' off');
+    const colHex='#'+SHELL_COLOR[n].toString(16).padStart(6,'0');
+    const orbCount = ORIENT[l].length;
+    const cap = orbCount*2;
+    row.innerHTML=`
+      <span class="dot" style="background:${colHex};color:${colHex}"></span>
+      <span class="lbl">${n}${l}${isVal?'<span class="vbadge">valence</span>':''}</span>
+      <span class="e">${e}/${cap}e⁻</span>
+      <span class="shape">${shapeName[l]}</span>`;
+    row.onclick=()=>{
+      subVisible[key]=!subVisible[key];
+      row.classList.toggle('off',!subVisible[key]);
+      cloudGroup.children.forEach(p=>{ if(p.userData.key===key) p.visible=subVisible[key]; });
+    };
+    leg.appendChild(row);
+  });
+}
+
+document.getElementById('guides').onclick=function(){
+  showGuides=!showGuides; guideGroup.visible=showGuides;
+  this.classList.toggle('live',showGuides);
+};
+document.getElementById('reset').onclick=()=>recenter(Math.max(...ELEMENTS[current].cfg.map(c=>c[0])));
+
+/* ============================================================
+   5.  FREE-FLY CAMERA
+   ============================================================ */
+const cam={ pos:new THREE.Vector3(0,8,46), yaw:Math.PI, pitch:-0.16 };
+const keys={}; let dragging=false, locked=false;
+const fwd=new THREE.Vector3(), right=new THREE.Vector3(), up=new THREE.Vector3(0,1,0);
+
+function recenter(valence){
+  const d = (SHELL_GUIDE_R[valence]||10)*2.1 + 6;
+  cam.pos.set(0, d*0.18, d);
+  cam.yaw=Math.PI; cam.pitch=-0.14;
+}
+function dirVec(){
+  fwd.set(Math.sin(cam.yaw)*Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw)*Math.cos(cam.pitch));
+  right.crossVectors(fwd,up).normalize();
+}
+
+const cvs=renderer.domElement;
+// drag-look
+cvs.addEventListener('pointerdown',e=>{ if(locked)return; dragging=true; cvs.setPointerCapture(e.pointerId);});
+cvs.addEventListener('pointerup',()=>dragging=false);
+cvs.addEventListener('pointermove',e=>{
+  if(locked){ look(e.movementX,e.movementY); }
+  else if(dragging){ look(e.movementX,e.movementY); }
+});
+function look(dx,dy){
+  cam.yaw   -= dx*0.0026;
+  cam.pitch -= dy*0.0026;
+  cam.pitch = Math.max(-1.5,Math.min(1.5,cam.pitch));
+}
+// wheel dolly
+cvs.addEventListener('wheel',e=>{
+  e.preventDefault(); dirVec();
+  cam.pos.addScaledVector(fwd, -e.deltaY*0.045);
+},{passive:false});
+// keys
+addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true; });
+addEventListener('keyup',  e=>{ keys[e.key.toLowerCase()]=false; });
+
+// pointer-lock immersive fly
+const flyBtn=document.getElementById('fly'), flytag=document.getElementById('flytag'), retic=document.getElementById('reticle');
+flyBtn.onclick=()=>cvs.requestPointerLock();
+document.addEventListener('pointerlockchange',()=>{
+  locked = document.pointerLockElement===cvs;
+  flyBtn.classList.toggle('live',locked);
+  flytag.classList.toggle('show',!locked? false : false);
+  retic.classList.toggle('show',locked);
+});
+// show hint when hovering fly
+flyBtn.addEventListener('mouseenter',()=>flytag.classList.add('show'));
+flyBtn.addEventListener('mouseleave',()=>{ if(!locked) flytag.classList.remove('show'); });
+
+// touch: 1 finger look, 2 finger pinch = forward/back
+let lastT=null, lastPinch=0;
+cvs.addEventListener('touchstart',e=>{
+  if(e.touches.length===1) lastT=[e.touches[0].clientX,e.touches[0].clientY];
+  if(e.touches.length===2) lastPinch=pinch(e);
+},{passive:true});
+cvs.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===1 && lastT){
+    look(e.touches[0].clientX-lastT[0], e.touches[0].clientY-lastT[1]);
+    lastT=[e.touches[0].clientX,e.touches[0].clientY];
+  } else if(e.touches.length===2){
+    const p=pinch(e); dirVec();
+    cam.pos.addScaledVector(fwd,(p-lastPinch)*0.4); lastPinch=p;
+  }
+},{passive:false});
+cvs.addEventListener('touchend',()=>{lastT=null;});
+function pinch(e){const a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
+
+/* ============================================================
+   6.  LOOP
+   ============================================================ */
+const clock=new THREE.Clock();
+function tick(){
+  const dt=Math.min(clock.getDelta(),0.05);
+  dirVec();
+  const sp=(keys['shift']?60:22)*dt;
+  if(keys['w']||keys['arrowup'])    cam.pos.addScaledVector(fwd, sp);
+  if(keys['s']||keys['arrowdown'])  cam.pos.addScaledVector(fwd,-sp);
+  if(keys['a']||keys['arrowleft'])  cam.pos.addScaledVector(right,-sp);
+  if(keys['d']||keys['arrowright']) cam.pos.addScaledVector(right, sp);
+  if(keys['e']||keys[' '])          cam.pos.y += sp;
+  if(keys['q'])                     cam.pos.y -= sp;
+
+  camera.position.copy(cam.pos);
+  camera.lookAt(cam.pos.x+fwd.x, cam.pos.y+fwd.y, cam.pos.z+fwd.z);
+
+  const t=clock.elapsedTime;
+  nucleus.children[1].scale.setScalar(1+Math.sin(t*2)*0.06);
+  cloudGroup.rotation.y = t*0.04;          // gentle drift so the 3-D shape reads
+  guideGroup.rotation.y = t*0.04;
+
+  renderer.render(scene,camera);
+  requestAnimationFrame(tick);
+}
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+/* ============================================================
+   7.  BOOT  (generate clouds off the main paint, then reveal)
+   ============================================================ */
+setTimeout(()=>{
+  // warm the cache for the default element so first frame is instant
+  setActiveEl(current);
+  build(current);
+  tick();
+  document.getElementById('load').classList.add('gone');
+},60);
+
+})();
+</script>

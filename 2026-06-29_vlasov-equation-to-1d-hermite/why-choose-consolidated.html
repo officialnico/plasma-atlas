@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Which method, and why? — PIC vs Vlasov-grid vs Hermite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#080b16;--bg2:#0d1224;--panel:#121830;--panel2:#171e3b;--line:#26305a;
+  --ink:#eaeefb;--muted:#8b95bd;--faint:#5a648c;--mag:#ff5d8f;--amber:#f9a03f;--gold:#ffd35e;--violet:#9a6bff;--cyan:#4fd6e0;--good:#6fe0a8;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;line-height:1.62;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.wrap{max-width:1140px;margin:0 auto;padding:0 22px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.3em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+h1{font-family:'Spectral',serif;font-weight:400;font-size:clamp(2.1rem,5vw,3.7rem);line-height:1.04;letter-spacing:-.02em;margin:0}
+h1 em{font-style:italic;color:var(--mag)}
+h2{font-family:'Spectral',serif;font-weight:400;font-size:clamp(1.6rem,3.4vw,2.5rem);line-height:1.1;letter-spacing:-.015em;margin:0 0 .4em}
+h2 em{font-style:italic;color:var(--mag)}
+h3{font-family:'Spectral',serif;font-weight:500;font-size:1.16rem;margin:0 0 .3em}
+p{font-size:1.04rem;color:#cdd4ee}.lead{font-size:1.16rem;color:#dde3f6}.dim{color:var(--muted)}.tiny{font-size:.85rem;color:var(--faint)}.hl{color:#fff;font-weight:600}
+section{padding:clamp(50px,7vw,92px) 0;position:relative}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+.stage{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.24em;color:var(--mag);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+.stage .n{display:inline-flex;width:30px;height:30px;border-radius:50%;border:1px solid var(--mag);align-items:center;justify-content:center}
+
+/* "what you're looking at" banner above each graphic */
+.whatis{display:flex;gap:14px;align-items:flex-start;background:rgba(79,214,224,.06);border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:0 12px 12px 0;padding:14px 18px;margin:0 0 16px}
+.whatis .k{font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);white-space:nowrap;padding-top:3px}
+.whatis p{margin:0;font-size:.96rem;color:#dde3f6}
+
+.stagegrid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.stagegrid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 14px 15px;display:flex;flex-direction:column}
+.cell h3{font-size:1.06rem;margin:1px 0}.cell .tag{color:var(--faint);font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase}
+.cell .desc{font-size:.84rem;color:#c3cbe8;margin:5px 0 10px;min-height:52px}
+.cell.pic h3,.cell.real h3{color:var(--cyan)} .cell.grid h3,.cell.phase h3{color:var(--gold)} .cell.herm h3{color:var(--violet)}
+canvas.sim{width:100%;display:block;background:#0a0e1f;border:1px solid var(--line);border-radius:10px}
+.readout{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--muted);margin-top:8px}.readout b{color:#fff;font-weight:500}
+
+.controls{display:flex;flex-wrap:wrap;gap:11px;align-items:center;margin:18px 0 4px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:.83rem;background:#0e1430;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 17px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--mag)}.btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btn.primary{background:rgba(255,93,143,.16);border-color:var(--mag);color:#fff}.btn.on{background:rgba(79,214,224,.16);border-color:var(--cyan);color:#fff}
+.sliderrow{display:flex;align-items:center;gap:11px;flex:1;min-width:230px}.sliderrow label{font-family:'IBM Plex Mono',monospace;font-size:.79rem;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;flex:1;min-width:110px;background:linear-gradient(90deg,var(--violet),var(--cyan));outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--cyan);cursor:pointer;box-shadow:0 0 12px rgba(79,214,224,.6)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--cyan);cursor:pointer}
+.timepill{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--gold);margin-left:auto}
+
+.note{border-left:2px solid var(--mag);padding:6px 0 6px 20px;margin:22px 0 0;color:#dde3f6}.note.cyan{border-color:var(--cyan)}.note.gold{border-color:var(--gold)}.note.violet{border-color:var(--violet)}.note strong{color:#fff}
+table.cmp{width:100%;border-collapse:collapse;margin:26px 0 6px;font-size:.9rem}
+table.cmp th,table.cmp td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line)}
+table.cmp th{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:500}
+table.cmp td:first-child{color:var(--muted)}.pic-c{color:var(--cyan)}.grid-c{color:var(--gold)}.herm-c{color:var(--violet)}
+
+.choose{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}
+.ch{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 20px 22px}
+.ch.pic{border-top:3px solid var(--cyan)}.ch.grid{border-top:3px solid var(--gold)}.ch.herm{border-top:3px solid var(--violet)}
+.ch h3{margin-top:0}.ch.pic h3{color:var(--cyan)}.ch.grid h3{color:var(--gold)}.ch.herm h3{color:var(--violet)}
+.ch ul{margin:10px 0 0;padding-left:18px}.ch li{font-size:.92rem;color:#cdd4ee;margin:7px 0}
+.ch .pick{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+
+footer{padding:60px 0 70px;border-top:1px solid var(--line);background:var(--bg2)}
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease}.reveal.in{opacity:1;transform:none}
+@media(max-width:880px){.stagegrid3,.choose{grid-template-columns:1fr}}
+@media(max-width:680px){.stagegrid2{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}}
+/* ===== highlight-to-explain overlay ===== */
+::selection{background:rgba(255,93,143,.38);color:#fff}
+#hl-pop{position:fixed;z-index:10000;display:none}
+#hl-add{font-family:'IBM Plex Mono',monospace;font-size:.78rem;background:#1a1030;color:#fff;border:1px solid var(--mag);border-radius:9px;padding:8px 13px;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.55);white-space:nowrap}
+#hl-add:hover{background:rgba(255,93,143,.28)}
+#hl-panel{position:fixed;right:16px;bottom:16px;z-index:9999;width:308px;max-width:calc(100vw - 32px);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.55);overflow:hidden;font-family:'Inter',sans-serif}
+#hl-head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;background:var(--panel2);border-bottom:1px solid var(--line)}
+#hl-title{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);flex:1}
+#hl-count{font-family:'IBM Plex Mono',monospace;font-size:.76rem;background:rgba(255,93,143,.2);border:1px solid var(--mag);color:#fff;border-radius:999px;min-width:24px;text-align:center;padding:1px 7px}
+#hl-caret{color:var(--muted);transition:.2s;font-size:.7rem}
+#hl-panel[data-open="true"] #hl-caret{transform:rotate(90deg)}
+#hl-body{display:none;flex-direction:column}
+#hl-panel[data-open="true"] #hl-body{display:flex}
+#hl-items{max-height:38vh;overflow-y:auto;padding:8px}
+#hl-empty{color:var(--faint);font-size:.83rem;padding:14px 10px;text-align:center;line-height:1.5}
+.hl-item{display:flex;gap:8px;align-items:flex-start;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:6px 0}
+.hl-item span{font-size:.85rem;color:#dde3f6;flex:1;line-height:1.42}
+.hl-item button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:1.05rem;line-height:1;padding:0 2px}
+.hl-item button:hover{color:var(--mag)}
+#hl-actions{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);flex-wrap:wrap}
+.hl-btn{flex:1;font-family:'IBM Plex Mono',monospace;font-size:.75rem;background:#0e1430;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 8px;cursor:pointer;min-width:78px}
+.hl-btn:hover{border-color:var(--cyan)}
+.hl-btn.primary{background:rgba(255,93,143,.16);border-color:var(--mag);color:#fff}
+#hl-ta{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0}
+#hl-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:10001;background:#0e1430;border:1px solid var(--cyan);color:#fff;padding:11px 18px;border-radius:10px;font-size:.86rem;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+#hl-toast.show{opacity:1}
+@media(max-width:520px){#hl-panel{left:16px;right:16px;width:auto}}
+</style>
+</head>
+<body>
+
+<section style="padding-top:70px">
+  <div class="wrap">
+    <p class="eyebrow">One page · everything in its place</p>
+    <h1>Which method,<br>and <em>why?</em></h1>
+    <p class="lead" style="max-width:680px;margin-top:22px">You've watched a lot of moving pictures. Here they all are in one place, in order, each with a plain note saying <span class="hl">what you're looking at</span> — building to a simple answer for when you'd pick particles, a grid, or Hermite.</p>
+    <p class="dim" style="max-width:680px">The whole page simulates one situation: two streams of charged particles flowing through each other (the "two-stream instability"). Every graphic shows that same event, drawn a different way.</p>
+  </div>
+</section>
+
+<!-- ===== A: what these plots even are ===== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">A</span> First — what are these plots?</div>
+    <h2>Almost everything here is a<br><em>phase-space</em> plot.</h2>
+    <p class="lead" style="max-width:720px;margin-top:14px">This is the single thing to get straight. Below, the <span style="color:var(--cyan)">left</span> shows the particles in real space (where they are); the <span style="color:var(--gold)">right</span> shows the exact same particles in phase space (position across, <em>velocity</em> up). Every heat-map and dot-cloud later on is the right-hand kind of picture.</p>
+    <div class="whatis"><span class="k">what you're<br>looking at</span><p><b style="color:#fff">Left:</b> dots in a box moving at their real speed — intuitive, but you can't see speed in a frozen frame (hit "arrows" to reveal it). <b style="color:#fff">Right:</b> velocity is the vertical axis, so the two beams and their swirl become visible. The swirl only exists in this view.</p></div>
+    <div class="stagegrid2" style="margin-top:6px">
+      <div class="cell real"><div class="tag">real space</div><h3>Particles in a box (x, y)</h3>
+        <div class="desc">y is just spacing so dots don't overlap — the 1-D model has no real y.</div>
+        <canvas id="realCv" class="sim" width="500" height="320"></canvas></div>
+      <div class="cell phase"><div class="tag">phase space</div><h3>Same particles (x, v)</h3>
+        <div class="desc">Velocity on the vertical axis. Watch the cat's-eye vortex form.</div>
+        <canvas id="phaseCv" class="sim" width="500" height="320"></canvas></div>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="rpPlay">Pause</button>
+      <button class="btn" id="rpReset">Reset</button>
+      <button class="btn" id="rpArrows">Show velocity arrows (left)</button>
+      <span class="timepill" id="rpTime">t = 0.0</span>
+    </div>
+    <p class="note cyan"><strong>So when you see a heat-map below,</strong> read it as: across = where particles are, up = how fast they're going, brightness = how many. That's phase space. The methods differ only in <em>how they store and push that picture.</em></p>
+  </div>
+</section>
+
+<!-- ===== B: the three strategies ===== -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">B</span> The three strategies</div>
+    <h2>Everyone agrees on the goal.<br>Nobody agrees on <em>how.</em></h2>
+    <p class="lead" style="max-width:700px;margin-top:14px">Every method is trying to evolve that phase-space picture. They differ on one question: <em>how do you put a smooth picture inside a computer that only holds numbers?</em></p>
+    <div class="stagegrid3" style="margin-top:24px">
+      <div class="cell pic"><div class="tag">sample it · PIC</div><h3>Track particles</h3>
+        <div class="desc">Represent the picture with millions of sample "super-particles" and push each by Newton. Intuitive and flexible.</div>
+        <p class="tiny" style="color:var(--good);margin:0">+ simple, handles wild geometry</p><p class="tiny" style="color:var(--mag);margin:3px 0 0">— statistical noise; needs huge counts to get quiet</p></div>
+      <div class="cell grid"><div class="tag">grid it · Eulerian</div><h3>Store values</h3>
+        <div class="desc">Lay a mesh over the whole (x,v) plane and store the picture's height in every cell. Direct and noise-free.</div>
+        <p class="tiny" style="color:var(--good);margin:0">+ no noise, very accurate</p><p class="tiny" style="color:var(--mag);margin:3px 0 0">— cost grows fast; velocity mesh must be very fine</p></div>
+      <div class="cell herm"><div class="tag">encode it · spectral</div><h3>Store a recipe</h3>
+        <div class="desc">Don't store values — store the weights of a few smooth building-block humps whose sum is the picture.</div>
+        <p class="tiny" style="color:var(--good);margin:0">+ no noise; a calm plasma costs one number</p><p class="tiny" style="color:var(--mag);margin:3px 0 0">— sharp velocity structure needs many terms</p></div>
+    </div>
+    <table class="cmp">
+      <tr><th>what you care about</th><th class="pic-c">PIC (sample)</th><th class="grid-c">grid (values)</th><th class="herm-c">Hermite (recipe)</th></tr>
+      <tr><td>statistical noise</td><td>yes — the headache</td><td class="grid-c">none</td><td class="herm-c">none</td></tr>
+      <tr><td>cost of a calm Maxwellian</td><td>still millions of particles</td><td>full mesh</td><td class="herm-c">one coefficient</td></tr>
+      <tr><td>where it struggles</td><td>quiet results, fine detail</td><td>fine velocity filaments</td><td>fine velocity filaments</td></tr>
+      <tr><td>conservation laws</td><td>approximate</td><td>scheme-dependent</td><td class="herm-c">can be exact</td></tr>
+      <tr><td>ease / wild geometry</td><td class="pic-c">easiest, most flexible</td><td>moderate</td><td>most delicate to derive</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== C: all three racing ===== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">C</span> Watch all three race the same problem</div>
+    <h2>Same plasma,<br>three philosophies, <em>live.</em></h2>
+    <p class="lead" style="max-width:740px;margin-top:14px">Now the centerpiece. All three solvers run the identical two-stream problem at once. They agree on the physics — all roll up the same vortex — but each shows its weakness in a different, visible place.</p>
+    <div class="whatis"><span class="k">what you're<br>looking at</span><p>Three phase-space plots (across = position, up = speed). <b style="color:var(--cyan)">PIC</b> = dot cloud, watch it speckle. <b style="color:var(--gold)">Grid</b> = smooth heat-map. <b style="color:var(--violet)">Hermite</b> = smooth heat-map plus a strip showing its "recipe" of coefficients — watch energy climb into the high modes as fine structure forms.</p></div>
+    <div class="stagegrid3" style="margin-top:6px">
+      <div class="cell pic"><div class="tag">sample the particles</div><h3>PIC</h3><div class="desc">Push sample particles. Cyan = right beam, magenta = left. Drag the slider down and it dissolves into static.</div><canvas id="picCv" class="sim" width="380" height="300"></canvas><div class="readout"><span>particles <b id="npLabel">3000</b></span><span>noise ±<b id="noiseLabel">1.8%</b></span></div></div>
+      <div class="cell grid"><div class="tag">grid the distribution</div><h3>Vlasov grid</h3><div class="desc">Carry f(x,v) on a fixed mesh. No noise — but the fine swirls blur where the mesh runs out.</div><canvas id="gridCv" class="sim" width="380" height="300"></canvas><div class="readout"><span>mesh <b>32 × 96</b></span><span>noise <b style="color:var(--good)">none</b></span></div></div>
+      <div class="cell herm"><div class="tag">encode the distribution</div><h3>Hermite spectral</h3><div class="desc">Store f as a recipe. The strip below is that recipe — energy marching right = filaments forming.</div><canvas id="hermCv" class="sim" width="380" height="300"></canvas><div class="readout"><span>modes <b id="nhLabel">32</b></span><span>noise <b style="color:var(--good)">none</b></span></div></div>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="twPlay">Pause</button>
+      <button class="btn" id="twReset">Reset</button>
+      <div class="sliderrow"><label>PIC particles</label><input type="range" id="npart" min="500" max="12000" step="500" value="3000"><span class="mono" id="npVal" style="color:var(--cyan);min-width:52px;text-align:right">3000</span></div>
+      <span class="timepill" id="twTime">t = 0.0</span>
+    </div>
+    <p class="note"><strong>The lesson in one line:</strong> all three agree on the physics, and each pays its bill somewhere different — <span class="pic-c">PIC in noise</span>, <span class="grid-c">grid</span> and <span class="herm-c">Hermite in how much fine velocity detail they can hold.</span> There's no free method; you choose which bill to pay.</p>
+  </div>
+</section>
+
+<!-- ===== D: decision ===== -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">D</span> So which do you choose?</div>
+    <h2>Pick the bill<br>you'd rather <em>pay.</em></h2>
+    <p class="lead" style="max-width:720px;margin-top:14px">There's no universal winner — the right choice follows from your plasma and your question. A practical guide:</p>
+    <div class="choose">
+      <div class="ch pic"><div class="pick">reach for</div><h3>PIC (particles)</h3>
+        <ul>
+          <li>Your geometry is complicated or messy — odd boundaries, many species, 3-D.</li>
+          <li>You can tolerate (or average away) noise.</li>
+          <li>You want something robust that's relatively easy to write and scale.</li>
+          <li>Most large production and astrophysical codes live here.</li>
+        </ul></div>
+      <div class="ch grid"><div class="pick">reach for</div><h3>Grid (Eulerian)</h3>
+        <ul>
+          <li>You need a clean, noise-free answer in low dimensions (1-D/2-D velocity).</li>
+          <li>You're studying delicate effects — damping rates, fine velocity structure — where noise would drown the signal.</li>
+          <li>You're willing to spend memory on a fine velocity mesh.</li>
+        </ul></div>
+      <div class="ch herm"><div class="pick">reach for</div><h3>Hermite (spectral)</h3>
+        <ul>
+          <li>Your plasma stays close to thermal (near-Maxwellian) most of the time — then a few modes are enough.</li>
+          <li>You want a clean dial between a cheap fluid model and full kinetic detail.</li>
+          <li>You value exact conservation and a direct link to fluid moments.</li>
+          <li>You can add a touch of collisionality to tame filamentation.</li>
+        </ul></div>
+    </div>
+    <p class="note violet"><strong>And the deep tie that links the last two:</strong> truncating the Hermite recipe at N modes is the same as keeping N fluid moments. So Hermite is the bridge — turn the dial down and it's a fluid model; turn it up and it's a full kinetic grid. That flexibility is exactly why it's worth the extra delicacy.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap reveal">
+    <p class="eyebrow">where the rest fits</p>
+    <h2 style="margin-bottom:.3em">This was the "why." For the "how"…</h2>
+    <p class="dim" style="max-width:720px">This page consolidated the <em>method-choice</em> graphics. The other pieces you built cover the rest: the zero-to-hero page builds the phase-space intuition from a traffic jam; the main explainer shows how the Hermite recipe and the equation work; and the Jupyter notebook is the runnable solver behind these animations. Together they're one story — this page is just the fork in the road where you decide which path to walk.</p>
+  </div>
+</footer>
+
+<script>
+/* ===================== shared ===================== */
+const k=0.5,L=2*Math.PI/k,Nx=32,dx=L/Nx;
+const v0=1.5,vt=0.4,A=0.05,dt=0.05,SUB=2,VW=3.2;
+const REDUCE=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const sq=z=>z*z;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const PLASMA=[[13,8,135],[75,3,161],[125,3,168],[168,34,150],[203,70,121],[229,107,93],[248,148,65],[253,195,40],[240,249,33]];
+function cmap(t){t=Math.max(0,Math.min(1,t));const s=t*8,i=s|0,f=s-i,a=PLASMA[i],b=PLASMA[Math.min(i+1,8)];return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+function fit(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{ctx:x,w:r.width,h:r.height};}
+const AX={l:30,r:9,t:11,b:18};
+function vaxis(ctx,x0,y0,x1,y1,title,top,mid,bot){
+  ctx.textBaseline='alphabetic';ctx.font="10px 'IBM Plex Mono'";ctx.fillStyle='rgba(234,238,251,.55)';ctx.textAlign='left';
+  ctx.fillText(top,4,y0+9);ctx.fillText(mid,4,(y0+y1)/2+3);ctx.fillText(bot,4,y1);
+  ctx.save();ctx.translate(12,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillStyle='rgba(234,238,251,.9)';ctx.fillText(title,0,0);ctx.restore();
+  ctx.fillStyle='rgba(234,238,251,.55)';ctx.textAlign='left';ctx.fillText('x = 0',x0,y1+13);
+  ctx.textAlign='right';ctx.fillText('x = L',x1,y1+13);
+  ctx.textAlign='center';ctx.fillStyle='rgba(234,238,251,.9)';ctx.fillText('position  x',(x0+x1)/2,y1+13);ctx.textAlign='left';
+}
+/* shared spectral field solve + x-derivative */
+const COS=[],SIN=[],KX=[];
+for(let kk=0;kk<Nx;kk++){COS[kk]=new Float64Array(Nx);SIN[kk]=new Float64Array(Nx);for(let n=0;n<Nx;n++){const a=2*Math.PI*kk*n/Nx;COS[kk][n]=Math.cos(a);SIN[kk][n]=Math.sin(a);}const fr=(kk<=Nx/2)?kk:kk-Nx;KX[kk]=2*Math.PI*fr/L;}
+const _Re=new Float64Array(Nx),_Im=new Float64Array(Nx);
+function fwd(r){for(let kk=0;kk<Nx;kk++){let sr=0,si=0;const c=COS[kk],s=SIN[kk];for(let n=0;n<Nx;n++){sr+=r[n]*c[n];si-=r[n]*s[n];}_Re[kk]=sr;_Im[kk]=si;}}
+function solveE(rho,E){fwd(rho);for(let kk=0;kk<Nx;kk++){if(KX[kk]===0){_Re[kk]=0;_Im[kk]=0;}else{const er=_Im[kk]/KX[kk],ei=-_Re[kk]/KX[kk];_Re[kk]=er;_Im[kk]=ei;}}for(let n=0;n<Nx;n++){let s=0;for(let kk=0;kk<Nx;kk++)s+=_Re[kk]*COS[kk][n]-_Im[kk]*SIN[kk][n];E[n]=s/Nx;}}
+function ddx(r,out){fwd(r);for(let kk=0;kk<Nx;kk++){const dr=-KX[kk]*_Im[kk],di=KX[kk]*_Re[kk];_Re[kk]=dr;_Im[kk]=di;}for(let n=0;n<Nx;n++){let s=0;for(let kk=0;kk<Nx;kk++)s+=_Re[kk]*COS[kk][n]-_Im[kk]*SIN[kk][n];out[n]=s/Nx;}}
+const xc=[];for(let i=0;i<Nx;i++)xc[i]=i*dx;
+
+/* ===================== A: real vs phase ===================== */
+(function(){
+  const N=3500;let px,pv,py,E=new Float64Array(Nx),dens=new Float64Array(Nx),rho=new Float64Array(Nx);
+  function init(){px=new Float64Array(N);pv=new Float64Array(N);py=new Float64Array(N);const rng=mulberry32(12345);
+    for(let i=0;i<N;i++){let x=rng()*L;x-=(A/k)*Math.sin(k*x);px[i]=((x%L)+L)%L;let g=0;for(let j=0;j<3;j++)g+=rng();g=(g/3-0.5)*2;pv[i]=(i%2?v0:-v0)+g*vt;py[i]=0.05+0.9*rng();}}
+  function step(){const wgt=Nx/N;dens.fill(0);for(let i=0;i<N;i++){const xs=px[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;dens[i0]+=(1-fr)*wgt;dens[(i0+1)%Nx]+=fr*wgt;}
+    let mean=0;for(let i=0;i<Nx;i++)mean+=dens[i];mean/=Nx;for(let i=0;i<Nx;i++)rho[i]=mean-dens[i];solveE(rho,E);
+    for(let i=0;i<N;i++){const xs=px[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;const Ei=E[i0]*(1-fr)+E[(i0+1)%Nx]*fr;pv[i]+=(-Ei)*dt;px[i]+=pv[i]*dt;px[i]=((px[i]%L)+L)%L;}}
+  let arrows=false;
+  const realCv=document.getElementById('realCv'),phaseCv=document.getElementById('phaseCv');
+  function drawReal(){const {ctx,w,h}=fit(realCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+    const x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b,X=x=>x0+x/L*(x1-x0),Y=yy=>y0+(1-yy)*(y1-y0);
+    for(let i=0;i<N;i++){const X0=X(px[i]),Y0=Y(py[i]);ctx.fillStyle=pv[i]>=0?'rgba(79,214,224,.6)':'rgba(255,93,143,.6)';ctx.fillRect(X0,Y0,1.6,1.6);
+      if(arrows){ctx.strokeStyle=pv[i]>=0?'rgba(79,214,224,.5)':'rgba(255,93,143,.5)';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(X0,Y0);ctx.lineTo(X0+pv[i]*8,Y0);ctx.stroke();}}
+    vaxis(ctx,x0,y0,x1,y1,'y (display only)','top','—','bot');}
+  function drawPhase(){const {ctx,w,h}=fit(phaseCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+    const x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b,X=x=>x0+x/L*(x1-x0),Y=v=>{const t=(v+VW)/(2*VW);return y1-t*(y1-y0);};
+    ctx.strokeStyle='rgba(255,255,255,.10)';ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x1,Y(0));ctx.stroke();
+    for(let i=0;i<N;i++){const vv=pv[i];if(vv<-VW||vv>VW)continue;ctx.fillStyle=vv>=0?'rgba(79,214,224,.55)':'rgba(255,93,143,.55)';ctx.fillRect(X(px[i]),Y(vv),1.6,1.6);}
+    vaxis(ctx,x0,y0,x1,y1,'speed  v','+'+VW.toFixed(1),'0','-'+VW.toFixed(1));}
+  const playBtn=document.getElementById('rpPlay'),resetBtn=document.getElementById('rpReset'),arrowsBtn=document.getElementById('rpArrows'),timepill=document.getElementById('rpTime');
+  let playing=!REDUCE,T=0,vis=false;
+  function reset(){T=0;init();drawReal();drawPhase();timepill.textContent='t = 0.0';}
+  function frame(){if(vis&&playing){for(let s=0;s<SUB;s++){step();T+=dt;}timepill.textContent='t = '+T.toFixed(1);drawReal();drawPhase();}requestAnimationFrame(frame);}
+  playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';});
+  resetBtn.addEventListener('click',reset);
+  arrowsBtn.addEventListener('click',()=>{arrows=!arrows;arrowsBtn.classList.toggle('on',arrows);drawReal();});
+  new IntersectionObserver(es=>es.forEach(e=>vis=e.isIntersecting),{threshold:.05}).observe(realCv);
+  reset();playBtn.textContent=playing?'Pause':'Play';
+  if(REDUCE){for(let s=0;s<240;s++)step();drawReal();drawPhase();}else requestAnimationFrame(frame);
+})();
+
+/* ===================== C: three-way ===================== */
+(function(){
+  /* PIC */
+  const PIC={x:null,v:null,N:3000,E:new Float64Array(Nx),dens:new Float64Array(Nx),rho:new Float64Array(Nx)};
+  function picInit(N){PIC.N=N;PIC.x=new Float64Array(N);PIC.v=new Float64Array(N);const rng=mulberry32(12345);for(let i=0;i<N;i++){let x=rng()*L;x-=(A/k)*Math.sin(k*x);PIC.x[i]=((x%L)+L)%L;let g=0;for(let j=0;j<3;j++)g+=rng();g=(g/3-0.5)*2;PIC.v[i]=(i%2?v0:-v0)+g*vt;}}
+  function picStep(){const n=PIC.N,wgt=Nx/n,d=PIC.dens;d.fill(0);for(let i=0;i<n;i++){const xs=PIC.x[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;d[i0]+=(1-fr)*wgt;d[(i0+1)%Nx]+=fr*wgt;}let mean=0;for(let i=0;i<Nx;i++)mean+=d[i];mean/=Nx;for(let i=0;i<Nx;i++)PIC.rho[i]=mean-d[i];solveE(PIC.rho,PIC.E);for(let i=0;i<n;i++){const xs=PIC.x[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;const Ei=PIC.E[i0]*(1-fr)+PIC.E[(i0+1)%Nx]*fr;PIC.v[i]+=(-Ei)*dt;PIC.x[i]+=PIC.v[i]*dt;PIC.x[i]=((PIC.x[i]%L)+L)%L;}}
+  /* grid */
+  const Nv=96,vmax=4.0,dv=2*vmax/Nv,vc=[];for(let j=0;j<Nv;j++)vc.push(-vmax+(j+0.5)*dv);
+  let gf=new Float64Array(Nx*Nv),gtmp=new Float64Array(Nx*Nv),gfmax=1;const GI=(i,j)=>i*Nv+j;const gE=new Float64Array(Nx),grho=new Float64Array(Nx);
+  function gridInit(){gfmax=0;for(let i=0;i<Nx;i++){const r=1+A*Math.cos(k*xc[i]);for(let j=0;j<Nv;j++){const vv=vc[j];const val=(Math.exp(-sq(vv-v0)/(2*vt*vt))+Math.exp(-sq(vv+v0)/(2*vt*vt)))*r;gf[GI(i,j)]=val;if(val>gfmax)gfmax=val;}}}
+  function gAdvX(frac){for(let j=0;j<Nv;j++){const sh=vc[j]*dt*frac/dx;for(let i=0;i<Nx;i++){let src=i-sh,i0=Math.floor(src);const fr=src-i0;i0=((i0%Nx)+Nx)%Nx;gtmp[GI(i,j)]=gf[GI(i0,j)]*(1-fr)+gf[GI((i0+1)%Nx,j)]*fr;}}const t=gf;gf=gtmp;gtmp=t;}
+  function gAdvV(){for(let i=0;i<Nx;i++){const sh=(-gE[i])*dt/dv;for(let j=0;j<Nv;j++){let src=j-sh,j0=Math.floor(src);const fr=src-j0;const a=(j0>=0&&j0<Nv)?gf[GI(i,j0)]:0,b=(j0+1>=0&&j0+1<Nv)?gf[GI(i,j0+1)]:0;gtmp[GI(i,j)]=a*(1-fr)+b*fr;}}const t=gf;gf=gtmp;gtmp=t;}
+  function gridStep(){gAdvX(0.5);let mean=0;for(let i=0;i<Nx;i++){let s=0;for(let j=0;j<Nv;j++)s+=gf[GI(i,j)];s*=dv;grho[i]=s;mean+=s;}mean/=Nx;for(let i=0;i<Nx;i++)grho[i]=mean-grho[i];solveE(grho,gE);gAdvV();gAdvX(0.5);}
+  /* hermite */
+  const NH=32,alpha=1.5,uH=0.0,nu=4.0,dth=0.025;
+  const FACT=[1];for(let i=1;i<=NH+2;i++)FACT[i]=FACT[i-1]*i;
+  function Hn(n,x){if(n===0)return 1;if(n===1)return 2*x;let hm=1,h=2*x;for(let kk=1;kk<n;kk++){const nx=2*x*h-2*kk*hm;hm=h;h=nx;}return h;}
+  function Psi(n,xi){return Hn(n,xi)*Math.exp(-xi*xi)/Math.sqrt(Math.PI*Math.pow(2,n)*FACT[n]);}
+  function PsiD(n,xi){return Hn(n,xi)/Math.sqrt(Math.pow(2,n)*FACT[n]);}
+  const sUp=m=>Math.sqrt((m+1)/2),sDn=m=>Math.sqrt(m/2);
+  function wcol(m){if(m<3)return 0;return m*(m-1)*(m-2)/((NH-1)*(NH-2)*(NH-3));}
+  const Nvd=64,vcd=[];for(let j=0;j<Nvd;j++)vcd.push(-VW+(j+0.5)*(2*VW/Nvd));
+  const PSI=[];for(let m=0;m<NH;m++){PSI[m]=new Float64Array(Nvd);for(let j=0;j<Nvd;j++)PSI[m][j]=Psi(m,(vcd[j]-uH)/alpha);}
+  let C=[],dmAll=new Float64Array(NH);
+  function hermInit(){dmAll.fill(0);const a=-9,b=9,Nq=2400,h=(b-a)/Nq;for(let q=0;q<=Nq;q++){const xi=a+q*h;const wq=(q===0||q===Nq)?0.5:1;const gv=Math.exp(-sq(uH+alpha*xi-v0)/(2*vt*vt))+Math.exp(-sq(uH+alpha*xi+v0)/(2*vt*vt));for(let m=0;m<NH;m++)dmAll[m]+=wq*gv*PsiD(m,xi)*h;}C=[];for(let m=0;m<NH;m++){C[m]=new Float64Array(Nx);for(let i=0;i<Nx;i++)C[m][i]=(1+A*Math.cos(k*xc[i]))*dmAll[m];}}
+  const _dCx=[];for(let m=0;m<NH;m++)_dCx[m]=new Float64Array(Nx);
+  const _hE=new Float64Array(Nx),_hrho=new Float64Array(Nx);
+  function mk(){const a=[];for(let m=0;m<NH;m++)a[m]=new Float64Array(Nx);return a;}
+  const k1=mk(),k2=mk(),k3=mk(),k4=mk(),Ct=mk();
+  function deriv(Cin,out){let mean=0;for(let i=0;i<Nx;i++){_hrho[i]=alpha*Cin[0][i];mean+=_hrho[i];}mean/=Nx;for(let i=0;i<Nx;i++)_hrho[i]=mean-alpha*Cin[0][i];solveE(_hrho,_hE);for(let m=0;m<NH;m++)ddx(Cin[m],_dCx[m]);for(let m=0;m<NH;m++){const o=out[m],su=alpha*sUp(m),sd=alpha*sDn(m),fc=(m>=1)?Math.sqrt(2*m)/alpha:0,wc=nu*wcol(m);for(let i=0;i<Nx;i++){let adv=0;if(m+1<NH)adv+=su*_dCx[m+1][i];if(m-1>=0)adv+=sd*_dCx[m-1][i];let fld=(m>=1)?-fc*_hE[i]*Cin[m-1][i]:0;o[i]=-adv+fld-wc*Cin[m][i];}}}
+  function rk4(h){deriv(C,k1);for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)Ct[m][i]=C[m][i]+0.5*h*k1[m][i];deriv(Ct,k2);for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)Ct[m][i]=C[m][i]+0.5*h*k2[m][i];deriv(Ct,k3);for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)Ct[m][i]=C[m][i]+h*k3[m][i];deriv(Ct,k4);for(let m=0;m<NH;m++)for(let i=0;i<Nx;i++)C[m][i]+=h/6*(k1[m][i]+2*k2[m][i]+2*k3[m][i]+k4[m][i]);}
+  function hermStep(){rk4(dth);rk4(dth);}
+  let hfmax=0;
+  /* draws */
+  const picCv=document.getElementById('picCv'),gridCv=document.getElementById('gridCv'),hermCv=document.getElementById('hermCv');
+  function picDraw(){const {ctx,w,h}=fit(picCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);const x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b,X=x=>x0+x/L*(x1-x0),Y=v=>{const t=(v+VW)/(2*VW);return y1-t*(y1-y0);};ctx.strokeStyle='rgba(255,255,255,.10)';ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x1,Y(0));ctx.stroke();for(let i=0;i<PIC.N;i++){const vv=PIC.v[i];if(vv<-VW||vv>VW)continue;ctx.fillStyle=vv>=0?'rgba(79,214,224,.5)':'rgba(255,93,143,.5)';ctx.fillRect(X(PIC.x[i]),Y(vv),1.4,1.4);}vaxis(ctx,x0,y0,x1,y1,'speed  v','+'+VW.toFixed(1),'0','-'+VW.toFixed(1));}
+  function gridDraw(){const {ctx,w,h}=fit(gridCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);const x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b,cw=(x1-x0)/Nx,Y=v=>{const t=(v+VW)/(2*VW);return y1-t*(y1-y0);},ch=(Y(-VW)-Y(VW))/((2*VW)/dv);for(let i=0;i<Nx;i++)for(let j=0;j<Nv;j++){const vv=vc[j];if(vv<-VW||vv>VW)continue;const val=gf[GI(i,j)]/gfmax;if(val<0.02)continue;const c=cmap(val);ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;ctx.fillRect(x0+i*cw,Y(vv+dv/2),cw+0.6,Math.abs(ch)+0.8);}vaxis(ctx,x0,y0,x1,y1,'speed  v','+'+VW.toFixed(1),'0','-'+VW.toFixed(1));}
+  function hermDraw(){const {ctx,w,h}=fit(hermCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);const stripH=28,x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b-stripH-18,cw=(x1-x0)/Nx,ch=(y1-y0)/Nvd;
+    if(hfmax===0){for(let i=0;i<Nx;i++)for(let j=0;j<Nvd;j++){let s=0;for(let m=0;m<NH;m++)s+=C[m][i]*PSI[m][j];if(s>hfmax)hfmax=s;}}
+    for(let i=0;i<Nx;i++)for(let j=0;j<Nvd;j++){let s=0;for(let m=0;m<NH;m++)s+=C[m][i]*PSI[m][j];const val=s/hfmax;if(val<0.02)continue;const c=cmap(val);ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;ctx.fillRect(x0+i*cw,y0+(Nvd-1-j)*ch,cw+0.6,ch+0.8);}
+    vaxis(ctx,x0,y0,x1,y1,'speed  v','+'+VW.toFixed(1),'0','-'+VW.toFixed(1));
+    const sy=y1+20,bw=(x1-x0)/NH;ctx.fillStyle='rgba(255,255,255,.04)';ctx.fillRect(x0,sy,x1-x0,stripH);
+    let cmaxv=1e-9,mag=new Float64Array(NH);for(let m=0;m<NH;m++){let s=0;for(let i=0;i<Nx;i++)s+=C[m][i]*C[m][i];mag[m]=Math.sqrt(s/Nx);if(mag[m]>cmaxv)cmaxv=mag[m];}
+    for(let m=0;m<NH;m++){const bh=Math.pow(mag[m]/cmaxv,0.5)*stripH,hot=m/(NH-1);ctx.fillStyle=`hsl(${280-hot*230},80%,${45+hot*18}%)`;ctx.fillRect(x0+m*bw+0.5,sy+stripH-bh,bw-1,bh);}
+    ctx.fillStyle='rgba(234,238,251,.55)';ctx.font="9px 'IBM Plex Mono'";ctx.textAlign='left';ctx.fillText('recipe |Cₘ|  (mode 0 → '+(NH-1)+')',x0,sy+stripH+10);}
+  /* driver */
+  const playBtn=document.getElementById('twPlay'),resetBtn=document.getElementById('twReset'),npart=document.getElementById('npart'),npVal=document.getElementById('npVal'),npLabel=document.getElementById('npLabel'),noiseLabel=document.getElementById('noiseLabel'),timepill=document.getElementById('twTime');
+  let playing=!REDUCE,T=0,vis=false;
+  function updNoise(){const N=PIC.N;npVal.textContent=N;npLabel.textContent=N;noiseLabel.textContent=(100/Math.sqrt(N)).toFixed(1)+'%';}
+  function reset(){T=0;picInit(+npart.value);gridInit();hermInit();hfmax=0;updNoise();picDraw();gridDraw();hermDraw();timepill.textContent='t = 0.0';}
+  function frame(){if(vis&&playing){for(let s=0;s<SUB;s++){picStep();gridStep();hermStep();T+=dt;}timepill.textContent='t = '+T.toFixed(1);picDraw();gridDraw();hermDraw();}requestAnimationFrame(frame);}
+  playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';});
+  resetBtn.addEventListener('click',reset);
+  npart.addEventListener('input',()=>{picInit(+npart.value);updNoise();picDraw();});
+  new IntersectionObserver(es=>es.forEach(e=>vis=e.isIntersecting),{threshold:.05}).observe(gridCv);
+  reset();playBtn.textContent=playing?'Pause':'Play';
+  if(REDUCE){for(let s=0;s<200;s++){picStep();gridStep();hermStep();}picDraw();gridDraw();hermDraw();}else requestAnimationFrame(frame);
+})();
+
+/* reveal */
+window.addEventListener('DOMContentLoaded',()=>{const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');}),{threshold:.1});document.querySelectorAll('.reveal').forEach(el=>io.observe(el));});
+</script>
+<div id="hl-pop"><button id="hl-add" type="button">＋ Add to explain list</button></div>
+<div id="hl-panel" data-open="false" aria-label="Things to explain">
+  <div id="hl-head" role="button" tabindex="0" aria-expanded="false"><span id="hl-title">Explain list</span><span id="hl-count">0</span><span id="hl-caret">▸</span></div>
+  <div id="hl-body">
+    <div id="hl-items"><div id="hl-empty">Highlight any text on the page, then click "＋ Add to explain list". Add as many as you like — then Copy or Download to send the list to Claude.</div></div>
+    <div id="hl-actions">
+      <button class="hl-btn primary" id="hl-copy" type="button">Copy for Claude</button>
+      <button class="hl-btn" id="hl-dl" type="button">Download</button>
+      <button class="hl-btn" id="hl-clear" type="button">Clear</button>
+    </div>
+  </div>
+</div>
+<textarea id="hl-ta" readonly aria-hidden="true"></textarea>
+<div id="hl-toast" role="status"></div>
+<script>
+(function(){
+  const items=[];
+  const pop=document.getElementById('hl-pop'),addBtn=document.getElementById('hl-add'),
+        panel=document.getElementById('hl-panel'),head=document.getElementById('hl-head'),
+        countEl=document.getElementById('hl-count'),itemsEl=document.getElementById('hl-items'),
+        emptyEl=document.getElementById('hl-empty'),toast=document.getElementById('hl-toast'),
+        ta=document.getElementById('hl-ta');
+  function render(){
+    countEl.textContent=items.length;
+    [...itemsEl.querySelectorAll('.hl-item')].forEach(n=>n.remove());
+    emptyEl.style.display=items.length?'none':'block';
+    items.forEach((t,i)=>{
+      const d=document.createElement('div');d.className='hl-item';
+      const sp=document.createElement('span');sp.textContent=t.length>150?t.slice(0,150)+'…':t;
+      const b=document.createElement('button');b.type='button';b.setAttribute('aria-label','Remove');b.textContent='×';
+      b.addEventListener('click',()=>{items.splice(i,1);render();});
+      d.appendChild(sp);d.appendChild(b);itemsEl.appendChild(d);
+    });
+  }
+  function openPanel(){panel.setAttribute('data-open','true');head.setAttribute('aria-expanded','true');}
+  function toastMsg(m){toast.textContent=m;toast.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>toast.classList.remove('show'),2800);}
+  function isInUI(n){if(!n)return false;const el=n.nodeType===3?n.parentElement:n;return !!(el&&el.closest&&(el.closest('#hl-panel')||el.closest('#hl-pop')));}
+  function add(t){if(!t)return;items.push(t);render();openPanel();}
+  function showPop(rect){
+    pop.style.display='block';
+    const pw=pop.offsetWidth,ph=pop.offsetHeight;
+    let left=rect.left+rect.width/2-pw/2;
+    left=Math.max(8,Math.min(window.innerWidth-pw-8,left));
+    let top=rect.top-ph-8; if(top<8)top=rect.bottom+8;
+    pop.style.left=left+'px';pop.style.top=top+'px';
+  }
+  function hidePop(){pop.style.display='none';}
+  function onSel(){setTimeout(()=>{const sel=window.getSelection();const t=sel?sel.toString().trim():'';
+    if(t&&sel.rangeCount&&!isInUI(sel.anchorNode)){showPop(sel.getRangeAt(0).getBoundingClientRect());}else{hidePop();}},10);}
+  addBtn.addEventListener('mousedown',e=>{e.preventDefault();const sel=window.getSelection();add(sel?sel.toString().trim():'');try{sel.removeAllRanges();}catch(_){}hidePop();});
+  document.addEventListener('mouseup',onSel);
+  document.addEventListener('touchend',onSel);
+  document.addEventListener('keyup',onSel);
+  window.addEventListener('scroll',hidePop,true);
+  head.addEventListener('click',()=>{const o=panel.getAttribute('data-open')==='true';panel.setAttribute('data-open',o?'false':'true');head.setAttribute('aria-expanded',o?'false':'true');});
+  head.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();head.click();}});
+  function compile(){let o="Here are parts of the guide I'd like you to explain in more detail:\n\n";items.forEach((t,i)=>{o+=(i+1)+'. \u201c'+t+'\u201d\n\n';});o+="Please walk through each one in plain terms.";return o;}
+  document.getElementById('hl-copy').addEventListener('click',()=>{
+    if(!items.length){toastMsg('Highlight something and add it first');return;}
+    const s=compile();ta.value=s;
+    const fb=()=>{ta.select();try{return document.execCommand('copy');}catch(_){return false;}};
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(s).then(()=>toastMsg('Copied — paste it into your Claude chat')).catch(()=>toastMsg(fb()?'Copied — paste it into your Claude chat':'Couldn\u2019t copy — use Download instead'));
+    }else{toastMsg(fb()?'Copied — paste it into your Claude chat':'Couldn\u2019t copy — use Download instead');}
+  });
+  document.getElementById('hl-dl').addEventListener('click',()=>{
+    if(!items.length){toastMsg('Highlight something and add it first');return;}
+    const blob=new Blob([compile()],{type:'text/markdown'});const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='things-to-explain.md';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    toastMsg('Downloaded things-to-explain.md');
+  });
+  document.getElementById('hl-clear').addEventListener('click',()=>{items.length=0;render();});
+  render();
+})();
+</script>
+</body>
+</html>

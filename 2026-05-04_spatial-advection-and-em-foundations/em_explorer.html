@@ -1,0 +1,1234 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>em explorer</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// ============================================================
+// MATH RENDERING WITHOUT CDN
+// Math rendered as styled HTML with Unicode symbols and CSS.
+// No external dependencies. Works offline.
+// ============================================================
+
+function M({ children }) {
+  return (
+    <span style={{
+      fontFamily: "'Cambria Math', 'STIX Two Math', 'Latin Modern Math', Georgia, serif",
+      fontStyle: "italic",
+      fontSize: "1.05em",
+      whiteSpace: "nowrap",
+      letterSpacing: "0.01em"
+    }}>
+      {children}
+    </span>
+  );
+}
+
+function MathBlock({ children, color = "#fff" }) {
+  return (
+    <div style={{
+      background: "#08080d",
+      padding: "16px 14px",
+      borderRadius: 4,
+      textAlign: "center",
+      margin: "10px 0",
+      fontFamily: "'Cambria Math', 'STIX Two Math', 'Latin Modern Math', Georgia, serif",
+      fontSize: "20px",
+      fontStyle: "italic",
+      color,
+      letterSpacing: "0.02em"
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function Frac({ num, den }) {
+  return (
+    <span style={{
+      display: "inline-flex",
+      flexDirection: "column",
+      verticalAlign: "middle",
+      textAlign: "center",
+      margin: "0 2px",
+      fontSize: "0.9em"
+    }}>
+      <span style={{ borderBottom: "1px solid currentColor", padding: "0 6px" }}>{num}</span>
+      <span style={{ padding: "0 6px" }}>{den}</span>
+    </span>
+  );
+}
+
+function Vec({ children }) {
+  return (
+    <span style={{ display: "inline-block", position: "relative", padding: "0 1px" }}>
+      <span style={{
+        position: "absolute",
+        top: "-0.4em",
+        left: 0,
+        right: 0,
+        textAlign: "center",
+        fontSize: "0.7em",
+        lineHeight: 1
+      }}>→</span>
+      <span style={{ fontWeight: 600 }}>{children}</span>
+    </span>
+  );
+}
+
+function Sub({ children }) { return <sub style={{ fontStyle: "normal" }}>{children}</sub>; }
+function Sup({ children }) { return <sup style={{ fontStyle: "normal" }}>{children}</sup>; }
+
+function EMExplorer() {
+  const [section, setSection] = useState("electrostatics");
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#08080d",
+      color: "#e8e8ee",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+      padding: "32px 24px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: inherit; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 18px; margin-bottom: 14px; }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; margin-top: -7px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #08080d;
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%;
+          cursor: grab; border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+        .stat {
+          background: #0d0d18; border: 1px solid #1f1f2c; padding: 10px 12px;
+        }
+        .stat .lbl { font-size: 9px; letter-spacing: 0.2em; color: #666; margin-bottom: 4px; }
+        .stat .val { font-size: 16px; font-family: 'Fraunces', serif; font-style: italic; color: #fff; }
+        .section-header {
+          font-size: 32px; font-family: 'Fraunces', serif; font-style: italic; font-weight: 800;
+          margin: 0 0 8px 0;
+        }
+        .formula-block {
+          background: #08080d;
+          border-left: 2px solid #ff5c3a;
+          padding: 12px 16px;
+          margin: 12px 0;
+          font-family: 'Cambria Math', 'STIX Two Math', Georgia, serif;
+          font-size: 17px;
+          font-style: italic;
+          color: #fff;
+          line-height: 1.7;
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>
+            ELECTROMAGNETISM · GUIDED TOUR
+          </div>
+          <h1 className="display" style={{ fontSize: 38, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            Fields, charges, and Maxwell
+          </h1>
+          <p style={{ fontSize: 13, color: "#b0b0bc", marginTop: 12, lineHeight: 1.6, maxWidth: 750 }}>
+            From "what is an electric field?" to all four of Maxwell's equations.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+          {[
+            { id: "electrostatics", label: "1 · Electrostatics" },
+            { id: "magnetism", label: "2 · Magnetic fields" },
+            { id: "lorentz", label: "3 · Lorentz force" },
+            { id: "maxwell", label: "4 · Maxwell's eqs" }
+          ].map(s => (
+            <button key={s.id} className={`control-btn ${section === s.id ? "active" : ""}`} onClick={() => setSection(s.id)}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {section === "electrostatics" && <Electrostatics />}
+        {section === "magnetism" && <Magnetism />}
+        {section === "lorentz" && <Lorentz />}
+        {section === "maxwell" && <Maxwell />}
+      </div>
+    </div>
+  );
+}
+
+function Electrostatics() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a" }}>SECTION 1</div>
+      <h2 className="section-header">Electric fields & charges</h2>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 20, lineHeight: 1.6 }}>
+        Everything in electromagnetism starts with charges and the fields they create.
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <div className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#ffd166", marginBottom: 10 }}>
+          The big idea
+        </div>
+        <div style={{ fontSize: 14, color: "#e8e8ee", lineHeight: 1.65 }}>
+          Charge comes in two flavors: <span style={{ color: "#ffd166" }}>positive (+)</span> and <span style={{ color: "#3ec6c2" }}>negative (−)</span>. Charges don't pull on each other directly across empty space — instead, each charge creates an <em>electric field</em> in the space around it, and that field pushes other charges.
+        </div>
+        <MathBlock>
+          <Vec>F</Vec> = <span style={{ fontStyle: "normal" }}>q</span> <Vec>E</Vec>
+        </MathBlock>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.6 }}>
+          The field <M><Vec>E</Vec></M> at any point tells you exactly which way and how hard a charge <M>q</M> placed there will be pushed.
+        </div>
+      </div>
+
+      <CoulombDemo />
+      <FieldFromChargeDemo />
+      <TwoChargesDemo />
+      <GaussDemo />
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", color: "#ffd166", marginBottom: 10 }}>
+          What you now know
+        </div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.8 }}>
+          Charges create electric fields <M><Vec>E</Vec></M> in the space around them.<br/>
+          Force on a charge: <M><Vec>F</Vec> = q<Vec>E</Vec></M>.<br/>
+          Coulomb's law: field from a point charge falls off as <M>1/r<Sup>2</Sup></M>.<br/>
+          Gauss's law: <M>∇ · <Vec>E</Vec> = ρ/ε<Sub>0</Sub></M>.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoulombDemo() {
+  const [q1, setQ1] = useState(1);
+  const [q2, setQ2] = useState(1);
+  const [r, setR] = useState(2);
+  const F = (q1 * q2) / (r * r);
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        COULOMB'S LAW
+      </div>
+      <MathBlock>
+        F = <Frac num={<>k q<Sub>1</Sub> q<Sub>2</Sub></>} den={<>r<Sup>2</Sup></>} />
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        The force between two point charges. Big charges → big force. Far apart → tiny force (<M>1/r<Sup>2</Sup></M> falloff). Same sign → repulsive. Opposite sign → attractive.
+      </div>
+      <svg width="100%" viewBox="0 0 480 160" style={{ background: "#08080d", borderRadius: 4 }}>
+        <circle cx={100} cy={80} r={14} fill={q1 > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={100} y={85} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{q1 > 0 ? "+" : "−"}</text>
+        <text x={100} y={50} fontSize="11" fill="#b0b0bc" textAnchor="middle" fontFamily="Cambria Math, Georgia, serif" fontStyle="italic">q₁ = {q1 >= 0 ? "+" : ""}{q1.toFixed(2)}</text>
+
+        <circle cx={100 + r * 60} cy={80} r={14} fill={q2 > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={100 + r * 60} y={85} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{q2 > 0 ? "+" : "−"}</text>
+        <text x={100 + r * 60} y={50} fontSize="11" fill="#b0b0bc" textAnchor="middle" fontFamily="Cambria Math, Georgia, serif" fontStyle="italic">q₂ = {q2 >= 0 ? "+" : ""}{q2.toFixed(2)}</text>
+
+        <line x1={100} y1={110} x2={100 + r * 60} y2={110} stroke="#666" strokeWidth="1" />
+        <text x={100 + r * 30} y={130} fontSize="11" fill="#888" textAnchor="middle" fontStyle="italic">r = {r.toFixed(2)}</text>
+
+        {Math.abs(F) > 0.001 && (() => {
+          const arrowLen = Math.min(80, Math.abs(F) * 60);
+          const dir = F > 0 ? 1 : -1;
+          return (
+            <g>
+              <line x1={100 - 16} y1={80} x2={100 - 16 - dir * arrowLen} y2={80} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#fhead)" />
+              <line x1={100 + r * 60 + 16} y1={80} x2={100 + r * 60 + 16 + dir * arrowLen} y2={80} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#fhead)" />
+              <text x={100 - 16 - dir * arrowLen / 2} y={70} fontSize="10" fill="#ff5c3a" textAnchor="middle" fontStyle="italic">F</text>
+            </g>
+          );
+        })()}
+
+        <defs>
+          <marker id="fhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 14 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>q₁</span><span style={{ color: "#fff" }}>{q1 >= 0 ? "+" : ""}{q1.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={q1} onChange={e => setQ1(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>q₂</span><span style={{ color: "#fff" }}>{q2 >= 0 ? "+" : ""}{q2.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={q2} onChange={e => setQ2(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>distance r</span><span style={{ color: "#fff" }}>{r.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.5" max="5" step="0.01" value={r} onChange={e => setR(parseFloat(e.target.value))} />
+        </div>
+      </div>
+
+      <div className="formula-block">
+        F = <Frac num={<>q<Sub>1</Sub> q<Sub>2</Sub></>} den={<>r<Sup>2</Sup></>} /> = <Frac num={<>({q1.toFixed(2)})({q2.toFixed(2)})</>} den={<>({r.toFixed(2)})<Sup>2</Sup></>} /> = <span style={{ color: F > 0 ? "#ff5c3a" : F < 0 ? "#3ec6c2" : "#fff" }}>{F.toFixed(3)}</span>
+        <div style={{ fontSize: 12, fontStyle: "normal", color: F > 0.01 ? "#ff5c3a" : F < -0.01 ? "#3ec6c2" : "#888", marginTop: 8, fontFamily: "'JetBrains Mono', monospace" }}>
+          {F > 0.01 && "→ repulsive (pushing apart)"}
+          {F < -0.01 && "→ attractive (pulling together)"}
+          {Math.abs(F) <= 0.01 && "→ approximately zero"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldFromChargeDemo() {
+  const [Q, setQ] = useState(1);
+  const [showField, setShowField] = useState(true);
+  const [showLines, setShowLines] = useState(true);
+  const W = 480, H = 280;
+  const cx = W/2, cy = H/2;
+
+  const arrows = [];
+  const grid = 7;
+  for (let i = -grid; i <= grid; i++) {
+    for (let j = -Math.floor(grid * 0.55); j <= Math.floor(grid * 0.55); j++) {
+      const x = i * 30, y = j * 30;
+      if (x === 0 && y === 0) continue;
+      const r2 = x * x + y * y;
+      if (r2 < 400) continue;
+      const r = Math.sqrt(r2);
+      const mag = Q / r2 * 800;
+      const len = Math.min(20, Math.abs(mag));
+      const dir = Q > 0 ? 1 : -1;
+      arrows.push({
+        x1: cx + x - dir * (x / r) * len * 0.5,
+        y1: cy + y - dir * (y / r) * len * 0.5,
+        x2: cx + x + dir * (x / r) * len * 0.5,
+        y2: cy + y + dir * (y / r) * len * 0.5
+      });
+    }
+  }
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        ELECTRIC FIELD AROUND A POINT CHARGE
+      </div>
+      <MathBlock>
+        <Vec>E</Vec>(<Vec>r</Vec>) = <Frac num={<>kq</>} den={<>r<Sup>2</Sup></>} /> r̂
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        A charge creates a field <em>everywhere in space</em>. Each arrow shows which way and how hard a small positive test charge would be pushed if you placed it there.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {showField && arrows.map((a, i) => (
+          <line key={i} x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2} stroke="#7af0a8" strokeWidth="1.2" markerEnd="url(#earrow)" opacity="0.7" />
+        ))}
+        {showLines && [0, 1, 2, 3].map(i => (
+          <circle key={i} cx={cx} cy={cy} r={(i + 1) * 30} fill="none" stroke="#7af0a8" strokeOpacity={0.15} strokeDasharray="2,3" />
+        ))}
+        <circle cx={cx} cy={cy} r="14" fill={Q > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={cx} y={cy + 5} fontSize="16" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{Q > 0 ? "+" : "−"}</text>
+
+        <defs>
+          <marker id="earrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <polygon points="0 0, 5 2.5, 0 5" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 14, marginTop: 12, alignItems: "center" }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>charge Q</span><span style={{ color: "#fff" }}>{Q >= 0 ? "+" : ""}{Q.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Q} onChange={e => setQ(parseFloat(e.target.value))} />
+        </div>
+        <button className={`control-btn ${showField ? "active" : ""}`} onClick={() => setShowField(s => !s)}>field</button>
+        <button className={`control-btn ${showLines ? "active" : ""}`} onClick={() => setShowLines(s => !s)}>equipotentials</button>
+      </div>
+    </div>
+  );
+}
+
+function TwoChargesDemo() {
+  const [q1, setQ1] = useState(1);
+  const [q2, setQ2] = useState(-1);
+  const W = 520, H = 280;
+  const c1x = 160, c1y = H/2;
+  const c2x = 360, c2y = H/2;
+  const arrows = [];
+  for (let i = 0; i < 16; i++) {
+    for (let j = 0; j < 9; j++) {
+      const px = (i + 0.5) * (W / 16);
+      const py = (j + 0.5) * (H / 9);
+      const r1x = px - c1x, r1y = py - c1y;
+      const r1_2 = r1x * r1x + r1y * r1y;
+      if (r1_2 < 200) continue;
+      const r1 = Math.sqrt(r1_2);
+      const E1x = q1 * r1x / (r1_2 * r1) * 1000;
+      const E1y = q1 * r1y / (r1_2 * r1) * 1000;
+      const r2x = px - c2x, r2y = py - c2y;
+      const r2_2 = r2x * r2x + r2y * r2y;
+      if (r2_2 < 200) continue;
+      const r2 = Math.sqrt(r2_2);
+      const E2x = q2 * r2x / (r2_2 * r2) * 1000;
+      const E2y = q2 * r2y / (r2_2 * r2) * 1000;
+      const Ex = E1x + E2x, Ey = E1y + E2y;
+      const Emag = Math.sqrt(Ex*Ex + Ey*Ey);
+      if (Emag < 0.3 || Emag > 30) continue;
+      const len = Math.min(16, Emag * 1.5);
+      arrows.push({ px, py, ux: Ex/Emag, uy: Ey/Emag, len });
+    }
+  }
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        SUPERPOSITION · TWO CHARGES
+      </div>
+      <MathBlock>
+        <Vec>E</Vec><Sub>total</Sub> = <Vec>E</Vec><Sub>1</Sub> + <Vec>E</Vec><Sub>2</Sub>
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        E fields from multiple charges add as vectors. Try +/+ vs +/− to see different patterns.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {arrows.map((a, i) => (
+          <line key={i}
+            x1={a.px - a.ux * a.len/2} y1={a.py - a.uy * a.len/2}
+            x2={a.px + a.ux * a.len/2} y2={a.py + a.uy * a.len/2}
+            stroke="#7af0a8" strokeWidth="1.2" markerEnd="url(#earrow2)" opacity="0.7"
+          />
+        ))}
+        <circle cx={c1x} cy={c1y} r="14" fill={q1 > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={c1x} y={c1y + 5} fontSize="16" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{q1 > 0 ? "+" : "−"}</text>
+        <circle cx={c2x} cy={c2y} r="14" fill={q2 > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={c2x} y={c2y + 5} fontSize="16" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{q2 > 0 ? "+" : "−"}</text>
+        <defs>
+          <marker id="earrow2" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <polygon points="0 0, 5 2.5, 0 5" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>q₁ (left)</span><span style={{ color: "#fff" }}>{q1 >= 0 ? "+" : ""}{q1.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={q1} onChange={e => setQ1(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>q₂ (right)</span><span style={{ color: "#fff" }}>{q2 >= 0 ? "+" : ""}{q2.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={q2} onChange={e => setQ2(parseFloat(e.target.value))} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GaussDemo() {
+  const [Q, setQ] = useState(1);
+  const [Rsurface, setRsurface] = useState(1.5);
+  const W = 480, H = 260;
+  const cx = W/2, cy = H/2;
+  const Rpx = Rsurface * 50;
+  const flux = Q;
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        GAUSS'S LAW
+      </div>
+      <MathBlock>
+        ∇ · <Vec>E</Vec> = <Frac num="ρ" den={<>ε<Sub>0</Sub></>} />
+        &nbsp;&nbsp;⟺&nbsp;&nbsp;
+        ∮ <Vec>E</Vec> · d<Vec>A</Vec> = <Frac num={<>Q<Sub>enc</Sub></>} den={<>ε<Sub>0</Sub></>} />
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        The total flux of E through any closed surface only depends on the charge inside. Drag the surface size — the flux <em>doesn't change</em>.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <circle cx={cx} cy={cy} r={Rpx} fill="none" stroke="#ffd166" strokeWidth="2" strokeDasharray="6,4" />
+        <text x={cx} y={cy - Rpx - 6} fontSize="11" fill="#ffd166" textAnchor="middle" fontStyle="italic">Gaussian surface</text>
+
+        {Array.from({ length: 12 }).map((_, i) => {
+          const ang = (i / 12) * Math.PI * 2;
+          const start_r = Rpx - 8;
+          const end_r = Rpx + 8 + Math.abs(Q) * 12;
+          const dir = Q > 0 ? 1 : -1;
+          const x1 = cx + Math.cos(ang) * (dir > 0 ? start_r : end_r);
+          const y1 = cy + Math.sin(ang) * (dir > 0 ? start_r : end_r);
+          const x2 = cx + Math.cos(ang) * (dir > 0 ? end_r : start_r);
+          const y2 = cy + Math.sin(ang) * (dir > 0 ? end_r : start_r);
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#gauss_arrow)" />;
+        })}
+        <circle cx={cx} cy={cy} r="14" fill={Q > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={cx} y={cy + 5} fontSize="16" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{Q > 0 ? "+" : "−"}</text>
+
+        <defs>
+          <marker id="gauss_arrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <polygon points="0 0, 5 2.5, 0 5" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>charge inside</span><span style={{ color: "#fff" }}>{Q >= 0 ? "+" : ""}{Q.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Q} onChange={e => setQ(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>surface radius</span><span style={{ color: "#fff" }}>{Rsurface.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.5" max="3" step="0.01" value={Rsurface} onChange={e => setRsurface(parseFloat(e.target.value))} />
+        </div>
+      </div>
+      <div className="formula-block">
+        Φ<Sub>E</Sub> = ∮ <Vec>E</Vec> · d<Vec>A</Vec> = <Frac num={<>Q<Sub>enc</Sub></>} den={<>ε<Sub>0</Sub></>} /> = <span style={{ color: "#ffd166" }}>{flux.toFixed(2)}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#888", fontStyle: "normal", marginLeft: 8 }}>
+          (independent of surface size)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Magnetism() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a" }}>SECTION 2</div>
+      <h2 className="section-header">Magnetic fields</h2>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 20, lineHeight: 1.6 }}>
+        Magnetic fields only push <em>moving</em> charges, and the push is always perpendicular to the velocity.
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <div className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#9d8def", marginBottom: 10 }}>
+          What makes B different from E
+        </div>
+        <MathBlock color="#9d8def">
+          <Vec>F</Vec><Sub>mag</Sub> = q <Vec>v</Vec> × <Vec>B</Vec>
+        </MathBlock>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.7 }}>
+          1. <span style={{ color: "#9d8def" }}>B doesn't push stationary charges.</span> If <M><Vec>v</Vec> = 0</M>, the force is zero no matter how strong B is.<br/>
+          2. <span style={{ color: "#9d8def" }}>The force is perpendicular to velocity.</span> So <M><Vec>F</Vec> · <Vec>v</Vec> = 0</M> — B does no work, never speeds particles up or slows them down.<br/>
+          3. <span style={{ color: "#9d8def" }}>No magnetic monopoles.</span> Field lines always close: <M>∇ · <Vec>B</Vec> = 0</M>.
+        </div>
+      </div>
+
+      <BarMagnetDemo />
+      <CrossProductDemo />
+      <GyrationDemo />
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", color: "#9d8def", marginBottom: 10 }}>
+          What you now know
+        </div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.8 }}>
+          Magnetic force: <M><Vec>F</Vec> = q <Vec>v</Vec> × <Vec>B</Vec></M>.<br/>
+          Charged particles in B traverse circles at the cyclotron frequency <M>ω<Sub>c</Sub> = qB/m</M>.<br/>
+          Larmor radius: <M>r<Sub>L</Sub> = m v<Sub>⊥</Sub> / (qB)</M>.<br/>
+          No magnetic charges: <M>∇ · <Vec>B</Vec> = 0</M>.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BarMagnetDemo() {
+  const W = 520, H = 280;
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        BAR MAGNET FIELD LINES
+      </div>
+      <MathBlock color="#9d8def">∇ · <Vec>B</Vec> = 0</MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        Field lines emerge from N, loop around, re-enter at S. Inside the magnet they continue from S back to N. Total: closed loops always.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <rect x={W/2 - 60} y={H/2 - 25} width={60} height={50} fill="#5b8def" opacity="0.7" stroke="#0a0a0f" />
+        <rect x={W/2} y={H/2 - 25} width={60} height={50} fill="#ff7a7a" opacity="0.7" stroke="#0a0a0f" />
+        <text x={W/2 - 30} y={H/2 + 5} fontSize="14" fill="#fff" textAnchor="middle">N</text>
+        <text x={W/2 + 30} y={H/2 + 5} fontSize="14" fill="#fff" textAnchor="middle">S</text>
+        {[20, 38, 58, 80].map((off, i) => (
+          <ellipse key={i} cx={W/2} cy={H/2} rx={60 + off} ry={off}
+            fill="none" stroke="#9d8def" strokeOpacity={0.6 - i * 0.1} strokeWidth="1.5" />
+        ))}
+        {[20, 38, 58, 80].map((off, i) => {
+          const opacity = 0.6 - i * 0.1;
+          return (
+            <g key={`a${i}`}>
+              <polygon points={`${W/2},${H/2 - off - 4} ${W/2 + 8},${H/2 - off} ${W/2},${H/2 - off + 4}`} fill="#9d8def" opacity={opacity} />
+              <polygon points={`${W/2},${H/2 + off - 4} ${W/2 - 8},${H/2 + off} ${W/2},${H/2 + off + 4}`} fill="#9d8def" opacity={opacity} />
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function CrossProductDemo() {
+  const [vx, setVx] = useState(1);
+  const [vy, setVy] = useState(0);
+  const [Bz, setBz] = useState(1);
+  const W = 460, H = 240;
+  const cx = W/2, cy = H/2;
+  const scale = 50;
+  const Fx = vy * Bz;
+  const Fy = -vx * Bz;
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        v × B IN ACTION
+      </div>
+      <MathBlock>
+        <Vec>v</Vec> × <Vec>B</Vec> = (v<Sub>y</Sub>B<Sub>z</Sub> − v<Sub>z</Sub>B<Sub>y</Sub>, &nbsp; v<Sub>z</Sub>B<Sub>x</Sub> − v<Sub>x</Sub>B<Sub>z</Sub>, &nbsp; v<Sub>x</Sub>B<Sub>y</Sub> − v<Sub>y</Sub>B<Sub>x</Sub>)
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        With B out of the page, drag v components and watch F. Notice F is always perpendicular to v.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {[0.15, 0.3, 0.45, 0.6, 0.75, 0.85].map((fx, i) => (
+          [0.15, 0.3, 0.45, 0.6, 0.75, 0.85].map((fy, j) => (
+            <g key={`${i}${j}`}>
+              <circle cx={W * fx} cy={H * fy} r="2" fill="#9d8def" opacity={0.4 * Math.abs(Bz)} />
+              <circle cx={W * fx} cy={H * fy} r="6" fill="none" stroke="#9d8def" strokeOpacity={0.3 * Math.abs(Bz)} />
+            </g>
+          ))
+        ))}
+        <text x={20} y={20} fontSize="10" fill="#9d8def" fontStyle="italic">B {Bz > 0 ? "out of" : "into"} page · |B| = {Math.abs(Bz).toFixed(2)}</text>
+        <circle cx={cx} cy={cy} r="6" fill="#ffd166" />
+        <line x1={cx} y1={cy} x2={cx + vx * scale} y2={cy - vy * scale} stroke="#7af0a8" strokeWidth="3" markerEnd="url(#cv)" />
+        <text x={cx + vx * scale + 8} y={cy - vy * scale - 4} fontSize="14" fill="#7af0a8" fontStyle="italic" fontFamily="Cambria Math, Georgia">v</text>
+        {Math.abs(Fx) + Math.abs(Fy) > 0.05 && (
+          <g>
+            <line x1={cx} y1={cy} x2={cx + Fx * scale} y2={cy - Fy * scale} stroke="#ff5c3a" strokeWidth="3" markerEnd="url(#cf)" />
+            <text x={cx + Fx * scale + 8} y={cy - Fy * scale - 4} fontSize="14" fill="#ff5c3a" fontStyle="italic" fontFamily="Cambria Math, Georgia">F</text>
+          </g>
+        )}
+        <defs>
+          <marker id="cv" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+          <marker id="cf" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>v_x</span><span style={{ color: "#fff" }}>{vx.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-1.5" max="1.5" step="0.01" value={vx} onChange={e => setVx(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>v_y</span><span style={{ color: "#fff" }}>{vy.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-1.5" max="1.5" step="0.01" value={vy} onChange={e => setVy(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>B_z</span><span style={{ color: "#fff" }}>{Bz.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Bz} onChange={e => setBz(parseFloat(e.target.value))} />
+        </div>
+      </div>
+      <div className="formula-block">
+        <Vec>F</Vec> = q(<Vec>v</Vec> × <Vec>B</Vec>) = ({Fx.toFixed(2)}, &nbsp;{Fy.toFixed(2)}, &nbsp;0)
+        <div style={{ fontSize: 12, color: "#888", marginTop: 6, fontStyle: "normal", fontFamily: "'JetBrains Mono', monospace" }}>
+          v · F = {(vx*Fx + vy*Fy).toFixed(3)} ≈ 0 &nbsp;(always perpendicular)
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GyrationDemo() {
+  const [B, setB] = useState(1);
+  const [v0, setV0] = useState(1);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 480, H = 240;
+  const cx = W/2, cy = H/2;
+  const omega = B;
+  const radius = (v0 / B) * 50;
+  const px = cx + radius * Math.cos(omega * t);
+  const py = cy + radius * Math.sin(omega * t);
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        GYRATION
+      </div>
+      <MathBlock>
+        r<Sub>L</Sub> = <Frac num={<>m v<Sub>⊥</Sub></>} den={<>|q| B</>} />
+        &nbsp;&nbsp;,&nbsp;&nbsp;
+        ω<Sub>c</Sub> = <Frac num="|q| B" den="m" />
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        Charged particles in a uniform B field travel in circles. Stronger B → tighter circle, faster spinning. Higher v → bigger circle.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {[0.15, 0.35, 0.55, 0.75, 0.9].map((fy, j) => (
+          [0.1, 0.25, 0.4, 0.6, 0.75, 0.9].map((fx, i) => (
+            <circle key={`${i}${j}`} cx={W * fx} cy={H * fy} r="2" fill="#9d8def" opacity="0.4" />
+          ))
+        ))}
+        <text x={20} y={20} fontSize="10" fill="#9d8def" fontStyle="italic">B out of page · |B| = {B.toFixed(2)}</text>
+        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#9d8def" strokeOpacity="0.4" strokeDasharray="3,3" />
+        <circle cx={px} cy={py} r="6" fill="#ffd166" />
+        <line x1={px} y1={py} x2={px - Math.sin(omega * t) * 30} y2={py + Math.cos(omega * t) * 30} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#gyrA)" />
+        <line x1={px} y1={py} x2={cx + (px - cx) * 0.5} y2={cy + (py - cy) * 0.5} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#gyrF)" />
+        <defs>
+          <marker id="gyrA" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+          <marker id="gyrF" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|B|</span><span style={{ color: "#fff" }}>{B.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="3" step="0.01" value={B} onChange={e => setB(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|v|</span><span style={{ color: "#fff" }}>{v0.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="2" step="0.01" value={v0} onChange={e => setV0(parseFloat(e.target.value))} />
+        </div>
+      </div>
+      <div className="formula-block">
+        r<Sub>L</Sub> = <Frac num={v0.toFixed(2)} den={B.toFixed(2)} /> = <span style={{ color: "#9d8def" }}>{(v0/B).toFixed(3)}</span>
+        &nbsp;&nbsp;,&nbsp;&nbsp;
+        ω<Sub>c</Sub> = <span style={{ color: "#9d8def" }}>{B.toFixed(3)}</span>
+      </div>
+    </div>
+  );
+}
+
+function Lorentz() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a" }}>SECTION 3</div>
+      <h2 className="section-header">The Lorentz force</h2>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 20, lineHeight: 1.6 }}>
+        Combine the electric and magnetic forces. This is the entire force side of classical electromagnetism.
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <MathBlock>
+          <Vec>F</Vec> = q (<Vec>E</Vec> + <Vec>v</Vec> × <Vec>B</Vec>)
+        </MathBlock>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.8, marginTop: 10 }}>
+          · <span style={{ color: "#7af0a8" }}><M>q<Vec>E</Vec></M></span> — electric force, parallel to E. Doesn't care about velocity.<br/>
+          · <span style={{ color: "#9d8def" }}><M>q <Vec>v</Vec> × <Vec>B</Vec></M></span> — magnetic force, perpendicular to v and B.
+        </div>
+      </div>
+
+      <ExBDriftDemo />
+      <ParticlePathDemo />
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", color: "#ffd166", marginBottom: 10 }}>
+          What you now know
+        </div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.8 }}>
+          The Lorentz force <M><Vec>F</Vec> = q (<Vec>E</Vec> + <Vec>v</Vec> × <Vec>B</Vec>)</M> is the complete EM force.<br/>
+          When E ⊥ B, all charges drift sideways at <M><Vec>v</Vec><Sub>d</Sub> = (<Vec>E</Vec> × <Vec>B</Vec>) / B<Sup>2</Sup></M>, regardless of charge sign.<br/>
+          This E×B drift is universal — solar wind, fusion plasmas, ionosphere.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExBDriftDemo() {
+  const [E, setE] = useState(0.5);
+  const [B, setB] = useState(1);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      setT(prev => prev + dt);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const vd = E / B;
+  const W = 600, H = 240;
+  const cx_ = 80 + (vd * t * 50) % (W - 100);
+  const cy_ = H/2;
+  const r = 30 / B;
+  const omega = B * 2;
+  const px = cx_ + r * Math.cos(omega * t);
+  const py = cy_ + r * Math.sin(omega * t);
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        E×B DRIFT
+      </div>
+      <MathBlock>
+        <Vec>v</Vec><Sub>d</Sub> = <Frac num={<><Vec>E</Vec> × <Vec>B</Vec></>} den={<>B<Sup>2</Sup></>} />
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        With both E (rightward) and B (out of page), particles trace cycloids and drift sideways at velocity E/B regardless of charge sign or mass.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {[0.15, 0.4, 0.65, 0.85].map((fy, j) => (
+          [0.1, 0.3, 0.5, 0.7, 0.9].map((fx, i) => (
+            <circle key={`${i}${j}`} cx={W * fx} cy={H * fy} r="2" fill="#9d8def" opacity={0.3} />
+          ))
+        ))}
+        {[40, 80, 120, 160, 200].map(y => (
+          <line key={y} x1={20} y1={y} x2={W - 20} y2={y} stroke="#7af0a8" strokeOpacity="0.15" strokeWidth="1" />
+        ))}
+        <line x1={20} y1={20} x2={W - 20} y2={20} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#exbE)" />
+        <text x={W - 80} y={15} fontSize="11" fill="#7af0a8" fontStyle="italic">E →</text>
+        <circle cx={px} cy={py} r="6" fill="#ffd166" />
+        {Array.from({ length: 30 }).map((_, i) => {
+          const tt = t - i * 0.05;
+          if (tt < 0) return null;
+          const tx = 80 + (vd * tt * 50) % (W - 100);
+          const ty = H/2;
+          const trailX = tx + r * Math.cos(omega * tt);
+          const trailY = ty + r * Math.sin(omega * tt);
+          return <circle key={i} cx={trailX} cy={trailY} r={2} fill="#ffd166" opacity={1 - i / 30} />;
+        })}
+        <line x1={20} y1={H - 20} x2={Math.min(W - 20, 20 + vd * 100)} y2={H - 20} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#exbF)" />
+        <text x={20} y={H - 25} fontSize="11" fill="#ff5c3a" fontStyle="italic">net drift v_d = E/B = {vd.toFixed(2)}</text>
+        <defs>
+          <marker id="exbE" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+          <marker id="exbF" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|E|</span><span style={{ color: "#fff" }}>{E.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0" max="1.5" step="0.01" value={E} onChange={e => setE(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|B|</span><span style={{ color: "#fff" }}>{B.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="2" step="0.01" value={B} onChange={e => setB(parseFloat(e.target.value))} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ParticlePathDemo() {
+  const [E, setE] = useState({ x: 0.3, y: 0 });
+  const [B, setB] = useState(1);
+  const stateRef = useRef({ x: 100, y: 120, vx: 1, vy: 0 });
+  const trailRef = useRef([]);
+  const [, setTick] = useState(0);
+  const lastFrameRef = useRef(performance.now());
+
+  useEffect(() => {
+    let raf;
+    const loop = (now) => {
+      const dt = Math.min(0.04, (now - lastFrameRef.current) / 1000);
+      lastFrameRef.current = now;
+      const s = stateRef.current;
+      const Fx = E.x + s.vy * B;
+      const Fy = E.y - s.vx * B;
+      s.vx += Fx * dt;
+      s.vy += Fy * dt;
+      s.x += s.vx * dt * 30;
+      s.y += s.vy * dt * 30;
+      if (s.x < 20) s.x = 460;
+      if (s.x > 460) s.x = 20;
+      if (s.y < 20) s.y = 220;
+      if (s.y > 220) s.y = 20;
+      trailRef.current.push({ x: s.x, y: s.y });
+      if (trailRef.current.length > 200) trailRef.current.shift();
+      setTick(t => t + 1);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(loop);
+  }, [E.x, E.y, B]);
+
+  const W = 480, H = 240;
+  const s = stateRef.current;
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        FREE-FORM EXPLORER
+      </div>
+      <MathBlock>
+        m <Frac num={<>d<Vec>v</Vec></>} den="dt" /> = q (<Vec>E</Vec> + <Vec>v</Vec> × <Vec>B</Vec>)
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        Tweak the components and watch the trajectory. Three preset buttons demonstrate the canonical cases.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {[0.15, 0.4, 0.65, 0.9].map((fy, j) => (
+          [0.1, 0.3, 0.5, 0.7, 0.9].map((fx, i) => (
+            <circle key={`${i}${j}`} cx={W * fx} cy={H * fy} r="1.5" fill="#9d8def" opacity={0.3 * Math.abs(B)} />
+          ))
+        ))}
+        {trailRef.current.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={1.5} fill="#ffd166" opacity={i / trailRef.current.length} />
+        ))}
+        <circle cx={s.x} cy={s.y} r="5" fill="#ffd166" />
+        <text x={20} y={20} fontSize="10" fill="#7af0a8" fontStyle="italic">E = ({E.x.toFixed(2)}, {E.y.toFixed(2)})</text>
+        <text x={20} y={36} fontSize="10" fill="#9d8def" fontStyle="italic">B = (0, 0, {B.toFixed(2)})</text>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>E_x</span><span style={{ color: "#fff" }}>{E.x.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-1" max="1" step="0.01" value={E.x} onChange={e => setE({...E, x: parseFloat(e.target.value)})} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>E_y</span><span style={{ color: "#fff" }}>{E.y.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-1" max="1" step="0.01" value={E.y} onChange={e => setE({...E, y: parseFloat(e.target.value)})} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>B</span><span style={{ color: "#fff" }}>{B.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={B} onChange={e => setB(parseFloat(e.target.value))} />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button className="control-btn" onClick={() => { setE({x: 0.3, y: 0}); setB(0); }}>E only</button>
+        <button className="control-btn" onClick={() => { setE({x: 0, y: 0}); setB(1); }}>B only (gyration)</button>
+        <button className="control-btn" onClick={() => { setE({x: 0.3, y: 0}); setB(1); }}>E×B drift</button>
+      </div>
+    </div>
+  );
+}
+
+function Maxwell() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a" }}>SECTION 4</div>
+      <h2 className="section-header">Maxwell's four equations</h2>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 20, lineHeight: 1.6 }}>
+        Now you know E, B, and the Lorentz force. Maxwell's equations are the rules for how E and B themselves behave.
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", color: "#ffd166", marginBottom: 14, textAlign: "center" }}>
+          The four equations
+        </div>
+        <div style={{ display: "grid", gap: 14 }}>
+          <div>
+            <MathBlock color="#7af0a8">∇ · <Vec>E</Vec> = <Frac num="ρ" den={<>ε<Sub>0</Sub></>} /></MathBlock>
+            <div style={{ fontSize: 12, color: "#888", textAlign: "center" }}>Gauss · charges create E</div>
+          </div>
+          <div>
+            <MathBlock color="#9d8def">∇ · <Vec>B</Vec> = 0</MathBlock>
+            <div style={{ fontSize: 12, color: "#888", textAlign: "center" }}>No monopoles · B always closes</div>
+          </div>
+          <div>
+            <MathBlock color="#7af0a8">
+              ∇ × <Vec>E</Vec> = − <Frac num={<>∂<Vec>B</Vec></>} den="∂t" />
+            </MathBlock>
+            <div style={{ fontSize: 12, color: "#888", textAlign: "center" }}>Faraday · changing B creates circulating E</div>
+          </div>
+          <div>
+            <MathBlock color="#9d8def">
+              ∇ × <Vec>B</Vec> = μ<Sub>0</Sub> <Vec>J</Vec> + μ<Sub>0</Sub>ε<Sub>0</Sub> <Frac num={<>∂<Vec>E</Vec></>} den="∂t" />
+            </MathBlock>
+            <div style={{ fontSize: 12, color: "#888", textAlign: "center" }}>Ampère-Maxwell · currents AND changing E create circulating B</div>
+          </div>
+        </div>
+      </div>
+
+      <FaradayDemo />
+      <AmpereDemo />
+      <EMWaveDemo />
+
+      <div className="viz-card" style={{ background: "#0d0d18", borderLeft: "2px solid #ff5c3a" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", color: "#ff5c3a", marginBottom: 10 }}>
+          Now back to Vlasov
+        </div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.6 }}>
+          The full Vlasov-Maxwell system:
+        </div>
+        <MathBlock>
+          <Frac num={<>∂f<Sub>s</Sub></>} den="∂t" /> + <Vec>v</Vec> · ∇<Sub>x</Sub> f<Sub>s</Sub> + <Frac num={<>q<Sub>s</Sub></>} den={<>m<Sub>s</Sub></>} /> (<Vec>E</Vec> + <Vec>v</Vec> × <Vec>B</Vec>) · ∇<Sub>v</Sub> f<Sub>s</Sub> = 0
+        </MathBlock>
+        <MathBlock>
+          ρ = ∑<Sub>s</Sub> q<Sub>s</Sub> ∫f<Sub>s</Sub> d³v &nbsp;&nbsp;,&nbsp;&nbsp;
+          <Vec>J</Vec> = ∑<Sub>s</Sub> q<Sub>s</Sub> ∫<Vec>v</Vec> f<Sub>s</Sub> d³v
+        </MathBlock>
+      </div>
+    </div>
+  );
+}
+
+function FaradayDemo() {
+  const [t, setT] = useState(0);
+  const [amp, setAmp] = useState(0.5);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 520, H = 260;
+  const Bsize = 35 + amp * 30 * Math.sin(t * 1.5);
+  const dBdt = amp * 30 * 1.5 * Math.cos(t * 1.5);
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        FARADAY
+      </div>
+      <MathBlock>
+        ∇ × <Vec>E</Vec> = − <Frac num={<>∂<Vec>B</Vec></>} den="∂t" />
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        A changing magnetic field induces circulating E. The minus sign (Lenz's law) means the induced E opposes the change in B.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <circle cx={W/2} cy={H/2} r={Bsize} fill="#9d8def" fillOpacity="0.3" stroke="#9d8def" strokeWidth="2" />
+        <text x={W/2} y={H/2 + 5} fontSize="14" fill="#fff" textAnchor="middle" fontStyle="italic" fontFamily="Cambria Math, Georgia">B(t)</text>
+        {[80, 110, 140].map((r, i) => {
+          const arrowAngle = (dBdt > 0 ? -1 : 1) * t * 0.5 + i * 0.3;
+          const ax = W/2 + r * Math.cos(arrowAngle);
+          const ay = H/2 + r * Math.sin(arrowAngle);
+          const ax2 = W/2 + r * Math.cos(arrowAngle + (dBdt > 0 ? -0.3 : 0.3));
+          const ay2 = H/2 + r * Math.sin(arrowAngle + (dBdt > 0 ? -0.3 : 0.3));
+          return (
+            <g key={i}>
+              <circle cx={W/2} cy={H/2} r={r} fill="none" stroke="#7af0a8" strokeOpacity={0.4 - i * 0.1} strokeDasharray="3,3" />
+              <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#fda)" />
+            </g>
+          );
+        })}
+        <text x="20" y="25" fontSize="11" fill="#7af0a8" fontStyle="italic">induced E circulates</text>
+        <defs>
+          <marker id="fda" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>oscillation amplitude</span><span style={{ color: "#fff" }}>{amp.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="0" max="1" step="0.01" value={amp} onChange={e => setAmp(parseFloat(e.target.value))} />
+      </div>
+    </div>
+  );
+}
+
+function AmpereDemo() {
+  const [I, setI] = useState(1);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 520, H = 260;
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        AMPÈRE-MAXWELL
+      </div>
+      <MathBlock>
+        ∇ × <Vec>B</Vec> = μ<Sub>0</Sub> <Vec>J</Vec> + μ<Sub>0</Sub>ε<Sub>0</Sub> <Frac num={<>∂<Vec>E</Vec></>} den="∂t" />
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        Current creates circulating B (right-hand rule). Maxwell's addition (the displacement current) makes EM waves possible.
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <line x1={W/2} y1={H - 20} x2={W/2} y2={20} stroke="#ffd166" strokeWidth={3 + Math.abs(I) * 4} markerEnd={I > 0 ? "url(#aja)" : undefined} markerStart={I < 0 ? "url(#aja2)" : undefined} />
+        <text x={W/2 + 10} y={40} fontSize="14" fill="#ffd166" fontStyle="italic" fontFamily="Cambria Math, Georgia">J = {I.toFixed(1)}</text>
+        {[60, 95, 130].map((r, i) => {
+          const arrowAngle = I > 0 ? -t * 0.6 + i * 0.4 : t * 0.6 + i * 0.4;
+          const ax = W/2 + r * Math.cos(arrowAngle);
+          const ay = H/2 + r * Math.sin(arrowAngle) * 0.4;
+          const ax2 = W/2 + r * Math.cos(arrowAngle + (I > 0 ? -0.3 : 0.3));
+          const ay2 = H/2 + r * Math.sin(arrowAngle + (I > 0 ? -0.3 : 0.3)) * 0.4;
+          return (
+            <g key={i}>
+              <ellipse cx={W/2} cy={H/2} rx={r} ry={r * 0.4} fill="none" stroke="#9d8def" strokeOpacity={0.4 - i * 0.1} strokeDasharray="3,3" />
+              <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#9d8def" strokeWidth="2" markerEnd="url(#aba)" />
+            </g>
+          );
+        })}
+        <text x="20" y="25" fontSize="11" fill="#9d8def" fontStyle="italic">B circulates around J</text>
+        <defs>
+          <marker id="aja" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0, 8 4, 0 8" fill="#ffd166" />
+          </marker>
+          <marker id="aja2" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
+            <polygon points="8 0, 0 4, 8 8" fill="#ffd166" />
+          </marker>
+          <marker id="aba" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#9d8def" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>current J</span><span style={{ color: "#fff" }}>{I.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="-1.5" max="1.5" step="0.01" value={I} onChange={e => setI(parseFloat(e.target.value))} />
+      </div>
+    </div>
+  );
+}
+
+function EMWaveDemo() {
+  const [t, setT] = useState(0);
+  const [freq, setFreq] = useState(1);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 520, H = 240;
+  const N = 80;
+
+  let Epath = "";
+  let Bpath = "";
+  for (let i = 0; i <= N; i++) {
+    const x = (i / N) * W;
+    const phase = (i / N) * 4 * Math.PI - t * freq * 2;
+    const Ey = Math.sin(phase);
+    const Bz = Math.sin(phase);
+    Epath += `${i === 0 ? "M" : "L"}${x},${H/2 - Ey * 50} `;
+    Bpath += `${i === 0 ? "M" : "L"}${x},${H/2 - Bz * 50} `;
+  }
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        ELECTROMAGNETIC WAVE
+      </div>
+      <MathBlock>
+        c = <Frac num="1" den={<>√(μ<Sub>0</Sub>ε<Sub>0</Sub>)</>} /> ≈ 3 × 10<Sup>8</Sup> m/s
+      </MathBlock>
+      <div style={{ fontSize: 13, color: "#b0b0bc", marginBottom: 12, lineHeight: 1.55 }}>
+        Combine Faraday and Ampère: changing B creates E, changing E creates B. Self-sustaining wave at the speed of light. <em>This is light.</em>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <line x1="0" y1={H/2} x2={W} y2={H/2} stroke="#1f1f2c" strokeDasharray="2,3" />
+        <path d={Epath} fill="none" stroke="#7af0a8" strokeWidth="2" />
+        <path d={Bpath} fill="none" stroke="#9d8def" strokeWidth="2" strokeOpacity="0.7" strokeDasharray="4,3" />
+        <text x={20} y={20} fontSize="11" fill="#7af0a8" fontStyle="italic">E (vertical)</text>
+        <text x={20} y={36} fontSize="11" fill="#9d8def" fontStyle="italic">B (out of page)</text>
+        <text x={W - 10} y={H - 8} fontSize="11" fill="#888" textAnchor="end" fontStyle="italic">propagation →</text>
+      </svg>
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>frequency</span><span style={{ color: "#fff" }}>{freq.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="0.3" max="3" step="0.01" value={freq} onChange={e => setFreq(parseFloat(e.target.value))} />
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EMExplorer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

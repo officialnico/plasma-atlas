@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three Frequencies of a Plasma</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#08060f;
+    --void-2:#0f0c1f;
+    --panel:#13102a;
+    --panel-2:#181436;
+    --line:rgba(180,170,255,0.10);
+    --line-strong:rgba(180,170,255,0.20);
+    --text:#e9e6fb;
+    --muted:#9690c2;
+    --faint:#615c8a;
+    /* semantic physics colors */
+    --magnetic:#3fdcff;       /* B field + gyration = cool */
+    --electron:#aeccff;
+    --electron-glow:#5fa8ff;
+    --ion:#ffac5e;            /* heavy positive = warm */
+    --efield:#ff5aa6;         /* electrostatic restoring = hot */
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  html{scroll-behavior:smooth}
+
+  body{
+    background:
+      radial-gradient(1200px 700px at 70% -10%, rgba(63,220,255,0.06), transparent 60%),
+      radial-gradient(1000px 800px at 10% 30%, rgba(255,90,166,0.05), transparent 55%),
+      var(--void);
+    color:var(--text);
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:300;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;padding:96px 0 60px;overflow:hidden}
+  #ambient{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:0.9}
+  .hero .wrap{position:relative;z-index:1}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;letter-spacing:0.32em;text-transform:uppercase;
+    color:var(--magnetic);margin-bottom:22px;
+  }
+  h1{
+    font-family:'Instrument Serif',serif;font-weight:400;
+    font-size:clamp(44px,8vw,84px);line-height:0.98;letter-spacing:-0.01em;
+    margin-bottom:24px;
+  }
+  h1 em{font-style:italic;color:var(--efield)}
+  .standfirst{font-size:clamp(16px,2.4vw,20px);color:var(--muted);max-width:560px}
+  .standfirst b{color:var(--text);font-weight:500}
+
+  /* ---------- SECTIONS ---------- */
+  .section{padding:64px 0;border-top:1px solid var(--line)}
+  .marker{
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.2em;
+    color:var(--faint);margin-bottom:14px;text-transform:uppercase;
+  }
+  .marker .num{color:var(--text)}
+  h2{
+    font-family:'Instrument Serif',serif;font-weight:400;
+    font-size:clamp(30px,5vw,46px);line-height:1.04;letter-spacing:-0.01em;margin-bottom:8px;
+  }
+  .subhead{color:var(--muted);font-size:17px;max-width:600px;margin-bottom:34px}
+  .subhead .mag{color:var(--magnetic)}
+  .subhead .es{color:var(--efield)}
+
+  .lab{
+    background:linear-gradient(180deg,var(--panel),var(--void-2));
+    border:1px solid var(--line);
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 30px 80px -40px rgba(0,0,0,0.9);
+  }
+  .stage{position:relative;width:100%;aspect-ratio:16/9;background:#06040d}
+  .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .stage .hint{
+    position:absolute;left:16px;bottom:14px;z-index:3;
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.05em;
+    color:var(--faint);pointer-events:none;
+  }
+  .playbtn{
+    position:absolute;top:14px;right:14px;z-index:4;
+    width:38px;height:38px;border-radius:50%;
+    border:1px solid var(--line-strong);background:rgba(10,8,20,0.6);
+    color:var(--text);cursor:pointer;backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;font-size:13px;
+    transition:border-color .2s,background .2s;
+  }
+  .playbtn:hover{border-color:var(--magnetic);background:rgba(10,8,20,0.9)}
+
+  /* controls */
+  .controls{padding:22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:22px 32px;border-top:1px solid var(--line)}
+  .ctrl{display:flex;flex-direction:column;gap:9px}
+  .ctrl label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.04em;color:var(--muted);
+  }
+  .ctrl label .val{color:var(--text);font-weight:500}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:3px;
+    background:var(--line-strong);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--accent,var(--text));box-shadow:0 0 12px var(--accent,#fff);cursor:pointer;
+    border:2px solid var(--void);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;border:2px solid var(--void);
+    background:var(--accent,var(--text));box-shadow:0 0 12px var(--accent,#fff);cursor:pointer;
+  }
+  .ctrl.mag{--accent:var(--magnetic)}
+  .ctrl.es{--accent:var(--efield)}
+  .ctrl.ion{--accent:var(--ion)}
+
+  .btnrow{display:flex;gap:12px;align-items:center;grid-column:1/-1;flex-wrap:wrap}
+  .pluck{
+    font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:14px;
+    padding:10px 18px;border-radius:10px;cursor:pointer;
+    background:var(--efield);color:#1a0010;border:none;letter-spacing:0.01em;
+    transition:transform .08s,box-shadow .2s;box-shadow:0 0 0 rgba(255,90,166,0);
+  }
+  .pluck:hover{box-shadow:0 8px 30px -8px rgba(255,90,166,0.6)}
+  .pluck:active{transform:translateY(1px)}
+  .toggle{
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);
+    padding:9px 14px;border-radius:10px;cursor:pointer;
+    background:transparent;border:1px solid var(--line-strong);transition:color .2s,border-color .2s;
+  }
+  .toggle.on{color:var(--efield);border-color:var(--efield)}
+
+  /* readout strip */
+  .readout{
+    display:flex;flex-wrap:wrap;gap:0;border-top:1px solid var(--line);
+    font-family:'JetBrains Mono',monospace;
+  }
+  .readout .cell{flex:1;min-width:140px;padding:18px 22px;border-right:1px solid var(--line)}
+  .readout .cell:last-child{border-right:none}
+  .readout .k{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .readout .v{font-size:22px;font-weight:500;color:var(--text)}
+  .readout .v small{font-size:12px;color:var(--muted);font-weight:400}
+  .readout .v.mag{color:var(--magnetic)}
+  .readout .v.es{color:var(--efield)}
+
+  /* prose blocks */
+  .note{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:28px}
+  .note p{color:var(--muted);font-size:15.5px}
+  .note p b{color:var(--text);font-weight:500}
+  .note .formula{
+    font-family:'JetBrains Mono',monospace;color:var(--text);
+    background:var(--void-2);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;font-size:15px;display:inline-block;margin:4px 0 12px;letter-spacing:0.02em;
+  }
+  .formula .mag{color:var(--magnetic)}
+  .formula .es{color:var(--efield)}
+  .formula .ion{color:var(--ion)}
+
+  .pull{
+    font-family:'Instrument Serif',serif;font-size:clamp(22px,3.4vw,30px);
+    line-height:1.25;color:var(--text);margin:8px 0;
+  }
+  .pull em{font-style:italic;color:var(--efield)}
+
+  /* comparison cards */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--void-2));
+    border:1px solid var(--line);border-radius:16px;padding:26px;
+  }
+  .card.mag{border-top:2px solid var(--magnetic)}
+  .card.es{border-top:2px solid var(--efield)}
+  .card h3{font-family:'Instrument Serif',serif;font-weight:400;font-size:24px;margin-bottom:4px}
+  .card .tag{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:18px}
+  .card.mag .tag{color:var(--magnetic)}
+  .card.es .tag{color:var(--efield)}
+  .card .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .card .row:last-child{border-bottom:none}
+  .card .row span:first-child{color:var(--muted)}
+  .card .row span:last-child{font-family:'JetBrains Mono',monospace;color:var(--text);text-align:right}
+  .yes{color:var(--electron-glow)!important}
+  .no{color:var(--faint)!important}
+
+  .closer{padding:72px 0 110px;border-top:1px solid var(--line)}
+  .closer p{font-size:17px;color:var(--muted);max-width:640px;margin-top:18px}
+  .closer p b{color:var(--text);font-weight:500}
+  .closer .big{
+    font-family:'Instrument Serif',serif;font-size:clamp(26px,4.4vw,40px);
+    line-height:1.15;color:var(--text);
+  }
+  .closer .big em{font-style:italic;color:var(--magnetic)}
+
+  footer{padding:30px 0;border-top:1px solid var(--line);color:var(--faint);
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em}
+
+  @media(max-width:680px){
+    .controls{grid-template-columns:1fr}
+    .note{grid-template-columns:1fr;gap:18px}
+    .cards{grid-template-columns:1fr}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <canvas id="ambient"></canvas>
+  <div class="wrap">
+    <div class="eyebrow">Plasma · the fourth state of matter</div>
+    <h1>Three frequencies<br>of a <em>plasma</em></h1>
+    <p class="standfirst">A plasma rings in three different ways. Two of them come from a magnetic field bending single particles into circles. The third — the <b>plasma frequency</b> — needs no magnet at all. It is the whole electron sea sloshing.</p>
+  </div>
+</header>
+
+<!-- ===================== GYRATION ===================== -->
+<section class="section" id="gyro">
+  <div class="wrap">
+    <div class="marker">Frequency <span class="num">01 / 02</span> — magnetic, single particle</div>
+    <h2>Gyroradius &amp; gyrofrequency</h2>
+    <p class="subhead">A single electron in a <span class="mag">magnetic field</span> feels a force perpendicular to its motion, so it curves into a circle. The <span class="mag">radius</span> of that circle and the <span class="mag">rate</span> it goes around are the two gyro quantities.</p>
+
+    <div class="lab">
+      <div class="stage">
+        <canvas id="gyroCanvas"></canvas>
+        <button class="playbtn" data-target="gyro">❚❚</button>
+        <div class="hint">B points into the screen ⊗ — drag the sliders below</div>
+      </div>
+      <div class="controls">
+        <div class="ctrl mag">
+          <label>Magnetic field &nbsp;B <span class="val" id="bVal">1.00 T</span></label>
+          <input type="range" id="bField" min="0.2" max="2.5" step="0.01" value="1.0">
+        </div>
+        <div class="ctrl mag">
+          <label>Electron energy <span class="val" id="eVal">120 eV</span></label>
+          <input type="range" id="eEnergy" min="10" max="400" step="1" value="120">
+        </div>
+      </div>
+      <div class="readout">
+        <div class="cell"><div class="k">Gyrofrequency f<sub>c</sub></div><div class="v mag" id="fcOut">28.0 <small>GHz</small></div></div>
+        <div class="cell"><div class="k">Gyroradius r<sub>L</sub></div><div class="v mag" id="rlOut">37 <small>µm</small></div></div>
+        <div class="cell"><div class="k">Period T</div><div class="v" id="tOut">36 <small>ps</small></div></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <div>
+        <span class="formula">r<sub>L</sub> = m·v<sub>⊥</sub> / (<span class="mag">q·B</span>)</span>
+        <p><b>Radius</b> grows with speed and shrinks with field. A faster electron just carves a wider loop. Crank B up and the loop tightens.</p>
+      </div>
+      <div>
+        <span class="formula">ω<sub>c</sub> = <span class="mag">q·B</span> / m</span>
+        <p><b>The rate is set only by B and the particle's mass.</b> Change the energy slider: the circle resizes but the time per lap doesn't budge. That is the surprising part — speed cancels out.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PLASMA FREQUENCY ===================== -->
+<section class="section" id="plasma">
+  <div class="wrap">
+    <div class="marker">Frequency <span class="num">03 / 03</span> — electrostatic, collective</div>
+    <h2>Plasma frequency</h2>
+    <p class="subhead">Forget the magnet. Grab the light <span class="es">electrons</span> and shove them sideways off the heavy <span style="color:var(--ion)">ions</span>. You tear a tiny gap of bare charge — and the plasma yanks them back. They overshoot, get pulled back again, and <span class="es">ring</span>.</p>
+
+    <div class="lab">
+      <div class="stage">
+        <canvas id="plasmaCanvas"></canvas>
+        <button class="playbtn" data-target="plasma">❚❚</button>
+        <div class="hint" id="plasmaHint">Drag the blue electron sheet sideways, then let go</div>
+      </div>
+      <div class="controls">
+        <div class="ctrl es">
+          <label>Electron density &nbsp;n <span class="val" id="nVal">1.0×10⁶ cm⁻³</span></label>
+          <input type="range" id="nDensity" min="3" max="8" step="0.01" value="6">
+        </div>
+        <div class="ctrl es">
+          <label>Disturbance amplitude <span class="val" id="aVal">moderate</span></label>
+          <input type="range" id="ampCtrl" min="0.05" max="0.4" step="0.01" value="0.18">
+        </div>
+        <div class="btnrow">
+          <button class="pluck" id="pluckBtn">Pluck the electron sea</button>
+          <button class="toggle" id="soundBtn">♪ Listen to ω_p — off</button>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint)">denser plasma → higher pitch</span>
+        </div>
+      </div>
+      <div class="readout">
+        <div class="cell"><div class="k">Plasma frequency f<sub>p</sub></div><div class="v es" id="fpOut">8.98 <small>MHz</small></div></div>
+        <div class="cell"><div class="k">Restoring field E</div><div class="v es" id="eFieldOut">0.0</div></div>
+        <div class="cell"><div class="k">Magnetic field</div><div class="v" style="color:var(--faint)">none ⌀</div></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <div>
+        <span class="formula">ω<sub>p</sub> = √( n·<span class="es">e²</span> / (ε₀·m<sub>e</sub>) )</span>
+        <p><b>This is the answer to your question.</b> It isn't an orbit. Displace the electron slab by a distance x and you build a sheet of bare charge — a capacitor. The field it makes is proportional to <b>x</b>, so it acts exactly like a spring: <span style="font-family:'JetBrains Mono',monospace;color:var(--text)">F = −(ne²/ε₀)·x</span>.</p>
+      </div>
+      <div>
+        <p class="pull">A spring made of <em>electric force</em>, with electron mass as the weight on the end.</p>
+        <p>Spring + mass = oscillation. <b>Denser plasma = stiffer spring = faster ringing</b> (√n). The ions barely move — they're ~1800× heavier — so it's the electrons' show. Notice the field flips direction every time they cross the middle: that's what keeps it oscillating instead of settling.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMPARISON ===================== -->
+<section class="section" id="compare">
+  <div class="wrap">
+    <div class="marker">Side by side — why they're not the same animal</div>
+    <h2>What each one depends on</h2>
+    <p class="subhead">Same plasma, two completely different springs. One is magnetic and single-particle; the other is electric and collective. Knowing which knob moves which frequency is the whole game.</p>
+    <div class="cards">
+      <div class="card mag">
+        <h3>Gyromotion</h3>
+        <div class="tag">magnetic · one particle at a time</div>
+        <div class="row"><span>Driven by</span><span>Lorentz force q·v×B</span></div>
+        <div class="row"><span>Depends on field B</span><span class="yes">yes — ω<sub>c</sub> ∝ B</span></div>
+        <div class="row"><span>Depends on density n</span><span class="no">no</span></div>
+        <div class="row"><span>Depends on speed</span><span>radius yes · rate no</span></div>
+        <div class="row"><span>What it is</span><span>a circular orbit</span></div>
+      </div>
+      <div class="card es">
+        <h3>Plasma oscillation</h3>
+        <div class="tag">electrostatic · the whole sea</div>
+        <div class="row"><span>Driven by</span><span>charge-separation field</span></div>
+        <div class="row"><span>Depends on field B</span><span class="no">no — needs no magnet</span></div>
+        <div class="row"><span>Depends on density n</span><span class="yes">yes — ω<sub>p</sub> ∝ √n</span></div>
+        <div class="row"><span>Depends on amplitude</span><span class="no">no (while small)</span></div>
+        <div class="row"><span>What it is</span><span>a standing back-and-forth</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CLOSER ===================== -->
+<section class="closer">
+  <div class="wrap">
+    <div class="marker">Why anyone cares</div>
+    <p class="big">A radio wave slower than <em>ω<sub>p</sub></em> can't push through — the electron sea reacts fast enough to cancel it, and the wave bounces.</p>
+    <p>That single fact is why <b>AM radio skips off the ionosphere</b> and around the curve of the Earth, why <b>metals are shiny</b> (their electron sea has an ω<sub>p</sub> up in the ultraviolet, so it reflects all visible light), and why measuring a returned signal's cutoff frequency tells you the <b>density</b> of a plasma you can't touch — from a fusion core to the solar wind.</p>
+  </div>
+</section>
+
+<footer><div class="wrap">Interactive · normalized animation, real-world readouts · drag, pluck, listen</div></footer>
+
+<script>
+"use strict";
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- shared canvas helper (HiDPI) ---------- */
+function setupCanvas(cv){
+  const ctx = cv.getContext('2d');
+  function resize(){
+    const r = cv.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    cv.width = Math.max(1, Math.round(r.width*dpr));
+    cv.height = Math.max(1, Math.round(r.height*dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    cv._w = r.width; cv._h = r.height;
+  }
+  resize();
+  new ResizeObserver(resize).observe(cv);
+  return ctx;
+}
+
+/* number formatting for frequencies in Hz */
+function fmtFreq(hz){
+  if(hz>=1e9) return [(hz/1e9).toFixed(hz/1e9<10?2:1),'GHz'];
+  if(hz>=1e6) return [(hz/1e6).toFixed(hz/1e6<10?2:1),'MHz'];
+  if(hz>=1e3) return [(hz/1e3).toFixed(hz/1e3<10?2:1),'kHz'];
+  return [hz.toFixed(0),'Hz'];
+}
+function fmtLen(m){
+  if(m>=1e-3) return [(m*1e3).toFixed(m*1e3<10?2:1),'mm'];
+  if(m>=1e-6) return [(m*1e6).toFixed(m*1e6<10?1:0),'µm'];
+  return [(m*1e9).toFixed(0),'nm'];
+}
+function fmtTime(s){
+  if(s>=1e-9) return [(s*1e9).toFixed(s*1e9<10?1:0),'ns'];
+  if(s>=1e-12) return [(s*1e12).toFixed(s*1e12<10?1:0),'ps'];
+  return [(s*1e15).toFixed(0),'fs'];
+}
+
+/* ============================================================
+   AMBIENT HERO — drifting charged particles
+   ============================================================ */
+(function(){
+  const cv = document.getElementById('ambient');
+  const ctx = setupCanvas(cv);
+  const N = 46;
+  const ps = [];
+  for(let i=0;i<N;i++){
+    ps.push({
+      x:Math.random(), y:Math.random(),
+      vx:(Math.random()-0.5)*0.00035, vy:(Math.random()-0.5)*0.00035,
+      r:Math.random()*1.8+0.6,
+      pos: Math.random()<0.5,
+      ph: Math.random()*6.28
+    });
+  }
+  function frame(t){
+    const w=cv._w,h=cv._h;
+    ctx.clearRect(0,0,w,h);
+    for(const p of ps){
+      if(!reduceMotion){p.x+=p.vx;p.y+=p.vy;}
+      if(p.x<0)p.x+=1; if(p.x>1)p.x-=1; if(p.y<0)p.y+=1; if(p.y>1)p.y-=1;
+      const x=p.x*w, y=p.y*h;
+      const tw = reduceMotion?1:(0.6+0.4*Math.sin(t*0.0015+p.ph));
+      const col = p.pos? '255,172,94' : '95,168,255';
+      ctx.beginPath();
+      ctx.arc(x,y,p.r*3,0,6.283);
+      ctx.fillStyle=`rgba(${col},${0.05*tw})`; ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x,y,p.r,0,6.283);
+      ctx.fillStyle=`rgba(${col},${0.5*tw})`; ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  }
+  if(reduceMotion){ frame(0); } else { requestAnimationFrame(frame); }
+})();
+
+/* ============================================================
+   PANEL 01/02 — GYRATION
+   ============================================================ */
+const gyro = (function(){
+  const cv = document.getElementById('gyroCanvas');
+  const ctx = setupCanvas(cv);
+  // physical constants
+  const E_CHARGE=1.602e-19, M_E=9.109e-31, TWO_PI=6.28318530718;
+  let B=1.0, Eev=120;            // controls
+  let running=!reduceMotion;
+  let theta=0;
+  const trail=[];
+
+  // real-world derived values
+  function fc(){ return E_CHARGE*B/M_E/TWO_PI; }        // Hz
+  function vperp(){ return Math.sqrt(2*Eev*E_CHARGE/M_E); }
+  function rL(){ return M_E*vperp()/(E_CHARGE*B); }     // m
+  function period(){ return 1/fc(); }
+
+  // visual mapping: rotation speed ∝ B (so faster field = faster spin),
+  // radius ∝ sqrt(E)/B (so energy grows loop, B tightens it). Energy must NOT change spin.
+  function visOmega(){ return 0.9*B; }                  // rad/s on screen
+  function visRadius(){
+    const base = Math.sqrt(Eev/120)/B;                  // normalized
+    return base;                                        // 1.0 at defaults
+  }
+
+  function updateReadout(){
+    const [fv,fu]=fmtFreq(fc());
+    document.getElementById('fcOut').innerHTML = fv+' <small>'+fu+'</small>';
+    const [rv,ru]=fmtLen(rL());
+    document.getElementById('rlOut').innerHTML = rv+' <small>'+ru+'</small>';
+    const [tv,tu]=fmtTime(period());
+    document.getElementById('tOut').innerHTML = tv+' <small>'+tu+'</small>';
+  }
+
+  let last=performance.now();
+  function frame(now){
+    const dt=Math.min(0.05,(now-last)/1000); last=now;
+    const w=cv._w,h=cv._h;
+    ctx.clearRect(0,0,w,h);
+    const cx=w*0.5, cy=h*0.5;
+    const unit=Math.min(w,h)*0.30;        // pixels for normalized radius 1
+    const R = visRadius()*unit;
+
+    // background field grid ⊗
+    ctx.save();
+    const gap=Math.max(46, w/12);
+    ctx.strokeStyle='rgba(63,220,255,0.16)';
+    ctx.fillStyle='rgba(63,220,255,0.20)';
+    ctx.lineWidth=1;
+    for(let x=gap*0.5;x<w;x+=gap){
+      for(let y=gap*0.5;y<h;y+=gap){
+        ctx.beginPath();ctx.arc(x,y,5,0,6.283);ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x-3.2,y-3.2);ctx.lineTo(x+3.2,y+3.2);
+        ctx.moveTo(x+3.2,y-3.2);ctx.lineTo(x-3.2,y+3.2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    if(running && !reduceMotion) theta += visOmega()*dt;
+
+    // orbit circle
+    ctx.beginPath();ctx.arc(cx,cy,R,0,6.283);
+    ctx.strokeStyle='rgba(174,204,255,0.22)';ctx.lineWidth=1.5;ctx.stroke();
+
+    // electron position
+    const ex=cx+R*Math.cos(theta), ey=cy+R*Math.sin(theta);
+
+    // trail
+    trail.push([ex,ey]); if(trail.length>40) trail.shift();
+    for(let i=0;i<trail.length;i++){
+      const a=i/trail.length;
+      ctx.beginPath();ctx.arc(trail[i][0],trail[i][1],3.2*a+0.5,0,6.283);
+      ctx.fillStyle=`rgba(95,168,255,${0.35*a})`;ctx.fill();
+    }
+
+    // radius line + label
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);
+    ctx.strokeStyle='rgba(63,220,255,0.5)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(63,220,255,0.9)';
+    ctx.font="12px 'JetBrains Mono', monospace";
+    ctx.fillText('r_L', cx+(ex-cx)*0.5+6, cy+(ey-cy)*0.5-6);
+
+    // guiding center
+    ctx.beginPath();ctx.arc(cx,cy,2.5,0,6.283);ctx.fillStyle='rgba(255,255,255,0.4)';ctx.fill();
+
+    // electron (glow)
+    const g=ctx.createRadialGradient(ex,ey,0,ex,ey,16);
+    g.addColorStop(0,'rgba(174,204,255,0.95)');g.addColorStop(1,'rgba(95,168,255,0)');
+    ctx.beginPath();ctx.arc(ex,ey,16,0,6.283);ctx.fillStyle=g;ctx.fill();
+    ctx.beginPath();ctx.arc(ex,ey,5,0,6.283);ctx.fillStyle='#eaf2ff';ctx.fill();
+    ctx.fillStyle='#06040d';ctx.font="bold 9px 'Space Grotesk'";ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('e⁻',ex,ey+0.5);ctx.textAlign='start';ctx.textBaseline='alphabetic';
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  updateReadout();
+
+  // controls
+  document.getElementById('bField').addEventListener('input',e=>{
+    B=parseFloat(e.target.value);
+    document.getElementById('bVal').textContent=B.toFixed(2)+' T';
+    updateReadout();
+  });
+  document.getElementById('eEnergy').addEventListener('input',e=>{
+    Eev=parseFloat(e.target.value);
+    document.getElementById('eVal').textContent=Eev.toFixed(0)+' eV';
+    updateReadout();
+  });
+
+  return {
+    toggle(){running=!running;return running;}
+  };
+})();
+
+/* ============================================================
+   PANEL 03 — PLASMA OSCILLATION
+   ============================================================ */
+const plasma = (function(){
+  const cv = document.getElementById('plasmaCanvas');
+  const ctx = setupCanvas(cv);
+  const E_CHARGE=1.602e-19, M_E=9.109e-31, EPS0=8.854e-12, TWO_PI=6.28318530718;
+
+  let logN=6;                 // log10 of density in cm^-3
+  let baseAmp=0.18;           // normalized peak amplitude
+  let running=!reduceMotion;
+  let x=0.12, v=0;            // normalized displacement & velocity
+  let dragging=false;
+
+  // lattice
+  let cols=14, rows=8;
+  function rebuildLattice(){
+    // density bumps particle count a little for visual cue
+    const extra=Math.round((logN-3)/5*6);
+    cols=12+extra; rows=7+Math.round(extra*0.5);
+  }
+  rebuildLattice();
+
+  function nReal(){ return Math.pow(10,logN); }                 // cm^-3
+  function fp(){ return 8980*Math.sqrt(nReal()); }              // Hz (electron)
+  // visual angular freq ∝ sqrt(n): map logN 3..8 → omega 1.4..6.2
+  function visOmega(){ return 1.4 + (logN-3)/5*4.8; }
+
+  function updateReadout(){
+    const [fv,fu]=fmtFreq(fp());
+    document.getElementById('fpOut').innerHTML=fv+' <small>'+fu+'</small>';
+    const eF=Math.abs(x)/0.4;
+    const bar = '█'.repeat(Math.round(eF*6)).padEnd(6,'·');
+    document.getElementById('eFieldOut').textContent = bar;
+  }
+
+  function nFmt(){
+    const mant=Math.pow(10,logN-Math.floor(logN));
+    const exp=Math.floor(logN);
+    return mant.toFixed(1)+'×10'+sup(exp)+' cm⁻³';
+  }
+  function sup(n){const m={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};return String(n).split('').map(c=>m[c]||c).join('');}
+
+  // audio (opt-in)
+  let actx=null, osc=null, gain=null, soundOn=false;
+  function audioOmegaToHz(){
+    // map logN 3..8 to an audible 150..900 Hz, ∝ sqrt(n) feel
+    return 150 + (Math.sqrt(nReal())-Math.sqrt(1e3))/(Math.sqrt(1e8)-Math.sqrt(1e3))*750;
+  }
+  function startSound(){
+    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    osc=actx.createOscillator();gain=actx.createGain();
+    osc.type='sine';osc.frequency.value=audioOmegaToHz();
+    gain.gain.value=0.0;osc.connect(gain);gain.connect(actx.destination);osc.start();
+    soundOn=true;
+  }
+  function stopSound(){
+    if(gain){gain.gain.setTargetAtTime(0,actx.currentTime,0.05);}
+    setTimeout(()=>{if(osc){osc.stop();osc.disconnect();osc=null;}},120);
+    soundOn=false;
+  }
+
+  // pointer interaction (drag the electron sheet)
+  function pointerX(e){
+    const r=cv.getBoundingClientRect();
+    const px=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+    return (px/r.width-0.5)*2;   // -1..1
+  }
+  cv.addEventListener('pointerdown',e=>{
+    dragging=true;cv.setPointerCapture(e.pointerId);
+    x=Math.max(-0.45,Math.min(0.45,pointerX(e)*0.5));v=0;
+    document.getElementById('plasmaHint').textContent='release to let it ring →';
+  });
+  cv.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    x=Math.max(-0.45,Math.min(0.45,pointerX(e)*0.5));v=0;
+  });
+  function release(){
+    if(dragging){dragging=false;document.getElementById('plasmaHint').textContent='it overshoots, gets pulled back, repeats — that is ω_p';}
+  }
+  cv.addEventListener('pointerup',release);
+  cv.addEventListener('pointercancel',release);
+
+  let last=performance.now();
+  function frame(now){
+    const dt=Math.min(0.04,(now-last)/1000);last=now;
+    const w=cv._w,h=cv._h;
+    ctx.clearRect(0,0,w,h);
+
+    // physics: SHM with very light damping, unless dragging
+    if(!dragging && running && !reduceMotion){
+      const om=visOmega();
+      const a=-om*om*x - 0.18*v;     // restoring + tiny damping
+      v+=a*dt; x+=v*dt;
+      // keep it alive: if nearly still, give a gentle nudge
+      if(Math.abs(x)<0.004 && Math.abs(v)<0.01){ v += (Math.random()-0.5)*0.02; }
+    }
+
+    // layout region
+    const padX=w*0.10, padY=h*0.16;
+    const gw=w-2*padX, gh=h-2*padY;
+    const dispPx = x*gw*0.5;        // pixel displacement of electron sheet
+
+    // charge-separation tint (exposed ions on one side, electron pileup on other)
+    const sepAlpha=Math.min(0.5,Math.abs(x)*1.4);
+    if(Math.abs(dispPx)>1){
+      // exposed positive region (where electrons left)
+      const posX = dispPx>0? padX : padX+gw+dispPx;
+      let grd=ctx.createLinearGradient(posX,0,posX+Math.abs(dispPx)*(dispPx>0?1:-1),0);
+      ctx.fillStyle=`rgba(255,172,94,${0.10*sepAlpha*4})`;
+      ctx.fillRect(Math.min(posX,posX+ (dispPx>0?Math.abs(dispPx):-Math.abs(dispPx))),padY,Math.abs(dispPx),gh);
+      // negative pileup region
+      const negX = dispPx>0? padX+gw : padX+dispPx;
+      ctx.fillStyle=`rgba(95,168,255,${0.10*sepAlpha*4})`;
+      ctx.fillRect(Math.min(negX,negX+(dispPx>0?Math.abs(dispPx):-Math.abs(dispPx))),padY,Math.abs(dispPx),gh);
+    }
+
+    // ion lattice (fixed, amber)
+    for(let i=0;i<cols;i++){
+      for(let j=0;j<rows;j++){
+        const ix=padX+(i+0.5)/cols*gw;
+        const iy=padY+(j+0.5)/rows*gh;
+        ctx.beginPath();ctx.arc(ix,iy,3.2,0,6.283);
+        ctx.fillStyle='rgba(255,172,94,0.55)';ctx.fill();
+      }
+    }
+    // electron sheet (displaced uniformly, blue-white)
+    for(let i=0;i<cols;i++){
+      for(let j=0;j<rows;j++){
+        const ix=padX+(i+0.5)/cols*gw + dispPx;
+        const iy=padY+(j+0.5)/rows*gh;
+        const g=ctx.createRadialGradient(ix,iy,0,ix,iy,7);
+        g.addColorStop(0,'rgba(174,204,255,0.9)');g.addColorStop(1,'rgba(95,168,255,0)');
+        ctx.beginPath();ctx.arc(ix,iy,7,0,6.283);ctx.fillStyle=g;ctx.fill();
+        ctx.beginPath();ctx.arc(ix,iy,2.3,0,6.283);ctx.fillStyle='#dce9ff';ctx.fill();
+      }
+    }
+
+    // restoring E-field arrows (magenta) — point toward +x when electrons are at +x
+    if(Math.abs(x)>0.01){
+      const dir=Math.sign(x);
+      const mag=Math.min(1,Math.abs(x)/0.4);
+      const ay=[padY+gh*0.5];
+      const cyc=padY+gh*0.5;
+      const len=gw*0.16*mag+10;
+      const startx=w*0.5 - dir*len*0.5;
+      ctx.strokeStyle=`rgba(255,90,166,${0.55+0.4*mag})`;
+      ctx.fillStyle=`rgba(255,90,166,${0.55+0.4*mag})`;
+      ctx.lineWidth=2.5;
+      for(let k=-1;k<=1;k++){
+        const yy=cyc+k*gh*0.28;
+        ctx.beginPath();ctx.moveTo(startx,yy);ctx.lineTo(startx+dir*len,yy);ctx.stroke();
+        // arrowhead
+        const hx=startx+dir*len;
+        ctx.beginPath();
+        ctx.moveTo(hx,yy);
+        ctx.lineTo(hx-dir*8,yy-5);
+        ctx.lineTo(hx-dir*8,yy+5);
+        ctx.closePath();ctx.fill();
+      }
+      ctx.fillStyle=`rgba(255,90,166,0.9)`;
+      ctx.font="12px 'JetBrains Mono', monospace";
+      ctx.fillText('E (restoring)', w*0.5-38, cyc-gh*0.34);
+    }
+
+    updateReadout();
+    if(soundOn && osc){
+      osc.frequency.setTargetAtTime(audioOmegaToHz(),actx.currentTime,0.05);
+      // amplitude of tone follows the oscillation envelope
+      gain.gain.setTargetAtTime(Math.min(0.18,Math.abs(v)*0.5+Math.abs(x)*0.12),actx.currentTime,0.02);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  updateReadout();
+  document.getElementById('nVal').textContent=nFmt();
+
+  // controls
+  document.getElementById('nDensity').addEventListener('input',e=>{
+    logN=parseFloat(e.target.value);
+    rebuildLattice();
+    document.getElementById('nVal').textContent=nFmt();
+    updateReadout();
+  });
+  document.getElementById('ampCtrl').addEventListener('input',e=>{
+    baseAmp=parseFloat(e.target.value);
+    const lbl=baseAmp<0.13?'gentle':baseAmp<0.27?'moderate':'big shove';
+    document.getElementById('aVal').textContent=lbl;
+  });
+  document.getElementById('pluckBtn').addEventListener('click',()=>{
+    x = (Math.random()<0.5?-1:1)*baseAmp; v=0;
+    if(reduceMotion){ // single step animation hint
+      running=true;
+    }
+    document.getElementById('plasmaHint').textContent='watch it ring at the plasma frequency';
+  });
+  document.getElementById('soundBtn').addEventListener('click',e=>{
+    if(!soundOn){startSound();e.target.classList.add('on');e.target.textContent='♪ Listen to ω_p — on';}
+    else{stopSound();e.target.classList.remove('on');e.target.textContent='♪ Listen to ω_p — off';}
+  });
+
+  return { toggle(){running=!running;return running;} };
+})();
+
+/* ---------- play/pause buttons ---------- */
+document.querySelectorAll('.playbtn').forEach(btn=>{
+  if(reduceMotion) btn.textContent='▶';
+  btn.addEventListener('click',()=>{
+    const target=btn.dataset.target;
+    const r = target==='gyro'? gyro.toggle() : plasma.toggle();
+    btn.textContent = r? '❚❚' : '▶';
+  });
+});
+</script>
+</body>
+</html>

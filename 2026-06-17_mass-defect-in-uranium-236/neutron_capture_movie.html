@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Where the mass goes — radiative neutron capture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06080c; --panel:#0e131b; --panel2:#121925; --line:#222c3a;
+    --ink:#dfe5ee; --ink-dim:#8b97a8; --ink-faint:#5b6678;
+    --gamma:#ffce5b; --gamma-soft:#7a601f;
+    --teal:#3fd0b4; --teal-soft:#1d5e54;
+    --warm:#ff8a5b; --warm-soft:#6e3a25;
+    --mass:#d7deea; --mass-drop:#74f3bd;
+    --proton:#e8775a; --neutron:#8b97ad;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  body{background:
+    radial-gradient(1200px 700px at 38% 42%, #0c1320 0%, #06080c 70%);
+    min-height:100vh;padding:22px 20px 40px}
+  .mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  header.head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;
+    border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:500}
+  h1{font-size:clamp(20px,3.2vw,30px);font-weight:700;margin:2px 0 0;
+    letter-spacing:-.01em;line-height:1.05;flex:1 1 320px}
+  .eq{font-size:clamp(14px,1.7vw,18px);color:var(--ink-dim)}
+  .eq b{color:var(--gamma);font-weight:500}
+  .eq i{font-style:normal;color:var(--teal)}
+
+  .stage{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;align-items:stretch}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}}
+
+  .viewport{position:relative;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;min-height:380px}
+  #scene{display:block;width:100%;height:100%}
+  .vp-tag{position:absolute;top:12px;left:14px;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-faint);font-weight:500}
+  .vp-scale{position:absolute;bottom:12px;left:14px;font-size:11px;color:var(--ink-faint)}
+  .vp-scale .mono{color:var(--ink-dim)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+  .panel h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:500;margin:0}
+
+  .massbox{background:var(--panel2);border:1px solid var(--line);border-radius:11px;
+    padding:13px 15px}
+  .massbox .lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .massnum{font-size:clamp(26px,4vw,34px);font-weight:600;letter-spacing:-.01em;
+    color:var(--mass);transition:color .25s;line-height:1.1;margin-top:3px}
+  .massnum.drop{color:var(--mass-drop)}
+  .massnum small{font-size:15px;color:var(--ink-faint);font-weight:400}
+  .massdelta{font-size:13px;color:var(--ink-dim);margin-top:4px;min-height:18px}
+  .massdelta b{color:var(--mass-drop);font-weight:500}
+
+  .chart{display:flex;gap:14px;align-items:flex-end}
+  svg.bars{width:100%;height:208px;display:block}
+  .legend{display:flex;flex-direction:column;gap:9px;font-size:12.5px;min-width:128px}
+  .legend .row{display:flex;align-items:center;gap:8px;color:var(--ink-dim)}
+  .legend .sw{width:11px;height:11px;border-radius:3px;flex:none}
+  .legend .v{margin-left:auto;color:var(--ink);font-weight:500}
+
+  .cons{font-size:12.5px;color:var(--ink-dim);border-top:1px solid var(--line);
+    padding-top:11px;line-height:1.55}
+  .cons .mono{color:var(--ink)}
+  .cons .ok{color:var(--teal)}
+
+  .caption{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:15px 18px;margin-top:16px;min-height:104px}
+  .cap-stage{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;
+    color:var(--gamma);margin-bottom:6px}
+  .cap-body{font-size:14.5px;line-height:1.62;color:var(--ink);max-width:78ch}
+  .cap-body em{color:var(--gamma);font-style:normal;font-weight:500}
+  .cap-body strong{color:var(--mass-drop);font-weight:600}
+
+  .transport{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+  button{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:9px 16px;cursor:pointer;
+    transition:border-color .15s,background .15s}
+  button:hover{border-color:#3a4759;background:#16202e}
+  button:focus-visible{outline:2px solid var(--gamma);outline-offset:2px}
+  button.primary{background:#17222f;border-color:#33424f}
+  .speeds{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .speeds button{border:0;border-radius:0;padding:9px 12px;background:transparent}
+  .speeds button.on{background:#1b2735;color:var(--gamma)}
+  .clock{margin-left:auto;color:var(--ink-dim);font-size:13px}
+  .clock b{color:var(--ink);font-weight:500}
+
+  .timeline{margin-top:12px}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;
+    background:#1a2330;border-radius:4px;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+    border-radius:50%;background:var(--gamma);border:2px solid #1a1206;cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;
+    background:var(--gamma);border:2px solid #1a1206;cursor:pointer}
+  .segs{display:flex;gap:3px;margin-top:8px}
+  .seg{flex:none;font-size:11px;letter-spacing:.04em;color:var(--ink-faint);
+    padding:6px 8px;border-radius:7px;background:var(--panel);border:1px solid var(--line);
+    cursor:pointer;text-align:center;transition:color .15s,border-color .15s,background .15s;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg.on{color:var(--ink);border-color:#3a4759;background:#16202e}
+
+  details.notes{margin-top:22px;border:1px solid var(--line);border-radius:12px;
+    background:var(--panel);padding:0 16px}
+  details.notes summary{cursor:pointer;padding:14px 0;font-size:13px;letter-spacing:.04em;
+    color:var(--ink-dim);font-weight:500;list-style:none}
+  details.notes summary::-webkit-details-marker{display:none}
+  details.notes summary::before{content:"+ ";color:var(--gamma)}
+  details.notes[open] summary::before{content:"− "}
+  .notes ol{margin:0 0 16px;padding-left:20px;color:var(--ink-dim);font-size:13.5px;line-height:1.7}
+  .notes ol li{margin-bottom:9px}
+  .notes b{color:var(--ink);font-weight:500}
+  .notes .mono{color:var(--teal)}
+
+  .rmbanner{display:none;margin-bottom:14px;font-size:13px;color:var(--gamma);
+    background:#1a1407;border:1px solid #3a2e10;border-radius:9px;padding:9px 14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div style="flex:1 1 340px">
+      <div class="eyebrow">A complete walk-through · nothing skipped</div>
+      <h1>Where the mass actually goes</h1>
+    </div>
+    <div class="eq mono">n + <i>²³⁵U</i> &rarr; ²³⁶U* &rarr; <i>²³⁶U</i> + <b>&gamma;</b></div>
+  </header>
+
+  <div class="rmbanner" id="rmbanner">Reduced-motion is on, so it hasn't auto-played. Use Play or drag the scrubber.</div>
+
+  <div class="stage">
+    <div class="viewport">
+      <div class="vp-tag">Reaction chamber</div>
+      <canvas id="scene"></canvas>
+      <div class="vp-scale">protons <span class="mono" style="color:var(--proton)">92</span> · neutrons <span class="mono" style="color:var(--neutron)">143&rarr;144</span> · all energies relative to the separated parts at rest</div>
+    </div>
+
+    <div class="panel">
+      <div class="massbox">
+        <div class="lab">System mass</div>
+        <div class="massnum mono" id="massnum">236.0526 <small>u</small></div>
+        <div class="massdelta" id="massdelta">= m(²³⁵U) + m(n). Untouched so far.</div>
+      </div>
+
+      <h2>Energy ledger (MeV)</h2>
+      <div class="chart">
+        <svg class="bars" viewBox="0 0 150 208" id="bars" aria-hidden="true">
+          <line x1="0" y1="104" x2="150" y2="104" stroke="#2a3543" stroke-width="1"/>
+          <text x="2" y="14" fill="#5b6678" font-size="9" font-family="IBM Plex Mono">+6.5</text>
+          <text x="2" y="200" fill="#5b6678" font-size="9" font-family="IBM Plex Mono">−6.5</text>
+          <rect id="bPE" x="14" y="104" width="34" height="0" rx="3" fill="#3fd0b4"/>
+          <rect id="bKE" x="58" y="104" width="34" height="0" rx="3" fill="#ff8a5b"/>
+          <rect id="bRD" x="102" y="104" width="34" height="0" rx="3" fill="#ffce5b"/>
+          <text x="31"  y="204" fill="#5b6678" font-size="9"  font-family="Space Grotesk" text-anchor="middle">PE</text>
+          <text x="75"  y="204" fill="#5b6678" font-size="9"  font-family="Space Grotesk" text-anchor="middle">KE</text>
+          <text x="119" y="204" fill="#5b6678" font-size="9"  font-family="Space Grotesk" text-anchor="middle">&gamma; out</text>
+        </svg>
+        <div class="legend">
+          <div class="row"><span class="sw" style="background:var(--teal)"></span>Strong-force PE<span class="v mono" id="vPE">0.0</span></div>
+          <div class="row"><span class="sw" style="background:var(--warm)"></span>Kinetic / excitation<span class="v mono" id="vKE">0.0</span></div>
+          <div class="row"><span class="sw" style="background:var(--gamma)"></span>Radiated as &gamma;<span class="v mono" id="vRD">0.0</span></div>
+        </div>
+      </div>
+
+      <div class="cons">
+        Bookkeeping vs the separated parts:<br>
+        kept in nucleus <span class="mono" id="cKept">0.00</span> &nbsp;+&nbsp; radiated <span class="mono" id="cRad">0.00</span> &nbsp;=&nbsp; <span class="mono ok">0.00 MeV</span> <span class="ok">(conserved)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption">
+    <div class="cap-stage" id="capStage">Stage 0 — separated system</div>
+    <div class="cap-body" id="capBody"></div>
+  </div>
+
+  <div class="transport">
+    <button class="primary" id="playBtn">► Play</button>
+    <button id="restartBtn">↻ Restart</button>
+    <div class="speeds" id="speeds">
+      <button data-s="0.5">0.5×</button>
+      <button data-s="1" class="on">1×</button>
+      <button data-s="2">2×</button>
+    </div>
+    <div class="clock mono">t = <b id="clock">0.0</b> / 24.0 s</div>
+  </div>
+
+  <div class="timeline">
+    <input type="range" id="scrub" min="0" max="24" step="0.02" value="0"/>
+    <div class="segs" id="segs"></div>
+  </div>
+
+  <details class="notes">
+    <summary>The honest details (the things I refused to simplify away)</summary>
+    <ol>
+      <li>The real strong-force well is <b>tens of MeV deep</b>, but the lower neutron orbitals in ²³⁶U are already filled (Pauli exclusion). So the <b>net</b> energy released when the <i>last</i> neutron is added — the neutron separation energy <span class="mono">S<sub>n</sub>(²³⁶U) ≈ 6.5 MeV</span> — is the number animated here, not the full well depth.</li>
+      <li>De-excitation is genuinely a <b>cascade</b>: the excited ²³⁶U* drops through several discrete nuclear energy levels, emitting multiple gamma lines whose energies sum to ≈ S<sub>n</sub>. The five photons shown stand in for that real spectrum.</li>
+      <li>Momentum is conserved at every emission: each photon <b>recoils the nucleus</b> slightly (you can see the cluster nudge). The recoil kinetic energy is minuscule and is left out of the energy budget for clarity.</li>
+      <li>A thermal neutron on ²³⁵U <b>more often causes fission</b>; radiative capture (the n,γ branch shown) is the channel that actually produces ²³⁶U — which is the nucleus your mass question is about.</li>
+      <li>"Mass" here means <b>rest-frame total energy ÷ c²</b>. Binding energy is negative and counts inside that total, so a bound system weighs less than its separated parts: <span class="mono">m(²³⁶U)=236.0456 u</span> vs <span class="mono">m(²³⁵U)+m(n)=236.0526 u</span>; the gap <span class="mono">0.0070 u × 931.494 = 6.5 MeV</span> is exactly the escaped gamma energy.</li>
+    </ol>
+  </details>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const T=24, U2MeV=931.494, BASE=236.0526, RELEASE=6.5;
+  const PH=[
+    {k:"sep",  t0:0,  t1:3,  name:"0 · Separated"},
+    {k:"fall", t0:3,  t1:8,  name:"1 · Falling in"},
+    {k:"hot",  t0:8,  t1:12, name:"2 · Compound ²³⁶U*"},
+    {k:"casc", t0:12, t1:18, name:"3 · Gamma cascade"},
+    {k:"bound",t0:18, t1:24, name:"4 · Bound ²³⁶U"}
+  ];
+  const PHOTONS=[
+    {te:12.5,E:1.7,ang:-0.6},
+    {te:13.4,E:1.1,ang:3.4},
+    {te:14.5,E:2.2,ang:1.15},
+    {te:15.7,E:0.9,ang:5.2},
+    {te:16.7,E:0.6,ang:2.4}
+  ];
+  const CAP={
+    sep:["Stage 0 — separated system",
+      "A free neutron sits far from a ²³⁵U nucleus, beyond the reach of the strong force. Potential energy is zero, kinetic energy is zero. The system mass is simply m(²³⁵U) + m(n) = <em>236.0526 u</em>. Nothing binds anything yet — these are just two objects in the same room."],
+    fall:["Stage 1 — falling in: the force does work",
+      "The neutron crosses into strong-force range (a couple of femtometres). Being attractive, the force <em>accelerates</em> it inward and does work on it: potential energy is converted into kinetic energy. Watch PE drop and KE rise by the same amount — their sum stays zero. The neutron speeds up not because it arrived fast, but because the falling-together is <em>manufacturing</em> kinetic energy out of the well."],
+    hot:["Stage 2 — compound nucleus ²³⁶U* (hot, and NOT yet lighter)",
+      "The neutron is absorbed. All ~6.5 MeV now lives as internal excitation — the whole nucleus jiggles violently. Here is the crux: the mass is <strong>still 236.0526 u</strong>. Energy only changed form (PE → KE) <em>inside</em> the system; none has left, so nothing is lighter. ²³⁶U* is an excited nucleus that is heavier than ground-state ²³⁶U by exactly its excitation energy."],
+    casc:["Stage 3 — de-excitation: energy leaves as a gamma cascade",
+      "The excited nucleus sheds its energy by emitting a cascade of gamma photons, dropping through nuclear energy levels toward the ground state. Each photon carries energy (and momentum — note the recoil) <em>out of the system</em>. <strong>Only now does the mass fall</strong>: as each photon exits, the system's total rest-frame energy drops, so its mass drops in lockstep. The readout ticks down one step per photon."],
+    bound:["Stage 4 — bound ground-state ²³⁶U (lighter by exactly the escaped energy)",
+      "The cascade is finished. ²³⁶U rests in its ground state at <strong>236.0456 u</strong> — 0.0070 u lighter than the parts we started with. That missing mass <em>is</em> the 6.5 MeV that flew off as gammas. The strong-force PE is deep, negative, and fully present — that deep well is the binding, and you'd have to pump 6.5 MeV back to free the neutron. The force never spent itself; energy simply left, and mass is just the name for the energy that stayed home."]
+  };
+
+  // ---- nucleon model (generated once) ----
+  const N=235, GOLD=2.39996323;
+  const nuc=[];
+  let seed=20236;
+  function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
+  for(let i=0;i<N;i++){
+    nuc.push({rr:Math.sqrt((i+0.5)/N), th:i*GOLD, proton:false,
+              ph:rnd()*6.283, fr:0.7+rnd()*1.1, dx:rnd()*2-1, dy:rnd()*2-1});
+  }
+  // assign 92 protons pseudo-randomly
+  let pc=0; const order=[...Array(N).keys()].sort(()=>rnd()-0.5);
+  for(const idx of order){ if(pc<92){nuc[idx].proton=true;pc++;} }
+  const incoming={ph:rnd()*6.283, fr:1.0, dx:rnd()*2-1, dy:rnd()*2-1, rr:0.86, th:1.9};
+
+  // ---- canvas ----
+  const cv=document.getElementById("scene"), ctx=cv.getContext("2d");
+  let W=0,H=0,dpr=1,cx=0,cy=0,R=0,dotR=3;
+  function fit(){
+    const r=cv.getBoundingClientRect();
+    dpr=Math.min(window.devicePixelRatio||1,2);
+    cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+    W=r.width; H=r.height; ctx.setTransform(dpr,0,0,dpr,0,0);
+    cx=W*0.40; cy=H*0.52; R=Math.min(W,H)*0.20;
+    dotR=Math.max(2.0, R/Math.sqrt(N)*1.15);
+  }
+  window.addEventListener("resize",fit);
+
+  // ---- helpers ----
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+  function phaseAt(t){ for(const p of PH){ if(t<p.t1) return p; } return PH[PH.length-1]; }
+  function fallFrac(t){ const p=clamp((t-3)/5,0,1); return p*p; }            // accelerating
+  function radiated(t){ let s=0; for(const ph of PHOTONS) if(t>=ph.te) s+=ph.E; return s; }
+  function energies(t){
+    const f=fallFrac(t);
+    const PE=-RELEASE*f;
+    const RD=radiated(t);
+    const KE=Math.max(0, RELEASE*f - RD);
+    return {PE,KE,RD,internal:PE+KE};
+  }
+
+  // ---- draw scene ----
+  function draw(t){
+    ctx.clearRect(0,0,W,H);
+    const e=energies(t);
+    const hot=clamp(e.KE/RELEASE,0,1);
+    const jig=(0.10 + 0.9*hot) * dotR*0.9 + dotR*0.05; // jiggle amplitude
+    const merged = t>=8;
+
+    // recoil offset from photons already emitted
+    let rx=0,ry=0;
+    for(const ph of PHOTONS){ if(t>=ph.te){ rx-=Math.cos(ph.ang)*ph.E; ry-=Math.sin(ph.ang)*ph.E; } }
+    const recoilScale = R*0.012;
+    const ncx=cx+rx*recoilScale, ncy=cy+ry*recoilScale;
+
+    // ambient halo (excitation glow)
+    if(hot>0.02){
+      const g=ctx.createRadialGradient(ncx,ncy,R*0.3,ncx,ncy,R*2.0);
+      g.addColorStop(0,`rgba(255,150,80,${0.16*hot})`);
+      g.addColorStop(1,"rgba(255,150,80,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(ncx,ncy,R*2.0,0,6.2832); ctx.fill();
+    }
+
+    // nucleons
+    for(let i=0;i<N;i++){
+      const n=nuc[i];
+      const jx=Math.sin(t*n.fr*6.0+n.ph)*jig*n.dx;
+      const jy=Math.cos(t*n.fr*6.0+n.ph)*jig*n.dy;
+      const x=ncx+n.rr*R*Math.cos(n.th)+jx;
+      const y=ncy+n.rr*R*Math.sin(n.th)+jy;
+      ctx.beginPath(); ctx.arc(x,y,dotR,0,6.2832);
+      ctx.fillStyle=n.proton?getCss("--proton"):getCss("--neutron");
+      ctx.globalAlpha=0.96; ctx.fill(); ctx.globalAlpha=1;
+    }
+
+    // incoming neutron
+    let nx,ny;
+    if(!merged){
+      const p=clamp((t-3)/5,0,1), pe=p*p;             // accelerating approach
+      const sx=W*0.96, sy=cy;
+      const tx=cx+R*0.82, ty=cy;
+      nx=sx+(tx-sx)*pe; ny=sy+(ty-sy)*pe;
+      // motion streak
+      if(t>3){
+        ctx.strokeStyle="rgba(255,206,91,0.30)"; ctx.lineWidth=dotR*0.8;
+        ctx.beginPath(); ctx.moveTo(nx+dotR*4,ny); ctx.lineTo(nx,ny); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(nx,ny,dotR*1.25,0,6.2832);
+      ctx.fillStyle=getCss("--neutron"); ctx.fill();
+      ctx.lineWidth=1.4; ctx.strokeStyle=getCss("--gamma"); ctx.stroke();
+    } else {
+      // merged neutron sits in cluster, with a fading highlight ring
+      const jx=Math.sin(t*incoming.fr*6.0+incoming.ph)*jig*incoming.dx;
+      const jy=Math.cos(t*incoming.fr*6.0+incoming.ph)*jig*incoming.dy;
+      nx=ncx+incoming.rr*R*Math.cos(incoming.th)+jx;
+      ny=ncy+incoming.rr*R*Math.sin(incoming.th)+jy;
+      ctx.beginPath(); ctx.arc(nx,ny,dotR,0,6.2832);
+      ctx.fillStyle=getCss("--neutron"); ctx.fill();
+      const ring=clamp(1-(t-8)/2,0,1);
+      if(ring>0){ ctx.lineWidth=1.4; ctx.strokeStyle=`rgba(255,206,91,${0.8*ring})`;
+        ctx.beginPath(); ctx.arc(nx,ny,dotR*1.9,0,6.2832); ctx.stroke(); }
+    }
+
+    // gamma photons
+    for(const ph of PHOTONS){
+      if(t<ph.te) continue;
+      const age=t-ph.te, speed=R*3.2, dist=age*speed;
+      const dirx=Math.cos(ph.ang), diry=Math.sin(ph.ang);
+      const x0=ncx+dirx*R*0.7, y0=ncy+diry*R*0.7;
+      const headX=x0+dirx*dist, headY=y0+diry*dist;
+      const off=Math.hypot(headX-W/2,headY-H/2);
+      const fade=clamp(1-(dist-Math.max(W,H)*0.55)/(Math.max(W,H)*0.45),0,1);
+      if(fade<=0) continue;
+      // wave packet
+      const px=-diry, py=dirx, amp=dotR*1.4, wl=dotR*3.0, len=Math.min(dist,R*2.2);
+      ctx.beginPath();
+      for(let s=0;s<=len;s+=2){
+        const wob=Math.sin((s)/wl*6.2832)*amp*Math.min(1,s/(R*0.6));
+        const xx=headX-dirx*s+px*wob, yy=headY-diry*s+py*wob;
+        if(s===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+      }
+      ctx.strokeStyle=`rgba(255,206,91,${0.85*fade})`; ctx.lineWidth=1.6; ctx.stroke();
+      // glowing head
+      const g=ctx.createRadialGradient(headX,headY,0,headX,headY,dotR*4);
+      g.addColorStop(0,`rgba(255,230,150,${0.95*fade})`);
+      g.addColorStop(1,"rgba(255,206,91,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(headX,headY,dotR*4,0,6.2832); ctx.fill();
+      // energy label
+      if(fade>0.25 && headX>10 && headX<W-44 && headY>14 && headY<H-10){
+        ctx.font='500 11px "IBM Plex Mono", monospace';
+        ctx.fillStyle=`rgba(255,206,91,${fade})`;
+        ctx.fillText(ph.E.toFixed(1)+" MeV", headX+7, headY-7);
+      }
+    }
+  }
+
+  // ---- panel update ----
+  const cssCache={};
+  function getCss(v){ if(!cssCache[v]) cssCache[v]=getComputedStyle(document.documentElement).getPropertyValue(v).trim(); return cssCache[v]; }
+  const massnum=document.getElementById("massnum"),
+        massdelta=document.getElementById("massdelta"),
+        vPE=document.getElementById("vPE"),vKE=document.getElementById("vKE"),vRD=document.getElementById("vRD"),
+        bPE=document.getElementById("bPE"),bKE=document.getElementById("bKE"),bRD=document.getElementById("bRD"),
+        cKept=document.getElementById("cKept"),cRad=document.getElementById("cRad"),
+        capStage=document.getElementById("capStage"),capBody=document.getElementById("capBody"),
+        clockEl=document.getElementById("clock");
+  const SCALE=98/RELEASE; // px per MeV in the 0..104 region
+
+  function updatePanel(t){
+    const e=energies(t);
+    const mass=BASE - e.RD/U2MeV;
+    massnum.innerHTML=mass.toFixed(4)+' <small>u</small>';
+    massnum.classList.toggle("drop", e.RD>0);
+    if(e.RD<=0){ massdelta.innerHTML="= m(²³⁵U) + m(n). Untouched so far."; }
+    else { massdelta.innerHTML='<b>−'+(BASE-mass).toFixed(4)+' u</b> &nbsp;('+e.RD.toFixed(1)+' MeV gone with the γ)'; }
+
+    vPE.textContent=e.PE.toFixed(1); vKE.textContent=e.KE.toFixed(1); vRD.textContent=e.RD.toFixed(1);
+    const hPE=Math.abs(e.PE)*SCALE, hKE=e.KE*SCALE, hRD=e.RD*SCALE;
+    bPE.setAttribute("y",104); bPE.setAttribute("height",hPE);           // downward
+    bKE.setAttribute("y",104-hKE); bKE.setAttribute("height",hKE);
+    bRD.setAttribute("y",104-hRD); bRD.setAttribute("height",hRD);
+
+    cKept.textContent=e.internal.toFixed(2); cRad.textContent=e.RD.toFixed(2);
+
+    const ph=phaseAt(t), c=CAP[ph.k];
+    if(capStage.textContent!==c[0]){ capStage.textContent=c[0]; capBody.innerHTML=c[1]; }
+
+    clockEl.textContent=t.toFixed(1);
+    if(scrub.value!=t) scrub.value=t;
+    markSeg(ph.k);
+  }
+
+  // ---- segments ----
+  const segs=document.getElementById("segs");
+  PH.forEach(p=>{
+    const d=document.createElement("div");
+    d.className="seg"; d.style.flex=(p.t1-p.t0)+" 0 0"; d.textContent=p.name; d.dataset.k=p.k;
+    d.addEventListener("click",()=>{ setTime((p.t0+p.t1)/2); });
+    segs.appendChild(d);
+  });
+  function markSeg(k){ [...segs.children].forEach(c=>c.classList.toggle("on",c.dataset.k===k)); }
+
+  // ---- transport ----
+  let curT=0, playing=false, speed=1, last=0;
+  const playBtn=document.getElementById("playBtn"),
+        restartBtn=document.getElementById("restartBtn"),
+        scrub=document.getElementById("scrub");
+
+  function setTime(t){ curT=clamp(t,0,T); draw(curT); updatePanel(curT); }
+  function setPlaying(p){ playing=p; playBtn.textContent=p?"❚❚ Pause":"► Play"; if(p) last=performance.now(); }
+
+  playBtn.addEventListener("click",()=>{ if(curT>=T) curT=0; setPlaying(!playing); });
+  restartBtn.addEventListener("click",()=>{ setTime(0); setPlaying(true); });
+  scrub.addEventListener("input",()=>{ setPlaying(false); setTime(parseFloat(scrub.value)); });
+  document.getElementById("speeds").addEventListener("click",ev=>{
+    const b=ev.target.closest("button[data-s]"); if(!b) return;
+    speed=parseFloat(b.dataset.s);
+    [...ev.currentTarget.children].forEach(c=>c.classList.toggle("on",c===b));
+  });
+  window.addEventListener("keydown",e=>{
+    if(e.code==="Space"){ e.preventDefault(); if(curT>=T) curT=0; setPlaying(!playing); }
+    else if(e.code==="ArrowRight"){ setPlaying(false); setTime(curT+0.25); }
+    else if(e.code==="ArrowLeft"){ setPlaying(false); setTime(curT-0.25); }
+  });
+
+  function loop(now){
+    if(playing){
+      const dt=(now-last)/1000; last=now;
+      curT+=dt*speed;
+      if(curT>=T){ curT=T; setPlaying(false); }
+      draw(curT); updatePanel(curT);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---- boot ----
+  fit(); setTime(0);
+  const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduced){ document.getElementById("rmbanner").style.display="block"; }
+  else { setPlaying(true); }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

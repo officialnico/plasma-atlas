@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vlasov–Poisson, zero to hero · Hermite + Landau</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+:root{
+  --bg:#0b0a12; --bg2:#100e1a; --panel:#17142480; --panel-solid:#171424;
+  --panel2:#1f1b30; --line:#2a2640; --line2:#383253;
+  --ink:#ece9f5; --muted:#a49cc2; --faint:#736b92;
+  --magenta:#ff3d81; --pink:#ff85b3; --amber:#ffa94d; --yellow:#ffd34d;
+  --cyan:#37e0d4; --violet:#9a6bff;
+  --plasma:linear-gradient(90deg,#6a26ff 0%,#ff3d81 38%,#ffa94d 72%,#ffd34d 100%);
+  --display:'Space Grotesk',-apple-system,'Segoe UI',system-ui,sans-serif;
+  --body:'Inter',-apple-system,'Segoe UI',system-ui,sans-serif;
+  --mono:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --maxw:980px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--body); font-size:17px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(1200px 700px at 75% -8%, #1a1530 0%, transparent 55%),
+                   radial-gradient(900px 600px at 10% 12%, #15182e 0%, transparent 50%);
+  background-attachment:fixed;
+}
+::selection{background:var(--magenta); color:#fff}
+a{color:var(--cyan)}
+h1,h2,h3{font-family:var(--display); font-weight:600; line-height:1.08; letter-spacing:-0.02em}
+
+/* ---------- layout ---------- */
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+section{padding:84px 0; position:relative}
+.eyebrow{font-family:var(--mono); font-size:12.5px; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--faint); display:flex; align-items:center; gap:12px; margin:0 0 18px}
+.eyebrow::before{content:""; width:30px; height:1px; background:var(--line2)}
+.lead{font-size:20px; color:var(--muted); max-width:62ch}
+p{max-width:66ch}
+.muted{color:var(--muted)}
+.warm{color:var(--amber)} .hot{color:var(--magenta)} .cool{color:var(--cyan)}
+.gradtext{background:var(--plasma); -webkit-background-clip:text; background-clip:text; color:transparent}
+
+/* reveal on scroll */
+.rev{opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1)}
+.rev.in{opacity:1; transform:none}
+
+/* ---------- hero ---------- */
+.hero{min-height:100svh; display:flex; flex-direction:column; justify-content:center; padding-top:60px; overflow:hidden}
+#heroCanvas{position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.5}
+.hero .wrap{position:relative; z-index:2}
+.hero::after{content:""; position:absolute; inset:0; z-index:1;
+  background:linear-gradient(180deg, #0b0a12cc 0%, #0b0a1255 30%, #0b0a1288 70%, var(--bg) 100%)}
+.hero-tag{font-family:var(--mono); color:var(--cyan); font-size:13px; letter-spacing:.18em; text-transform:uppercase}
+.hero h1{font-size:clamp(40px,8vw,84px); font-weight:700; margin:.25em 0 .2em; max-width:15ch}
+.hero .sub{font-size:clamp(17px,2.4vw,22px); color:var(--muted); max-width:56ch}
+.scrollcue{margin-top:48px; font-family:var(--mono); font-size:12px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--faint); display:flex; align-items:center; gap:10px}
+.scrollcue .dot{width:8px;height:8px;border-radius:50%;background:var(--magenta);
+  animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.3)}}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-top:34px}
+.chip{font-family:var(--mono); font-size:12px; padding:7px 13px; border:1px solid var(--line2);
+  border-radius:100px; color:var(--muted); background:#ffffff08}
+
+/* ---------- equation styling (hand-rendered, no deps) ---------- */
+.eq{font-family:var(--mono); font-size:18px; line-height:2.1; color:var(--ink); letter-spacing:.01em}
+.eqbox{background:linear-gradient(180deg,#1c182d,#161325); border:1px solid var(--line);
+  border-radius:14px; padding:22px 26px; margin:22px 0; overflow-x:auto;
+  box-shadow:inset 0 1px 0 #ffffff0a, 0 18px 40px -28px #000}
+.eqbox.hero-eq{text-align:center}
+.frac{display:inline-flex; flex-direction:column; text-align:center; vertical-align:middle; margin:0 .18em}
+.frac .n{border-bottom:1.6px solid currentColor; padding:0 .4em 1px}
+.frac .d{padding:1px .4em 0}
+.sq{display:inline-flex; align-items:flex-start; margin:0 .04em}
+.sq .rad{border-top:1.5px solid currentColor; padding:1px .12em 0; margin-top:2px}
+.tk{color:var(--ink)} .t-stream{color:var(--cyan)} .t-acc{color:var(--magenta)}
+.t-coll{color:var(--amber)} .t-time{color:var(--yellow)}
+.annot{font-family:var(--mono); font-size:12.5px; color:var(--faint); margin-top:6px}
+sub,sup{font-size:.72em}
+
+/* ---------- cards / grid ---------- */
+.grid{display:grid; gap:18px; margin-top:26px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:repeat(3,1fr)}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px 22px 20px;
+  backdrop-filter:blur(6px)}
+.card h3{font-size:18px; margin:0 0 8px}
+.card p{font-size:15.5px; color:var(--muted); margin:0; max-width:none}
+.card .num{font-family:var(--mono); font-size:12px; color:var(--magenta); letter-spacing:.15em}
+
+/* notebook bridge badge */
+.nb{display:inline-flex; align-items:center; gap:9px; font-family:var(--mono); font-size:12.5px;
+  color:var(--yellow); background:#ffd34d14; border:1px solid #ffd34d33; border-radius:8px;
+  padding:6px 12px; margin-top:18px; text-decoration:none}
+.nb::before{content:"▸ notebook"; color:var(--amber); font-weight:700; letter-spacing:.06em}
+
+/* canvases */
+.viz{width:100%; border-radius:12px; border:1px solid var(--line); background:#0c0a16; display:block}
+.vizcap{font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:10px; text-align:center}
+
+/* controls */
+.controls{display:flex; flex-wrap:wrap; gap:16px 22px; align-items:center; margin:18px 0 6px}
+.btn{font-family:var(--mono); font-size:13px; letter-spacing:.04em; cursor:pointer; color:#0b0a12;
+  background:var(--plasma); border:0; border-radius:9px; padding:11px 20px; font-weight:700}
+.btn:hover{filter:brightness(1.1)} .btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line2)}
+.ctl{display:flex; flex-direction:column; gap:5px; font-family:var(--mono); font-size:12px; color:var(--muted)}
+.ctl input[type=range]{width:150px; accent-color:var(--magenta)}
+.ctl .val{color:var(--yellow)}
+.readout{font-family:var(--mono); font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; gap:8px 26px; margin-top:14px}
+.readout b{color:var(--cyan); font-weight:700}
+.readout .g{color:var(--magenta)}
+
+/* hermite reconstruct */
+.modecount{font-family:var(--mono); color:var(--yellow)}
+
+/* flow diagram */
+.flow{display:flex; flex-wrap:wrap; align-items:stretch; gap:0; margin-top:26px}
+.flow .step{flex:1 1 150px; min-width:140px; background:var(--panel); border:1px solid var(--line);
+  border-radius:12px; padding:16px; position:relative}
+.flow .arrow{display:flex; align-items:center; justify-content:center; color:var(--magenta); font-size:22px; padding:0 6px}
+.flow .step .k{font-family:var(--mono); font-size:11px; color:var(--magenta); letter-spacing:.12em}
+.flow .step h4{font-family:var(--display); margin:6px 0 5px; font-size:15.5px}
+.flow .step p{font-size:13px; color:var(--muted); margin:0}
+.loop-note{font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:12px; text-align:center}
+
+/* footer */
+.foot{border-top:1px solid var(--line); margin-top:40px; padding:40px 0 80px; color:var(--faint);
+  font-family:var(--mono); font-size:13px}
+.maptable{width:100%; border-collapse:collapse; margin-top:18px; font-family:var(--mono); font-size:13px}
+.maptable td,.maptable th{border-bottom:1px solid var(--line); padding:11px 10px; text-align:left}
+.maptable th{color:var(--faint); font-weight:400; text-transform:uppercase; letter-spacing:.12em; font-size:11px}
+.maptable td:first-child{color:var(--cyan)}
+.maptable td:last-child{color:var(--muted)}
+
+/* progress bar */
+#prog{position:fixed; top:0; left:0; height:3px; width:0%; z-index:99; background:var(--plasma)}
+
+@media (max-width:760px){
+  body{font-size:16px}
+  .g2,.g3{grid-template-columns:1fr}
+  .flow .arrow{transform:rotate(90deg); padding:4px 0}
+  .eq{font-size:15px}
+}
+@media (prefers-reduced-motion:reduce){
+  .rev{transition:none; opacity:1; transform:none}
+  .dot{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="wrap">
+    <div class="hero-tag">1D1V · Vlasov–Poisson · Hermite spectral · Landau damping</div>
+    <h1>A plasma solver, built from <span class="gradtext">zero to hero</span>.</h1>
+    <p class="sub">Everything you need to understand — and then write — a kinetic plasma code:
+      what the distribution function is, how it flows, why we expand velocity in Hermite functions,
+      and how that reproduces the most famous result in plasma kinetics. There's a real solver
+      running in the background of this page right now.</p>
+    <div class="chips">
+      <span class="chip">∂ₜf + v∂ₓf − E∂ᵥf = 0</span>
+      <span class="chip">f = Σ Cₙ Ψₙ(v)</span>
+      <span class="chip">γ ≈ −0.153</span>
+      <span class="chip">FFT · RK4 · spectral</span>
+    </div>
+    <div class="scrollcue"><span class="dot"></span> scroll to begin</div>
+  </div>
+</header>
+
+<!-- ============================ 1. PHASE SPACE ============================ -->
+<section>
+ <div class="wrap rev">
+  <div class="eyebrow">01 — the object</div>
+  <h2>First, what are we even solving for?</h2>
+  <p>A plasma has far too many particles to track one by one. So we describe it statistically with a
+     <span class="hot">distribution function</span> <span class="eq">f(x, v, t)</span> — a density in
+     <em>phase space</em>. Read it as: <em>how many electrons are near position <span class="cool">x</span> with
+     velocity <span class="warm">v</span>, at time t.</em></p>
+  <p>Even though this is a "1D" plasma — one direction of space — phase space is <strong>2D</strong>:
+     position across, velocity up. A plasma sitting in thermal equilibrium is a horizontal stripe:
+     uniform in <span class="cool">x</span>, and a bell curve (a Maxwellian) in <span class="warm">v</span>.</p>
+  <canvas id="phaseCanvas" class="viz" height="320"></canvas>
+  <div class="vizcap">f(x, v) for a near-equilibrium plasma — brightness = how many particles sit at that (x, v).</div>
+  <a class="nb" href="#">Part 1 builds this initial state in code.</a>
+ </div>
+</section>
+
+<!-- ============================ 2. VLASOV ============================ -->
+<section style="background:linear-gradient(180deg,transparent,#0e0c1880,transparent)">
+ <div class="wrap rev">
+  <div class="eyebrow">02 — the motion</div>
+  <h2>The Vlasov equation just says: <span class="gradtext">f is carried along orbits</span></h2>
+  <p>Nothing is created or destroyed — phase-space density is conserved as it flows. Two things move it:</p>
+  <div class="eqbox eq hero-eq">
+    <span class="t-time">∂ₜf</span> &nbsp;+&nbsp; <span class="t-stream">v ∂ₓf</span>
+    &nbsp;−&nbsp; <span class="t-acc">E ∂ᵥf</span> &nbsp;=&nbsp; 0
+    <div class="annot"><span class="t-stream">streaming: fast particles drift right</span> ·
+      <span class="t-acc">acceleration: the field pushes particles up/down in v</span></div>
+  </div>
+  <div class="grid g2">
+    <div>
+      <canvas id="streamCanvas" class="viz" height="220"></canvas>
+      <div class="vizcap"><span class="cool">Streaming.</span> Higher-v particles move right faster → any ripple shears over.</div>
+    </div>
+    <div>
+      <canvas id="accelCanvas" class="viz" height="220"></canvas>
+      <div class="vizcap"><span class="hot">Acceleration.</span> An electric field shifts the whole sheet up or down in velocity.</div>
+    </div>
+  </div>
+  <p style="margin-top:22px">That's the whole content of Vlasov: the term <span class="t-stream">v∂ₓf</span> shears structure in
+     space, and <span class="t-acc">E∂ᵥf</span> shoves it in velocity. The hard part is that <em>E isn't given</em> —
+     the particles make it themselves.</p>
+ </div>
+</section>
+
+<!-- ============================ 3. POISSON ============================ -->
+<section>
+ <div class="wrap rev">
+  <div class="eyebrow">03 — the feedback</div>
+  <h2>Poisson closes the loop</h2>
+  <p>Where electrons pile up, charge builds; charge makes an electric field; the field pushes the electrons;
+     which changes where they pile up. Self-consistency is what makes this <em>interesting</em> rather than
+     just free-streaming.</p>
+  <div class="eqbox eq hero-eq">
+    <span class="t-stream">∂ₓE</span> &nbsp;=&nbsp; 1 − <span class="tk">∫ f dv</span>
+    <div class="annot">field divergence = ion background (1) minus electron density (∫f dv)</div>
+  </div>
+  <div class="flow">
+    <div class="step"><div class="k">density</div><h4>∫ f dv</h4><p>count electrons at each x</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">charge</div><h4>ρ = 1 − n</h4><p>imbalance vs. ions</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">field</div><h4>∂ₓE = ρ</h4><p>solve Poisson</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">force</div><h4>−E ∂ᵥf</h4><p>push particles, back to Vlasov</p></div>
+  </div>
+  <div class="loop-note">↻ every single timestep</div>
+  <a class="nb" href="#">Part 3 solves Poisson with one FFT.</a>
+ </div>
+</section>
+
+<!-- ============================ 4. VELOCITY PROBLEM ============================ -->
+<section style="background:linear-gradient(180deg,transparent,#0e0c1880,transparent)">
+ <div class="wrap rev">
+  <div class="eyebrow">04 — the difficulty</div>
+  <h2>Why velocity space fights back</h2>
+  <p>Streaming never stops shearing the distribution. A smooth ripple winds into ever-finer
+     <span class="warm">velocity filaments</span> — structure that gets thinner and thinner forever.
+     Put <span class="warm">v</span> on a grid and you'd need impossibly many points to keep resolving it.</p>
+  <canvas id="filamentCanvas" class="viz" height="300"></canvas>
+  <div class="vizcap">Free-streaming phase mixing: the same total "stuff", wound into finer and finer velocity stripes.</div>
+  <p style="margin-top:22px">This filamentation is not a bug — it's the <strong>microscopic engine of Landau damping</strong> (section 8).
+     But it means a naïve velocity grid is wasteful. We need a basis that captures Maxwellian-like shapes
+     <em>and</em> their fine wiggles efficiently. Enter Hermite.</p>
+ </div>
+</section>
+
+<!-- ============================ 5. HERMITE ============================ -->
+<section>
+ <div class="wrap rev">
+  <div class="eyebrow">05 — the trick</div>
+  <h2>Expand velocity in <span class="gradtext">Hermite functions</span></h2>
+  <p>Instead of sampling <span class="warm">v</span> on a grid, write the velocity dependence as a sum of
+     special basis functions Ψₙ(v) — Hermite polynomials wrapped in a Gaussian. Each one is a Maxwellian
+     multiplied by an oscillation of increasing frequency:</p>
+  <div class="eqbox eq hero-eq">
+    f(x, v, t) = <span style="font-size:1.3em">Σ</span><sub>n=0</sub><sup>N−1</sup>
+    <span class="t-acc">Cₙ(x, t)</span> <span class="t-stream">Ψₙ(v)</span>
+  </div>
+  <p>Choose the scale so that <span class="eq">Ψ₀(v)</span> is <em>exactly</em> the Maxwellian. Then equilibrium is
+     just <span class="eq">C₀ = 1</span> and every other coefficient zero — the basis is centred on the physics.
+     And the low coefficients are the familiar fluid <span class="warm">moments</span>:</p>
+  <div class="grid g3">
+    <div class="card"><div class="num">C₀</div><h3>density</h3><p>how many particles — the only thing Poisson needs.</p></div>
+    <div class="card"><div class="num">C₁</div><h3>momentum / flow</h3><p>net drift of the particles.</p></div>
+    <div class="card"><div class="num">C₂</div><h3>pressure / temperature</h3><p>spread in velocity; higher n = finer structure.</p></div>
+  </div>
+
+  <h3 style="margin-top:42px; font-size:20px">See the basis, and watch a shape rebuild</h3>
+  <p class="muted" style="font-size:15.5px">Left: the first few Ψₙ(v). Right: a lopsided "beam-plus-bulk" distribution
+     reconstructed from N Hermite modes — drag the slider and watch it sharpen as modes are added.</p>
+  <div class="grid g2">
+    <div>
+      <canvas id="basisCanvas" class="viz" height="260"></canvas>
+      <div class="vizcap">Ψ₀ … Ψ₅ — each higher mode adds a faster velocity oscillation.</div>
+    </div>
+    <div>
+      <canvas id="reconCanvas" class="viz" height="260"></canvas>
+      <div class="vizcap">target (dashed) vs. <span class="modecount" id="reconN">8</span>-mode reconstruction (solid)</div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="ctl">modes&nbsp;N = <span class="val" id="reconNlabel">8</span>
+      <input type="range" id="reconSlider" min="1" max="24" value="8"></div>
+  </div>
+ </div>
+</section>
+
+<!-- ============================ 6. THE SYSTEM ============================ -->
+<section style="background:linear-gradient(180deg,transparent,#0e0c1880,transparent)">
+ <div class="wrap rev">
+  <div class="eyebrow">06 — the equations</div>
+  <h2>Plug it in, and the PDE collapses to a ladder</h2>
+  <p>Substituting the Hermite sum into Vlasov, every velocity integral is done <em>analytically</em>.
+     Two clean facts — multiplying by <span class="warm">v</span> couples mode n to n±1, and the
+     <span class="warm">v</span>-derivative couples n to n+1 — turn the whole thing into one tidy equation
+     per mode (with scale α=√2):</p>
+  <div class="eqbox eq hero-eq" style="font-size:16px">
+    <span class="t-time">∂ₜCₙ</span> =
+    <span class="t-stream">− <span class="sq">√<span class="rad">n</span></span> ∂ₓC<sub>n−1</sub>
+      − <span class="sq">√<span class="rad">n+1</span></span> ∂ₓC<sub>n+1</sub></span>
+    <span class="t-acc">− <span class="sq">√<span class="rad">n</span></span> E C<sub>n−1</sub></span>
+    <span class="t-coll">− ν n Cₙ</span>
+    <div class="annot"><span class="t-stream">streaming up &amp; down the ladder</span> ·
+      <span class="t-acc">field acceleration</span> · <span class="t-coll">optional collisions</span> ·
+      closure: C<sub>−1</sub> = C<sub>N</sub> = 0</div>
+  </div>
+  <canvas id="ladderCanvas" class="viz" height="240"></canvas>
+  <div class="vizcap">The mode ladder: streaming hops amplitude between neighbours, so a kick in C₀ cascades upward to ever-higher n.</div>
+  <p style="margin-top:22px">That cascade <em>up</em> the ladder is filamentation in disguise — fine velocity structure = high Hermite modes.
+     Keep N modes, set the two ends to zero, and you have a finite, solvable system.</p>
+  <a class="nb" href="#">Part 4 is exactly this right-hand side — the heart of the solver.</a>
+ </div>
+</section>
+
+<!-- ============================ 7. RK4 ============================ -->
+<section>
+ <div class="wrap rev">
+  <div class="eyebrow">07 — the march</div>
+  <h2>March it forward with RK4</h2>
+  <p>Now it's just a big system of ODEs, <span class="eq">dC/dt = RHS(C)</span>. The classic 4th-order
+     Runge–Kutta scheme samples the slope four times per step and blends them — accurate, explicit,
+     no linear solves. Push the step too far and it goes unstable (the CFL limit); the page's live run
+     stays safely inside it.</p>
+  <div class="eqbox eq">
+    k₁ = g(C) &nbsp;·&nbsp; k₂ = g(C + <span class="frac"><span class="n">Δt</span><span class="d">2</span></span>k₁)
+    &nbsp;·&nbsp; k₃ = g(C + <span class="frac"><span class="n">Δt</span><span class="d">2</span></span>k₂)
+    &nbsp;·&nbsp; k₄ = g(C + Δt·k₃)<br>
+    C<sup>new</sup> = C + <span class="frac"><span class="n">Δt</span><span class="d">6</span></span>(k₁ + 2k₂ + 2k₃ + k₄)
+  </div>
+  <a class="nb" href="#">Part 5 — four lines of code.</a>
+ </div>
+</section>
+
+<!-- ============================ 8. LANDAU (LIVE) ============================ -->
+<section style="background:radial-gradient(900px 500px at 80% 20%, #1a1230, transparent 60%)">
+ <div class="wrap rev">
+  <div class="eyebrow">08 — the

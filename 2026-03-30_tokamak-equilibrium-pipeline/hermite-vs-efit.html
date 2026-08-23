@@ -1,0 +1,743 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hermite vs efit</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function HermiteVsLinear() {
+  const [method, setMethod] = useState("efit"); // efit, chease
+  const [selectedCell, setSelectedCell] = useState({ i: 2, j: 2 });
+  const [showInterp, setShowInterp] = useState(false);
+
+  // Small 5x5 grid for clarity
+  const n = 5;
+  const Rmin = 0.8, Rmax = 1.6;
+  const Zmin = -0.5, Zmax = 0.5;
+  const dR = (Rmax - Rmin) / (n - 1);
+  const dZ = (Zmax - Zmin) / (n - 1);
+
+  const R0 = 1.18, a = 0.35;
+
+  // Compute psi and its derivatives at each grid point
+  function psiFunc(R, Z) {
+    const rho = Math.sqrt(((R - R0) / a) ** 2 + (Z / (a * 1.5)) ** 2);
+    return rho * rho * 0.85;
+  }
+
+  function dPsi_dR(R, Z) {
+    const h = 0.001;
+    return (psiFunc(R + h, Z) - psiFunc(R - h, Z)) / (2 * h);
+  }
+
+  function dPsi_dZ(R, Z) {
+    const h = 0.001;
+    return (psiFunc(R, Z + h) - psiFunc(R, Z - h)) / (2 * h);
+  }
+
+  function d2Psi_dRdZ(R, Z) {
+    const h = 0.001;
+    return (psiFunc(R + h, Z + h) - psiFunc(R + h, Z - h) - psiFunc(R - h, Z + h) + psiFunc(R - h, Z - h)) / (4 * h * h);
+  }
+
+  // Build grid
+  const grid = [];
+  for (let j = 0; j < n; j++) {
+    const row = [];
+    for (let i = 0; i < n; i++) {
+      const R = Rmin + i * dR;
+      const Z = Zmax - j * dZ;
+      row.push({
+        R, Z, i, j,
+        psi: psiFunc(R, Z),
+        dR: dPsi_dR(R, Z),
+        dZ: dPsi_dZ(R, Z),
+        dRZ: d2Psi_dRdZ(R, Z),
+      });
+    }
+    grid.push(row);
+  }
+
+  const sc = grid[selectedCell.j][selectedCell.i];
+
+  // 1D slice chart showing interpolation quality
+  const sliceJ = selectedCell.j;
+  const nFine = 80;
+  const fineSlice = [];
+  for (let k = 0; k < nFine; k++) {
+    const R = Rmin + (k / (nFine - 1)) * (Rmax - Rmin);
+    const Z = Zmax - sliceJ * dZ;
+    fineSlice.push({ R, psi: psiFunc(R, Z) });
+  }
+
+  // EFIT interpolation: linear between grid points
+  function efitInterp(R) {
+    const frac = (R - Rmin) / dR;
+    const i0 = Math.min(Math.max(Math.floor(frac), 0), n - 2);
+    const t = frac - i0;
+    const p0 = grid[sliceJ][i0].psi;
+    const p1 = grid[sliceJ][i0 + 1].psi;
+    return p0 + t * (p1 - p0);
+  }
+
+  // Hermite interpolation: uses value + derivative at each end
+  function hermiteInterp(R) {
+    const frac = (R - Rmin) / dR;
+    const i0 = Math.min(Math.max(Math.floor(frac), 0), n - 2);
+    const t = frac - i0;
+    const p0 = grid[sliceJ][i0].psi;
+    const p1 = grid[sliceJ][i0 + 1].psi;
+    const m0 = grid[sliceJ][i0].dR * dR; // slope * interval width
+    const m1 = grid[sliceJ][i0 + 1].dR * dR;
+    // Hermite basis functions
+    const h00 = 2 * t * t * t - 3 * t * t + 1;
+    const h10 = t * t * t - 2 * t * t + t;
+    const h01 = -2 * t * t * t + 3 * t * t;
+    const h11 = t * t * t - t * t;
+    return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
+  }
+
+  const efitSlice = [];
+  const hermiteSlice = [];
+  for (let k = 0; k < nFine; k++) {
+    const R = Rmin + (k / (nFine - 1)) * (Rmax - Rmin);
+    efitSlice.push({ R, psi: efitInterp(R) });
+    hermiteSlice.push({ R, psi: hermiteInterp(R) });
+  }
+
+  // Derivative slices
+  function numericalDeriv(slice) {
+    const d = [];
+    for (let k = 0; k < slice.length; k++) {
+      if (k === 0) d.push((slice[1].psi - slice[0].psi) / (slice[1].R - slice[0].R));
+      else if (k === slice.length - 1) d.push((slice[k].psi - slice[k - 1].psi) / (slice[k].R - slice[k - 1].R));
+      else d.push((slice[k + 1].psi - slice[k - 1].psi) / (slice[k + 1].R - slice[k - 1].R));
+    }
+    return d;
+  }
+
+  const truthDeriv = fineSlice.map(p => dPsi_dR(p.R, p.Z || (Zmax - sliceJ * dZ)));
+  const efitDeriv = numericalDeriv(efitSlice);
+  const hermiteDeriv = numericalDeriv(hermiteSlice);
+
+  // Chart drawing
+  function SliceChart({ title, truthData, efitData, hermiteData, yLabel, height = 150 }) {
+    const w = 420, h = height;
+    const pad = { l: 55, r: 15, t: 22, b: 25 };
+    const pw = w - pad.l - pad.r;
+    const ph = h - pad.t - pad.b;
+
+    const allVals = [...truthData, ...efitData, ...hermiteData];
+    const minV = Math.min(...allVals);
+    const maxV = Math.max(...allVals);
+    const margin = (maxV - minV) * 0.1 || 0.01;
+    const yMin = minV - margin, yMax = maxV + margin;
+    const yRange = yMax - yMin;
+
+    const toX = (k) => pad.l + (k / (nFine - 1)) * pw;
+    const toY = (v) => pad.t + ph - ((v - yMin) / yRange) * ph;
+
+    const truthPath = truthData.map((v, k) => `${k === 0 ? "M" : "L"} ${toX(k)} ${toY(v)}`).join(" ");
+    const efitPath = efitData.map((v, k) => `${k === 0 ? "M" : "L"} ${toX(k)} ${toY(v)}`).join(" ");
+    const hermitePath = hermiteData.map((v, k) => `${k === 0 ? "M" : "L"} ${toX(k)} ${toY(v)}`).join(" ");
+
+    return (
+      <svg width={w} height={h} style={{ display: "block", maxWidth: "100%" }}>
+        <rect x={pad.l} y={pad.t} width={pw} height={ph} fill="#080c12" stroke="#1e2630" />
+        <text x={pad.l + 5} y={pad.t + 12} fill="#5c6a7a" fontSize={9} fontWeight={600}>{title}</text>
+
+        {/* Grid point lines */}
+        {Array.from({ length: n }, (_, i) => (
+          <line key={i} x1={toX(i * (nFine - 1) / (n - 1))} y1={pad.t} x2={toX(i * (nFine - 1) / (n - 1))} y2={pad.t + ph}
+            stroke="#1a2030" strokeWidth={1} strokeDasharray="3,3" />
+        ))}
+
+        {/* Truth (thin white) */}
+        <path d={truthPath} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} strokeDasharray="4,3" />
+
+        {/* Both lines always visible */}
+        <path d={efitPath} fill="none" stroke="#ff6b6b" strokeWidth={method === "efit" ? 2.5 : 1.5} opacity={method === "efit" ? 1 : 0.5} />
+        <path d={hermitePath} fill="none" stroke="#4ecdc4" strokeWidth={method === "chease" ? 2.5 : 1.5} opacity={method === "chease" ? 1 : 0.5} />
+
+        {/* Grid points */}
+        {Array.from({ length: n }, (_, i) => {
+          const k = Math.round(i * (nFine - 1) / (n - 1));
+          return (
+            <g key={i}>
+              <circle cx={toX(k)} cy={toY(truthData[k])} r={3} fill="#ff6b6b" opacity={method === "efit" ? 0.8 : 0.3} />
+              <circle cx={toX(k)} cy={toY(truthData[k])} r={3} fill="#4ecdc4" opacity={method === "chease" ? 0.8 : 0.3} />
+            </g>
+          );
+        })}
+
+        {/* Y axis */}
+        <text x={pad.l - 5} y={pad.t + 10} textAnchor="end" fill="#3a4a5a" fontSize={7}>{yMax.toFixed(2)}</text>
+        <text x={pad.l - 5} y={pad.t + ph} textAnchor="end" fill="#3a4a5a" fontSize={7}>{yMin.toFixed(2)}</text>
+        <text x={pad.l - 5} y={pad.t + ph / 2 + 3} textAnchor="end" fill="#5c6a7a" fontSize={8}>{yLabel}</text>
+
+        {/* X axis */}
+        <text x={pad.l} y={h - 5} fill="#3a4a5a" fontSize={7}>R={Rmin}</text>
+        <text x={pad.l + pw} y={h - 5} textAnchor="end" fill="#3a4a5a" fontSize={7}>R={Rmax}</text>
+      </svg>
+    );
+  }
+
+  const cellW = 70, cellH = 55;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          EFIT vs CHEASE: WHAT'S STORED PER GRID POINT
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          1 VALUE PER POINT vs 4 VALUES PER POINT — TAP CELLS TO COMPARE
+        </p>
+
+        {/* Method toggle */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {[
+            { id: "efit", label: "EFIT — 1 number per point", color: "#ff6b6b", sub: "Just ψ. Derivatives computed by subtraction." },
+            { id: "chease", label: "CHEASE — 4 numbers per point", color: "#4ecdc4", sub: "ψ + ∂ψ/∂R + ∂ψ/∂Z + ∂²ψ/∂R∂Z. Derivatives built in." },
+          ].map(m => (
+            <button key={m.id} onClick={() => setMethod(m.id)}
+              style={{
+                flex: 1, padding: "10px 12px", textAlign: "left",
+                background: method === m.id ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${method === m.id ? m.color : "#1e2630"}`,
+                borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <div style={{ fontSize: 11, color: method === m.id ? m.color : "#5c6a7a", fontWeight: 700 }}>{m.label}</div>
+              <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 2 }}>{m.sub}</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Grid */}
+          <div>
+            <div style={{ fontSize: 10, color: "#5c6a7a", marginBottom: 4 }}>
+              Tap a cell to see what's stored
+            </div>
+            <div style={{
+              background: "#0d1117", borderRadius: 6,
+              border: "1px solid #1e2630", padding: 8,
+            }}>
+              <svg width={n * cellW + 30} height={n * cellH + 20} style={{ display: "block" }}>
+                {/* R labels */}
+                {Array.from({ length: n }, (_, i) => (
+                  <text key={`r${i}`} x={30 + i * cellW + cellW / 2} y={10}
+                    textAnchor="middle" fill="#3a4a5a" fontSize={8}>
+                    R={( Rmin + i * dR).toFixed(2)}
+                  </text>
+                ))}
+                {/* Z labels */}
+                {Array.from({ length: n }, (_, j) => (
+                  <text key={`z${j}`} x={25} y={18 + j * cellH + cellH / 2 + 3}
+                    textAnchor="end" fill="#3a4a5a" fontSize={8}>
+                    Z={(Zmax - j * dZ).toFixed(1)}
+                  </text>
+                ))}
+
+                {grid.map((row, j) => row.map((cell, i) => {
+                  const x = 30 + i * cellW;
+                  const y = 15 + j * cellH;
+                  const isSelected = selectedCell.i === i && selectedCell.j === j;
+
+                  const t = Math.min(cell.psi / 1.5, 1);
+                  const fill = `rgb(${Math.round(10 + t * 15)},${Math.round(180 - t * 140)},${Math.round(180 - t * 60)})`;
+
+                  return (
+                    <g key={`${i}-${j}`}
+                      onClick={() => setSelectedCell({ i, j })}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <rect x={x} y={y} width={cellW - 2} height={cellH - 2}
+                        fill={fill}
+                        stroke={isSelected ? "#ffffff" : "#1a2030"}
+                        strokeWidth={isSelected ? 2 : 0.5}
+                        rx={3}
+                      />
+                      {/* Show what's stored in each cell */}
+                      {method === "efit" ? (
+                        <text x={x + cellW / 2} y={y + cellH / 2 + 3}
+                          textAnchor="middle" fill="#e6ecf2" fontSize={10} fontWeight={600}>
+                          {cell.psi.toFixed(3)}
+                        </text>
+                      ) : (
+                        <>
+                          <text x={x + cellW / 2} y={y + 13}
+                            textAnchor="middle" fill="#e6ecf2" fontSize={8} fontWeight={600}>
+                            {cell.psi.toFixed(3)}
+                          </text>
+                          <text x={x + cellW / 2} y={y + 24}
+                            textAnchor="middle" fill="#4ecdc4" fontSize={7}>
+                            R'={cell.dR.toFixed(2)}
+                          </text>
+                          <text x={x + cellW / 2} y={y + 34}
+                            textAnchor="middle" fill="#8ab4f8" fontSize={7}>
+                            Z'={cell.dZ.toFixed(2)}
+                          </text>
+                          <text x={x + cellW / 2} y={y + 44}
+                            textAnchor="middle" fill="#c9a3f5" fontSize={7}>
+                            RZ'={cell.dRZ.toFixed(2)}
+                          </text>
+                        </>
+                      )}
+                    </g>
+                  );
+                }))}
+
+                {/* Horizontal slice indicator */}
+                <line x1={30} y1={15 + sliceJ * cellH + cellH / 2}
+                  x2={30 + n * cellW} y2={15 + sliceJ * cellH + cellH / 2}
+                  stroke={method === "efit" ? "#ff6b6b" : "#4ecdc4"}
+                  strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
+              </svg>
+            </div>
+
+            {/* Storage comparison */}
+            <div style={{
+              marginTop: 8, padding: 10,
+              background: "#12171f", borderRadius: 4,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: method === "efit" ? "#ff6b6b" : "#4ecdc4", marginBottom: 6 }}>
+                {method === "efit" ? "EFIT STORAGE" : "CHEASE STORAGE"}
+              </div>
+              {method === "efit" ? (
+                <div style={{ fontSize: 10, color: "#5c6a7a", lineHeight: 1.8 }}>
+                  Grid: <span style={{ color: "#e6ecf2", fontWeight: 700 }}>65 × 65</span>
+                  <br />
+                  Per point: <span style={{ color: "#e6ecf2", fontWeight: 700 }}>1 number</span> (just ψ)
+                  <br />
+                  Total: <span style={{ color: "#e6ecf2" }}>65 × 65 × 1 = <span style={{ fontWeight: 700 }}>4,225</span> numbers</span>
+                  <br />
+                  File size: <span style={{ color: "#e6ecf2" }}>~100 KB</span>
+                  <br />
+                  Derivatives: subtract neighbors (approximate)
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: "#5c6a7a", lineHeight: 1.8 }}>
+                  Grid: <span style={{ color: "#e6ecf2", fontWeight: 700 }}>256 × 256</span> (typical, vs EFIT's 65×65)
+                  <br />
+                  Per point: <span style={{ color: "#e6ecf2", fontWeight: 700 }}>4 numbers</span> (ψ + 3 derivatives)
+                  <br />
+                  Total: <span style={{ color: "#e6ecf2" }}>256 × 256 × 4 = <span style={{ fontWeight: 700 }}>262,144</span> numbers</span>
+                  <br />
+                  File size: <span style={{ color: "#e6ecf2" }}>~2-4 MB</span>
+                  <br />
+                  Derivatives: exact from solver
+                </div>
+              )}
+
+              {/* Visual size comparison bar */}
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                  <span style={{ fontSize: 8, color: "#ff6b6b", minWidth: 40 }}>EFIT</span>
+                  <div style={{
+                    width: 30, height: 10, borderRadius: 2,
+                    background: "#ff6b6b", opacity: 0.7,
+                  }} />
+                  <span style={{ fontSize: 8, color: "#5c6a7a" }}>4,225</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 8, color: "#4ecdc4", minWidth: 40 }}>CHEASE</span>
+                  <div style={{
+                    width: Math.round(30 * 262144 / 4225), height: 10, borderRadius: 2,
+                    background: "#4ecdc4", opacity: 0.7,
+                    maxWidth: 250,
+                  }} />
+                  <span style={{ fontSize: 8, color: "#5c6a7a" }}>262,144 (62× more)</span>
+                </div>
+                <div style={{ fontSize: 8, color: "#3a4a5a", marginTop: 4 }}>
+                  Still under 4 MB. GENE will burn millions of CPU-hours after this. File size is irrelevant.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right side: selected cell detail + interpolation charts */}
+          <div style={{ flex: 1, minWidth: 280 }}>
+            {/* Selected cell */}
+            <div style={{
+              padding: 12, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630", marginBottom: 10,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", marginBottom: 8 }}>
+                CELL [{sc.i}, {sc.j}] — R={sc.R.toFixed(3)}, Z={sc.Z.toFixed(3)}
+              </div>
+
+              {method === "efit" ? (
+                <div>
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #ff6b6b33", marginBottom: 8,
+                  }}>
+                    <div style={{ fontSize: 11, color: "#ff6b6b", fontWeight: 700, marginBottom: 6 }}>
+                      EFIT stores 1 number:
+                    </div>
+                    <div style={{ fontSize: 18, color: "#e6ecf2", fontWeight: 700 }}>
+                      ψ = {sc.psi.toFixed(6)}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 4 }}>
+                      That's it. Everything else is computed by subtracting neighbors:
+                    </div>
+                  </div>
+
+                  {/* dψ/dR calculation */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #4ecdc433", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                      ∂ψ/∂R — slope in R direction
+                    </div>
+                    <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 2.0 }}>
+                      {sc.i > 0 && sc.i < n - 1 ? (
+                        <>
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ_right − ψ_left) / (2 × ΔR)</span>
+                          <br />
+                          Cell to <span style={{ color: "#4ecdc4", fontWeight: 700 }}>right</span> [{sc.i + 1},{sc.j}]: ψ = <span style={{ color: "#4ecdc4" }}>{grid[sc.j][sc.i + 1].psi.toFixed(4)}</span>
+                          <br />
+                          Cell to <span style={{ color: "#ff6b6b", fontWeight: 700 }}>left</span> [{sc.i - 1},{sc.j}]: ψ = <span style={{ color: "#ff6b6b" }}>{grid[sc.j][sc.i - 1].psi.toFixed(4)}</span>
+                          <br />
+                          (<span style={{ color: "#4ecdc4" }}>{grid[sc.j][sc.i + 1].psi.toFixed(4)}</span> − <span style={{ color: "#ff6b6b" }}>{grid[sc.j][sc.i - 1].psi.toFixed(4)}</span>) / (2 × {dR.toFixed(3)})
+                          <br />
+                          = {(grid[sc.j][sc.i + 1].psi - grid[sc.j][sc.i - 1].psi).toFixed(4)} / {(2 * dR).toFixed(3)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((grid[sc.j][sc.i + 1].psi - grid[sc.j][sc.i - 1].psi) / (2 * dR)).toFixed(4)}</span>
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}> (central difference — uses both neighbors)</span>
+                        </>
+                      ) : sc.i === 0 ? (
+                        <>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}>⚠ Left edge — no cell to the left! Using one-sided formula:</span>
+                          <br />
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ_right − ψ_here) / ΔR</span>
+                          <br />
+                          Cell to <span style={{ color: "#4ecdc4", fontWeight: 700 }}>right</span> [{sc.i + 1},{sc.j}]: ψ = <span style={{ color: "#4ecdc4" }}>{grid[sc.j][sc.i + 1].psi.toFixed(4)}</span>
+                          <br />
+                          This cell [{sc.i},{sc.j}]: ψ = <span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span>
+                          <br />
+                          (<span style={{ color: "#4ecdc4" }}>{grid[sc.j][sc.i + 1].psi.toFixed(4)}</span> − <span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span>) / {dR.toFixed(3)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((grid[sc.j][sc.i + 1].psi - sc.psi) / dR).toFixed(4)}</span>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}> (less accurate — only 1 neighbor)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}>⚠ Right edge — no cell to the right! Using one-sided formula:</span>
+                          <br />
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ_here − ψ_left) / ΔR</span>
+                          <br />
+                          This cell [{sc.i},{sc.j}]: ψ = <span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span>
+                          <br />
+                          Cell to <span style={{ color: "#ff6b6b", fontWeight: 700 }}>left</span> [{sc.i - 1},{sc.j}]: ψ = <span style={{ color: "#ff6b6b" }}>{grid[sc.j][sc.i - 1].psi.toFixed(4)}</span>
+                          <br />
+                          (<span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span> − <span style={{ color: "#ff6b6b" }}>{grid[sc.j][sc.i - 1].psi.toFixed(4)}</span>) / {dR.toFixed(3)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((sc.psi - grid[sc.j][sc.i - 1].psi) / dR).toFixed(4)}</span>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}> (less accurate — only 1 neighbor)</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* dψ/dZ calculation */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #8ab4f833", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#8ab4f8", fontWeight: 700, marginBottom: 4 }}>
+                      ∂ψ/∂Z — slope in Z direction
+                    </div>
+                    <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 2.0 }}>
+                      {sc.j > 0 && sc.j < n - 1 ? (
+                        <>
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ_above − ψ_below) / (2 × ΔZ)</span>
+                          <br />
+                          Cell <span style={{ color: "#8ab4f8", fontWeight: 700 }}>above</span> [{sc.i},{sc.j - 1}]: ψ = <span style={{ color: "#8ab4f8" }}>{grid[sc.j - 1][sc.i].psi.toFixed(4)}</span>
+                          <br />
+                          Cell <span style={{ color: "#ff9f43", fontWeight: 700 }}>below</span> [{sc.i},{sc.j + 1}]: ψ = <span style={{ color: "#ff9f43" }}>{grid[sc.j + 1][sc.i].psi.toFixed(4)}</span>
+                          <br />
+                          (<span style={{ color: "#8ab4f8" }}>{grid[sc.j - 1][sc.i].psi.toFixed(4)}</span> − <span style={{ color: "#ff9f43" }}>{grid[sc.j + 1][sc.i].psi.toFixed(4)}</span>) / (2 × {dZ.toFixed(3)})
+                          <br />
+                          = {(grid[sc.j - 1][sc.i].psi - grid[sc.j + 1][sc.i].psi).toFixed(4)} / {(2 * dZ).toFixed(3)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((grid[sc.j - 1][sc.i].psi - grid[sc.j + 1][sc.i].psi) / (2 * dZ)).toFixed(4)}</span>
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}> (central difference)</span>
+                        </>
+                      ) : sc.j === 0 ? (
+                        <>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}>⚠ Top edge — no cell above! Using one-sided formula:</span>
+                          <br />
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ_here − ψ_below) / ΔZ</span>
+                          <br />
+                          This cell [{sc.i},{sc.j}]: ψ = <span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span>
+                          <br />
+                          Cell <span style={{ color: "#ff9f43", fontWeight: 700 }}>below</span> [{sc.i},{sc.j + 1}]: ψ = <span style={{ color: "#ff9f43" }}>{grid[sc.j + 1][sc.i].psi.toFixed(4)}</span>
+                          <br />
+                          (<span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span> − <span style={{ color: "#ff9f43" }}>{grid[sc.j + 1][sc.i].psi.toFixed(4)}</span>) / {dZ.toFixed(3)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((sc.psi - grid[sc.j + 1][sc.i].psi) / dZ).toFixed(4)}</span>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}> (less accurate)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}>⚠ Bottom edge — no cell below! Using one-sided formula:</span>
+                          <br />
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ_above − ψ_here) / ΔZ</span>
+                          <br />
+                          Cell <span style={{ color: "#8ab4f8", fontWeight: 700 }}>above</span> [{sc.i},{sc.j - 1}]: ψ = <span style={{ color: "#8ab4f8" }}>{grid[sc.j - 1][sc.i].psi.toFixed(4)}</span>
+                          <br />
+                          This cell [{sc.i},{sc.j}]: ψ = <span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span>
+                          <br />
+                          (<span style={{ color: "#8ab4f8" }}>{grid[sc.j - 1][sc.i].psi.toFixed(4)}</span> − <span style={{ color: "#e6ecf2" }}>{sc.psi.toFixed(4)}</span>) / {dZ.toFixed(3)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((grid[sc.j - 1][sc.i].psi - sc.psi) / dZ).toFixed(4)}</span>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}> (less accurate)</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* d²ψ/dRdZ calculation */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #c9a3f533", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#c9a3f5", fontWeight: 700, marginBottom: 4 }}>
+                      ∂²ψ/∂R∂Z — cross derivative (twist)
+                    </div>
+                    <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 2.0 }}>
+                      {sc.i > 0 && sc.i < n - 1 && sc.j > 0 && sc.j < n - 1 ? (
+                        <>
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>Formula: (ψ↗ − ψ↘ − ψ↖ + ψ↙) / (4 × ΔR × ΔZ)</span>
+                          <br />
+                          <span style={{ color: "#c9a3f5" }}>↗</span> [{sc.i + 1},{sc.j - 1}]: ψ = {grid[sc.j - 1][sc.i + 1].psi.toFixed(4)}
+                          <br />
+                          <span style={{ color: "#c9a3f5" }}>↘</span> [{sc.i + 1},{sc.j + 1}]: ψ = {grid[sc.j + 1][sc.i + 1].psi.toFixed(4)}
+                          <br />
+                          <span style={{ color: "#c9a3f5" }}>↖</span> [{sc.i - 1},{sc.j - 1}]: ψ = {grid[sc.j - 1][sc.i - 1].psi.toFixed(4)}
+                          <br />
+                          <span style={{ color: "#c9a3f5" }}>↙</span> [{sc.i - 1},{sc.j + 1}]: ψ = {grid[sc.j + 1][sc.i - 1].psi.toFixed(4)}
+                          <br />
+                          ({grid[sc.j - 1][sc.i + 1].psi.toFixed(4)} − {grid[sc.j + 1][sc.i + 1].psi.toFixed(4)} − {grid[sc.j - 1][sc.i - 1].psi.toFixed(4)} + {grid[sc.j + 1][sc.i - 1].psi.toFixed(4)}) / (4 × {dR.toFixed(3)} × {dZ.toFixed(3)})
+                          <br />
+                          = {(grid[sc.j - 1][sc.i + 1].psi - grid[sc.j + 1][sc.i + 1].psi - grid[sc.j - 1][sc.i - 1].psi + grid[sc.j + 1][sc.i - 1].psi).toFixed(4)} / {(4 * dR * dZ).toFixed(4)}
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#e6ecf2" }}>= {((grid[sc.j - 1][sc.i + 1].psi - grid[sc.j + 1][sc.i + 1].psi - grid[sc.j - 1][sc.i - 1].psi + grid[sc.j + 1][sc.i - 1].psi) / (4 * dR * dZ)).toFixed(4)}</span>
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}> (uses 4 diagonal neighbors — noisiest)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}>⚠ Edge or corner cell — missing diagonal neighbors!</span>
+                          <br />
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>
+                            This cell is at [{sc.i},{sc.j}]. The cross derivative needs cells at [{sc.i + 1},{sc.j - 1}], [{sc.i + 1},{sc.j + 1}], [{sc.i - 1},{sc.j - 1}], [{sc.i - 1},{sc.j + 1}].
+                          </span>
+                          <br />
+                          <span style={{ color: "#5c6a7a", fontSize: 9 }}>
+                            {sc.i === 0 && "No cells to the left (i-1 doesn't exist). "}
+                            {sc.i === n - 1 && "No cells to the right (i+1 doesn't exist). "}
+                            {sc.j === 0 && "No cells above (j-1 doesn't exist). "}
+                            {sc.j === n - 1 && "No cells below (j+1 doesn't exist). "}
+                          </span>
+                          <br />
+                          <span style={{ color: "#ff9f43", fontSize: 9 }}>
+                            EFIT must use a lower-accuracy one-sided formula here, or extrapolate. This is where edge effects creep into the solution.
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: 8, background: "rgba(255,107,107,0.05)", borderRadius: 4,
+                    fontSize: 9, color: "#ff6b6b", lineHeight: 1.6,
+                  }}>
+                    Every derivative requires reading neighboring cells and subtracting. Small errors in ψ get amplified. The cross derivative uses 4 cells — even more noise.
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #4ecdc433", marginBottom: 8,
+                  }}>
+                    <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>
+                      CHEASE stores 4 numbers directly:
+                    </div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", marginBottom: 8 }}>
+                      The Grad-Shafranov solver computes all four simultaneously. No subtraction needed.
+                    </div>
+                  </div>
+
+                  {/* ψ */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #e6ecf233", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#e6ecf2", fontWeight: 700, marginBottom: 4 }}>
+                      ψ = {sc.psi.toFixed(6)}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", lineHeight: 1.7 }}>
+                      The flux value. Same as what EFIT stores. Comes from the finite element solution of the Grad-Shafranov equation at this grid point.
+                    </div>
+                  </div>
+
+                  {/* ∂ψ/∂R */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #4ecdc433", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                      ∂ψ/∂R = {sc.dR.toFixed(6)}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", lineHeight: 1.7 }}>
+                      The R-slope. In Hermite elements, each basis function is a cubic polynomial. The derivative of a cubic is a quadratic — computed analytically by differentiating the polynomial coefficients. No neighbors needed. No subtraction. Exact.
+                      {sc.i > 0 && sc.i < n - 1 && (
+                        <>
+                          <br /><br />
+                          <span style={{ color: "#5c6a7a" }}>Compare to EFIT's estimate: </span>
+                          <span style={{ color: "#ff6b6b" }}>{((grid[sc.j][sc.i + 1].psi - grid[sc.j][sc.i - 1].psi) / (2 * dR)).toFixed(6)}</span>
+                          <span style={{ color: "#5c6a7a" }}> (off by {Math.abs(sc.dR - (grid[sc.j][sc.i + 1].psi - grid[sc.j][sc.i - 1].psi) / (2 * dR)).toFixed(6)})</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ∂ψ/∂Z */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #8ab4f833", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#8ab4f8", fontWeight: 700, marginBottom: 4 }}>
+                      ∂ψ/∂Z = {sc.dZ.toFixed(6)}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", lineHeight: 1.7 }}>
+                      The Z-slope. Same story — analytically derived from the Hermite element shape functions. At Z=0 (midplane) this is exactly 0 because ψ is symmetric above and below.
+                      {sc.j > 0 && sc.j < n - 1 && (
+                        <>
+                          <br /><br />
+                          <span style={{ color: "#5c6a7a" }}>Compare to EFIT's estimate: </span>
+                          <span style={{ color: "#ff6b6b" }}>{((grid[sc.j - 1][sc.i].psi - grid[sc.j + 1][sc.i].psi) / (2 * dZ)).toFixed(6)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ∂²ψ/∂R∂Z */}
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    border: "1px solid #c9a3f533", marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, color: "#c9a3f5", fontWeight: 700, marginBottom: 4 }}>
+                      ∂²ψ/∂R∂Z = {sc.dRZ.toFixed(6)}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", lineHeight: 1.7 }}>
+                      The cross derivative. Measures how the R-slope changes as you move in Z (or equivalently, how the Z-slope changes in R). In EFIT this requires 4 diagonal neighbors and is the noisiest quantity. In CHEASE it's computed analytically — same accuracy as the other derivatives.
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: 8, background: "rgba(78,205,196,0.05)", borderRadius: 4,
+                    fontSize: 9, color: "#4ecdc4", lineHeight: 1.6,
+                  }}>
+                    No neighbors read. No subtractions. All four values come out of the solver together. The Hermite element shape functions are polynomials — their derivatives are just smaller polynomials, computed exactly.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Interpolation comparison */}
+            <div style={{
+              padding: 10, background: "#0d1117", borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#5c6a7a", marginBottom: 4 }}>
+                Horizontal slice at Z = {(Zmax - sliceJ * dZ).toFixed(1)} — how well does interpolation work between the {n} grid points?
+              </div>
+
+              <SliceChart
+                title="ψ — the values (both look OK)"
+                truthData={fineSlice.map(p => p.psi)}
+                efitData={efitSlice.map(p => p.psi)}
+                hermiteData={hermiteSlice.map(p => p.psi)}
+                yLabel="ψ"
+              />
+
+              <SliceChart
+                title="dψ/dR — the derivative (EFIT gets jagged)"
+                truthData={truthDeriv}
+                efitData={efitDeriv}
+                hermiteData={hermiteDeriv}
+                yLabel="dψ/dR"
+              />
+
+              <div style={{
+                marginTop: 6, padding: 6,
+                background: "#0a0e14", borderRadius: 4,
+                fontSize: 9, color: "#5c6a7a", lineHeight: 1.6,
+              }}>
+                White dashed = exact truth ·
+                <span style={{ color: "#ff6b6b" }}> Red</span> = EFIT interpolation ·
+                <span style={{ color: "#4ecdc4" }}> Teal</span> = CHEASE Hermite interpolation
+                <br />
+                Notice the derivative chart: EFIT's line has kinks at every grid point. CHEASE's line is smooth.
+              </div>
+            </div>
+
+            {/* The Hermite formula */}
+            <div style={{
+              marginTop: 10, padding: 12, background: "#12171f",
+              borderRadius: 6, border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                The Hermite interpolation formula
+              </div>
+              <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 1.8 }}>
+                Between two grid points (ψ₀, m₀) and (ψ₁, m₁) where m is the slope:
+              </div>
+              <div style={{
+                padding: 8, background: "#060a0e", borderRadius: 4,
+                marginTop: 6, fontSize: 11, color: "#e6ecf2", lineHeight: 1.8,
+              }}>
+                ψ(t) = (2t³ - 3t² + 1)·<span style={{ color: "#e6ecf2" }}>ψ₀</span>
+                <br />
+                {"     "}+ (t³ - 2t² + t)·<span style={{ color: "#4ecdc4" }}>m₀</span>
+                <br />
+                {"     "}+ (-2t³ + 3t²)·<span style={{ color: "#e6ecf2" }}>ψ₁</span>
+                <br />
+                {"     "}+ (t³ - t²)·<span style={{ color: "#4ecdc4" }}>m₁</span>
+                <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 4 }}>
+                  t = position between the two points (0 to 1)
+                  <br />
+                  Uses BOTH the values AND slopes at each end → smooth curve with smooth derivative
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(HermiteVsLinear));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

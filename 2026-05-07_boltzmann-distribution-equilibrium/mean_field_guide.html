@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mean-Field Theory · An Interactive Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #faf6ec;
+  --bg-2: #f0ead8;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --particle: #c8482e;
+  --particle-2: #2e6f9c;
+  --average: #d4a017;
+  --highlight: #c8482e;
+  --field: #6b8e23;
+  --paper-line: rgba(26, 20, 16, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(212, 160, 23, 0.08), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(200, 72, 46, 0.05), transparent 50%),
+    var(--bg);
+}
+
+/* paper grain */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 56px 32px 100px;
+  position: relative;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 32px;
+  margin-bottom: 56px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--highlight);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 80px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(44px, 7vw, 84px);
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+  margin-bottom: 22px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--highlight);
+}
+
+.deck {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  max-width: 56ch;
+  font-style: italic;
+  font-weight: 300;
+}
+.deck strong { color: var(--ink); font-style: normal; font-weight: 400; }
+
+/* ---------- SECTION ---------- */
+.section {
+  margin-bottom: 100px;
+  position: relative;
+}
+
+.section-head {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 24px;
+  align-items: baseline;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.section-num {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 56px;
+  line-height: 0.9;
+  color: var(--highlight);
+  letter-spacing: -0.02em;
+}
+
+.section-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kicker {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: clamp(28px, 3.6vw, 38px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+.section-title em {
+  font-style: italic;
+  color: var(--highlight);
+}
+
+.section-lead {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 68ch;
+  margin-bottom: 28px;
+  margin-left: 104px;
+}
+.section-lead strong { color: var(--ink); font-weight: 400; }
+.section-lead em { font-style: italic; color: var(--highlight); }
+
+@media (max-width: 700px) {
+  .section-head { grid-template-columns: 50px 1fr; gap: 16px; }
+  .section-num { font-size: 36px; }
+  .section-lead { margin-left: 0; }
+}
+
+/* ---------- DEMO BOX ---------- */
+.demo {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  position: relative;
+  box-shadow: 6px 6px 0 var(--rule);
+  overflow: hidden;
+}
+
+.demo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 22px;
+  border-bottom: 1px dashed var(--rule-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.demo-header .label-tag {
+  color: var(--highlight);
+  font-weight: 600;
+}
+
+canvas {
+  width: 100%;
+  display: block;
+  background: transparent;
+}
+
+.demo-canvas {
+  height: 360px;
+}
+
+.demo-footer {
+  padding: 16px 22px;
+  border-top: 1px dashed var(--rule-soft);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--bg-2);
+}
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 600;
+}
+.btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn.primary {
+  background: var(--highlight);
+  color: var(--paper);
+  border-color: var(--highlight);
+}
+.btn.primary:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.btn.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* sliders */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.slider-row label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.slider-row .v {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--highlight);
+  min-width: 36px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 130px;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--highlight);
+  border: 2px solid var(--rule);
+  cursor: pointer;
+  transform: rotate(45deg);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--highlight);
+  border: 2px solid var(--rule);
+  cursor: pointer;
+}
+
+/* ---------- INSIGHT ---------- */
+.insight {
+  margin-top: 28px;
+  padding: 22px 26px;
+  border-left: 4px solid var(--highlight);
+  background: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.insight strong { color: var(--ink); font-weight: 400; }
+.insight em { color: var(--highlight); font-style: italic; }
+.insight .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 10px;
+  display: block;
+}
+
+/* readouts */
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  border: 1.5px solid var(--rule);
+  margin-top: 0;
+  border-top: none;
+}
+.readout {
+  padding: 16px 18px;
+  border-right: 1px solid var(--rule);
+  background: var(--paper);
+}
+.readout:last-child { border-right: none; }
+.readout-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+.readout-value {
+  font-family: 'Fraunces', serif;
+  font-size: 26px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.readout-value .unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-left: 4px;
+}
+.readout.particle .readout-value { color: var(--particle); }
+.readout.average .readout-value { color: var(--average); }
+.readout.diff .readout-value { color: var(--field); }
+
+@media (max-width: 600px) {
+  .readouts { grid-template-columns: 1fr 1fr; }
+  .readout { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .readout:nth-child(2n) { border-right: none; }
+}
+
+/* ---------- TOC / NAV ---------- */
+.toc {
+  position: sticky;
+  top: 0;
+  background: rgba(250, 246, 236, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  border-bottom: 1px solid var(--rule-soft);
+  padding: 12px 32px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  margin: 0 -32px;
+  margin-bottom: 56px;
+}
+.toc-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-right: 8px;
+}
+.toc a {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  font-weight: 500;
+}
+.toc a:hover { color: var(--ink); border-color: var(--rule-soft); }
+
+/* ---------- BIG QUOTE ---------- */
+.pullquote {
+  margin: 56px 0;
+  padding: 32px 24px;
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  text-align: center;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(22px, 3.2vw, 32px);
+  line-height: 1.3;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  max-width: 70ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+.pullquote em {
+  color: var(--highlight);
+  font-style: italic;
+}
+.pullquote .attrib {
+  margin-top: 18px;
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* ---------- TWO COLUMN COMPARISONS ---------- */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 24px 0;
+}
+@media (max-width: 700px) { .compare { grid-template-columns: 1fr; } }
+
+.compare-box {
+  border: 1.5px solid var(--rule);
+  padding: 18px 20px;
+  background: var(--paper);
+}
+.compare-box h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.compare-box.bad h4 { color: var(--particle-2); }
+.compare-box p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.compare-box strong { color: var(--ink); font-weight: 400; }
+
+/* ---------- FINAL ---------- */
+.final {
+  text-align: center;
+  padding: 56px 24px 0;
+  border-top: 2px solid var(--rule);
+  margin-top: 80px;
+}
+.final-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 20px;
+}
+.final-eq {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.final-eq .var { color: var(--highlight); font-weight: 400; }
+.final-cap {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  font-style: italic;
+  max-width: 60ch;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">an interactive guide</div>
+    <h1>Mean-field theory:<br>how physics tames<br><em>10²⁰ things at once</em>.</h1>
+    <p class="deck">
+      Tracking every particle in a system is impossible. So physicists made a deal with reality —
+      they replace <strong>"every particle interacting with every other particle"</strong> with
+      <strong>"every particle interacting with the average of all the others."</strong>
+      This guide builds the intuition from scratch, with five animated scenes you can poke at.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <span class="toc-label">jump to:</span>
+    <a href="#s1">I · the problem</a>
+    <a href="#s2">II · cancellation</a>
+    <a href="#s3">III · the average</a>
+    <a href="#s4">IV · when it works</a>
+    <a href="#s5">V · when it fails</a>
+    <a href="#s6">VI · in your formula</a>
+  </nav>
+
+  <!-- ============ SECTION 1: THE PROBLEM ============ -->
+  <section id="s1" class="section">
+    <div class="section-head">
+      <div class="section-num">I</div>
+      <div class="section-titles">
+        <div class="kicker">— the problem mean-field theory solves</div>
+        <h2 class="section-title">Tracking <em>every</em> interaction is impossible.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Below: a swarm of particles, each one pulling or pushing on every other one.
+      <strong>Drag the slider</strong> to add particles. Watch the lines explode.
+      With N particles, there are N×(N−1)/2 interactions. At N = 100, that's 4,950 lines.
+      At N = 10²⁰ (a real plasma), it's 5 × 10³⁹. <em>Untrackable.</em>
+    </p>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 01</span> &nbsp; · &nbsp; the N-body problem</span>
+        <span id="s1Stat">— particles · — interactions</span>
+      </div>
+      <canvas id="canvas1" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="slider-row">
+          <label>particles</label>
+          <input type="range" id="s1Slider" min="3" max="60" step="1" value="8">
+          <span class="v" id="s1Val">8</span>
+        </div>
+        <button class="btn" id="s1Pause">⏸ pause</button>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— the real situation</span>
+      Each line is an interaction. With just 8 particles you already have 28 lines. The <em>mathematical complexity</em> grows as N² — quadratically — which means doubling the number of particles <strong>quadruples</strong> the work. No computer in any conceivable future could track every interaction in a real gas, plasma, or fluid. Physics needed an out.
+    </div>
+  </section>
+
+  <!-- ============ SECTION 2: CANCELLATION ============ -->
+  <section id="s2" class="section">
+    <div class="section-head">
+      <div class="section-num">II</div>
+      <div class="section-titles">
+        <div class="kicker">— the surprising thing that saves us</div>
+        <h2 class="section-title">Most of those interactions <em>cancel out</em>.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Here's a single test particle (yellow) in a sea of others (red). Each red particle pulls on the yellow one.
+      Watch the <strong>arrows</strong>: each one is a force from one red particle. Now look at the <em>green arrow</em> —
+      the <strong>net force</strong>, the sum of them all. <em>It's tiny.</em> When particles are spread roughly uniformly,
+      pulls in opposite directions cancel.
+    </p>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 02</span> &nbsp; · &nbsp; cancellation in action</span>
+        <span id="s2Stat">net / total: — %</span>
+      </div>
+      <canvas id="canvas2" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="slider-row">
+          <label>uniformity</label>
+          <input type="range" id="s2Slider" min="0" max="100" step="1" value="100">
+          <span class="v" id="s2Val">100</span>
+        </div>
+        <button class="btn" id="s2Reshuffle">↻ reshuffle</button>
+        <button class="btn" id="s2Toggle">show only net force</button>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="readout particle">
+        <div class="readout-label">total force magnitude<br>(sum of all magnitudes)</div>
+        <div class="readout-value" id="s2Total">—</div>
+      </div>
+      <div class="readout average">
+        <div class="readout-label">net force<br>(vector sum)</div>
+        <div class="readout-value" id="s2Net">—</div>
+      </div>
+      <div class="readout diff">
+        <div class="readout-label">cancellation ratio</div>
+        <div class="readout-value" id="s2Ratio">—</div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— what to notice</span>
+      Drag <strong>uniformity</strong> to 100 — particles spread evenly — and watch the net force shrink to nearly zero,
+      even though each individual particle is pulling hard. Drag uniformity to 0 — particles cluster on one side — and the net force grows.
+      <em>Cancellation only happens when the surroundings are roughly symmetric.</em> This is the entire reason mean-field theory works.
+    </div>
+  </section>
+
+  <!-- ============ SECTION 3: THE AVERAGE ============ -->
+  <section id="s3" class="section">
+    <div class="section-head">
+      <div class="section-num">III</div>
+      <div class="section-titles">
+        <div class="kicker">— the move that simplifies everything</div>
+        <h2 class="section-title">Replace the swarm with its <em>average</em>.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Same setup, but watch what happens when we <strong>smear out</strong> the discrete particles into a smooth density field.
+      The <em>mean field</em> is the average effect of the whole crowd, treated as a continuous fluid.
+      The yellow test particle now responds only to that smooth average — not to individual particles.
+    </p>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 03</span> &nbsp; · &nbsp; from particles to fields</span>
+        <span id="s3Stat">smear: 0%</span>
+      </div>
+      <canvas id="canvas3" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="slider-row">
+          <label>smear</label>
+          <input type="range" id="s3Slider" min="0" max="100" step="1" value="0">
+          <span class="v" id="s3Val">0</span>
+        </div>
+        <button class="btn" id="s3Auto">▶ auto-animate</button>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— the trick</span>
+      At smear = 0, you see individual particles. At smear = 100, they've melted into a continuous density.
+      <strong>The force on the test particle is nearly identical in both cases</strong> — but the smooth version is mathematically much simpler to work with.
+      <em>Mean-field theory is just this swap, applied universally.</em> Replace discrete particles with a smooth density (the "field"), then compute as if you're dealing with a fluid.
+    </div>
+  </section>
+
+  <div class="pullquote">
+    "The crowd is more predictable than any individual."
+    <div class="attrib">— the central claim of mean-field theory</div>
+  </div>
+
+  <!-- ============ SECTION 4: WHEN IT WORKS ============ -->
+  <section id="s4" class="section">
+    <div class="section-head">
+      <div class="section-num">IV</div>
+      <div class="section-titles">
+        <div class="kicker">— putting it to work</div>
+        <h2 class="section-title">Compare: <em>individual</em> vs. <em>mean-field</em>.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Two side-by-side simulations. <strong>Left:</strong> the test particle responds to every individual neighbor exactly.
+      <strong>Right:</strong> the test particle responds only to the mean field (average density). Watch them evolve.
+      In a system with many uniformly-distributed particles, the trajectories are nearly identical.
+      <em>Mean-field theory is essentially exact in the right regime.</em>
+    </p>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 04</span> &nbsp; · &nbsp; side-by-side comparison</span>
+        <span id="s4Stat">N = 60 particles</span>
+      </div>
+      <canvas id="canvas4" class="demo-canvas" style="height: 380px;"></canvas>
+      <div class="demo-footer">
+        <div class="slider-row">
+          <label>N</label>
+          <input type="range" id="s4Slider" min="10" max="120" step="2" value="60">
+          <span class="v" id="s4Val">60</span>
+        </div>
+        <button class="btn" id="s4Reset">↻ reset</button>
+        <button class="btn" id="s4Pause">⏸ pause</button>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— the magic</span>
+      With many particles, the two pictures match. The dashed yellow trail (mean-field) tracks the solid yellow trail (full N-body)
+      almost perfectly. <strong>Mean-field is not an approximation — it's the actual physics</strong> in the limit of many particles.
+      That's why it's used for everything from gases to magnets to neural networks.
+    </div>
+  </section>
+
+  <!-- ============ SECTION 5: WHEN IT FAILS ============ -->
+  <section id="s5" class="section">
+    <div class="section-head">
+      <div class="section-num">V</div>
+      <div class="section-titles">
+        <div class="kicker">— honesty about limits</div>
+        <h2 class="section-title">It only works when the crowd is <em>big and unstructured</em>.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Mean-field theory has a clear regime of validity. Drop N too low, or let particles cluster too tightly,
+      and the cancellation breaks down — individual interactions matter again.
+    </p>
+
+    <div class="compare">
+      <div class="compare-box">
+        <h4>✓ works when</h4>
+        <p>
+          <strong>Many particles</strong> (N is large)<br>
+          <strong>Roughly uniform distribution</strong><br>
+          <strong>Weak coupling</strong> (thermal energy &gt; interaction energy)<br>
+          <strong>Far from critical points</strong> (no diverging fluctuations)<br><br>
+          Examples: gases at room temperature, ordinary plasmas, dilute solutions, large neural networks,
+          most magnetic materials above their Curie point.
+        </p>
+      </div>
+      <div class="compare-box bad">
+        <h4>✗ fails when</h4>
+        <p>
+          <strong>Few particles</strong> (small N — averaging doesn't happen)<br>
+          <strong>Strong correlations</strong> (particles "know" about specific neighbors)<br>
+          <strong>Strong coupling</strong> (interactions dominate over thermal motion)<br>
+          <strong>Near phase transitions</strong> (fluctuations on all length scales)<br><br>
+          Examples: ion lattices in white dwarfs, atoms in liquids near freezing, electron pairs in superconductors,
+          critical opalescence, biological systems with specific networks.
+        </p>
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 05</span> &nbsp; · &nbsp; the breakdown</span>
+        <span id="s5Stat">cancellation: — %</span>
+      </div>
+      <canvas id="canvas5" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="slider-row">
+          <label>N</label>
+          <input type="range" id="s5N" min="3" max="80" step="1" value="40">
+          <span class="v" id="s5NVal">40</span>
+        </div>
+        <div class="slider-row">
+          <label>clustering</label>
+          <input type="range" id="s5Cluster" min="0" max="100" step="1" value="0">
+          <span class="v" id="s5ClusterVal">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— try this</span>
+      Drop <strong>N</strong> to 5 — with so few particles there's nothing to average over, and the discrete pulls dominate.
+      Now reset N to 40 and crank <strong>clustering</strong> to 100 — the particles all gather on one side,
+      breaking the symmetric distribution that made cancellation work. <em>The cancellation ratio in the readout drops in both cases</em>,
+      meaning the discrete-vs-smooth approximation is no longer valid.
+    </div>
+  </section>
+
+  <!-- ============ SECTION 6: BACK TO BOLTZMANN ============ -->
+  <section id="s6" class="section">
+    <div class="section-head">
+      <div class="section-num">VI</div>
+      <div class="section-titles">
+        <div class="kicker">— back to your formula</div>
+        <h2 class="section-title">This is exactly what your <em>Boltzmann formula</em> does.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      The plasma version: each electron interacts with every other charge — billions of ions, billions of electrons.
+      Mean-field theory replaces all those individual interactions with a single smooth potential <strong>φ(r)</strong>,
+      built from the <em>average distribution</em> of all the charges. Electron-electron contributions cancel
+      (you saw this directly in the previous app's "show e⁻ contribs" toggle), so what's left is just the response to ions.
+      The formula <strong>n = n₀ · exp(eφ/k<sub>B</sub>T)</strong> is mean-field theory in one line.
+    </p>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 06</span> &nbsp; · &nbsp; the plasma case</span>
+        <span id="s6Stat">click any electron</span>
+      </div>
+      <canvas id="canvas6" class="demo-canvas" style="height: 400px;"></canvas>
+      <div class="demo-footer">
+        <button class="btn primary" id="s6Toggle">show electron contributions</button>
+        <button class="btn" id="s6Reset">reshuffle</button>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— the punchline</span>
+      Click an electron, then toggle "show electron contributions." You'll see <em>many</em> faint blue lines from other electrons — but their <strong>vector sum is small</strong>, because they cancel. The formula doesn't ignore them; it folds their average into n₀ and only computes the deviation caused by ions. <em>That deviation is the physics.</em> Everything else cancels.
+    </div>
+  </section>
+
+  <div class="final">
+    <div class="final-label">the entire idea, in one line</div>
+    <div class="final-eq">
+      Replace <span class="var">Σ individual</span> with <span class="var">⟨ average ⟩</span>.
+    </div>
+    <div class="final-cap">
+      Whenever you see a 〈 〉 bracket in physics, mean-field theory is being invoked.
+      Whenever you see a smooth field describing a system of many discrete things,
+      it's mean-field. Whenever pressure, temperature, or density appears,
+      it's mean-field. <em>You're now in on one of physics' biggest secrets.</em>
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const COLORS = {
+  ink: '#1a1410',
+  paper: '#fdfaf2',
+  particle: '#c8482e',
+  particle2: '#2e6f9c',
+  test: '#d4a017',
+  net: '#6b8e23',
+  field: '#6b8e23',
+  dim: '#8a7a66',
+  rule: '#1a1410'
+};
+
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: rect.width, h: rect.height, ctx: canvas.getContext('2d') };
+}
+
+// ============ SCENE 1: N-BODY EXPLOSION ============
+(function scene1() {
+  const canvas = document.getElementById('canvas1');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let N = 8;
+  let particles = [];
+  let running = true;
+
+  function init() {
+    particles = [];
+    for (let i = 0; i < N; i++) {
+      particles.push({
+        x: 60 + Math.random() * (dim.w - 120),
+        y: 60 + Math.random() * (dim.h - 120),
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6
+      });
+    }
+    updateStat();
+  }
+
+  function updateStat() {
+    const interactions = N * (N - 1) / 2;
+    document.getElementById('s1Stat').textContent = `${N} particles · ${interactions} interactions`;
+  }
+
+  document.getElementById('s1Slider').addEventListener('input', e => {
+    N = parseInt(e.target.value);
+    document.getElementById('s1Val').textContent = N;
+    init();
+  });
+  document.getElementById('s1Pause').addEventListener('click', e => {
+    running = !running;
+    e.target.textContent = running ? '⏸ pause' : '▶ play';
+  });
+  window.addEventListener('resize', () => { dim = setupCanvas(canvas); init(); });
+  init();
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    if (running) {
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 30 || p.x > dim.w - 30) p.vx = -p.vx;
+        if (p.y < 30 || p.y > dim.h - 30) p.vy = -p.vy;
+      }
+    }
+
+    // All connections
+    ctx.strokeStyle = `rgba(200, 72, 46, ${Math.max(0.04, 0.18 - N * 0.002)})`;
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.stroke();
+      }
+    }
+
+    // Particles
+    for (const p of particles) {
+      ctx.fillStyle = COLORS.particle;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = COLORS.ink;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 2: CANCELLATION ============
+(function scene2() {
+  const canvas = document.getElementById('canvas2');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let particles = [];
+  const N_S2 = 30;
+  let uniformity = 100;
+  let showOnlyNet = false;
+
+  function init() {
+    particles = [];
+    const cx = dim.w / 2, cy = dim.h / 2;
+    for (let i = 0; i < N_S2; i++) {
+      let angle, r;
+      if (uniformity >= 100) {
+        // perfectly uniform circle
+        angle = Math.random() * Math.PI * 2;
+        r = 80 + Math.random() * (Math.min(dim.w, dim.h) / 2 - 100);
+      } else {
+        // bias toward one side
+        const bias = (100 - uniformity) / 100;
+        angle = Math.random() * Math.PI * 2;
+        // Make distribution lopsided: pull particles to right side
+        if (Math.random() < bias * 0.7) {
+          angle = (Math.random() - 0.5) * Math.PI * 0.5; // right side cone
+        }
+        r = 80 + Math.random() * (Math.min(dim.w, dim.h) / 2 - 100);
+      }
+      particles.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r
+      });
+    }
+  }
+
+  document.getElementById('s2Slider').addEventListener('input', e => {
+    uniformity = parseInt(e.target.value);
+    document.getElementById('s2Val').textContent = uniformity;
+    init();
+  });
+  document.getElementById('s2Reshuffle').addEventListener('click', init);
+  document.getElementById('s2Toggle').addEventListener('click', e => {
+    showOnlyNet = !showOnlyNet;
+    e.target.textContent = showOnlyNet ? 'show all forces' : 'show only net force';
+    e.target.classList.toggle('active', showOnlyNet);
+  });
+
+  window.addEventListener('resize', () => { dim = setupCanvas(canvas); init(); });
+  init();
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    const cx = dim.w / 2, cy = dim.h / 2;
+    let netFx = 0, netFy = 0, totalMag = 0;
+
+    // Compute forces
+    const forces = [];
+    for (const p of particles) {
+      const dx = cx - p.x;
+      const dy = cy - p.y;
+      const r = Math.sqrt(dx * dx + dy * dy + 100);
+      // Repulsive force from p to test particle, magnitude 1/r^2
+      const mag = 5000 / (r * r);
+      // Force direction is away from p toward test (or toward p from test - we'll show as toward p)
+      // Show vectors as "this particle pulls test toward me" — direction from test to particle
+      const fx = dx / r * mag * -1; // force on test = away from particle = -(dx/r)*mag
+      const fy = dy / r * mag * -1;
+      forces.push({ p, fx, fy, mag });
+      netFx += fx;
+      netFy += fy;
+      totalMag += mag;
+    }
+
+    // Draw individual force arrows
+    if (!showOnlyNet) {
+      for (const f of forces) {
+        ctx.strokeStyle = 'rgba(200, 72, 46, 0.45)';
+        ctx.lineWidth = 1.2;
+        const arrowLen = Math.min(50, f.mag * 5);
+        const angle = Math.atan2(f.fy, f.fx);
+        const startX = cx, startY = cy;
+        const endX = cx + Math.cos(angle) * arrowLen;
+        const endY = cy + Math.sin(angle) * arrowLen;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+    }
+
+    // Draw net force arrow (big & green)
+    const netMag = Math.sqrt(netFx * netFx + netFy * netFy);
+    if (netMag > 0.01) {
+      const scale = 12;
+      const endX = cx + netFx * scale;
+      const endY = cy + netFy * scale;
+      ctx.strokeStyle = COLORS.net;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      // arrowhead
+      const ang = Math.atan2(endY - cy, endX - cx);
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - 12 * Math.cos(ang - 0.4), endY - 12 * Math.sin(ang - 0.4));
+      ctx.lineTo(endX - 12 * Math.cos(ang + 0.4), endY - 12 * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = COLORS.net;
+      ctx.fill();
+      // label
+      ctx.fillStyle = COLORS.net;
+      ctx.font = "bold 11px 'JetBrains Mono', monospace";
+      ctx.textAlign = 'left';
+      ctx.fillText('NET', endX + 8, endY);
+    }
+
+    // Particles
+    for (const p of particles) {
+      ctx.fillStyle = COLORS.particle;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = COLORS.ink;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Test particle (yellow)
+    ctx.fillStyle = COLORS.test;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Update readouts
+    document.getElementById('s2Total').textContent = totalMag.toFixed(2);
+    document.getElementById('s2Net').textContent = netMag.toFixed(2);
+    const ratio = totalMag > 0 ? (netMag / totalMag * 100) : 0;
+    document.getElementById('s2Ratio').textContent = ratio.toFixed(1) + '%';
+    document.getElementById('s2Stat').textContent = `net / total = ${ratio.toFixed(1)} %`;
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 3: SMEAR ============
+(function scene3() {
+  const canvas = document.getElementById('canvas3');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let particles = [];
+  const N_S3 = 35;
+  let smear = 0;
+  let autoAnim = false;
+  let autoT = 0;
+
+  function init() {
+    particles = [];
+    const cx = dim.w / 2, cy = dim.h / 2;
+    for (let i = 0; i < N_S3; i++) {
+      const angle = (i / N_S3) * Math.PI * 2 + Math.random() * 0.3;
+      const r = 90 + Math.random() * (Math.min(dim.w, dim.h) / 2 - 110);
+      particles.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+        baseX: cx + Math.cos(angle) * r,
+        baseY: cy + Math.sin(angle) * r,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  document.getElementById('s3Slider').addEventListener('input', e => {
+    smear = parseInt(e.target.value);
+    document.getElementById('s3Val').textContent = smear;
+    document.getElementById('s3Stat').textContent = `smear: ${smear}%`;
+    autoAnim = false;
+    document.getElementById('s3Auto').textContent = '▶ auto-animate';
+  });
+  document.getElementById('s3Auto').addEventListener('click', e => {
+    autoAnim = !autoAnim;
+    e.target.textContent = autoAnim ? '⏸ stop' : '▶ auto-animate';
+    autoT = 0;
+  });
+
+  window.addEventListener('resize', () => { dim = setupCanvas(canvas); init(); });
+  init();
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    if (autoAnim) {
+      autoT += 0.015;
+      smear = (Math.sin(autoT) * 0.5 + 0.5) * 100;
+      document.getElementById('s3Slider').value = smear;
+      document.getElementById('s3Val').textContent = smear.toFixed(0);
+      document.getElementById('s3Stat').textContent = `smear: ${smear.toFixed(0)}%`;
+    }
+
+    const t = smear / 100; // 0 = particles, 1 = smooth field
+    const cx = dim.w / 2, cy = dim.h / 2;
+
+    // Draw smooth field (when smearing)
+    if (t > 0) {
+      // Compute density-like field
+      const cellSize = 8;
+      const cols = Math.ceil(dim.w / cellSize);
+      const rows = Math.ceil(dim.h / cellSize);
+      for (let cyi = 0; cyi < rows; cyi++) {
+        for (let cxi = 0; cxi < cols; cxi++) {
+          const x = cxi * cellSize + cellSize / 2;
+          const y = cyi * cellSize + cellSize / 2;
+          let density = 0;
+          for (const p of particles) {
+            const dx = x - p.x;
+            const dy = y - p.y;
+            const r2 = dx * dx + dy * dy;
+            const sigma = 60;
+            density += Math.exp(-r2 / (2 * sigma * sigma));
+          }
+          const intensity = Math.min(0.6, density * 0.04 * t);
+          ctx.fillStyle = `rgba(200, 72, 46, ${intensity})`;
+          ctx.fillRect(cxi * cellSize, cyi * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    // Draw particles fading out as t increases
+    if (t < 1) {
+      for (const p of particles) {
+        const alpha = 1 - t;
+        ctx.fillStyle = `rgba(200, 72, 46, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5 + (1 - t) * 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(26, 20, 16, ${alpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    // Force arrow on test particle (same in both regimes — that's the point!)
+    let netFx = 0, netFy = 0;
+    for (const p of particles) {
+      const dx = cx - p.x;
+      const dy = cy - p.y;
+      const r = Math.sqrt(dx * dx + dy * dy + 100);
+      const mag = 5000 / (r * r);
+      netFx += -(dx / r) * mag;
+      netFy += -(dy / r) * mag;
+    }
+    const netMag = Math.sqrt(netFx * netFx + netFy * netFy);
+    if (netMag > 0.01) {
+      const scale = 15;
+      const endX = cx + netFx * scale;
+      const endY = cy + netFy * scale;
+      ctx.strokeStyle = COLORS.net;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      const ang = Math.atan2(endY - cy, endX - cx);
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - 12 * Math.cos(ang - 0.4), endY - 12 * Math.sin(ang - 0.4));
+      ctx.lineTo(endX - 12 * Math.cos(ang + 0.4), endY - 12 * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = COLORS.net;
+      ctx.fill();
+    }
+
+    // Test particle
+    ctx.fillStyle = COLORS.test;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+    if (t < 0.3) {
+      ctx.fillText('DISCRETE PARTICLES', dim.w / 2, dim.h - 14);
+    } else if (t < 0.7) {
+      ctx.fillText('TRANSITIONING…', dim.w / 2, dim.h - 14);
+    } else {
+      ctx.fillText('SMOOTH FIELD (MEAN FIELD)', dim.w / 2, dim.h - 14);
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 4: SIDE BY SIDE ============
+(function scene4() {
+  const canvas = document.getElementById('canvas4');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let particles = []; // {x,y,vx,vy} — fixed background
+  let testFull = null; // particle responding to all individual particles
+  let testMean = null; // particle responding to mean field
+  let trailFull = [];
+  let trailMean = [];
+  let N = 60;
+  let running = true;
+
+  function init() {
+    particles = [];
+    for (let i = 0; i < N; i++) {
+      particles.push({
+        x: Math.random() * dim.w,
+        y: Math.random() * dim.h,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4
+      });
+    }
+    testFull = { x: dim.w / 2, y: dim.h / 2, vx: 0.5, vy: -0.3 };
+    testMean = { x: dim.w / 2, y: dim.h / 2, vx: 0.5, vy: -0.3 };
+    trailFull = [];
+    trailMean = [];
+  }
+
+  document.getElementById('s4Slider').addEventListener('input', e => {
+    N = parseInt(e.target.value);
+    document.getElementById('s4Val').textContent = N;
+    document.getElementById('s4Stat').textContent = `N = ${N} particles`;
+    init();
+  });
+  document.getElementById('s4Reset').addEventListener('click', init);
+  document.getElementById('s4Pause').addEventListener('click', e => {
+    running = !running;
+    e.target.textContent = running ? '⏸ pause' : '▶ play';
+  });
+  window.addEventListener('resize', () => { dim = setupCanvas(canvas); init(); });
+  init();
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    if (running) {
+      // Update background particles
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x += dim.w;
+        if (p.x > dim.w) p.x -= dim.w;
+        if (p.y < 0) p.y += dim.h;
+        if (p.y > dim.h) p.y -= dim.h;
+      }
+
+      // FULL N-body: testFull responds to every individual particle
+      let fxF = 0, fyF = 0;
+      for (const p of particles) {
+        const dx = p.x - testFull.x;
+        const dy = p.y - testFull.y;
+        const r2 = dx * dx + dy * dy + 400;
+        const r = Math.sqrt(r2);
+        // Mild attractive
+        const factor = 30 / r2;
+        fxF += factor * dx / r;
+        fyF += factor * dy / r;
+      }
+      testFull.vx += fxF * 0.02;
+      testFull.vy += fyF * 0.02;
+      testFull.vx *= 0.99;
+      testFull.vy *= 0.99;
+      testFull.x += testFull.vx;
+      testFull.y += testFull.vy;
+      // wrap
+      if (testFull.x < 0) testFull.x += dim.w;
+      if (testFull.x > dim.w) testFull.x -= dim.w;
+      if (testFull.y < 0) testFull.y += dim.h;
+      if (testFull.y > dim.h) testFull.y -= dim.h;
+
+      // MEAN-FIELD: testMean responds to average density (which is uniform → roughly zero force)
+      // We'll add a tiny force toward center of mass to mimic mean density gradient
+      let cmx = 0, cmy = 0;
+      for (const p of particles) { cmx += p.x; cmy += p.y; }
+      cmx /= particles.length; cmy /= particles.length;
+      const dxM = cmx - testMean.x;
+      const dyM = cmy - testMean.y;
+      const rM = Math.sqrt(dxM * dxM + dyM * dyM + 1);
+      const meanFactor = 0.0005 * particles.length;
+      testMean.vx += (dxM / rM) * meanFactor;
+      testMean.vy += (dyM / rM) * meanFactor;
+      testMean.vx *= 0.99;
+      testMean.vy *= 0.99;
+      testMean.x += testMean.vx;
+      testMean.y += testMean.vy;
+      if (testMean.x < 0) testMean.x += dim.w;
+      if (testMean.x > dim.w) testMean.x -= dim.w;
+      if (testMean.y < 0) testMean.y += dim.h;
+      if (testMean.y > dim.h) testMean.y -= dim.h;
+
+      trailFull.push({ x: testFull.x, y: testFull.y });
+      trailMean.push({ x: testMean.x, y: testMean.y });
+      if (trailFull.length > 200) trailFull.shift();
+      if (trailMean.length > 200) trailMean.shift();
+    }
+
+    // Draw split divider in middle to label two interpretations
+    // Actually just one canvas — we draw both trails on same view
+
+    // Background particles
+    for (const p of particles) {
+      ctx.fillStyle = 'rgba(200, 72, 46, 0.5)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Trails
+    if (trailFull.length > 1) {
+      ctx.strokeStyle = COLORS.test;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let i = 0; i < trailFull.length; i++) {
+        if (i === 0) ctx.moveTo(trailFull[i].x, trailFull[i].y);
+        else {
+          const dx = Math.abs(trailFull[i].x - trailFull[i-1].x);
+          const dy = Math.abs(trailFull[i].y - trailFull[i-1].y);
+          if (dx > 100 || dy > 100) ctx.moveTo(trailFull[i].x, trailFull[i].y);
+          else ctx.lineTo(trailFull[i].x, trailFull[i].y);
+        }
+      }
+      ctx.stroke();
+    }
+    if (trailMean.length > 1) {
+      ctx.strokeStyle = COLORS.net;
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      for (let i = 0; i < trailMean.length; i++) {
+        if (i === 0) ctx.moveTo(trailMean[i].x, trailMean[i].y);
+        else {
+          const dx = Math.abs(trailMean[i].x - trailMean[i-1].x);
+          const dy = Math.abs(trailMean[i].y - trailMean[i-1].y);
+          if (dx > 100 || dy > 100) ctx.moveTo(trailMean[i].x, trailMean[i].y);
+          else ctx.lineTo(trailMean[i].x, trailMean[i].y);
+        }
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Test particles
+    ctx.fillStyle = COLORS.test;
+    ctx.beginPath();
+    ctx.arc(testFull.x, testFull.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.net;
+    ctx.beginPath();
+    ctx.arc(testMean.x, testMean.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Legend
+    ctx.fillStyle = COLORS.test;
+    ctx.fillRect(15, 15, 16, 16);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'left';
+    ctx.fillText('FULL N-BODY (solid trail)', 38, 27);
+
+    ctx.fillStyle = COLORS.net;
+    ctx.fillRect(15, 38, 16, 16);
+    ctx.fillStyle = COLORS.ink;
+    ctx.fillText('MEAN-FIELD (dashed trail)', 38, 50);
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 5: BREAKDOWN ============
+(function scene5() {
+  const canvas = document.getElementById('canvas5');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let particles = [];
+  let N = 40;
+  let cluster = 0;
+
+  function init() {
+    particles = [];
+    const cx = dim.w / 2, cy = dim.h / 2;
+    const clusterCx = cx + Math.min(dim.w, dim.h) * 0.25;
+    const clusterCy = cy;
+    const clusterFactor = cluster / 100;
+
+    for (let i = 0; i < N; i++) {
+      const useCluster = Math.random() < clusterFactor;
+      let x, y;
+      if (useCluster) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * 80;
+        x = clusterCx + Math.cos(angle) * r;
+        y = clusterCy + Math.sin(angle) * r;
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        const r = 90 + Math.random() * (Math.min(dim.w, dim.h) / 2 - 110);
+        x = cx + Math.cos(angle) * r;
+        y = cy + Math.sin(angle) * r;
+      }
+      particles.push({ x, y });
+    }
+  }
+
+  document.getElementById('s5N').addEventListener('input', e => {
+    N = parseInt(e.target.value);
+    document.getElementById('s5NVal').textContent = N;
+    init();
+  });
+  document.getElementById('s5Cluster').addEventListener('input', e => {
+    cluster = parseInt(e.target.value);
+    document.getElementById('s5ClusterVal').textContent = cluster;
+    init();
+  });
+  window.addEventListener('resize', () => { dim = setupCanvas(canvas); init(); });
+  init();
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    const cx = dim.w / 2, cy = dim.h / 2;
+    let netFx = 0, netFy = 0, totalMag = 0;
+
+    for (const p of particles) {
+      const dx = cx - p.x;
+      const dy = cy - p.y;
+      const r = Math.sqrt(dx * dx + dy * dy + 100);
+      const mag = 5000 / (r * r);
+      const fx = -(dx / r) * mag;
+      const fy = -(dy / r) * mag;
+      netFx += fx;
+      netFy += fy;
+      totalMag += mag;
+
+      // Draw individual force lines
+      ctx.strokeStyle = 'rgba(200, 72, 46, 0.3)';
+      ctx.lineWidth = 1;
+      const arrowLen = Math.min(40, mag * 4);
+      const angle = Math.atan2(fy, fx);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * arrowLen, cy + Math.sin(angle) * arrowLen);
+      ctx.stroke();
+    }
+
+    // Net force
+    const netMag = Math.sqrt(netFx * netFx + netFy * netFy);
+    if (netMag > 0.01) {
+      const scale = 14;
+      const endX = cx + netFx * scale;
+      const endY = cy + netFy * scale;
+      ctx.strokeStyle = COLORS.net;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      const ang = Math.atan2(endY - cy, endX - cx);
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - 12 * Math.cos(ang - 0.4), endY - 12 * Math.sin(ang - 0.4));
+      ctx.lineTo(endX - 12 * Math.cos(ang + 0.4), endY - 12 * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = COLORS.net;
+      ctx.fill();
+    }
+
+    // Particles
+    for (const p of particles) {
+      ctx.fillStyle = COLORS.particle;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = COLORS.ink;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    // Test particle
+    ctx.fillStyle = COLORS.test;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Update stat
+    const cancellation = totalMag > 0 ? (1 - netMag / totalMag) * 100 : 100;
+    document.getElementById('s5Stat').textContent = `cancellation: ${cancellation.toFixed(1)}%`;
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 6: PLASMA RECAP ============
+(function scene6() {
+  const canvas = document.getElementById('canvas6');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let ions = [];
+  let electrons = [];
+  let selectedElectron = null;
+  let showElectronContribs = false;
+
+  const COULOMB = 8000;
+  const KBT = 3;
+
+  function init() {
+    ions = [];
+    electrons = [];
+    // Place a couple of ions
+    ions.push({ x: dim.w * 0.3, y: dim.h * 0.5, q: +1 });
+    ions.push({ x: dim.w * 0.7, y: dim.h * 0.5, q: -1 });
+
+    // Place electrons according to Boltzmann distribution
+    const N_E = 70;
+    for (let i = 0; i < N_E; i++) {
+      let placed = false;
+      for (let attempt = 0; attempt < 50 && !placed; attempt++) {
+        const x = 40 + Math.random() * (dim.w - 80);
+        const y = 40 + Math.random() * (dim.h - 80);
+        // Compute potential
+        let phi = 0;
+        for (const ion of ions) {
+          const dx = x - ion.x;
+          const dy = y - ion.y;
+          const r = Math.sqrt(dx * dx + dy * dy + 100);
+          phi += COULOMB * ion.q / r;
+        }
+        const weight = Math.exp(Math.min(5, Math.max(-5, phi / KBT)));
+        if (Math.random() < weight / 30) {
+          electrons.push({ x, y });
+          placed = true;
+        }
+      }
+      if (!placed) {
+        electrons.push({
+          x: 40 + Math.random() * (dim.w - 80),
+          y: 40 + Math.random() * (dim.h - 80)
+        });
+      }
+    }
+    selectedElectron = electrons[0];
+  }
+
+  document.getElementById('s6Toggle').addEventListener('click', e => {
+    showElectronContribs = !showElectronContribs;
+    e.target.textContent = showElectronContribs ? 'hide electron contributions' : 'show electron contributions';
+    e.target.classList.toggle('active', showElectronContribs);
+  });
+  document.getElementById('s6Reset').addEventListener('click', init);
+
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let best = null;
+    let bestDist = 30;
+    for (const el of electrons) {
+      const d = Math.hypot(mx - el.x, my - el.y);
+      if (d < bestDist) { bestDist = d; best = el; }
+    }
+    if (best) {
+      selectedElectron = best;
+      document.getElementById('s6Stat').textContent = 'electron selected';
+    }
+  });
+
+  window.addEventListener('resize', () => { dim = setupCanvas(canvas); init(); });
+  init();
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    // Draw potential field background
+    const cellSize = 12;
+    const cols = Math.ceil(dim.w / cellSize);
+    const rows = Math.ceil(dim.h / cellSize);
+    for (let cyi = 0; cyi < rows; cyi++) {
+      for (let cxi = 0; cxi < cols; cxi++) {
+        const x = cxi * cellSize;
+        const y = cyi * cellSize;
+        let phi = 0;
+        for (const ion of ions) {
+          const dx = x - ion.x;
+          const dy = y - ion.y;
+          const r = Math.sqrt(dx * dx + dy * dy + 200);
+          phi += COULOMB * ion.q / r;
+        }
+        const intensity = Math.min(0.18, Math.abs(phi) / 60);
+        const color = phi > 0
+          ? `rgba(200, 72, 46, ${intensity})`
+          : `rgba(46, 111, 156, ${intensity})`;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    if (selectedElectron) {
+      // Lines to ions (always shown)
+      for (const ion of ions) {
+        const dx = ion.x - selectedElectron.x;
+        const dy = ion.y - selectedElectron.y;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        const intensity = Math.min(0.9, 200 / r);
+        ctx.strokeStyle = ion.q > 0
+          ? `rgba(200, 72, 46, ${intensity})`
+          : `rgba(46, 111, 156, ${intensity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(selectedElectron.x, selectedElectron.y);
+        ctx.lineTo(ion.x, ion.y);
+        ctx.stroke();
+      }
+
+      // Lines to other electrons (only when toggled)
+      if (showElectronContribs) {
+        for (const other of electrons) {
+          if (other === selectedElectron) continue;
+          const dx = other.x - selectedElectron.x;
+          const dy = other.y - selectedElectron.y;
+          const r = Math.sqrt(dx * dx + dy * dy);
+          if (r < 30) continue;
+          const intensity = Math.min(0.5, 50 / r);
+          ctx.strokeStyle = `rgba(46, 111, 156, ${intensity * 0.5})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(selectedElectron.x, selectedElectron.y);
+          ctx.lineTo(other.x, other.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Ions
+    for (const ion of ions) {
+      const grad = ctx.createRadialGradient(ion.x, ion.y, 0, ion.x, ion.y, 60);
+      const c = ion.q > 0 ? '200, 72, 46' : '46, 111, 156';
+      grad.addColorStop(0, `rgba(${c}, 0.4)`);
+      grad.addColorStop(1, `rgba(${c}, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(ion.x, ion.y, 60, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = ion.q > 0 ? COLORS.particle : COLORS.particle2;
+      ctx.beginPath();
+      ctx.arc(ion.x, ion.y, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = COLORS.ink;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = COLORS.paper;
+      ctx.font = "bold 16px 'Fraunces', serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ion.q > 0 ? '+' : '−', ion.x, ion.y + 1);
+    }
+
+    // Electrons
+    for (const el of electrons) {
+      const isSel = el === selectedElectron;
+      ctx.fillStyle = isSel ? COLORS.test : 'rgba(46, 111, 156, 0.85)';
+      ctx.beginPath();
+      ctx.arc(el.x, el.y, isSel ? 7 : 4, 0, Math.PI * 2);
+      ctx.fill();
+      if (isSel) {
+        ctx.strokeStyle = COLORS.ink;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+</body>
+</html>

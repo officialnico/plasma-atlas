@@ -1,0 +1,481 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>partial derivative v3</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function PartialDerivativeVisualization() {
+  const canvasRef = useRef(null);
+  const [pointX, setPointX] = useState(0.8);
+  const [pointY, setPointY] = useState(0.8);
+  const [showSlice, setShowSlice] = useState(true);
+  const [showTangent, setShowTangent] = useState(true);
+  const [partialMode, setPartialMode] = useState('x'); // 'x' or 'y'
+  const [rotationY, setRotationY] = useState(0.6);
+  const [rotationX, setRotationX] = useState(0.35);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [resolution, setResolution] = useState(40);
+
+  // f(x,y) = x²y² + x² + y³
+  const f = (x, y) => x * x * y * y + x * x + y * y * y;
+  
+  // ∂f/∂x = 2xy² + 2x
+  const dfdx = (x, y) => 2 * x * y * y + 2 * x;
+  
+  // ∂f/∂y = 2x²y + 3y²
+  const dfdy = (x, y) => 2 * x * x * y + 3 * y * y;
+  
+  const fValue = f(pointX, pointY);
+  const partialXValue = dfdx(pointX, pointY);
+  const partialYValue = dfdy(pointX, pointY);
+  const currentPartialValue = partialMode === 'x' ? partialXValue : partialYValue;
+
+  // 3D projection with zoom
+  const project = (x, y, z, width, height) => {
+    let tempX = x * Math.cos(rotationY) - z * Math.sin(rotationY);
+    let tempZ = x * Math.sin(rotationY) + z * Math.cos(rotationY);
+    x = tempX;
+    z = tempZ;
+
+    let tempY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
+    tempZ = y * Math.sin(rotationX) + z * Math.cos(rotationX);
+    y = tempY;
+    z = tempZ;
+
+    const scale = 50 * zoom;
+    const perspective = 600;
+    const factor = perspective / (perspective + z + 5);
+    
+    return {
+      x: width / 2 + x * scale * factor,
+      y: height / 2 - y * scale * factor,
+      z: z
+    };
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+    
+    // Gradient background
+    const bgGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
+    bgGradient.addColorStop(0, '#1e2a4a');
+    bgGradient.addColorStop(1, '#0f1525');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, width, height);
+
+    const range = 2;
+    const step = (range * 2) / resolution;
+    const zScale = 0.12;
+
+    // Collect polygons for depth sorting
+    const polygons = [];
+
+    // Build surface mesh
+    for (let xi = -range; xi < range; xi += step) {
+      for (let yi = -range; yi < range; yi += step) {
+        const x1 = xi, y1 = yi;
+        const x2 = xi + step, y2 = yi + step;
+        
+        const z1 = f(x1, y1) * zScale;
+        const z2 = f(x2, y1) * zScale;
+        const z3 = f(x2, y2) * zScale;
+        const z4 = f(x1, y2) * zScale;
+        
+        const p1 = project(x1, z1, y1, width, height);
+        const p2 = project(x2, z2, y1, width, height);
+        const p3 = project(x2, z3, y2, width, height);
+        const p4 = project(x1, z4, y2, width, height);
+        
+        const avgZ = (p1.z + p2.z + p3.z + p4.z) / 4;
+        const avgHeight = (z1 + z2 + z3 + z4) / 4;
+        
+        // Surface normal for shading
+        const shade = 0.5 + avgHeight * 0.3;
+        
+        const hue = 210 + avgHeight * 40;
+        const sat = 65 + shade * 15;
+        const light = 30 + shade * 25;
+        
+        polygons.push({
+          type: 'surface',
+          points: [p1, p2, p3, p4],
+          z: avgZ,
+          fill: `hsla(${hue}, ${sat}%, ${light}%, 0.9)`,
+          stroke: `hsla(${hue + 20}, ${sat}%, ${light + 15}%, 0.35)`
+        });
+      }
+    }
+
+    // Sort surface polygons by depth
+    polygons.sort((a, b) => b.z - a.z);
+
+    // Draw surface
+    for (const item of polygons) {
+      ctx.fillStyle = item.fill;
+      ctx.beginPath();
+      ctx.moveTo(item.points[0].x, item.points[0].y);
+      for (let i = 1; i < item.points.length; i++) {
+        ctx.lineTo(item.points[i].x, item.points[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.strokeStyle = item.stroke;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // Now draw overlays (always on top)
+    
+    // Slice curve
+    if (showSlice) {
+      const slicePoints = [];
+      
+      if (partialMode === 'x') {
+        // Slice at fixed y — curve in x direction
+        for (let xi = -range; xi <= range; xi += 0.02) {
+          const z = f(xi, pointY) * zScale;
+          const p = project(xi, z, pointY, width, height);
+          slicePoints.push(p);
+        }
+      } else {
+        // Slice at fixed x — curve in y direction
+        for (let yi = -range; yi <= range; yi += 0.02) {
+          const z = f(pointX, yi) * zScale;
+          const p = project(pointX, z, yi, width, height);
+          slicePoints.push(p);
+        }
+      }
+      
+      // Draw slice with glow
+      ctx.shadowColor = partialMode === 'x' ? '#f1c40f' : '#9b59b6';
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = partialMode === 'x' ? '#f1c40f' : '#9b59b6';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(slicePoints[0].x, slicePoints[0].y);
+      for (let i = 1; i < slicePoints.length; i++) {
+        ctx.lineTo(slicePoints[i].x, slicePoints[i].y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Point on surface
+    const pointZ = fValue * zScale;
+    const pointProj = project(pointX, pointZ, pointY, width, height);
+    
+    // Tangent line
+    if (showTangent) {
+      const tangentLength = 0.6;
+      let t1, t2;
+      
+      if (partialMode === 'x') {
+        const slope = partialXValue * zScale;
+        const t1x = pointX - tangentLength;
+        const t1z = pointZ - slope * tangentLength;
+        const t2x = pointX + tangentLength;
+        const t2z = pointZ + slope * tangentLength;
+        t1 = project(t1x, t1z, pointY, width, height);
+        t2 = project(t2x, t2z, pointY, width, height);
+      } else {
+        const slope = partialYValue * zScale;
+        const t1y = pointY - tangentLength;
+        const t1z = pointZ - slope * tangentLength;
+        const t2y = pointY + tangentLength;
+        const t2z = pointZ + slope * tangentLength;
+        t1 = project(pointX, t1z, t1y, width, height);
+        t2 = project(pointX, t2z, t2y, width, height);
+      }
+      
+      // Draw tangent with glow
+      ctx.shadowColor = '#e74c3c';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(t1.x, t1.y);
+      ctx.lineTo(t2.x, t2.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Vertical guide line
+    const baseProj = project(pointX, 0, pointY, width, height);
+    ctx.strokeStyle = 'rgba(46, 204, 113, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(baseProj.x, baseProj.y);
+    ctx.lineTo(pointProj.x, pointProj.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw point LAST (always on top)
+    ctx.shadowColor = '#2ecc71';
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.arc(pointProj.x, pointProj.y, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    
+    // Inner highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.arc(pointProj.x - 3, pointProj.y - 3, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw axes
+    const axisLen = 2.8;
+    const origin = project(0, 0, 0, width, height);
+    const xEnd = project(axisLen, 0, 0, width, height);
+    const yEnd = project(0, 2.5, 0, width, height);
+    const zEnd = project(0, 0, axisLen, width, height);
+
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    
+    ctx.strokeStyle = 'rgba(255,100,100,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(xEnd.x, xEnd.y);
+    ctx.stroke();
+    
+    ctx.strokeStyle = 'rgba(100,255,100,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(yEnd.x, yEnd.y);
+    ctx.stroke();
+    
+    ctx.strokeStyle = 'rgba(100,100,255,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(zEnd.x, zEnd.y);
+    ctx.stroke();
+
+    ctx.font = 'bold 16px Arial';
+    ctx.fillStyle = 'rgba(255,100,100,0.9)';
+    ctx.fillText('x', xEnd.x + 8, xEnd.y + 5);
+    ctx.fillStyle = 'rgba(100,255,100,0.9)';
+    ctx.fillText('f', yEnd.x - 5, yEnd.y - 12);
+    ctx.fillStyle = 'rgba(100,100,255,0.9)';
+    ctx.fillText('y', zEnd.x + 8, zEnd.y + 5);
+
+  }, [pointX, pointY, rotationX, rotationY, showSlice, showTangent, partialMode, fValue, partialXValue, partialYValue, zoom, resolution]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    setRotationY(prev => prev + dx * 0.008);
+    setRotationX(prev => Math.max(-1.2, Math.min(1.2, prev + dy * 0.008)));
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+  
+  const handleWheel = (e) => {
+    e.preventDefault();
+    setZoom(prev => Math.max(0.5, Math.min(2.5, prev - e.deltaY * 0.001)));
+  };
+
+  const sliceColor = partialMode === 'x' ? 'text-yellow-400' : 'text-purple-400';
+  const sliceBg = partialMode === 'x' ? 'bg-yellow-900/30 border-yellow-600/50' : 'bg-purple-900/30 border-purple-600/50';
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold mb-1 text-center">Partial Derivatives</h1>
+      <p className="text-center text-gray-400 mb-3">f(x,y) = x²y² + x² + y³</p>
+      
+      <div className="flex flex-col lg:flex-row gap-4 max-w-7xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={700}
+            height={600}
+            className="border border-gray-700 rounded-xl cursor-grab active:cursor-grabbing w-full bg-gray-900"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+          />
+          <p className="text-gray-500 text-xs mt-2 text-center">Drag to rotate • Scroll to zoom</p>
+        </div>
+
+        <div className="lg:w-80 space-y-3">
+          
+          {/* Partial derivative selector */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <h2 className="font-semibold mb-3 text-sm">Which partial derivative?</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPartialMode('x')}
+                className={`p-3 rounded-lg font-mono text-sm transition-all ${
+                  partialMode === 'x' 
+                    ? 'bg-yellow-600 text-white' 
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                ∂f/∂x
+              </button>
+              <button
+                onClick={() => setPartialMode('y')}
+                className={`p-3 rounded-lg font-mono text-sm transition-all ${
+                  partialMode === 'y' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                ∂f/∂y
+              </button>
+            </div>
+          </div>
+
+          {/* Point controls */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <h2 className="font-semibold mb-3 text-sm">Point Location</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="flex justify-between mb-1 text-sm">
+                  <span className="text-red-400">x {partialMode === 'y' && <span className="text-gray-500">(frozen)</span>}</span>
+                  <span className="font-mono text-green-400">{pointX.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min="-1.8" max="1.8" step="0.05" value={pointX}
+                  onChange={(e) => setPointX(parseFloat(e.target.value))}
+                  className="w-full accent-green-500 h-2"
+                />
+              </div>
+              <div>
+                <label className="flex justify-between mb-1 text-sm">
+                  <span className="text-blue-400">y {partialMode === 'x' && <span className="text-gray-500">(frozen)</span>}</span>
+                  <span className="font-mono text-green-400">{pointY.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min="-1.5" max="1.8" step="0.05" value={pointY}
+                  onChange={(e) => setPointY(parseFloat(e.target.value))}
+                  className="w-full accent-green-500 h-2"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Slice explanation */}
+          <div className={`border p-4 rounded-xl ${sliceBg}`}>
+            <h2 className={`font-semibold mb-2 text-sm flex items-center gap-2 ${sliceColor}`}>
+              <div className={`w-3 h-3 rounded-full ${partialMode === 'x' ? 'bg-yellow-400' : 'bg-purple-400'}`}></div>
+              {partialMode === 'x' ? 'Yellow' : 'Purple'} Curve
+            </h2>
+            <p className="text-xs text-gray-300">
+              {partialMode === 'x' 
+                ? <>f(x, <span className="text-blue-400">{pointY.toFixed(1)}</span>) — y is frozen. Walking in x direction.</>
+                : <>f(<span className="text-red-400">{pointX.toFixed(1)}</span>, y) — x is frozen. Walking in y direction.</>
+              }
+            </p>
+          </div>
+
+          {/* Partial derivative result */}
+          <div className="bg-red-900/30 border border-red-600/50 p-4 rounded-xl">
+            <h2 className="font-semibold mb-2 text-red-400 text-sm flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              Red Tangent = Slope
+            </h2>
+            <div className="font-mono text-xs bg-gray-900/50 p-2 rounded-lg">
+              {partialMode === 'x' ? (
+                <>
+                  <p className="text-gray-500">∂f/∂x = 2xy² + 2x</p>
+                  <p className="text-gray-400 mt-1">= 2({pointX.toFixed(1)})({pointY.toFixed(1)})² + 2({pointX.toFixed(1)})</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500">∂f/∂y = 2x²y + 3y²</p>
+                  <p className="text-gray-400 mt-1">= 2({pointX.toFixed(1)})²({pointY.toFixed(1)}) + 3({pointY.toFixed(1)})²</p>
+                </>
+              )}
+              <p className="text-red-400 font-bold text-xl mt-2">{currentPartialValue.toFixed(3)}</p>
+            </div>
+          </div>
+
+          {/* All values */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <h2 className="font-semibold mb-2 text-sm">All values at this point</h2>
+            <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+              <div className="bg-gray-900/50 p-2 rounded text-center">
+                <p className="text-gray-500">f</p>
+                <p className="text-green-400">{fValue.toFixed(2)}</p>
+              </div>
+              <div className={`p-2 rounded text-center ${partialMode === 'x' ? 'bg-yellow-900/30' : 'bg-gray-900/50'}`}>
+                <p className="text-gray-500">∂f/∂x</p>
+                <p className="text-yellow-400">{partialXValue.toFixed(2)}</p>
+              </div>
+              <div className={`p-2 rounded text-center ${partialMode === 'y' ? 'bg-purple-900/30' : 'bg-gray-900/50'}`}>
+                <p className="text-gray-500">∂f/∂y</p>
+                <p className="text-purple-400">{partialYValue.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Toggles */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" checked={showSlice} onChange={(e) => setShowSlice(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
+                <span className={sliceColor}>Slice</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" checked={showTangent} onChange={(e) => setShowTangent(e.target.checked)} className="accent-red-500 w-4 h-4" />
+                <span className="text-red-400">Tangent</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Resolution */}
+          <div className="bg-gray-800/80 p-3 rounded-xl">
+            <label className="flex justify-between mb-1 text-xs">
+              <span>Resolution</span>
+              <span className="font-mono text-gray-400">{resolution}</span>
+            </label>
+            <input
+              type="range" min="20" max="60" step="5" value={resolution}
+              onChange={(e) => setResolution(parseInt(e.target.value))}
+              className="w-full accent-blue-500 h-1"
+            />
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PartialDerivativeVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

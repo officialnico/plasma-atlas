@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zero to Hero — the Vlasov equation, starting from a traffic jam</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_lib/katex/katex.min.css">
+<script defer src="../_lib/katex/katex.min.js"></script>
+<script defer src="../_lib/katex/auto-render.min.js"></script>
+
+<style>
+:root{
+  --bg:#080b16; --bg2:#0d1224; --panel:#121830; --panel2:#171e3b;
+  --line:#26305a; --ink:#eaeefb; --muted:#8b95bd; --faint:#5a648c;
+  --mag:#ff5d8f; --amber:#f9a03f; --gold:#ffd35e; --violet:#9a6bff;
+  --cyan:#4fd6e0; --good:#6fe0a8;
+  --grad:linear-gradient(90deg,#9a6bff,#ff5d8f,#f9a03f,#ffd35e);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;
+  line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.wrap{max-width:980px;margin:0 auto;padding:0 24px}
+.mono{font-family:'IBM Plex Mono',monospace}
+a{color:var(--cyan)}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--faint);margin:0 0 16px}
+h1{font-family:'Spectral',serif;font-weight:400;font-size:clamp(2.3rem,6vw,4.3rem);
+  line-height:1.03;letter-spacing:-.02em;margin:0}
+h2{font-family:'Spectral',serif;font-weight:400;font-size:clamp(1.7rem,3.6vw,2.6rem);
+  line-height:1.1;letter-spacing:-.015em;margin:0 0 .45em}
+h2 em{font-style:italic;color:var(--mag)}
+h3{font-family:'Spectral',serif;font-weight:500;font-size:1.28rem;margin:0 0 .35em}
+p{font-size:1.05rem;color:#cdd4ee}
+.lead{font-size:1.2rem;color:#dde3f6}
+.dim{color:var(--muted)}
+.tiny{font-size:.86rem;color:var(--faint)}
+.hl{color:#fff;font-weight:600}
+
+/* the stages ARE a real ordered ladder, so numbering carries meaning */
+section{padding:clamp(56px,8vw,104px) 0;position:relative}
+.stage{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.26em;
+  color:var(--mag);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+.stage .n{display:inline-flex;width:30px;height:30px;border-radius:50%;border:1px solid var(--mag);
+  align-items:center;justify-content:center;color:var(--mag)}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+
+#hero{min-height:96vh;display:flex;flex-direction:column;justify-content:center;padding:70px 0 40px}
+#hero h1 em{font-style:italic;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.herosub{max-width:600px;margin:26px 0 0;font-size:1.22rem;color:#dde3f6}
+.reassure{margin-top:30px;border:1px solid var(--line);background:rgba(79,214,224,.06);
+  border-radius:14px;padding:18px 22px;max-width:640px}
+.reassure b{color:var(--cyan)}
+.scrollcue{margin-top:46px;display:flex;align-items:center;gap:12px;color:var(--faint);
+  font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.2em;text-transform:uppercase}
+.scrollcue .arrow{width:20px;height:20px;border-right:1.5px solid var(--faint);border-bottom:1.5px solid var(--faint);
+  transform:rotate(45deg);animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:rotate(45deg) translate(0,0)}50%{transform:rotate(45deg) translate(3px,3px)}}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+.plotwrap{background:#0a0e1f;border:1px solid var(--line);border-radius:14px;padding:14px}
+canvas.stagecanvas{width:100%;display:block;border-radius:8px}
+.callout{border-left:2px solid var(--mag);padding:6px 0 6px 20px;margin:24px 0;color:#dde3f6}
+.callout.cyan{border-color:var(--cyan)}
+.callout.gold{border-color:var(--gold)}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:.84rem;background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-radius:10px;padding:10px 18px;cursor:pointer;transition:.16s}
+.btn:hover{border-color:var(--mag)}
+.btn.primary{background:rgba(255,93,143,.16);border-color:var(--mag);color:#fff}
+.btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:.82rem;background:var(--panel2);color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer;transition:.16s;user-select:none}
+.chip:hover{border-color:var(--mag);color:var(--ink)}
+.chip.on{background:rgba(255,93,143,.14);border-color:var(--mag);color:#fff}
+.sliderrow{display:flex;align-items:center;gap:16px;margin:14px 0 4px;flex-wrap:wrap}
+.sliderrow label{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted);min-width:96px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;
+  background:linear-gradient(90deg,var(--violet),var(--mag),var(--amber));flex:1;min-width:160px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:#fff;border:3px solid var(--mag);cursor:pointer;box-shadow:0 0 12px rgba(255,93,143,.6)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--mag);cursor:pointer}
+.statelabel{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--gold);min-width:130px}
+
+.eqbox{background:#0a0e1f;border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0;overflow-x:auto}
+.katex{color:#f0f3ff}
+.eqline{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;
+  font-size:1.1rem;background:#0a0e1f;border:1px solid var(--line);border-radius:14px;padding:22px}
+.term{cursor:pointer;border-radius:9px;padding:6px 12px;border:1px dashed transparent;transition:.16s}
+.term:hover{background:rgba(154,107,255,.12)}
+.term.on{background:rgba(255,93,143,.16);border-color:var(--mag)}
+.termdetail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-top:16px;min-height:96px}
+.termdetail .lab{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
+
+footer{padding:74px 0 64px;border-top:1px solid var(--line);background:var(--bg2)}
+.reads{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+.read{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 18px}
+.read .who{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase}
+.read .ti{color:#fff;font-weight:500;margin:5px 0 4px}
+.read .note{font-size:.86rem;color:var(--muted)}
+
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+@media(max-width:760px){.reads{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<!-- ===================== HERO ===================== -->
+<section id="hero">
+  <div class="wrap">
+    <p class="eyebrow">Zero → Hero · no statistics required</p>
+    <h1>The Vlasov equation,<br>starting from a <em>traffic jam.</em></h1>
+    <p class="herosub">Eight short, playable steps. We begin by counting cars on a road — nothing harder than that — and end at the equation that runs every modern plasma simulation.</p>
+    <div class="reassure">
+      <b>Before we start, one promise.</b> You will not need a single idea from probability or statistics on this whole page. Here, the word <em>distribution</em> means exactly one thing: <span class="hl">how thick the stuff is, spot by spot.</span> A heat map. That's the entire concept. Everything else is just watching it move.
+    </div>
+    <div class="scrollcue"><span>Start at zero</span><div class="arrow"></div></div>
+  </div>
+</section>
+
+<!-- ===================== STAGE 1 — DENSITY ===================== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">1</span> A map that counts, not names</div>
+    <h2>You already understand<br>a <em>distribution.</em></h2>
+    <p class="lead" style="max-width:680px;margin-top:14px">Here's a stretch of road with cars on it. Don't track any one car — just look at <span class="hl">how packed the road is</span> at each point. The curve underneath is that packing, drawn out. Drag the slider toward rush hour and watch a thick clump appear downtown.</p>
+    <div class="plotwrap" style="margin-top:22px"><canvas id="roadcv" class="stagecanvas" width="900" height="320"></canvas></div>
+    <div class="sliderrow">
+      <label>Traffic</label>
+      <input type="range" id="rush" min="0" max="100" value="0">
+      <span class="statelabel" id="rushlabel">evenly spread out</span>
+    </div>
+    <p class="callout"><strong>That curve is a distribution.</strong> No car has a name, nothing was tracked, and yet the picture tells you everything about <em>where the crowd is</em>. When physicists say "distribution function," this homely density curve is all they mean — just for particles instead of cars.</p>
+  </div>
+</section>
+
+<!-- ===================== STAGE 2 — WHY ONE AXIS ISN'T ENOUGH ===================== -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">2</span> One axis can't predict the future</div>
+    <h2>Where isn't enough.<br>You also need <em>how fast.</em></h2>
+    <p class="lead" style="max-width:700px;margin-top:14px">Imagine two spots on the road, equally jammed. In one, every car is doing 70. In the other, everyone's parked. A minute later those two spots look <span class="hl">completely different</span> — but the packing curve from Stage 1 drew them <em>identically</em>. To see what happens next, the map needs a second piece of information: speed.</p>
+    <div class="callout cyan">The fix is almost insultingly simple: add a second axis. Left–right stays <strong>position</strong>. Up–down becomes <strong>speed</strong>. Now a dot's height tells you how fast it's going. Press the button below and watch the road lift into that second dimension.</div>
+  </div>
+</section>
+
+<!-- ===================== STAGE 3 — THE LIFT (signature) ===================== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">3</span> The move everything depends on</div>
+    <h2>Watch the map grow<br>a <em>second axis.</em></h2>
+    <p class="lead" style="max-width:700px;margin-top:14px">Same cars. We're just letting each one rise to a height equal to its speed. Fast cars float up, parked cars stay on the floor. The flat road becomes a two-dimensional map called <span class="hl">phase space</span>.</p>
+    <div class="plotwrap" style="margin-top:22px"><canvas id="liftcv" class="stagecanvas" width="900" height="440"></canvas></div>
+    <div class="controls">
+      <button class="btn primary" id="liftbtn">Lift into the speed axis ↑</button>
+      <span class="statelabel" id="liftlabel" style="align-self:center">currently: the flat road</span>
+    </div>
+    <p class="callout gold"><strong>This 2-D map is <span class="mono">f(x, v)</span> — the star of the whole show.</strong> Brightness/crowding at a point still just means "lots of stuff here." The only new thing is that "here" now means <em>here in position <span class="mono">and</span> here in speed</em>. Two stacks can be equally crowded yet sit at different heights — and that's exactly the difference between the doing-70 spot and the parked spot.</p>
+  </div>
+</section>
+
+<!-- ===================== STAGE 4 — THE TWO MOTIONS ===================== -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">4</span> How the map changes — without tracking anyone</div>
+    <h2>The whole map flows<br>by <em>two simple rules.</em></h2>
+    <p class="lead" style="max-width:720px;margin-top:14px">Here is the part that answers your actual question. The map evolves on its own, and neither rule ever requires following an individual. Press play and try both modes.</p>
+
+    <div class="plotwrap" style="margin-top:22px"><canvas id="flowcv" class="stagecanvas" width="900" height="440"></canvas></div>
+    <div class="controls">
+      <span class="chip on" data-mode="stream">Rule 1 only: sliding</span>
+      <span class="chip" data-mode="force">Add Rule 2: pushing</span>
+      <button class="btn" id="flowplay" style="margin-left:auto">Pause</button>
+      <button class="btn" id="flowreset">Reset</button>
+    </div>
+    <div class="termdetail" id="flowexplain"></div>
+
+    <div style="margin-top:26px">
+      <h3 style="color:var(--violet)">Rule 1 — sliding (because things move)</h3>
+      <p>Every piece of the map slides <span class="hl">sideways</span> at a rate equal to its height. High-up pieces (fast) slide quickly; floor pieces (parked) barely move. Nothing is created or destroyed — the stuff just flows along. A compact blob gets <em>sheared</em> into slanted streaks, because its top edge outruns its bottom edge.</p>
+      <h3 style="color:var(--mag);margin-top:22px">Rule 2 — pushing (because forces act)</h3>
+      <p>A force at some location nudges every piece there <span class="hl">up or down</span> the speed axis — speeding things up or slowing them down. Crucially, <em>everyone sitting at that spot feels the same push</em>, so the whole stack shifts together. For charged particles the force is the electric field. Sliding + pushing together makes the blob <em>orbit</em> and curl into a swirl.</p>
+    </div>
+    <p class="callout"><strong>Read what just happened.</strong> You predicted how the entire crowd rearranges — shearing, swirling, trapping — and you never once asked "where is car number four-million?" The map has its own self-contained rules. <span class="hl">That</span> is how something tracks a distribution without tracking particles.</p>
+  </div>
+</section>
+
+<!-- ===================== STAGE 5 — IT'S SECRETLY NEWTON ===================== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">5</span> Where the rules come from</div>
+    <h2>Both rules are just<br><em>Newton</em>, in disguise.</h2>
+    <p class="lead" style="max-width:720px;margin-top:14px">You might worry the two rules were pulled from thin air. They weren't — they're literally what one particle does, applied everywhere on the map at once.</p>
+    <div class="panel" style="margin-top:22px">
+      <p style="margin-top:0">A single particle obeys two baby facts you already know:</p>
+      <p>· Its <span class="hl">position</span> changes at a rate equal to its <span class="hl">speed</span>. <span class="dim">(Going faster ⇒ you cover ground faster. That becomes Rule 1, sliding.)</span></p>
+      <p>· Its <span class="hl">speed</span> changes when a <span class="hl">force</span> pushes it. <span class="dim">(That's just "a push speeds you up or slows you down" — i.e. F = ma. That becomes Rule 2, pushing.)</span></p>
+      <p style="margin-bottom:0">Take those two one-particle facts, apply them to every point of the map simultaneously, and add the bookkeeping rule that stuff is never created or destroyed. The result <em>is</em> the Vlasov equation. So it secretly contains all the single-particle physics — it just records it as "how the whole map flows" instead of "where each particle is." Same information. A sane amount of work.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== STAGE 6 — SHAPES ===================== -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">6</span> The shape of the speed-spread</div>
+    <h2>"Maxwellian" is just<br>a <em>shape</em>, not a destination.</h2>
+    <p class="lead" style="max-width:700px;margin-top:14px">Slice the 2-D map vertically at one spot and you get a little curve: how the speeds are spread <em>right there</em>. That curve has a shape, and the shape has a name or two. None of this involves probability — it's just the silhouette of a stack.</p>
+    <div class="plotwrap" style="margin-top:22px"><canvas id="shapecv" class="stagecanvas" width="900" height="320"></canvas></div>
+    <div class="controls" id="shape-toggles"></div>
+    <p class="callout"><strong>A Maxwellian</strong> is the single smooth hump: most things near the average speed, fewer very fast or very slow. It's the calm, natural shape — <em>not</em> a place the system is heading. You're equally allowed <strong>two humps</strong> (two packs cruising at different speeds — the two-stream case) or a <strong>shifted hump</strong> (a beam). The shape is whatever the physics makes it.</p>
+  </div>
+</section>
+
+<!-- ===================== STAGE 7 — THE EQUATION ===================== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">7</span> The equation, finally — and it's friendly</div>
+    <h2>Now the symbols<br>can't scare you.</h2>
+    <p class="lead" style="max-width:700px;margin-top:14px">Here it is. Every piece maps onto something you just played with. Click the two coloured terms.</p>
+    <div class="eqline" style="margin-top:22px">
+      <span>$\dfrac{\partial f}{\partial t}$</span><span style="color:var(--faint)">=</span><span style="color:var(--faint)">−</span>
+      <span class="term" data-t="slide">$v\,\dfrac{\partial f}{\partial x}$</span>
+      <span style="color:var(--faint)">−</span>
+      <span class="term" data-t="push">$\dfrac{q}{m}E\,\dfrac{\partial f}{\partial v}$</span>
+    </div>
+    <div class="termdetail" id="eqdetail"></div>
+    <p class="dim" style="margin-top:20px">In words, with zero jargon: <span class="hl">the map's change over time</span> equals <span class="hl">the sliding</span> plus <span class="hl">the pushing</span>. The left side asks "how is the heat map changing?" and the right side answers "because every piece slides by its speed and gets pushed by the force." You already knew this equation before you could read it.</p>
+    <p class="callout cyan">And the electric field <span class="mono">E</span> isn't handed down from outside — the particles make it themselves through their own charge (that's the companion <em>Poisson</em> equation). Field pushes particles, pushed particles reshape the field. A closed, self-feeding loop. That loop is the entire plasma.</p>
+  </div>
+</section>
+
+<!-- ===================== STAGE 8 — HERO ===================== -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <div class="stage"><span class="n">8</span> You're at hero</div>
+    <h2>Look how far<br>you just <em>climbed.</em></h2>
+    <p class="lead" style="max-width:740px;margin-top:14px">Trace it back: a density curve on a road → add a speed axis → a 2-D phase-space map → two flow rules (slide and push) → those rules are just Newton for the whole crowd → the speed-spread has shapes like the Maxwellian → and the bookkeeping for all of it is the Vlasov equation. That's the entire conceptual spine of kinetic plasma physics, and you built it from counting cars.</p>
+    <div class="panel" style="margin-top:24px">
+      <h3 style="margin-top:0;color:var(--gold)">How this connects to everything else you've made</h3>
+      <p>The phase-space swirls you played with in Stage 4 are exactly the <span class="hl">two-stream vortex</span> and the <span class="hl">filamentation</span> from your solver and notebook. And the speed-spread shapes from Stage 6 are what the <span class="hl">Hermite method</span> encodes: instead of storing that little curve point by point, it writes it as a short recipe of standard humps. Same map, a cleverer way to carry its shape.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap reveal">
+    <p class="eyebrow">Keep climbing</p>
+    <h2 style="margin-bottom:.3em">Where to go next</h2>
+    <p class="dim" style="max-width:700px">You've got the intuition cold now. These are the gentlest next rungs — and your own notebook is the best playground.</p>
+    <div class="reads">
+      <div class="read"><div class="who">Your playground</div><div class="ti">The Jupyter notebook you built</div><div class="note">Re-read it now — every cell will make sense. Try the one-line experiments at the end (drop Nv to watch recurrence appear).</div></div>
+      <div class="read"><div class="who">Start-here review · free</div><div class="ti">Palmroth et al. (2018), Vlasov methods in space physics</div><div class="note">The map of all the simulation strategies, now that you know what they're simulating.</div></div>
+      <div class="read"><div class="who">The readable classic</div><div class="ti">Schumer &amp; Holloway (1998)</div><div class="note">Introduces the exact Hermite shapes that encode the speed-spread curves from Stage 6.</div></div>
+      <div class="read"><div class="who">The "it clicks" one</div><div class="ti">Parker &amp; Dellar (2015)</div><div class="note">Ties the speed-spread shapes to fluid quantities, and explains the filamentation you watched.</div></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ---------- shared helpers ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const PLASMA=[[13,8,135],[75,3,161],[125,3,168],[168,34,150],[203,70,121],[229,107,93],[248,148,65],[253,195,40],[240,249,33]];
+function cmap(t){t=Math.max(0,Math.min(1,t));const s=t*(PLASMA.length-1),i=Math.floor(s),f=s-i;
+  const a=PLASMA[i],b=PLASMA[Math.min(i+1,8)];return`rgb(${a[0]+(b[0]-a[0])*f|0},${a[1]+(b[1]-a[1])*f|0},${a[2]+(b[2]-a[2])*f|0})`;}
+function fit(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);
+  const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{ctx:x,w:r.width,h:r.height};}
+const REDUCE=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ============ STAGE 1 — road density ============ */
+(function(){
+  const cv=document.getElementById('roadcv');const slider=document.getElementById('rush');const lab=document.getElementById('rushlabel');
+  const N=46, rng=mulberry32(7);
+  const uni=[], clus=[];
+  for(let i=0;i<N;i++){uni.push((i+0.5)/N);
+    // clustered downtown: two gaussian-ish draws averaged toward center
+    let g=0;for(let j=0;j<3;j++)g+=rng();g=g/3; clus.push(0.5+(g-0.5)*0.7);}
+  function draw(){
+    const {ctx,w,h}=fit(cv);ctx.clearRect(0,0,w,h);
+    const r=+slider.value/100;
+    const roadY=h*0.30, dens=new Float64Array(64);
+    const pos=uni.map((u,i)=>u*(1-r)+clus[i]*r);
+    // road
+    ctx.strokeStyle='rgba(255,255,255,.10)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(20,roadY+18);ctx.lineTo(w-20,roadY+18);ctx.stroke();
+    pos.forEach(p=>{const X=20+p*(w-40);
+      ctx.fillStyle=cmap(0.55);ctx.fillRect(X-5,roadY+8,10,7);ctx.fillStyle=cmap(0.7);ctx.fillRect(X-5,roadY+6,10,3);
+      const b=Math.min(63,Math.max(0,Math.floor(p*64)));dens[b]++;});
+    // smooth density
+    const sm=new Float64Array(64);
+    for(let i=0;i<64;i++){let s=0,wt=0;for(let k=-3;k<=3;k++){const j=i+k;if(j>=0&&j<64){const ww=Math.exp(-k*k/4);s+=dens[j]*ww;wt+=ww;}}sm[i]=s/wt;}
+    let mx=0;for(const d of sm)mx=Math.max(mx,d);mx=Math.max(mx,0.6);
+    const baseY=h-26, top=roadY+44;
+    ctx.fillStyle='rgba(255,255,255,.30)';ctx.font="12px 'IBM Plex Mono'";
+    ctx.fillText('how packed the road is  ↓',20,top-6);
+    ctx.beginPath();ctx.moveTo(20,baseY);
+    for(let i=0;i<64;i++){const X=20+(i+0.5)/64*(w-40);const Y=baseY-(sm[i]/mx)*(baseY-top);i?ctx.lineTo(X,Y):ctx.lineTo(X,Y);}
+    ctx.lineTo(w-20,baseY);ctx.closePath();
+    const g=ctx.createLinearGradient(0,top,0,baseY);g.addColorStop(0,'rgba(255,93,143,.55)');g.addColorStop(1,'rgba(154,107,255,.08)');
+    ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='#ff5d8f';ctx.lineWidth=2;ctx.stroke();
+    lab.textContent = r<0.15?'evenly spread out': r<0.55?'gathering toward downtown':'rush hour — a thick clump';
+  }
+  slider.addEventListener('input',draw);draw();window.addEventListener('resize',draw);
+})();
+
+/* ============ STAGE 3 — the lift (signature) ============ */
+(function(){
+  const cv=document.getElementById('liftcv');const btn=document.getElementById('liftbtn');const lab=document.getElementById('liftlabel');
+  const N=70, rng=mulberry32(21);
+  const cars=[];for(let i=0;i<N;i++){const x=rng();let g=0;for(let j=0;j<3;j++)g+=rng();const v=(g/3-0.5)*2; // speed in [-1,1]ish
+    cars.push({x, v});}
+  let a=0, target=0, raf=null;
+  function render(){
+    const {ctx,w,h}=fit(cv);ctx.clearRect(0,0,w,h);
+    const padL=46,padR=20,padB=40,padT=20;
+    const X=p=>padL+p*(w-padL-padR);
+    const roadY=h-padB-8;
+    const Vy=v=>{const top=padT, bot=h-padB; return bot-((v+1.15)/2.3)*(bot-top);};
+    // axes (fade in with a)
+    ctx.globalAlpha=a;ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(padL,padT);ctx.lineTo(padL,h-padB);ctx.lineTo(w-padR,h-padB);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.5)';ctx.font="12px 'IBM Plex Mono'";
+    ctx.save();ctx.translate(16,h*0.5);ctx.rotate(-Math.PI/2);ctx.fillText('speed  →  (height)',-40,0);ctx.restore();
+    ctx.fillText('position →',w-90,h-padB+24);
+    // zero-speed line
+    ctx.globalAlpha=a*0.6;ctx.strokeStyle='rgba(79,214,224,.4)';ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(padL,Vy(0));ctx.lineTo(w-padR,Vy(0));ctx.stroke();ctx.setLineDash([]);
+    ctx.globalAlpha=1;
+    // road line fades out
+    ctx.globalAlpha=1-a;ctx.strokeStyle='rgba(255,255,255,.12)';
+    ctx.beginPath();ctx.moveTo(padL,roadY+14);ctx.lineTo(w-padR,roadY+14);ctx.stroke();ctx.globalAlpha=1;
+    // cars
+    const ease=a<0.5?2*a*a:1-Math.pow(-2*a+2,2)/2;
+    cars.forEach(c=>{const px=X(c.x);const py=roadY*(1-ease)+Vy(c.v)*ease;
+      const col=c.v>0.05?cmap(0.55+c.v*0.3):c.v<-0.05?cmap(0.35):cmap(0.45);
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,py,4.2,0,7);ctx.fill();});
+    if(a>0.85){ctx.globalAlpha=(a-0.85)/0.15;ctx.fillStyle='rgba(255,211,94,.9)';ctx.font="italic 13px 'Spectral'";
+      ctx.fillText('height = speed.  up = fast, middle = parked, down = reversing',padL+6,padT+18);ctx.globalAlpha=1;}
+  }
+  function animate(){a+=(target-a)*0.12;if(Math.abs(target-a)<0.002){a=target;render();raf=null;return;}render();raf=requestAnimationFrame(animate);}
+  btn.addEventListener('click',()=>{target=target>0.5?0:1;
+    btn.textContent=target>0.5?'Drop back to the road ↓':'Lift into the speed axis ↑';
+    lab.textContent=target>0.5?'currently: 2-D phase space':'currently: the flat road';
+    if(REDUCE){a=target;render();}else if(!raf)raf=requestAnimationFrame(animate);});
+  render();window.addEventListener('resize',render);
+})();
+
+/* ============ STAGE 4 — the flow ============ */
+(function(){
+  const cv=document.getElementById('flowcv');const playBtn=document.getElementById('flowplay');const resetBtn=document.getElementById('flowreset');
+  const explain=document.getElementById('flowexplain');const chips=document.querySelectorAll('[data-mode]');
+  const Np=1700;let pts=[];let mode='stream';let playing=!REDUCE;
+  const TWO=Math.PI*2;
+  function init(){const rng=mulberry32(99);pts=[];const cx=1.6,cv0=0.0;
+    for(let i=0;i<Np;i++){let gx=0,gv=0;for(let j=0;j<3;j++){gx+=rng();gv+=rng();}
+      const x=cx+(gx/3-0.5)*1.1, v=cv0+(gv/3-0.5)*1.7;
+      const hue=(Math.atan2(v-cv0,x-cx)+Math.PI)/TWO*360;
+      pts.push({x:((x%TWO)+TWO)%TWO, v, hue});}}
+  const dt=0.025;
+  function step(){
+    for(const p of pts){
+      if(mode==='force'){p.v += (-Math.sin(p.x))*dt;}
+      p.x += p.v*dt; p.x=((p.x%TWO)+TWO)%TWO;
+    }
+  }
+  function render(){
+    const {ctx,w,h}=fit(cv);
+    ctx.fillStyle='rgba(10,14,31,0.22)';ctx.fillRect(0,0,w,h); // trail fade
+    const padL=40,padR=16,padT=16,padB=30, vmax=3.0;
+    const X=x=>padL+x/TWO*(w-padL-padR);
+    const Y=v=>{const t=(v+vmax)/(2*vmax);return (h-padB)-t*(h-padB-padT);};
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(padL,Y(0));ctx.lineTo(w-padR,Y(0));ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.45)';ctx.font="12px 'IBM Plex Mono'";
+    ctx.fillText('position →',w-86,h-padB+22);
+    ctx.save();ctx.translate(15,h*0.5);ctx.rotate(-Math.PI/2);ctx.fillText('speed →',-26,0);ctx.restore();
+    for(const p of pts){if(p.v<-vmax||p.v>vmax)continue;
+      ctx.fillStyle=`hsla(${p.hue},85%,62%,0.8)`;ctx.fillRect(X(p.x),Y(p.v),1.7,1.7);}
+  }
+  function loop(){if(playing){step();}render();requestAnimationFrame(loop);}
+  function setMode(m){mode=m;chips.forEach(c=>c.classList.toggle('on',c.dataset.mode===m));
+    explain.innerHTML = m==='stream'
+      ? '<div class="lab">Rule 1 · sliding</div><p style="margin:0">Each piece slides sideways by its height (its speed). The top of the blob outruns the bottom, so the cloud <strong>shears into slanted stripes</strong> — finer and finer. That endless fine-stripe-making is the <em>filamentation</em> from your notebook.</p>'
+      : '<div class="lab">Rule 1 + Rule 2 · sliding &amp; pushing</div><p style="margin:0">Now a force also pushes pieces up and down the speed axis. Sliding + pushing makes pieces <strong>orbit</strong>; the cloud curls into a swirl and some pieces get <em>trapped</em> in a loop. That swirl is the two-stream <em>cat\'s-eye vortex</em>.</p>';
+    if(window.renderMathInElement)renderMathInElement(explain);}
+  chips.forEach(c=>c.addEventListener('click',()=>setMode(c.dataset.mode)));
+  playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';});
+  resetBtn.addEventListener('click',()=>{init();const {ctx,w,h}=fit(cv);ctx.clearRect(0,0,w,h);});
+  init();setMode('stream');playBtn.textContent=playing?'Pause':'Play';
+  if(REDUCE){for(let i=0;i<40;i++)step();render();}else requestAnimationFrame(loop);
+  window.addEventListener('resize',render);
+})();
+
+/* ============ STAGE 6 — shapes ============ */
+(function(){
+  const cv=document.getElementById('shapecv');const tog=document.getElementById('shape-toggles');
+  const shapes={
+    one:{label:'One hump (Maxwellian)',f:v=>Math.exp(-v*v)},
+    two:{label:'Two humps (two-stream)',f:v=>0.5*(Math.exp(-(v-1.4)*(v-1.4))+Math.exp(-(v+1.4)*(v+1.4)))},
+    beam:{label:'Shifted hump (a beam)',f:v=>Math.exp(-(v-1.2)*(v-1.2))}
+  };
+  let cur='one';
+  Object.keys(shapes).forEach((k,i)=>{const b=document.createElement('div');b.className='chip'+(i===0?' on':'');b.textContent=shapes[k].label;
+    b.onclick=()=>{cur=k;[...tog.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');draw();};tog.appendChild(b);});
+  function draw(){
+    const {ctx,w,h}=fit(cv);ctx.clearRect(0,0,w,h);
+    const padL=30,padR=20,padB=34,padT=24,vmax=3.2;
+    const X=v=>padL+(v+vmax)/(2*vmax)*(w-padL-padR);
+    let mx=0;for(let v=-vmax;v<=vmax;v+=0.05)mx=Math.max(mx,shapes[cur].f(v));mx*=1.18;
+    const baseY=h-padB,top=padT;const Y=fv=>baseY-fv/mx*(baseY-top);
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.moveTo(padL,baseY);ctx.lineTo(w-padR,baseY);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.45)';ctx.font="12px 'IBM Plex Mono'";
+    ctx.fillText('slow ← speed → fast',w/2-60,h-10);ctx.fillText('how much',padL,top-6);
+    ctx.beginPath();ctx.moveTo(padL,baseY);
+    for(let px=0;px<=w-padL-padR;px++){const v=-vmax+px/(w-padL-padR)*2*vmax;ctx.lineTo(padL+px,Y(shapes[cur].f(v)));}
+    ctx.lineTo(w-padR,baseY);ctx.closePath();
+    const g=ctx.createLinearGradient(0,top,0,baseY);g.addColorStop(0,'rgba(249,160,63,.6)');g.addColorStop(1,'rgba(154,107,255,.06)');
+    ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='#f9a03f';ctx.lineWidth=2.4;ctx.stroke();
+  }
+  draw();window.addEventListener('resize',draw);
+})();
+
+/* ============ STAGE 7 — term mapper ============ */
+(function(){
+  const info={
+    slide:{lab:'this term = Rule 1, sliding',html:'<b style="color:#fff">v ∂f/∂x</b> is the sliding rule. The <span class="mono">v</span> out front is the height (speed); it says each piece moves along the position axis at a rate set by its speed. Big <span class="mono">v</span> ⇒ fast slide. This is the shear you watched in Stage 4.'},
+    push:{lab:'this term = Rule 2, pushing',html:'<b style="color:#fff">(q/m)E ∂f/∂v</b> is the pushing rule. The field <span class="mono">E</span> times charge-over-mass is the acceleration; it slides pieces along the <em>speed</em> axis. This is the up/down nudge that made the blob orbit and trap.'}
+  };
+  const detail=document.getElementById('eqdetail');const terms=document.querySelectorAll('.term[data-t]');
+  function show(k){terms.forEach(t=>t.classList.toggle('on',t.dataset.t===k));
+    detail.innerHTML=`<div class="lab">${info[k].lab}</div><p style="margin:0">${info[k].html}</p>`;}
+  terms.forEach(t=>t.addEventListener('click',()=>show(t.dataset.t)));
+  detail.innerHTML='<p class="dim" style="margin:0">Click <span class="mono">v ∂f/∂x</span> or <span class="mono">(q/m)E ∂f/∂v</span> above.</p>';
+})();
+
+/* ---------- KaTeX + reveal ---------- */
+window.addEventListener('DOMContentLoaded',()=>{
+  function R(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}
+  if(window.renderMathInElement)R();else{const t=setInterval(()=>{if(window.renderMathInElement){R();clearInterval(t);}},120);}
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');}),{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+});
+</script>
+</body>
+</html>

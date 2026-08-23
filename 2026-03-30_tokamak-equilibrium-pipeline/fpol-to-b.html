@@ -1,0 +1,366 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fpol to b</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function FpolToB() {
+  const [selectedSurface, setSelectedSurface] = useState(0.5);
+  const [selectedPoint, setSelectedPoint] = useState(null);
+
+  const svgW = 480, svgH = 480;
+  const csCx = svgW / 2, csCy = svgH / 2;
+
+  const R0 = 1.18, a = 0.42, kappa = 1.75, delta = 0.40;
+  const asin_d = Math.asin(delta);
+  const bcentr = 12.2, rcentr = 1.15;
+  const constant = bcentr * rcentr;
+
+  // fpol value for a given psiN (slight droop with plasma)
+  function getFpol(psiN) {
+    return constant - 0.4 * psiN * psiN;
+  }
+
+  const fpol = getFpol(selectedSurface);
+
+  // Get points on a contour
+  function getContourPoints(psiN, nPts = 120) {
+    const pts = [];
+    for (let t = 0; t < nPts; t++) {
+      const theta = (2 * Math.PI * t) / nPts;
+      const r = a * psiN;
+      const R = R0 + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Z = kappa * r * Math.sin(theta);
+      pts.push({ R, Z, theta });
+    }
+    return pts;
+  }
+
+  // Coordinate transform
+  const Rmin = 0.55, Rmax = 1.85, Zmin = -1.05, Zmax = 1.05;
+  const pad = { l: 10, r: 10, t: 10, b: 10 };
+  const plotW = svgW - pad.l - pad.r;
+  const plotH = svgH - pad.t - pad.b;
+  const toX = (R) => pad.l + ((R - Rmin) / (Rmax - Rmin)) * plotW;
+  const toY = (Z) => pad.t + ((Zmax - Z) / (Zmax - Zmin)) * plotH;
+
+  // Key points on the selected surface
+  const surfacePoints = getContourPoints(selectedSurface);
+  const contourPath = surfacePoints.map((p, i) =>
+    `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`
+  ).join(" ") + " Z";
+
+  // Named points on the surface
+  const namedPoints = [
+    { name: "Outboard midplane", theta: 0 },
+    { name: "Top", theta: Math.PI / 2 },
+    { name: "Inboard midplane", theta: Math.PI },
+    { name: "Bottom", theta: 3 * Math.PI / 2 },
+    { name: "Upper outboard", theta: Math.PI / 4 },
+    { name: "Upper inboard", theta: 3 * Math.PI / 4 },
+    { name: "Lower inboard", theta: 5 * Math.PI / 4 },
+    { name: "Lower outboard", theta: 7 * Math.PI / 4 },
+  ].map(p => {
+    const r = a * selectedSurface;
+    const R = R0 + r * Math.cos(p.theta + asin_d * Math.sin(p.theta));
+    const Z = kappa * r * Math.sin(p.theta);
+    const B = fpol / R;
+    return { ...p, R, Z, B };
+  });
+
+  // Wall contour
+  const wallPts = [];
+  for (let t = 0; t <= 200; t++) {
+    const theta = (2 * Math.PI * t) / 200;
+    const R = R0 + 0.55 * Math.cos(theta + asin_d * Math.sin(theta));
+    const Z = 0.95 * Math.sin(theta);
+    wallPts.push(`${toX(R)},${toY(Z)}`);
+  }
+
+  // Background surfaces
+  const bgSurfaces = [0.2, 0.4, 0.6, 0.8, 1.0];
+
+  // Color B value
+  const minB = fpol / (R0 + a * selectedSurface);
+  const maxB = fpol / (R0 - a * selectedSurface);
+  const bColor = (B) => {
+    const t = (B - minB) / (maxB - minB);
+    const r = Math.round(80 + t * 175);
+    const g = Math.round(60 + (1 - t) * 100);
+    const b = Math.round(200 - t * 50);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  const sel = selectedPoint !== null ? namedPoints[selectedPoint] : null;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 920, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          fpol IS 1D — BUT B_TOROIDAL IS 2D
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          SAME fpol VALUE, DIFFERENT R → DIFFERENT B AT EACH POINT — TAP POINTS TO SEE
+        </p>
+
+        {/* Surface selector */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: "#5c6a7a", marginBottom: 6 }}>
+            Select flux surface: ψ = {selectedSurface.toFixed(2)}
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[0.25, 0.5, 0.75, 1.0].map(s => (
+              <button
+                key={s}
+                onClick={() => { setSelectedSurface(s); setSelectedPoint(null); }}
+                style={{
+                  padding: "8px 14px",
+                  background: selectedSurface === s ? "#1a2a3a" : "#12171f",
+                  border: selectedSurface === s ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                  borderRadius: 4,
+                  color: selectedSurface === s ? "#4ecdc4" : "#5c6a7a",
+                  fontSize: 11, fontFamily: "inherit", cursor: "pointer",
+                  fontWeight: selectedSurface === s ? 700 : 400,
+                }}
+              >
+                ψ = {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {/* Cross section */}
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 8,
+            flexShrink: 0,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={pad.l} y={pad.t} width={plotW} height={plotH} fill="#060a0e" rx={4} />
+
+              {/* Wall */}
+              <polygon points={wallPts.join(" ")} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2.5} />
+
+              {/* Background surfaces */}
+              {bgSurfaces.map(s => {
+                const pts = getContourPoints(s);
+                const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`).join(" ") + " Z";
+                return (
+                  <path key={s} d={d} fill="none"
+                    stroke={Math.abs(s - selectedSurface) < 0.01 ? "transparent" : "rgba(78,205,196,0.1)"}
+                    strokeWidth={0.5} />
+                );
+              })}
+
+              {/* Selected surface - colored by B strength */}
+              {surfacePoints.map((p, i) => {
+                const next = surfacePoints[(i + 1) % surfacePoints.length];
+                const B = fpol / p.R;
+                return (
+                  <line key={i}
+                    x1={toX(p.R)} y1={toY(p.Z)}
+                    x2={toX(next.R)} y2={toY(next.Z)}
+                    stroke={bColor(B)} strokeWidth={4}
+                  />
+                );
+              })}
+
+              {/* Magnetic axis */}
+              <circle cx={toX(R0)} cy={toY(0)} r={3} fill="rgba(78,205,196,0.5)" />
+
+              {/* Named points */}
+              {namedPoints.map((p, i) => {
+                const isSelected = selectedPoint === i;
+                return (
+                  <g key={i}
+                    onClick={() => setSelectedPoint(isSelected ? null : i)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {/* Hit target */}
+                    <circle cx={toX(p.R)} cy={toY(p.Z)} r={18} fill="transparent" />
+                    {/* Visible dot */}
+                    <circle cx={toX(p.R)} cy={toY(p.Z)}
+                      r={isSelected ? 8 : 5}
+                      fill={isSelected ? bColor(p.B) : "#0d1117"}
+                      stroke={bColor(p.B)}
+                      strokeWidth={2}
+                    />
+                    {/* B value label on selected */}
+                    {isSelected && (
+                      <g>
+                        <rect
+                          x={toX(p.R) + (p.R > R0 ? 12 : -132)}
+                          y={toY(p.Z) - 28}
+                          width={120} height={50} rx={4}
+                          fill="#1a2a3a" stroke={bColor(p.B)} opacity={0.95}
+                        />
+                        <text
+                          x={toX(p.R) + (p.R > R0 ? 18 : -126)}
+                          y={toY(p.Z) - 12}
+                          fill="#8a95a5" fontSize={9}
+                        >
+                          R = {p.R.toFixed(3)}m
+                        </text>
+                        <text
+                          x={toX(p.R) + (p.R > R0 ? 18 : -126)}
+                          y={toY(p.Z) + 3}
+                          fill={bColor(p.B)} fontSize={12} fontWeight={700}
+                        >
+                          B = {p.B.toFixed(2)} T
+                        </text>
+                        <text
+                          x={toX(p.R) + (p.R > R0 ? 18 : -126)}
+                          y={toY(p.Z) + 16}
+                          fill="#5c6a7a" fontSize={8}
+                        >
+                          {fpol.toFixed(2)} / {p.R.toFixed(3)}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Color legend */}
+              <text x={pad.l + 8} y={pad.t + 15} fill="#ff6b6b" fontSize={9} fontWeight={600}>
+                RED = strong B (inboard, low R)
+              </text>
+              <text x={pad.l + 8} y={pad.t + 28} fill="#8a95a5" fontSize={9} fontWeight={600}>
+                BLUE = weak B (outboard, high R)
+              </text>
+              <text x={pad.l + 8} y={pad.t + 41} fill="#5c6a7a" fontSize={9}>
+                Same surface, same fpol, different B
+              </text>
+            </svg>
+          </div>
+
+          {/* Right panel */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            {/* The math */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+                The math for ψ = {selectedSurface.toFixed(2)}
+              </div>
+
+              <div style={{
+                padding: "10px 14px",
+                background: "#060a0e",
+                borderRadius: 4,
+                marginBottom: 12,
+                textAlign: "center",
+              }}>
+                <div style={{ fontSize: 11, color: "#5c6a7a", marginBottom: 4 }}>fpol at this surface:</div>
+                <div style={{ fontSize: 20, color: "#c9a3f5", fontWeight: 700 }}>{fpol.toFixed(3)} T·m</div>
+                <div style={{ fontSize: 10, color: "#3a4a5a", marginTop: 4 }}>← ONE number for the whole surface</div>
+              </div>
+
+              <div style={{
+                padding: "10px 14px",
+                background: "#060a0e",
+                borderRadius: 4,
+                textAlign: "center",
+                marginBottom: 12,
+              }}>
+                <div style={{ fontSize: 13, color: "#e6ecf2", fontWeight: 700 }}>
+                  B = fpol / R = {fpol.toFixed(2)} / R
+                </div>
+                <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4 }}>
+                  Different R at each point → different B
+                </div>
+              </div>
+            </div>
+
+            {/* All points table */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                Every point on this surface — tap to select
+              </div>
+              {namedPoints.slice(0, 4).map((p, i) => {
+                const isSelected = selectedPoint === i;
+                return (
+                  <div key={i}
+                    onClick={() => setSelectedPoint(isSelected ? null : i)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 10px",
+                      marginBottom: 4,
+                      background: isSelected ? `${bColor(p.B)}15` : "#0a0e14",
+                      border: isSelected ? `1px solid ${bColor(p.B)}` : "1px solid #1a2030",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{
+                      width: 10, height: 10, borderRadius: "50%",
+                      background: bColor(p.B), flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: "#a0aab8", fontWeight: 600 }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: "#5c6a7a" }}>R = {p.R.toFixed(3)}m</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, color: bColor(p.B), fontWeight: 700 }}>{p.B.toFixed(2)} T</div>
+                      <div style={{ fontSize: 9, color: "#3a4a5a" }}>{fpol.toFixed(2)} / {p.R.toFixed(2)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* The insight */}
+            <div style={{
+              padding: 16,
+              background: "rgba(201,163,245,0.05)",
+              borderRadius: 6,
+              border: "1px solid rgba(201,163,245,0.15)",
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                Why fpol is 1D
+              </div>
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.8 }}>
+                fpol = {fpol.toFixed(2)} is the same at every point on this surface. But B_toroidal ranges from {namedPoints[2].B.toFixed(1)}T (inboard) to {namedPoints[0].B.toFixed(1)}T (outboard).
+                <br /><br />
+                The 2D variation in B comes entirely from dividing by R, which you already know from the grid coordinates. So you only need to store the 1D fpol — not the full 2D B field. You reconstruct B at any point by doing one division: fpol / R.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FpolToB));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

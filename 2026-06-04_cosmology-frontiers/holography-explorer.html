@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Holographic Universe — A 3D Walkthrough</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400&family=Spectral:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --accent:#e9b949; --bg:#06060e; --ink:#f4f1ea; --dim:#8d8ca6; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:'Spectral',Georgia,serif;-webkit-font-smoothing:antialiased}
+  #c{position:fixed;inset:0;z-index:0;display:block;touch-action:none;cursor:grab}
+  #c:active{cursor:grabbing}
+  .glow{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(ellipse 70% 60% at 50% 45%,transparent 40%,rgba(4,4,10,.6) 100%);
+    transition:background .8s}
+  .ui{position:fixed;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;
+    justify-content:space-between;padding:clamp(16px,3.2vw,38px)}
+
+  .top{max-width:540px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--accent);transition:color .8s;margin-bottom:8px}
+  h1{font-family:'Fraunces',serif;font-weight:330;font-size:clamp(15px,2.4vw,21px);color:var(--dim);
+    letter-spacing:.01em}
+
+  .panel{pointer-events:auto;max-width:480px}
+  .scene-no{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.3em;color:var(--dim);margin-bottom:10px}
+  .scene-title{font-family:'Fraunces',serif;font-weight:360;font-size:clamp(26px,5.2vw,46px);line-height:1.02;
+    letter-spacing:-.015em;margin-bottom:14px;font-optical-sizing:auto}
+  .scene-title b{color:var(--accent);font-weight:500;transition:color .8s}
+  .scene-body{font-size:clamp(14.5px,1.9vw,18px);line-height:1.58;color:#d9d5cf;font-weight:300;max-width:440px}
+  .scene-body em{color:var(--accent);font-style:normal;transition:color .8s}
+  .note{margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;
+    color:var(--dim);line-height:1.5}
+
+  .fadeup{animation:fadeup .7s cubic-bezier(.16,1,.3,1) both}
+  @keyframes fadeup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  .bottom{display:flex;flex-direction:column;gap:16px}
+  .controls{pointer-events:auto;display:flex;align-items:center;gap:14px}
+  .btn{appearance:none;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);
+    color:var(--ink);height:46px;min-width:46px;padding:0 16px;border-radius:30px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12px;
+    letter-spacing:.12em;text-transform:uppercase;transition:.25s;backdrop-filter:blur(8px)}
+  .btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
+  .btn.icon{padding:0;width:46px;justify-content:center}
+  .btn svg{width:16px;height:16px;fill:currentColor}
+  .btn.primary{border-color:var(--accent)}
+  .dots{display:flex;gap:9px;margin-left:4px}
+  .dots i{width:8px;height:8px;border-radius:50%;background:#3a3a4d;cursor:pointer;transition:.3s;pointer-events:auto}
+  .dots i.on{background:var(--accent);transform:scale(1.4);box-shadow:0 0 10px 2px color-mix(in srgb,var(--accent) 60%,transparent)}
+  .dots i:hover{background:var(--accent)}
+  .hint{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;color:#55556a;text-transform:uppercase}
+
+  @media(max-width:640px){
+    .scene-title{font-size:clamp(24px,8vw,34px)}
+    .btn span.lbl{display:none}
+    .btn{padding:0;width:46px;justify-content:center}
+    .top h1{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="glow"></div>
+<div class="ui">
+  <div class="top">
+    <div class="kicker">The Holographic Universe</div>
+    <h1>How gravity might be a 3D shadow of a 2D world</h1>
+  </div>
+
+  <div class="bottom">
+    <div class="panel" id="panel"></div>
+    <div class="controls">
+      <button class="btn icon" id="prev" aria-label="Previous">
+        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6z"/></svg></button>
+      <button class="btn primary" id="next">
+        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6z"/></svg><span class="lbl">Next</span></button>
+      <div class="dots" id="dots"></div>
+      <div style="flex:1"></div>
+      <span class="hint">drag to orbit</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const TH = THREE;
+const STEPS = [
+  { accent:"#e9b949", title:`A flat surface, a <b>3D</b> image`,
+    body:`A hologram is a 2D film that, lit correctly, shows a full three-dimensional scene. The depth isn't "inside" the film — it's <em>encoded on the surface</em>. Hold that thought: a lower-dimensional sheet carrying a higher-dimensional world.`,
+    note:`SCENE: 2D plane → projected 3D form`,
+    cam:{r:9, phi:1.15, y:0.4} },
+
+  { accent:"#f07c3a", title:`Black holes store info on their <b>skin</b>`,
+    body:`In the 1970s Bekenstein & Hawking found the information a black hole holds scales with its surface <em>area</em>, not its volume. The most extreme objects in nature keep their books on a 2D boundary — the first real clue the universe might be holographic.`,
+    note:`INFORMATION  ∝  AREA   (not volume)`,
+    cam:{r:8.5, phi:1.25, y:0} },
+
+  { accent:"#e85a8c", title:`The "can": <b>bulk</b> vs <b>boundary</b>`,
+    body:`Maldacena's 1997 example: picture a universe shaped like a can (anti-de Sitter space). The <em>inside</em> is a world with gravity — the "bulk". The <em>outer wall</em> is an ordinary quantum theory with no gravity at all — the "boundary".`,
+    note:`BULK (gravity)  ⟷  BOUNDARY (quantum, no gravity)`,
+    cam:{r:11, phi:1.2, y:0} },
+
+  { accent:"#a96fe6", title:`Two descriptions, <b>one</b> physics`,
+    body:`The astonishing claim: the gravity happening inside the can is <em>mathematically identical</em> to the quantum theory on its wall. Every event in the bulk has a translation on the boundary. A "dictionary" links them — same universe, two languages.`,
+    note:`a ripple on the wall ⟷ an event in the bulk`,
+    cam:{r:11, phi:1.05, y:0} },
+
+  { accent:"#46c2e0", title:`Entanglement <b>weaves</b> the geometry`,
+    body:`Ryu & Takayanagi showed the bulk's <em>shape</em> is built from entanglement on the boundary: link two boundary regions and a surface bridges them through the interior. More entanglement, more connected space. Cut it — and the geometry tears apart.`,
+    note:`AREA of bridging surface  =  ENTANGLEMENT`,
+    cam:{r:11, phi:1.18, y:0} },
+
+  { accent:"#b388ff", title:`The catch: <b>our</b> universe is harder`,
+    body:`This all works cleanly in the "can" — a universe with negative vacuum energy. But <em>ours</em> is expanding, with positive vacuum energy (de Sitter space), and nobody has made holography fully work there yet. A profound proof that gravity <em>can</em> be holographic — not yet proof that we are.`,
+    note:`AdS  ✓ solved        de Sitter (us)  ? open`,
+    cam:{r:13, phi:1.05, y:0} },
+];
+
+// ---------- renderer / scene ----------
+const canvas = document.getElementById('c');
+const renderer = new TH.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene = new TH.Scene();
+const camera = new TH.PerspectiveCamera(52, 1, 0.1, 200);
+
+function dotTexture(){
+  const s=64, cv=document.createElement('canvas'); cv.width=cv.height=s;
+  const g=cv.getContext('2d'); const grd=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(.4,'rgba(255,255,255,.7)');
+  grd.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=grd; g.fillRect(0,0,s,s);
+  const t=new TH.CanvasTexture(cv); return t;
+}
+const DOT = dotTexture();
+
+// fade registry: {m, max}
+const fadables=[];
+function reg(m,max){ m.transparent=true; m.opacity=0; fadables.push({m,max,g:null}); return m; }
+function group(){ const g=new TH.Group(); scene.add(g); return g; }
+
+// ---------- starfield ----------
+(function(){
+  const N=1100, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ const r=40+Math.random()*70, t=Math.random()*6.283, p=Math.acos(2*Math.random()-1);
+    pos[i*3]=r*Math.sin(p)*Math.cos(t); pos[i*3+1]=r*Math.cos(p); pos[i*3+2]=r*Math.sin(p)*Math.sin(t); }
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(pos,3));
+  const m=new TH.PointsMaterial({size:.4,map:DOT,transparent:true,opacity:.7,depthWrite:false,
+    blending:TH.AdditiveBlending,color:0xbfc6e0});
+  scene.add(new TH.Points(g,m));
+})();
+
+// ================= SCENE 0 : HOLOGRAM =================
+const G_holo = group();
+(function(){
+  // flat grid plane
+  const verts=[], R=3.2, step=0.4;
+  for(let i=-8;i<=8;i++){ const a=i*step;
+    verts.push(-R,0,a, R,0,a, a,0,-R, a,0,R); }
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(verts,3));
+  const m=reg(new TH.LineBasicMaterial({color:0xe9b949,blending:TH.AdditiveBlending}),.5);
+  const grid=new TH.LineSegments(g,m); grid.position.y=-2.4; G_holo.add(grid);
+
+  // projected 3D wireframe
+  const ico=new TH.Mesh(new TH.IcosahedronGeometry(1.7,1),
+    reg(new TH.MeshBasicMaterial({color:0xffffff,wireframe:true,blending:TH.AdditiveBlending}),.9));
+  ico.position.y=0.3; ico.name='holoIco'; G_holo.add(ico);
+
+  // projection rays
+  const rv=[]; const geo=ico.geometry.attributes.position;
+  for(let i=0;i<geo.count;i+=3){ rv.push(geo.getX(i)*0+0,-2.4,0, geo.getX(i), 0.3+geo.getY(i), geo.getZ(i)); }
+  const rg=new TH.BufferGeometry(); rg.setAttribute('position',new TH.Float32BufferAttribute(rv,3));
+  const ray=new TH.LineSegments(rg, reg(new TH.LineBasicMaterial({color:0xe9b949,blending:TH.AdditiveBlending}),.22));
+  ray.name='holoRays'; G_holo.add(ray);
+})();
+
+// ================= SCENE 1 : BLACK HOLE =================
+const G_bh = group();
+(function(){
+  const sph=new TH.Mesh(new TH.SphereGeometry(2.1,48,48),
+    reg(new TH.MeshBasicMaterial({color:0x05050b}),1));
+  G_bh.add(sph);
+  // horizon shell wire
+  const shell=new TH.Mesh(new TH.SphereGeometry(2.18,28,20),
+    reg(new TH.MeshBasicMaterial({color:0xf07c3a,wireframe:true,blending:TH.AdditiveBlending}),.5));
+  shell.name='bhShell'; G_bh.add(shell);
+  // info "bits" sprinkled on surface
+  const N=900, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ const t=Math.random()*6.283,p=Math.acos(2*Math.random()-1),r=2.22;
+    pos[i*3]=r*Math.sin(p)*Math.cos(t); pos[i*3+1]=r*Math.cos(p); pos[i*3+2]=r*Math.sin(p)*Math.sin(t); }
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(pos,3));
+  const m=reg(new TH.PointsMaterial({size:.16,map:DOT,depthWrite:false,blending:TH.AdditiveBlending,color:0xffd9a0}),.95);
+  const bits=new TH.Points(g,m); bits.name='bhBits'; G_bh.add(bits);
+})();
+
+// ================= SCENES 2-4 : ADS CAN =================
+const G_ads = group();
+const ADS_R=3, ADS_H=7;
+function cylGrid(r,h,rad,hs,color,max){
+  const v=[];
+  for(let i=0;i<rad;i++){ const a=i/rad*6.283, x=Math.cos(a)*r, z=Math.sin(a)*r;
+    v.push(x,-h/2,z, x,h/2,z); }
+  for(let j=0;j<=hs;j++){ const y=-h/2+h*j/hs;
+    for(let i=0;i<=48;i++){ const a0=i/48*6.283, a1=(i+1)/48*6.283;
+      v.push(Math.cos(a0)*r,y,Math.sin(a0)*r, Math.cos(a1)*r,y,Math.sin(a1)*r); } }
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(v,3));
+  return new TH.LineSegments(g, reg(new TH.LineBasicMaterial({color,blending:TH.AdditiveBlending}),max));
+}
+(function(){
+  const wall=cylGrid(ADS_R,ADS_H,28,6,0xe85a8c,.6); wall.name='adsWall'; G_ads.add(wall);
+  // bulk haze
+  const haze=new TH.Mesh(new TH.CylinderGeometry(ADS_R*.98,ADS_R*.98,ADS_H*.99,40,1,true),
+    reg(new TH.MeshBasicMaterial({color:0xe85a8c,side:TH.BackSide,blending:TH.AdditiveBlending}),.06));
+  G_ads.add(haze);
+  // boundary CFT particles on wall
+  const N=260, pos=new Float32Array(N*3), seed=new Float32Array(N*2);
+  for(let i=0;i<N;i++){ const a=Math.random()*6.283, y=(Math.random()-.5)*ADS_H;
+    seed[i*2]=a; seed[i*2+1]=y;
+    pos[i*3]=Math.cos(a)*ADS_R; pos[i*3+1]=y; pos[i*3+2]=Math.sin(a)*ADS_R; }
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(pos,3));
+  const m=reg(new TH.PointsMaterial({size:.22,map:DOT,depthWrite:false,blending:TH.AdditiveBlending,color:0xffd1e6}),.95);
+  const cft=new TH.Points(g,m); cft.name='cft'; cft.userData.seed=seed; G_ads.add(cft);
+  // bulk object (graviton)
+  const obj=new TH.Mesh(new TH.OctahedronGeometry(.8,0),
+    reg(new TH.MeshBasicMaterial({color:0xffffff,wireframe:true,blending:TH.AdditiveBlending}),.9));
+  obj.name='bulkObj'; G_ads.add(obj);
+  // dictionary ripple ring (scene 3)
+  const ring=new TH.Mesh(new TH.RingGeometry(.1,.16,48),
+    reg(new TH.MeshBasicMaterial({color:0xa96fe6,side:TH.DoubleSide,blending:TH.AdditiveBlending}),0));
+  ring.rotation.x=Math.PI/2; ring.name='ripple'; ring.visible=true; G_ads.add(ring);
+})();
+
+// ================= SCENE 4 : ENTANGLEMENT / RT =================
+const G_rt = group();
+(function(){
+  // entanglement threads across interior (top rim)
+  const pairs=46, v=[]; const pts=[];
+  for(let i=0;i<pairs;i++){ const a0=Math.random()*6.283, a1=a0+ (Math.random()*1.6+0.6);
+    const y=ADS_H*0.5 - 0.05;
+    pts.push([Math.cos(a0)*ADS_R,y,Math.sin(a0)*ADS_R, Math.cos(a1)*ADS_R,y,Math.sin(a1)*ADS_R]); }
+  pts.forEach(p=>{ v.push(...p); });
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(v,3));
+  const thr=new TH.LineSegments(g, reg(new TH.LineBasicMaterial({color:0x46c2e0,blending:TH.AdditiveBlending}),.35));
+  thr.name='threads'; G_rt.add(thr);
+
+  // the bridging minimal surface (a curve dipping into bulk)
+  const A0=0.4, A1=2.6, yT=ADS_H*0.5-0.05;
+  const p0=new TH.Vector3(Math.cos(A0)*ADS_R,yT,Math.sin(A0)*ADS_R);
+  const p1=new TH.Vector3(Math.cos(A1)*ADS_R,yT,Math.sin(A1)*ADS_R);
+  const mid=p0.clone().add(p1).multiplyScalar(.5); mid.multiplyScalar(.12); mid.y=yT-2.6;
+  const curve=new TH.QuadraticBezierCurve3(p0,mid,p1);
+  const cg=new TH.BufferGeometry().setFromPoints(curve.getPoints(60));
+  const bridge=new TH.Line(cg, reg(new TH.LineBasicMaterial({color:0xffffff,blending:TH.AdditiveBlending}),1));
+  bridge.name='bridge'; G_rt.add(bridge);
+  // region A markers
+  const mg=new TH.BufferGeometry().setFromPoints([p0,p1]);
+  const marks=new TH.Points(mg, reg(new TH.PointsMaterial({size:.5,map:DOT,depthWrite:false,
+    blending:TH.AdditiveBlending,color:0x9fe8ff}),1));
+  G_rt.add(marks);
+})();
+
+// ================= SCENE 5 : DE SITTER =================
+const G_ds = group();
+(function(){
+  const s=new TH.Mesh(new TH.SphereGeometry(2.4,40,28),
+    reg(new TH.MeshBasicMaterial({color:0xb388ff,wireframe:true,blending:TH.AdditiveBlending}),.6));
+  s.name='dsSphere'; G_ds.add(s);
+  const N=500, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ const t=Math.random()*6.283,p=Math.acos(2*Math.random()-1),r=2.4;
+    pos[i*3]=r*Math.sin(p)*Math.cos(t); pos[i*3+1]=r*Math.cos(p); pos[i*3+2]=r*Math.sin(p)*Math.sin(t); }
+  const g=new TH.BufferGeometry(); g.setAttribute('position',new TH.Float32BufferAttribute(pos,3));
+  const m=reg(new TH.PointsMaterial({size:.18,map:DOT,depthWrite:false,blending:TH.AdditiveBlending,color:0xe7d6ff}),.9);
+  const gal=new TH.Points(g,m); gal.name='dsGal'; G_ds.add(gal);
+})();
+
+// step -> visible groups
+const STEP_GROUPS = [ [G_holo], [G_bh], [G_ads], [G_ads], [G_ads,G_rt], [G_ds] ];
+
+// ---------- orbit camera ----------
+let cur={r:9,phi:1.15,y:0.4}, tgt={...STEPS[0].cam};
+let theta=0.7, dragT=0, dragP=0, autoT=0;
+let down=false, lx=0, ly=0;
+function pdown(e){ down=true; lx=e.clientX??e.touches[0].clientX; ly=e.clientY??e.touches[0].clientY; }
+function pmove(e){ if(!down)return; const x=e.clientX??e.touches[0].clientX, y=e.clientY??e.touches[0].clientY;
+  dragT-=(x-lx)*0.006; dragP-=(y-ly)*0.005; lx=x; ly=y; }
+function pup(){ down=false; }
+canvas.addEventListener('pointerdown',pdown); addEventListener('pointermove',pmove); addEventListener('pointerup',pup);
+
+// ---------- step control ----------
+let step=0;
+const accentColor=new TH.Color(STEPS[0].accent);
+const panel=document.getElementById('panel'), dots=document.getElementById('dots');
+STEPS.forEach((s,i)=>{ const d=document.createElement('i'); d.onclick=()=>goto(i); dots.appendChild(d); });
+
+function render(){
+  const s=STEPS[step];
+  panel.innerHTML=`<div class="fadeup">
+    <div class="scene-no">SCENE ${step+1} / ${STEPS.length}</div>
+    <div class="scene-title">${s.title}</div>
+    <div class="scene-body">${s.body}</div>
+    <div class="note">${s.note}</div></div>`;
+  document.documentElement.style.setProperty('--accent',s.accent);
+  document.querySelector('.glow').style.background=
+    `radial-gradient(ellipse 70% 60% at 50% 45%,transparent 38%, ${s.accent}14 130%)`;
+  [...dots.children].forEach((d,i)=>d.classList.toggle('on',i===step));
+  tgt={...s.cam};
+}
+function goto(i){ step=(i+STEPS.length)%STEPS.length; render(); }
+document.getElementById('next').onclick=()=>goto(step+1);
+document.getElementById('prev').onclick=()=>goto(step-1);
+addEventListener('keydown',e=>{ if(e.key==='ArrowRight')goto(step+1); if(e.key==='ArrowLeft')goto(step-1); });
+
+// ---------- resize ----------
+function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h);
+  camera.aspect=w/h; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+
+// ---------- loop ----------
+const clock=new TH.Clock();
+function tick(){
+  const dt=clock.getDelta(), t=clock.elapsedTime;
+  if(!down) autoT+=dt*0.12;
+  // camera lerp
+  cur.r+=(tgt.r-cur.r)*0.05; cur.phi+=(tgt.phi-cur.phi)*0.05; cur.y+=(tgt.y-cur.y)*0.05;
+  const th=theta+autoT+dragT;
+  const ph=Math.max(0.25,Math.min(1.5,cur.phi+dragP));
+  camera.position.set(cur.r*Math.sin(ph)*Math.sin(th), cur.r*Math.cos(ph), cur.r*Math.sin(ph)*Math.cos(th));
+  camera.lookAt(0,cur.y,0);
+
+  // accent lerp on shared materials
+  accentColor.lerp(new TH.Color(STEPS[step].accent),0.06);
+
+  // fades
+  const active=STEP_GROUPS[step];
+  fadables.forEach(f=>{ const vis=isIn(f.m,active); const target=vis?f.max:0;
+    f.m.opacity+=(target-f.m.opacity)*0.08; });
+  scene.children.forEach(()=>{});
+  [G_holo,G_bh,G_ads,G_rt,G_ds].forEach(g=>{ let any=false;
+    g.traverse(o=>{ if(o.material && o.material.opacity>0.01) any=true; }); g.visible=any; });
+
+  // per-scene motion
+  setObj(G_holo,'holoIco',o=>{o.rotation.y+=dt*0.5;o.rotation.x+=dt*0.2;});
+  setObj(G_holo,'holoRays',o=>{o.material.opacity=Math.min(o.material.opacity,(0.12+0.12*Math.sin(t*2)));});
+  setObj(G_bh,'bhShell',o=>{o.rotation.y+=dt*0.15;});
+  setObj(G_bh,'bhBits',o=>{o.rotation.y+=dt*0.16; o.material.size=0.13+0.05*Math.sin(t*3);});
+  // ads
+  setObj(G_ads,'cft',o=>{ const s=o.userData.seed,p=o.geometry.attributes.position;
+    for(let i=0;i<s.length/2;i++){ const a=s[i*2]+t*0.25+i*0.0; const y=s[i*2+1];
+      p.setX(i,Math.cos(a)*ADS_R); p.setZ(i,Math.sin(a)*ADS_R); p.setY(i,y);} p.needsUpdate=true; });
+  setObj(G_ads,'bulkObj',o=>{o.rotation.y+=dt*0.6;o.rotation.z+=dt*0.3;
+    o.position.y=Math.sin(t*0.8)*0.6; o.visible=(step>=2);});
+  // dictionary ripple only on scene 3
+  setObj(G_ads,'ripple',o=>{
+    if(step===3){ const ph=(t*0.6)%1; o.scale.setScalar(0.2+ph*ADS_R*1.4);
+      o.position.set(Math.cos(t*0.6)*ADS_R, 0, Math.sin(t*0.6)*ADS_R);
+      o.material.opacity=(1-ph)*0.7; o.lookAt(0,0,0);
+    } else { o.material.opacity=Math.min(o.material.opacity,0.0001); o.scale.setScalar(0.001); } });
+  // rt breathing bridge
+  setObj(G_rt,'threads',o=>{ if(step===4) o.material.opacity=0.18+0.18*(0.5+0.5*Math.sin(t*0.8)); });
+  // de sitter expansion
+  setObj(G_ds,'dsSphere',o=>{ const e=1+0.18*Math.sin(t*0.5); o.scale.setScalar(e); o.rotation.y+=dt*0.1;});
+  setObj(G_ds,'dsGal',o=>{ const e=1+0.18*Math.sin(t*0.5); o.scale.setScalar(e); o.rotation.y+=dt*0.1;});
+
+  // tint shared accents
+  tint(G_ads,'adsWall'); tint(G_rt,'threads');
+
+  renderer.render(scene,camera);
+  requestAnimationFrame(tick);
+}
+function isIn(mat,groups){ let found=false; groups.forEach(g=>g.traverse(o=>{if(o.material===mat)found=true;})); return found; }
+function setObj(g,name,fn){ const o=g.getObjectByName(name); if(o)fn(o); }
+function tint(g,name){ const o=g.getObjectByName(name); if(o&&o.material&&o.material.color) o.material.color.copy(accentColor); }
+
+render(); tick();
+</script>
+</body>
+</html>

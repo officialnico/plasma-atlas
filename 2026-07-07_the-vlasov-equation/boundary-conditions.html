@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boundaries — clip vs reflect vs periodic</title>
+<style>
+  :root{
+    --bg:#070b11; --panel:#0e1520; --ink:#dfe9e6; --dim:#7a8a95; --faint:#2a3742;
+    --cyan:#4fe0d0; --amber:#f2b23e; --violet:#b07de0; --wall:#ff6b5e;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:"Helvetica Neue",Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding:26px 16px 60px;}
+  .wrap{max-width:860px;margin:0 auto;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;}
+  h1{font-weight:300;font-size:clamp(23px,4.6vw,34px);margin:0 0 12px;letter-spacing:-.01em;}
+  h1 em{font-style:normal;color:var(--cyan);font-weight:500;}
+  .lead{color:var(--dim);font-size:14.5px;line-height:1.6;max-width:62ch;margin:0 0 20px;}
+  .card{border:1px solid var(--faint);border-radius:12px;background:var(--panel);padding:14px;box-shadow:0 24px 60px -42px #000;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;}
+  .modes{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px;}
+  .modes button{flex:1;min-width:150px;cursor:pointer;border:1px solid var(--faint);border-radius:9px;background:#0b121b;color:var(--dim);padding:11px 12px;transition:.15s;text-align:left;font-family:var(--sans);}
+  .modes button .t{display:block;font-size:14px;color:var(--ink);font-weight:600;}
+  .modes button .d{display:block;font-size:11px;color:var(--dim);margin-top:3px;line-height:1.35;}
+  .modes button.on{border-color:var(--cyan);background:#0c1a1e;box-shadow:0 0 22px -10px var(--cyan);}
+  .modes button.on .t{color:var(--cyan);}
+  .ctrl{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px;}
+  .btn{cursor:pointer;border:1px solid var(--faint);border-radius:8px;background:#0b121b;color:var(--ink);font-family:var(--mono);font-size:12.5px;padding:9px 14px;}
+  .btn.primary{background:var(--cyan);color:#04140f;border-color:var(--cyan);font-weight:600;}
+  .sld{flex:1;display:flex;gap:9px;align-items:center;min-width:160px;}
+  .sld label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase;}
+  input[type=range]{flex:1;accent-color:var(--cyan);}
+  .note{margin-top:16px;color:var(--dim);font-size:13.5px;line-height:1.6;border-left:2px solid var(--faint);padding-left:14px;}
+  .note b{color:var(--ink);font-weight:500;}
+  .note .esc{color:var(--wall);} .note .cy{color:var(--cyan);} .note .vi{color:var(--violet);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Boundary conditions · x = ±5 walls</p>
+  <h1>Clip doesn't build a wall. <em>These do.</em></h1>
+  <p class="lead">Same particles, all drifting at constant velocity toward the walls at x = ±5.
+    Flip the mode and watch what happens when they reach the edge. Only two of these actually keep particles in —
+    clip just lets them sail off.</p>
+
+  <div class="card">
+    <canvas id="c" width="820" height="440"></canvas>
+    <div class="modes" id="modes">
+      <button data-m="none" class="on"><span class="t">None / clip</span><span class="d">no wall — particles fly straight past ±5 and leave</span></button>
+      <button data-m="reflect"><span class="t">Reflecting wall</span><span class="d">hit ±5 → bounce back, velocity flips</span></button>
+      <button data-m="periodic"><span class="t">Periodic wrap</span><span class="d">exit right → reappear on the left</span></button>
+    </div>
+    <div class="ctrl">
+      <button class="btn primary" id="play">Pause</button>
+      <button class="btn" id="reset">Reset</button>
+      <div class="sld"><label>speed</label><input type="range" id="spd" min="1" max="10" value="4"></div>
+    </div>
+  </div>
+
+  <p class="note">
+    <span class="esc">None / clip</span> — the red walls do nothing; particles pass right through and drift off forever.
+    This is why you saw no bounce-back: clip only fixes the <b>bin lookup</b>, never the particle.<br><br>
+    <span class="cy">Reflecting</span> — a real wall. Particle reaches ±5, position folds back in, velocity reverses. This is the "pushed back into x = 5" you would expect.<br><br>
+    <span class="vi">Periodic</span> — no wall, but nothing escapes: leave the right edge, come back on the left. This is the standard choice for the two-stream / instability runs.
+  </p>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const LO = -5, HI = 5, VIEW_LO = -8.5, VIEW_HI = 8.5;
+  const padL = 52, padR = 20, padT = 24, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const xToPx = x => padL + ((x - VIEW_LO)/(VIEW_HI - VIEW_LO))*plotW;
+  const vToPx = v => padT + plotH - ((v + 4)/8)*plotH;   // v from -4..4
+
+  const N = 34;
+  let px = new Float32Array(N), pv = new Float32Array(N);
+  const hue = new Float32Array(N);                 // fixed color per particle
+  for(let i=0;i<N;i++) hue[i] = (i / N) * 360;      // spread across the rainbow, set ONCE
+  function seed(){
+    for(let i=0;i<N;i++){
+      px[i] = (Math.random()*2-1)*2.2;             // start near center
+      pv[i] = (Math.random()*2-1)*2.2;             // spread of velocities, both signs
+    }
+  }
+  seed();
+
+  let mode = 'none', running = true, speed = 4;
+  const dt = 0.02;
+
+  function step(){
+    for(let i=0;i<N;i++){
+      px[i] += pv[i]*dt;
+      if(mode === 'reflect'){
+        if(px[i] > HI){ px[i] = HI - (px[i]-HI); pv[i] = -pv[i]; }
+        if(px[i] < LO){ px[i] = LO + (LO-px[i]); pv[i] = -pv[i]; }
+      } else if(mode === 'periodic'){
+        const span = HI - LO;
+        if(px[i] > HI) px[i] -= span;
+        if(px[i] < LO) px[i] += span;
+      }
+      // 'none': do nothing — particles leave freely
+    }
+  }
+
+  function draw(){
+    ctx.fillStyle = '#070b11'; ctx.fillRect(0,0,W,H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(79,224,208,0.07)'; ctx.lineWidth = 1;
+    for(let gx=-8; gx<=8; gx+=2){ const X=xToPx(gx); ctx.beginPath(); ctx.moveTo(X,padT); ctx.lineTo(X,padT+plotH); ctx.stroke(); }
+    for(let gv=-4; gv<=4; gv+=2){ const Y=vToPx(gv); ctx.beginPath(); ctx.moveTo(padL,Y); ctx.lineTo(padL+plotW,Y); ctx.stroke(); }
+
+    // v=0 axis
+    ctx.strokeStyle='rgba(79,224,208,0.22)'; ctx.beginPath(); ctx.moveTo(padL,vToPx(0)); ctx.lineTo(padL+plotW,vToPx(0)); ctx.stroke();
+
+    // the walls at x=±5
+    ctx.strokeStyle='#ff6b5e'; ctx.lineWidth=2.5; ctx.setLineDash([6,5]);
+    [LO,HI].forEach(w=>{ const X=xToPx(w); ctx.beginPath(); ctx.moveTo(X,padT); ctx.lineTo(X,padT+plotH); ctx.stroke(); });
+    ctx.setLineDash([]);
+    ctx.fillStyle='#ff6b5e'; ctx.font='11px ui-monospace,monospace';
+    ctx.textAlign='center'; ctx.fillText('x = −5', xToPx(LO), padT-8); ctx.fillText('x = +5', xToPx(HI), padT-8);
+
+    // shade the "outside" regions faintly
+    ctx.fillStyle='rgba(255,107,94,0.05)';
+    ctx.fillRect(xToPx(VIEW_LO), padT, xToPx(LO)-xToPx(VIEW_LO), plotH);
+    ctx.fillRect(xToPx(HI), padT, xToPx(VIEW_HI)-xToPx(HI), plotH);
+
+    // particles — each keeps its own fixed color so you can track it.
+    // escaped ones get a red ring around them (color stays the same underneath).
+    for(let i=0;i<N;i++){
+      const X=xToPx(px[i]), Y=vToPx(pv[i]);
+      if(X < 0 || X > W) continue;
+      const out = (px[i] < LO || px[i] > HI);
+      ctx.fillStyle = `hsl(${hue[i]}, 75%, 62%)`;
+      ctx.beginPath(); ctx.arc(X, Y, 5, 0, 7); ctx.fill();
+      if(out){
+        ctx.strokeStyle = '#ff6b5e'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(X, Y, 8, 0, 7); ctx.stroke();
+      }
+    }
+
+    // axis labels
+    ctx.fillStyle='rgba(150,180,190,0.6)'; ctx.font='12px ui-monospace,monospace';
+    ctx.textAlign='left'; ctx.fillText('x  →  position', padL+6, padT+plotH+28);
+    ctx.save(); ctx.translate(16, padT+20); ctx.rotate(-Math.PI/2);
+    ctx.fillText('v  →  velocity', 0, 0); ctx.restore();
+
+    // escaped counter
+    let escaped=0; for(let i=0;i<N;i++) if(px[i]<LO||px[i]>HI) escaped++;
+    ctx.textAlign='right'; ctx.fillStyle= escaped>0 ? '#ff6b5e' : 'rgba(150,180,190,0.7)';
+    ctx.font='13px ui-monospace,monospace';
+    ctx.fillText(`escaped: ${escaped}/${N}`, padL+plotW, padT+plotH+28);
+  }
+
+  function frame(){
+    if(running){ for(let s=0;s<speed;s++) step(); }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  document.querySelectorAll('#modes button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      mode = b.dataset.m;
+      document.querySelectorAll('#modes button').forEach(x=>x.classList.toggle('on', x===b));
+      seed();   // restart so you see the behavior from scratch
+    });
+  });
+  const playBtn = document.getElementById('play');
+  playBtn.addEventListener('click', e=>{ running=!running; e.target.textContent=running?'Pause':'Play'; });
+  document.getElementById('reset').addEventListener('click', seed);
+  document.getElementById('spd').addEventListener('input', e=>speed=+e.target.value);
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

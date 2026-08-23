@@ -1,0 +1,868 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vlasov app</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const Nx = 64;
+const Nv = 64;
+const L = 2 * Math.PI;
+const Vmax = 6;
+const dx = L / Nx;
+const dv = (2 * Vmax) / Nv;
+const HISTORY_LEN = 240;
+
+function makeArr(n, m) { return new Float32Array(n * m); }
+
+function poissonE(rho) {
+  let mean = 0;
+  for (let i = 0; i < Nx; i++) mean += rho[i];
+  mean /= Nx;
+  const src = new Float32Array(Nx);
+  for (let i = 0; i < Nx; i++) src[i] = rho[i] - mean;
+  const re = new Float32Array(Nx);
+  const im = new Float32Array(Nx);
+  for (let k = 0; k < Nx; k++) {
+    let r = 0, ii = 0;
+    for (let n = 0; n < Nx; n++) {
+      const ang = (-2 * Math.PI * k * n) / Nx;
+      r += src[n] * Math.cos(ang);
+      ii += src[n] * Math.sin(ang);
+    }
+    re[k] = r; im[k] = ii;
+  }
+  const Ere = new Float32Array(Nx);
+  const Eim = new Float32Array(Nx);
+  for (let k = 0; k < Nx; k++) {
+    let kReal = k <= Nx / 2 ? k : k - Nx;
+    if (kReal === 0) { Ere[k] = 0; Eim[k] = 0; continue; }
+    Ere[k] = im[k] / kReal;
+    Eim[k] = -re[k] / kReal;
+  }
+  const E = new Float32Array(Nx);
+  for (let n = 0; n < Nx; n++) {
+    let r = 0;
+    for (let k = 0; k < Nx; k++) {
+      const ang = (2 * Math.PI * k * n) / Nx;
+      r += Ere[k] * Math.cos(ang) - Eim[k] * Math.sin(ang);
+    }
+    E[n] = r / Nx;
+  }
+  return E;
+}
+
+function streamX(f, dt) {
+  const out = new Float32Array(Nv * Nx);
+  for (let iv = 0; iv < Nv; iv++) {
+    const v = -Vmax + (iv + 0.5) * dv;
+    const shift = v * dt;
+    for (let ix = 0; ix < Nx; ix++) {
+      const xSrc = ix * dx - shift;
+      let xMod = ((xSrc % L) + L) % L;
+      const idxF = xMod / dx;
+      const i0 = Math.floor(idxF) % Nx;
+      const i1 = (i0 + 1) % Nx;
+      const w = idxF - Math.floor(idxF);
+      out[iv * Nx + ix] = (1 - w) * f[iv * Nx + i0] + w * f[iv * Nx + i1];
+    }
+  }
+  return out;
+}
+
+function kickV(f, E, dt) {
+  const out = new Float32Array(Nv * Nx);
+  for (let ix = 0; ix < Nx; ix++) {
+    const shift = E[ix] * dt;
+    for (let iv = 0; iv < Nv; iv++) {
+      const v = -Vmax + (iv + 0.5) * dv;
+      const vSrc = v - shift;
+      const idxF = (vSrc + Vmax) / dv - 0.5;
+      const i0 = Math.floor(idxF);
+      const i1 = i0 + 1;
+      const w = idxF - i0;
+      let v0 = 0, v1 = 0;
+      if (i0 >= 0 && i0 < Nv) v0 = f[i0 * Nx + ix];
+      if (i1 >= 0 && i1 < Nv) v1 = f[i1 * Nx + ix];
+      out[iv * Nx + ix] = (1 - w) * v0 + w * v1;
+    }
+  }
+  return out;
+}
+
+function computeRho(f) {
+  const rho = new Float32Array(Nx);
+  for (let ix = 0; ix < Nx; ix++) {
+    let s = 0;
+    for (let iv = 0; iv < Nv; iv++) s += f[iv * Nx + ix];
+    rho[ix] = s * dv;
+  }
+  return rho;
+}
+
+function maxAbs(arr) {
+  let m = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const a = Math.abs(arr[i]);
+    if (a > m) m = a;
+  }
+  return m;
+}
+
+function snapshot(f) {
+  const cp = new Float32Array(f.length);
+  cp.set(f);
+  return cp;
+}
+
+// ============ DISTRIBUTION FUNCTIONS ============
+// Each returns f(x, v) with optional spatial perturbation.
+const DISTRIBUTIONS = {
+  maxwellian: {
+    name: "Maxwellian (thermal)",
+    formula: "exp(−v²/2T) · (1 + ε·cos(kx))",
+    desc: "Standard thermal equilibrium. Bell curve in v centered at zero. The classic starting point.",
+    func: (x, v, p) => {
+      const T = p.T ?? 1.0;
+      const M = Math.exp(-(v * v) / (2 * T)) / Math.sqrt(2 * Math.PI * T);
+      return M * (1 + p.amp * Math.cos(p.k * x));
+    }
+  },
+  twoStream: {
+    name: "Two counter-streams",
+    formula: "½[M(v−v₀) + M(v+v₀)] · (1 + ε·cos(kx))",
+    desc: "Two beams moving in opposite directions at ±v₀. Setup for the two-stream instability.",
+    func: (x, v, p) => {
+      const T = p.T ?? 1.0;
+      const v0 = 1.5;
+      const M1 = Math.exp(-Math.pow(v - v0, 2) / (2 * T));
+      const M2 = Math.exp(-Math.pow(v + v0, 2) / (2 * T));
+      const norm = 0.5 / Math.sqrt(2 * Math.PI * T);
+      return norm * (M1 + M2) * (1 + p.amp * Math.cos(p.k * x));
+    }
+  },
+  bump: {
+    name: "Bump-on-tail",
+    formula: "[M(v) + 0.3·M(v−3, σ²=0.5)] · (1 + ε·cos(kx))",
+    desc: "Maxwellian background with a small fast beam at v = 3. Drives a gentle instability.",
+    func: (x, v, p) => {
+      const T = p.T ?? 1.0;
+      const M = Math.exp(-(v * v) / (2 * T)) / Math.sqrt(2 * Math.PI * T);
+      const bump = 0.3 * Math.exp(-Math.pow(v - 3.0, 2) / 0.5);
+      return (M + bump) * (1 + p.amp * Math.cos(p.k * x));
+    }
+  },
+  shiftedMaxwellian: {
+    name: "Shifted Maxwellian (single beam)",
+    formula: "exp(−(v−v₀)²/2T) · (1 + ε·cos(kx))",
+    desc: "All particles drifting at v₀ = 1 with thermal spread. A 'flowing' plasma.",
+    func: (x, v, p) => {
+      const T = p.T ?? 1.0;
+      const v0 = 1.0;
+      const M = Math.exp(-Math.pow(v - v0, 2) / (2 * T)) / Math.sqrt(2 * Math.PI * T);
+      return M * (1 + p.amp * Math.cos(p.k * x));
+    }
+  },
+  blob: {
+    name: "Phase-space blob",
+    formula: "exp(−(x−π)²/0.4 − (v−1)²/0.6)",
+    desc: "Localized cloud of particles, all near (x = π, v = 1). Pure free-streaming when force off.",
+    func: (x, v, p) => {
+      const v0 = 1.0;
+      return Math.exp(-Math.pow(x - L / 2, 2) / 0.4 - Math.pow(v - v0, 2) / 0.6) / 2;
+    }
+  },
+  flat: {
+    name: "Flat (uniform)",
+    formula: "constant · (1 + ε·cos(kx))",
+    desc: "Uniform in v — every velocity equally populated. Unphysical but useful for intuition.",
+    func: (x, v, p) => {
+      if (Math.abs(v) > 4) return 0;
+      return 0.1 * (1 + p.amp * Math.cos(p.k * x));
+    }
+  },
+  cold: {
+    name: "Cold (delta-like)",
+    formula: "narrow Gaussian at v = 0",
+    desc: "Very cold plasma — almost all particles at v ≈ 0. Like a fluid with no thermal motion.",
+    func: (x, v, p) => {
+      const sigma = 0.15;
+      const M = Math.exp(-(v * v) / (2 * sigma * sigma)) / Math.sqrt(2 * Math.PI * sigma * sigma);
+      return M * (1 + p.amp * Math.cos(p.k * x));
+    }
+  }
+};
+
+function initF(name, params) {
+  const f = makeArr(Nv, Nx);
+  const spec = DISTRIBUTIONS[name];
+  if (!spec) return f;
+  for (let iv = 0; iv < Nv; iv++) {
+    const v = -Vmax + (iv + 0.5) * dv;
+    for (let ix = 0; ix < Nx; ix++) {
+      const x = ix * dx;
+      f[iv * Nx + ix] = Math.max(0, spec.func(x, v, params));
+    }
+  }
+  return f;
+}
+
+function estimateTermMagnitudes(f, E, streamingOn, forceOn, streamMag, forceMag) {
+  let streamSq = 0, forceSq = 0, dfdtSq = 0, count = 0;
+  for (let iv = 1; iv < Nv - 1; iv++) {
+    const v = -Vmax + (iv + 0.5) * dv;
+    for (let ix = 0; ix < Nx; ix++) {
+      const ixp = (ix + 1) % Nx;
+      const ixm = (ix - 1 + Nx) % Nx;
+      const dfdx = (f[iv * Nx + ixp] - f[iv * Nx + ixm]) / (2 * dx);
+      const dfdv = (f[(iv + 1) * Nx + ix] - f[(iv - 1) * Nx + ix]) / (2 * dv);
+      const sTerm = streamingOn ? v * dfdx * streamMag : 0;
+      const fTerm = forceOn ? E[ix] * dfdv * forceMag : 0;
+      streamSq += sTerm * sTerm;
+      forceSq += fTerm * fTerm;
+      const dft = -(sTerm + fTerm);
+      dfdtSq += dft * dft;
+      count++;
+    }
+  }
+  return {
+    streamRMS: Math.sqrt(streamSq / count),
+    forceRMS: Math.sqrt(forceSq / count),
+    dfdtRMS: Math.sqrt(dfdtSq / count)
+  };
+}
+
+function VlasovApp() {
+  const [running, setRunning] = useState(true);
+  const [streamingOn, setStreamingOn] = useState(true);
+  const [forceOn, setForceOn] = useState(true);
+  const [forceMag, setForceMag] = useState(1.0);
+  const [streamMag, setStreamMag] = useState(1.0);
+  const [distribution, setDistribution] = useState("maxwellian");
+  const [amp, setAmp] = useState(0.4);
+  const [kMode, setKMode] = useState(1);
+  const [scrubbing, setScrubbing] = useState(false);
+  const [scrubIdx, setScrubIdx] = useState(0);
+  const [, setTickN] = useState(0);
+
+  const [termMags, setTermMags] = useState({ streamRMS: 0, forceRMS: 0, dfdtRMS: 0 });
+
+  const fRef = useRef(null);
+  const historyRef = useRef([]);
+  const tRef = useRef(0);
+  const energyHistRef = useRef([]);
+  const cfgRef = useRef({ streamingOn, forceOn, forceMag, streamMag, running, scrubbing, scrubIdx });
+  useEffect(() => {
+    cfgRef.current = { streamingOn, forceOn, forceMag, streamMag, running, scrubbing, scrubIdx };
+  }, [streamingOn, forceOn, forceMag, streamMag, running, scrubbing, scrubIdx]);
+
+  const reset = useCallback(() => {
+    fRef.current = initF(distribution, { amp, k: kMode, T: 1.0 });
+    historyRef.current = [];
+    energyHistRef.current = [];
+    tRef.current = 0;
+    const rho = computeRho(fRef.current);
+    const E = poissonE(rho);
+    historyRef.current.push({ t: 0, f: snapshot(fRef.current), E: snapshot(E), rho: snapshot(rho) });
+    let fieldE = 0;
+    for (let i = 0; i < Nx; i++) fieldE += E[i] * E[i] * dx * 0.5;
+    energyHistRef.current.push({ t: 0, fieldE });
+    setScrubIdx(0);
+  }, [distribution, amp, kMode]);
+
+  useEffect(() => { reset(); }, [reset]);
+
+  useEffect(() => {
+    let raf;
+    let lastCapture = 0;
+    let last = performance.now();
+    const tickFn = (now) => {
+      last = now;
+      const cfg = cfgRef.current;
+
+      if (cfg.running && !cfg.scrubbing && fRef.current) {
+        const dt = 0.05;
+        let f = fRef.current;
+        if (cfg.streamingOn) f = streamX(f, 0.5 * dt * cfg.streamMag);
+        const rho = computeRho(f);
+        const E0 = poissonE(rho);
+        const Eused = new Float32Array(Nx);
+        for (let i = 0; i < Nx; i++) Eused[i] = cfg.forceOn ? E0[i] * cfg.forceMag : 0;
+        f = kickV(f, Eused, dt);
+        if (cfg.streamingOn) f = streamX(f, 0.5 * dt * cfg.streamMag);
+        fRef.current = f;
+        tRef.current += dt;
+
+        if (tRef.current - lastCapture > 0.1 || historyRef.current.length === 0) {
+          lastCapture = tRef.current;
+          historyRef.current.push({
+            t: tRef.current, f: snapshot(f), E: snapshot(E0), rho: snapshot(rho)
+          });
+          let fieldE = 0;
+          for (let i = 0; i < Nx; i++) fieldE += E0[i] * E0[i] * dx * 0.5;
+          energyHistRef.current.push({ t: tRef.current, fieldE });
+          if (historyRef.current.length > HISTORY_LEN) historyRef.current.shift();
+          if (energyHistRef.current.length > HISTORY_LEN) energyHistRef.current.shift();
+          setScrubIdx(historyRef.current.length - 1);
+        }
+
+        const mags = estimateTermMagnitudes(
+          f, E0, cfg.streamingOn, cfg.forceOn, cfg.streamMag, cfg.forceMag
+        );
+        setTermMags(mags);
+      }
+      setTickN((n) => n + 1);
+      raf = requestAnimationFrame(tickFn);
+    };
+    raf = requestAnimationFrame(tickFn);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const displayFrame = (() => {
+    const hist = historyRef.current;
+    if (hist.length === 0) return null;
+    if (scrubbing) {
+      const idx = Math.max(0, Math.min(hist.length - 1, scrubIdx));
+      return hist[idx];
+    }
+    return hist[hist.length - 1];
+  })();
+
+  const PHASE_H = 320;
+  const phaseCanvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = phaseCanvasRef.current;
+    if (!canvas || !displayFrame) return;
+    const ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(Nx, Nv);
+    const f = displayFrame.f;
+    let fmax = 0;
+    for (let i = 0; i < f.length; i++) if (f[i] > fmax) fmax = f[i];
+    if (fmax < 1e-9) fmax = 1e-9;
+    for (let iv = 0; iv < Nv; iv++) {
+      for (let ix = 0; ix < Nx; ix++) {
+        const val = Math.max(0, f[iv * Nx + ix]) / fmax;
+        const t = Math.pow(val, 0.55);
+        let r, g, b;
+        if (t < 0.33) {
+          const u = t / 0.33;
+          r = Math.round(15 + (140 - 15) * u);
+          g = Math.round(15 + (40 - 15) * u);
+          b = Math.round(40 + (140 - 40) * u);
+        } else if (t < 0.66) {
+          const u = (t - 0.33) / 0.33;
+          r = Math.round(140 + (255 - 140) * u);
+          g = Math.round(40 + (110 - 40) * u);
+          b = Math.round(140 + (60 - 140) * u);
+        } else {
+          const u = (t - 0.66) / 0.34;
+          r = 255;
+          g = Math.round(110 + (220 - 110) * u);
+          b = Math.round(60 + (60 - 60) * u);
+        }
+        const ivPlot = Nv - 1 - iv;
+        const px = (ivPlot * Nx + ix) * 4;
+        img.data[px] = r;
+        img.data[px + 1] = g;
+        img.data[px + 2] = b;
+        img.data[px + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [displayFrame]);
+
+  // velocity profile (integrate f over x to get f(v) marginal)
+  const VPROF_W = 200, VPROF_H = 320;
+  const vProfilePath = (() => {
+    if (!displayFrame) return "";
+    const f = displayFrame.f;
+    const fv = new Float32Array(Nv);
+    for (let iv = 0; iv < Nv; iv++) {
+      let s = 0;
+      for (let ix = 0; ix < Nx; ix++) s += f[iv * Nx + ix];
+      fv[iv] = s * dx;
+    }
+    let fmax = 0;
+    for (let i = 0; i < Nv; i++) if (fv[i] > fmax) fmax = fv[i];
+    if (fmax < 1e-9) fmax = 1e-9;
+    let d = "";
+    for (let iv = 0; iv < Nv; iv++) {
+      const ivPlot = Nv - 1 - iv;
+      const py = (ivPlot / (Nv - 1)) * (VPROF_H - 20) + 10;
+      const px = 6 + (fv[iv] / fmax) * (VPROF_W - 16);
+      d += `${iv === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+    }
+    return d;
+  })();
+
+  const STRIP_W = 480, STRIP_H = 80;
+  const densityPath = (() => {
+    if (!displayFrame) return "";
+    const rho = displayFrame.rho;
+    let max = maxAbs(rho) || 1;
+    let mean = 0;
+    for (let i = 0; i < Nx; i++) mean += rho[i];
+    mean /= Nx;
+    let d = "";
+    for (let i = 0; i < Nx; i++) {
+      const px = (i / Nx) * STRIP_W;
+      const py = STRIP_H / 2 - ((rho[i] - mean) / max) * (STRIP_H / 2 - 4);
+      d += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+    }
+    return d;
+  })();
+
+  const fieldPath = (() => {
+    if (!displayFrame) return "";
+    const E = displayFrame.E;
+    let max = maxAbs(E) || 1;
+    let d = "";
+    for (let i = 0; i < Nx; i++) {
+      const px = (i / Nx) * STRIP_W;
+      const py = STRIP_H / 2 - (E[i] / max) * (STRIP_H / 2 - 4);
+      d += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+    }
+    return d;
+  })();
+
+  const ENG_W = 720, ENG_H = 110;
+  const energyPath = (() => {
+    const arr = energyHistRef.current;
+    if (arr.length < 2) return "";
+    const tMin = arr[0].t;
+    const tMax = arr[arr.length - 1].t;
+    let eMax = 1e-9;
+    for (const e of arr) if (e.fieldE > eMax) eMax = e.fieldE;
+    let d = "";
+    arr.forEach((e, i) => {
+      const px = 30 + ((e.t - tMin) / Math.max(0.1, tMax - tMin)) * (ENG_W - 60);
+      const py = ENG_H - 15 - (e.fieldE / eMax) * (ENG_H - 30);
+      d += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+    });
+    return d;
+  })();
+
+  const scrubX = (() => {
+    const hist = historyRef.current;
+    if (hist.length === 0) return 30;
+    const tMin = hist[0].t;
+    const tMax = hist[hist.length - 1].t;
+    if (tMax - tMin < 0.01) return 30;
+    const idx = Math.max(0, Math.min(hist.length - 1, scrubIdx));
+    const t = hist[idx].t;
+    return 30 + ((t - tMin) / (tMax - tMin)) * (ENG_W - 60);
+  })();
+
+  const maxBar = Math.max(termMags.streamRMS, termMags.forceRMS, termMags.dfdtRMS, 0.001);
+  const streamBarW = (termMags.streamRMS / maxBar) * 100;
+  const forceBarW = (termMags.forceRMS / maxBar) * 100;
+  const dfdtBarW = (termMags.dfdtRMS / maxBar) * 100;
+
+  const distSpec = DISTRIBUTIONS[distribution];
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#08080d",
+        color: "#e8e8ee",
+        fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+        padding: "32px 24px",
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: inherit; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .control-btn.green.active { background: #7af0a8; color: #0a0a0f; border-color: #7af0a8; }
+        .control-btn.blue.active { background: #5b8def; color: #0a0a0f; border-color: #5b8def; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 18px; }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider:focus { outline: none; }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 20px; width: 20px; border-radius: 50%; margin-top: -8px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5), inset 0 -2px 4px rgba(0,0,0,0.3);
+          border: 2px solid #08080d;
+          transition: transform 0.1s ease;
+        }
+        .smooth-slider::-webkit-slider-thumb:hover { transform: scale(1.12); }
+        .smooth-slider:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.05); }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 20px; width: 20px; border-radius: 50%;
+          cursor: grab; border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+        .scrub-slider::-webkit-slider-thumb {
+          background: radial-gradient(circle at 30% 30%, #ffd166, #d6a32f);
+          box-shadow: 0 2px 8px rgba(255,209,102,0.5);
+        }
+        .scrub-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ffd166, #d6a32f);
+          box-shadow: 0 2px 8px rgba(255,209,102,0.5);
+        }
+        .term-block {
+          padding: 14px 16px;
+          border-radius: 4px;
+          border: 1px solid #1f1f2c;
+          background: #0d0d18;
+          transition: all 0.2s ease;
+        }
+        .term-block.dimmed { opacity: 0.3; border-color: #1f1f2c; }
+        .term-symbol {
+          font-family: 'Fraunces', serif;
+          font-style: italic;
+          font-size: 28px;
+          font-weight: 600;
+          line-height: 1;
+        }
+        .equals, .plus {
+          font-family: 'Fraunces', serif;
+          font-style: italic;
+          font-size: 28px;
+          color: #555;
+          padding: 0 4px;
+        }
+        .term-bar {
+          height: 4px;
+          background: #1f1f2c;
+          border-radius: 2px;
+          margin-top: 8px;
+          overflow: hidden;
+        }
+        .term-bar-fill {
+          height: 100%;
+          border-radius: 2px;
+          transition: width 0.15s ease;
+        }
+        .dist-card {
+          background: #0d0d18;
+          border: 1px solid #1f1f2c;
+          padding: 10px 12px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-align: left;
+          font-family: inherit;
+          color: #e8e8ee;
+        }
+        .dist-card:hover { border-color: #ff5c3a; }
+        .dist-card.active {
+          border-color: #ff5c3a;
+          background: #1a0e0c;
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>
+            VLASOV–POISSON · 1D PHASE-SPACE PLAYGROUND
+          </div>
+          <h1 className="display" style={{ fontSize: 36, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            Pick your distribution
+          </h1>
+        </div>
+
+        {/* DISTRIBUTION PICKER */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 10 }}>
+            f(x, v, t = 0) — INITIAL DISTRIBUTION FUNCTION
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginBottom: 12 }}>
+            {Object.entries(DISTRIBUTIONS).map(([key, spec]) => (
+              <button
+                key={key}
+                className={`dist-card ${distribution === key ? "active" : ""}`}
+                onClick={() => setDistribution(key)}
+              >
+                <div style={{ fontSize: 11, letterSpacing: "0.05em", color: distribution === key ? "#ff5c3a" : "#e8e8ee", marginBottom: 4, fontWeight: 600 }}>
+                  {spec.name}
+                </div>
+                <div className="display" style={{ fontSize: 11, fontStyle: "italic", color: "#888" }}>
+                  {spec.formula}
+                </div>
+              </button>
+            ))}
+          </div>
+          <div style={{ background: "#08080d", padding: "12px 14px", borderLeft: "2px solid #ff5c3a" }}>
+            <div className="display" style={{ fontSize: 18, fontStyle: "italic", color: "#fff", marginBottom: 4 }}>
+              f(x, v) = {distSpec.formula}
+            </div>
+            <div style={{ fontSize: 12, color: "#b0b0bc", lineHeight: 1.5 }}>
+              {distSpec.desc}
+            </div>
+          </div>
+        </div>
+
+        {/* LIVE EQUATION */}
+        <div className="viz-card" style={{ marginBottom: 14, padding: "20px" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 14 }}>
+            LIVE EQUATION · BARS SHOW EACH TERM'S CURRENT MAGNITUDE
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 6 }}>
+            <div className="term-block" style={{ borderColor: "#ff5c3a44" }}>
+              <div className="term-symbol" style={{ color: "#ff5c3a" }}>∂f/∂t</div>
+              <div style={{ fontSize: 9, color: "#666", letterSpacing: "0.15em", marginTop: 4 }}>RATE OF CHANGE</div>
+              <div className="term-bar"><div className="term-bar-fill" style={{ width: `${dfdtBarW}%`, background: "#ff5c3a" }} /></div>
+              <div style={{ fontSize: 10, color: "#ff5c3a", marginTop: 4, fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+                {termMags.dfdtRMS.toExponential(2)}
+              </div>
+            </div>
+
+            <span className="equals">=</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 28, color: "#555" }}>−</span>
+
+            <div className={`term-block ${!streamingOn ? "dimmed" : ""}`} style={{ borderColor: streamingOn ? "#5b8def44" : "#1f1f2c" }}>
+              <div className="term-symbol" style={{ color: streamingOn ? "#5b8def" : "#444" }}>v · ∂f/∂x</div>
+              <div style={{ fontSize: 9, color: "#666", letterSpacing: "0.15em", marginTop: 4 }}>
+                STREAMING {streamingOn ? `· ${streamMag.toFixed(2)}×` : "· OFF"}
+              </div>
+              <div className="term-bar">
+                <div className="term-bar-fill" style={{ width: streamingOn ? `${streamBarW}%` : "0%", background: "#5b8def" }} />
+              </div>
+              <div style={{ fontSize: 10, color: streamingOn ? "#5b8def" : "#444", marginTop: 4, fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+                {streamingOn ? termMags.streamRMS.toExponential(2) : "0"}
+              </div>
+            </div>
+
+            <span className="plus">−</span>
+
+            <div className={`term-block ${!forceOn ? "dimmed" : ""}`} style={{ borderColor: forceOn ? "#7af0a844" : "#1f1f2c" }}>
+              <div className="term-symbol" style={{ color: forceOn ? "#7af0a8" : "#444" }}>(qE/m) · ∂f/∂v</div>
+              <div style={{ fontSize: 9, color: "#666", letterSpacing: "0.15em", marginTop: 4 }}>
+                FORCE {forceOn ? `· ${forceMag.toFixed(2)}×` : "· OFF"}
+              </div>
+              <div className="term-bar">
+                <div className="term-bar-fill" style={{ width: forceOn ? `${forceBarW}%` : "0%", background: "#7af0a8" }} />
+              </div>
+              <div style={{ fontSize: 10, color: forceOn ? "#7af0a8" : "#444", marginTop: 4, fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+                {forceOn ? termMags.forceRMS.toExponential(2) : "0"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PHASE SPACE + V-PROFILE + CONTROLS */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 220px 1fr", gap: 14, marginBottom: 14 }}>
+          <div className="viz-card">
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666" }}>
+                f(x, v) — PHASE SPACE
+              </div>
+              <div style={{ fontSize: 10, color: "#888" }}>
+                t = {(displayFrame ? displayFrame.t : 0).toFixed(2)}
+                {scrubbing && <span style={{ color: "#ffd166", marginLeft: 8 }}>· REWOUND</span>}
+              </div>
+            </div>
+            <div style={{ position: "relative" }}>
+              <canvas
+                ref={phaseCanvasRef}
+                width={Nx}
+                height={Nv}
+                style={{
+                  width: "100%", height: PHASE_H,
+                  imageRendering: "pixelated", display: "block",
+                  border: "1px solid #1f1f2c",
+                }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginTop: 4 }}>
+                <span>x = 0</span><span style={{ fontStyle: "italic" }}>x →</span><span>x = 2π</span>
+              </div>
+            </div>
+          </div>
+
+          {/* velocity marginal — f integrated over x */}
+          <div className="viz-card" style={{ padding: 12 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+              ∫f dx — f(v) PROFILE
+            </div>
+            <svg width="100%" viewBox={`0 0 ${VPROF_W} ${VPROF_H}`} style={{ display: "block", border: "1px solid #1f1f2c" }}>
+              {/* horizontal v=0 line */}
+              <line x1="0" y1={VPROF_H / 2} x2={VPROF_W} y2={VPROF_H / 2} stroke="#2a2a35" strokeDasharray="2,3" />
+              {/* tick labels */}
+              <text x={VPROF_W - 4} y={14} fontSize="9" fill="#555" textAnchor="end" fontStyle="italic">+{Vmax}</text>
+              <text x={VPROF_W - 4} y={VPROF_H / 2 + 3} fontSize="9" fill="#555" textAnchor="end" fontStyle="italic">v = 0</text>
+              <text x={VPROF_W - 4} y={VPROF_H - 6} fontSize="9" fill="#555" textAnchor="end" fontStyle="italic">−{Vmax}</text>
+              <path d={vProfilePath} fill="none" stroke="#5b8def" strokeWidth="2" />
+            </svg>
+            <div style={{ fontSize: 10, color: "#666", marginTop: 6, lineHeight: 1.4 }}>
+              The velocity distribution averaged over space. Peak shows where most particles are in v.
+            </div>
+          </div>
+
+          <div className="viz-card">
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+              SWITCHES & SCALES
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 10, alignItems: "center" }}>
+                <button className={`control-btn blue ${streamingOn ? "active" : ""}`} onClick={() => setStreamingOn(s => !s)} style={{ minWidth: 70 }}>
+                  {streamingOn ? "ON" : "OFF"}
+                </button>
+                <div>
+                  <div className="display" style={{ fontSize: 14, fontStyle: "italic", color: streamingOn ? "#5b8def" : "#444" }}>v · ∂f/∂x</div>
+                  <div style={{ fontSize: 10, color: "#666" }}>streaming</div>
+                </div>
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                  <span>STREAM SCALE</span>
+                  <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{streamMag.toFixed(2)}×</span>
+                </div>
+                <input className="smooth-slider" type="range" min="0" max="2" step="0.001"
+                  value={streamMag} onChange={e => setStreamMag(parseFloat(e.target.value))} disabled={!streamingOn} />
+              </div>
+              <div style={{ height: 1, background: "#1f1f2c" }} />
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 10, alignItems: "center" }}>
+                <button className={`control-btn green ${forceOn ? "active" : ""}`} onClick={() => setForceOn(s => !s)} style={{ minWidth: 70 }}>
+                  {forceOn ? "ON" : "OFF"}
+                </button>
+                <div>
+                  <div className="display" style={{ fontSize: 14, fontStyle: "italic", color: forceOn ? "#7af0a8" : "#444" }}>(qE/m) · ∂f/∂v</div>
+                  <div style={{ fontSize: 10, color: "#666" }}>force</div>
+                </div>
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                  <span>FORCE SCALE</span>
+                  <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{forceMag.toFixed(2)}×</span>
+                </div>
+                <input className="smooth-slider" type="range" min="0" max="3" step="0.001"
+                  value={forceMag} onChange={e => setForceMag(parseFloat(e.target.value))} disabled={!forceOn} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DENSITY + FIELD */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <div className="viz-card">
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 6 }}>
+              ρ(x) − ⟨ρ⟩ — DENSITY PERTURBATION
+            </div>
+            <svg width="100%" viewBox={`0 0 ${STRIP_W} ${STRIP_H}`} style={{ display: "block" }}>
+              <line x1="0" y1={STRIP_H/2} x2={STRIP_W} y2={STRIP_H/2} stroke="#2a2a35" strokeDasharray="2,3" />
+              <path d={densityPath} fill="none" stroke="#5b8def" strokeWidth="2" />
+            </svg>
+          </div>
+          <div className="viz-card">
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 6 }}>
+              E(x) — ELECTRIC FIELD
+            </div>
+            <svg width="100%" viewBox={`0 0 ${STRIP_W} ${STRIP_H}`} style={{ display: "block" }}>
+              <line x1="0" y1={STRIP_H/2} x2={STRIP_W} y2={STRIP_H/2} stroke="#2a2a35" strokeDasharray="2,3" />
+              <path d={fieldPath} fill="none" stroke="#7af0a8" strokeWidth="2" />
+            </svg>
+          </div>
+        </div>
+
+        {/* ENERGY + SCRUB */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666" }}>
+              FIELD ENERGY · ½∫E²dx — and TIME SCRUBBER
+            </div>
+            <div style={{ fontSize: 10, color: "#888" }}>{historyRef.current.length} frames stored</div>
+          </div>
+          <svg width="100%" viewBox={`0 0 ${ENG_W} ${ENG_H}`} style={{ display: "block" }}>
+            <line x1="30" y1={ENG_H - 15} x2={ENG_W - 30} y2={ENG_H - 15} stroke="#2a2a35" />
+            <path d={energyPath} fill="none" stroke="#ffd166" strokeWidth="2" />
+            {scrubbing && (
+              <line x1={scrubX} y1={4} x2={scrubX} y2={ENG_H - 15} stroke="#ffd166" strokeWidth="1" strokeDasharray="3,3" />
+            )}
+          </svg>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+              <span>TIME · drag to rewind</span>
+              <span style={{ color: "#ffd166", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+                {displayFrame ? `t = ${displayFrame.t.toFixed(2)}` : "—"}
+              </span>
+            </div>
+            <input className="smooth-slider scrub-slider" type="range"
+              min={0} max={Math.max(0, historyRef.current.length - 1)} step="1"
+              value={scrubIdx}
+              onMouseDown={() => setScrubbing(true)}
+              onTouchStart={() => setScrubbing(true)}
+              onChange={e => setScrubIdx(parseInt(e.target.value))} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <button className="control-btn" onClick={() => setRunning(r => !r)}>{running ? "❚❚ Pause" : "▶ Play"}</button>
+            <button className="control-btn" onClick={() => { setScrubbing(false); }}>▶ Resume live</button>
+            <button className="control-btn" onClick={reset}>↺ Reset t = 0</button>
+          </div>
+        </div>
+
+        {/* IC PARAMS */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+            INITIAL PERTURBATION — ε·cos(kx)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>AMPLITUDE ε</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{amp.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="0.0" max="0.6" step="0.001" value={amp} onChange={e => setAmp(parseFloat(e.target.value))} />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>WAVENUMBER k</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{kMode}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="1" max="4" step="1" value={kMode} onChange={e => setKMode(parseInt(e.target.value))} />
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: "#666", marginTop: 10 }}>
+            These knobs reset the simulation when changed (they redefine the initial f). Distribution functions also reset on switch.
+          </div>
+        </div>
+
+        {/* HOMEWORK HELPER */}
+        <div className="viz-card" style={{ background: "#0d0d18" }}>
+          <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 10 }}>
+            Connecting to the homework
+          </div>
+          <div style={{ display: "grid", gap: 8, fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>
+            <div>· Problem 2 used <em>exp(−v²/2)·(1 + 0.1·sin(x))</em> — that's the <span style={{color:"#ff5c3a"}}>Maxwellian</span> button (with cos instead of sin and ε = 0.1 vs 0.4 here, but same shape).</div>
+            <div>· The f(v) profile chart on the right shows you what f looks like collapsed onto the velocity axis. The Maxwellian's bell curve is right there.</div>
+            <div>· Try switching to <span style={{color:"#ff5c3a"}}>Two streams</span> — see two bumps in the v-profile chart? That's f(v) with two peaks at ±1.5.</div>
+            <div>· <span style={{color:"#ff5c3a"}}>Bump-on-tail</span> shows the small bump you'd compute ∂f/∂v on — the Landau damping question from problem 5 is about exactly this slope.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(VlasovApp));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

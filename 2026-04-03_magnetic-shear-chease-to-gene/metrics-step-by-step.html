@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Metrics Transform a Grid Cell</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:860px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#9b7ff0;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:16px;line-height:1.5;max-width:520px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:13px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:130px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:36px;text-align:right;color:#9b7ff0;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#9b7ff0;cursor:pointer;}
+h2{font-size:16px;font-weight:700;color:#9b7ff0;margin:20px 0 10px;padding-top:12px;border-top:1px solid #17253f;}
+.step-row{display:flex;gap:6px;align-items:center;margin-bottom:10px;overflow-x:auto;padding-bottom:4px;}
+.step-box{flex:none;width:120px;text-align:center;}
+.step-box canvas{width:120px;height:120px;background:#080c14;border:1px solid #17253f;border-radius:8px;}
+.step-box .sl{font-size:8px;font-family:monospace;color:#2f4468;margin-top:4px;line-height:1.3;}
+.step-arrow{color:#2f4468;font-size:18px;flex:none;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>How Metrics <span>Transform</span> a Grid Cell</h1>
+<p class="sub">Start with GENE's uniform square. Apply each metric one at a time. Watch the square become what it really looks like in the tokamak.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">z position (along field line)</div>
+    <div class="cg-r"><input type="range" id="sZ" min="-3.14" max="3.14" step="0.05" value="1.5"><span class="cg-v" id="vZ">1.5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Shear</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.1" value="1.5"><span class="cg-v" id="vShat">1.5</span></div>
+  </div>
+</div>
+
+<!-- Step by step -->
+<div class="panel">
+  <div class="plbl"><span>STEP-BY-STEP: ONE CELL BEING TRANSFORMED</span></div>
+  <canvas id="cSteps" style="height:360px;"></canvas>
+</div>
+
+<div class="box">
+  <p><b>Step 1:</b> Start with GENE's square. This is what GENE "thinks" the cell looks like — unit square, x and y perpendicular, everything uniform.</p>
+  <p style="margin-top:4px;"><b>Step 2: Apply <span class="p">g^xx</span></b> — stretch or compress radially (horizontally). The square becomes a rectangle. Wider where flux surfaces are farther apart, narrower where they're closer.</p>
+  <p style="margin-top:4px;"><b>Step 3: Apply <span class="p">g^xy</span></b> — skew the rectangle. This is shear. The top edge shifts sideways relative to the bottom. The amount of shift is proportional to s-hat × z. At z=0 there's no shift. At z=±π it's maximum. <b>This is the main one.</b></p>
+  <p style="margin-top:4px;"><b>Step 4: Apply <span class="p">g^yy</span></b> — stretch binormally (vertically). The parallelogram gets taller. This grows with z² because of shear.</p>
+</div>
+
+<!-- Big animated single cell -->
+<h2>One Cell, Animated</h2>
+
+<div class="panel">
+  <div class="plbl"><span>DRAG z SLIDER — WATCH THE CELL MORPH</span><span style="color:#f5c042">z = <span id="zDisp">1.5</span></span></div>
+  <canvas id="cBig" style="height:340px;"></canvas>
+</div>
+
+<div class="box">
+  <p>The <span class="g">green square</span> is what GENE thinks the cell looks like. The <span class="p">purple shape</span> is what it actually is in real space. Drag z from 0 to ±π and watch the purple shape tilt and stretch. At z=0 (outboard midplane) they nearly match. Away from there, the distortion grows — that's the metrics doing their job.</p>
+  <p style="margin-top:6px;">The <span class="a">yellow numbers</span> update in real time showing the metric values. Notice <b>g^xy starts at 0 when z=0</b> and grows linearly. That's shear.</p>
+</div>
+
+<!-- Multiple cells along z -->
+<h2>Every Cell Along the Tube</h2>
+
+<div class="panel">
+  <div class="plbl"><span>THE FULL TUBE — EACH CELL TRANSFORMED BY ITS LOCAL METRICS</span></div>
+  <canvas id="cTube" style="height:260px;"></canvas>
+</div>
+
+<div class="box">
+  <p>Each column is one cell at a different z-position. The <span class="g">green outlines</span> are GENE's uniform grid. The <span class="p">purple filled shapes</span> are what those cells actually look like after applying the local metrics. In the center (z=0, outboard) they nearly match. Toward the edges (z=±π, inboard) the cells get progressively more tilted and stretched.</p>
+  <p style="margin-top:6px;"><b>This is the entire point of the metrics:</b> they tell GENE "your nice square grid cells are actually these wonky parallelograms in reality, and here's exactly how wonky at each z-position." Without this info, GENE would compute distances and derivatives wrong everywhere except the outboard midplane.</p>
+</div>
+
+</div>
+
+<script>
+let zPos=1.5, shat=1.5;
+
+function getMetrics(z){
+  return{
+    gxx:1+0.18*Math.cos(z),
+    gxy:shat*z,
+    gyy:1+0.5*shat*shat*z*z*0.15+0.08*Math.cos(z)
+  };
+}
+
+// Draw a quadrilateral given 4 corners
+function drawQuad(ctx,pts,fill,stroke,lw){
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<4;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1;ctx.stroke();}
+}
+
+// Get the 4 corners of a cell after applying metrics
+// Base cell is unit square centered at origin
+function getCellCorners(m,scale){
+  const s=scale||40;
+  // Unit square corners: (-0.5,-0.5), (0.5,-0.5), (0.5,0.5), (-0.5,0.5)
+  const corners=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+  return corners.map(([x,y])=>{
+    // Apply metric transformation:
+    // real_x = x * sqrt(gxx) + y * gxy * factor
+    // real_y = y * sqrt(gyy)
+    const rx=x*Math.sqrt(Math.abs(m.gxx))*s + y*m.gxy*s*0.25;
+    const ry=y*Math.sqrt(Math.abs(m.gyy))*s;
+    return[rx,ry];
+  });
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+// ========== STEP BY STEP ==========
+function drawSteps(){
+  const s=setupCanvas('cSteps');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const m=getMetrics(zPos);
+  const steps=[
+    {label:'GENE\'s cell',sub:'uniform square',m:{gxx:1,gxy:0,gyy:1},color:'rgba(62,232,134,'},
+    {label:'+ g^xx',sub:`stretch radial\ngxx=${m.gxx.toFixed(2)}`,m:{gxx:m.gxx,gxy:0,gyy:1},color:'rgba(167,139,250,'},
+    {label:'+ g^xy',sub:`add shear tilt\ngxy=${m.gxy.toFixed(2)}`,m:{gxx:m.gxx,gxy:m.gxy,gyy:1},color:'rgba(196,168,255,'},
+    {label:'+ g^yy',sub:`stretch binormal\ngyy=${m.gyy.toFixed(2)}`,m:{gxx:m.gxx,gxy:m.gxy,gyy:m.gyy},color:'rgba(155,127,240,'},
+  ];
+
+  const cellScale=Math.min(w/5.5, h*0.3);
+  const stepW=w/steps.length;
+
+  steps.forEach((step,i)=>{
+    const cx=stepW*i+stepW/2;
+    const cy=h*0.45;
+
+    // Arrow between steps
+    if(i>0){
+      ctx.beginPath();
+      ctx.moveTo(cx-stepW/2+10,cy);
+      ctx.lineTo(cx-stepW/2+25,cy);
+      ctx.strokeStyle='rgba(100,116,139,0.2)';
+      ctx.lineWidth=1.5;ctx.stroke();
+      // Arrowhead
+      ctx.beginPath();
+      ctx.moveTo(cx-stepW/2+25,cy);
+      ctx.lineTo(cx-stepW/2+19,cy-4);
+      ctx.lineTo(cx-stepW/2+19,cy+4);
+      ctx.closePath();
+      ctx.fillStyle='rgba(100,116,139,0.2)';ctx.fill();
+    }
+
+    // Draw the reference square (faint)
+    const refCorners=getCellCorners({gxx:1,gxy:0,gyy:1},cellScale*0.4);
+    const refPts=refCorners.map(([x,y])=>[cx+x,cy-y]);
+    drawQuad(ctx,refPts,null,'rgba(62,232,134,0.1)',0.5);
+
+    // Draw the transformed cell
+    const corners=getCellCorners(step.m,cellScale*0.4);
+    const pts=corners.map(([x,y])=>[cx+x,cy-y]);
+    drawQuad(ctx,pts,step.color+'0.15)',step.color+'0.6)',2);
+
+    // Step number
+    ctx.font='bold 20px -apple-system,sans-serif';
+    ctx.fillStyle='rgba(155,127,240,0.15)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(i+1,cx,h*0.06);
+
+    // Label
+    ctx.font='bold 10px monospace';
+    ctx.fillStyle=i===0?'rgba(62,232,134,0.6)':'rgba(155,127,240,0.6)';
+    ctx.textAlign='center';
+    ctx.fillText(step.label,cx,h*0.75);
+
+    // Sub label
+    ctx.font='9px monospace';
+    ctx.fillStyle='rgba(100,116,139,0.4)';
+    const lines=step.sub.split('\n');
+    lines.forEach((ln,li)=>{
+      ctx.fillText(ln,cx,h*0.75+14+li*12);
+    });
+
+    // Dimension arrows for the first transform
+    if(i===1){
+      // Show radial stretch
+      const leftPt=pts[0], rightPt=pts[1];
+      ctx.strokeStyle='rgba(167,139,250,0.3)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(leftPt[0],leftPt[1]+8);ctx.lineTo(rightPt[0],rightPt[1]+8);ctx.stroke();
+      ctx.font='7px monospace';ctx.fillStyle='rgba(167,139,250,0.4)';
+      ctx.fillText('← radial →',cx,pts[1][1]+18);
+    }
+    if(i===2&&Math.abs(m.gxy)>0.2){
+      // Show the tilt
+      ctx.strokeStyle='rgba(196,168,255,0.3)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+      // Vertical reference
+      ctx.beginPath();ctx.moveTo(cx,pts[0][1]);ctx.lineTo(cx,pts[3][1]);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font='7px monospace';ctx.fillStyle='rgba(196,168,255,0.4)';
+      ctx.fillText(m.gxy>0?'tilted →':'← tilted',cx,pts[3][1]-6);
+    }
+  });
+
+  // z label
+  ctx.font='10px monospace';ctx.fillStyle='rgba(245,192,66,0.4)';
+  ctx.textAlign='center';
+  ctx.fillText(`at z = ${zPos.toFixed(2)} along the field line`,w/2,h-8);
+}
+
+// ========== BIG ANIMATED CELL ==========
+function drawBig(){
+  const s=setupCanvas('cBig');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const cx=w/2, cy=h*0.48;
+  const m=getMetrics(zPos);
+  const scale=Math.min(w,h)*0.28;
+
+  // GENE's square (green)
+  const geneCorners=getCellCorners({gxx:1,gxy:0,gyy:1},scale);
+  const genePts=geneCorners.map(([x,y])=>[cx+x,cy-y]);
+  drawQuad(ctx,genePts,'rgba(62,232,134,0.06)','rgba(62,232,134,0.3)',1.5);
+
+  // Label corners
+  ctx.font='8px monospace';ctx.fillStyle='rgba(62,232,134,0.25)';ctx.textAlign='center';
+  ctx.fillText('GENE square',genePts[3][0]-20,genePts[3][1]-8);
+
+  // Real-space cell (purple)
+  const realCorners=getCellCorners(m,scale);
+  const realPts=realCorners.map(([x,y])=>[cx+x,cy-y]);
+  drawQuad(ctx,realPts,'rgba(155,127,240,0.12)','rgba(155,127,240,0.7)',2.5);
+
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(155,127,240,0.5)';
+  ctx.fillText('real shape',realPts[2][0]+15,realPts[2][1]-4);
+
+  // Axes
+  ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;ctx.setLineDash([4,6]);
+  ctx.beginPath();ctx.moveTo(cx-scale*1.5,cy);ctx.lineTo(cx+scale*1.5,cy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-scale*1.5);ctx.lineTo(cx,cy+scale*1.5);ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';
+  ctx.textAlign='right';ctx.fillText('x (radial)',cx+scale*1.4,cy-6);
+  ctx.textAlign='center';ctx.fillText('y (binormal)',cx+6,cy-scale*1.3);
+
+  // Metric values
+  ctx.font='bold 11px monospace';ctx.textAlign='left';
+  const valX=16, valY=24;
+  ctx.fillStyle='rgba(167,139,250,0.6)';ctx.fillText(`g^xx = ${m.gxx.toFixed(3)}`,valX,valY);
+  ctx.fillStyle=Math.abs(m.gxy)>0.3?'rgba(245,192,66,0.7)':'rgba(196,168,255,0.5)';
+  ctx.fillText(`g^xy = ${m.gxy>0?'+':''}${m.gxy.toFixed(3)}`,valX,valY+16);
+  ctx.fillStyle='rgba(124,95,207,0.6)';ctx.fillText(`g^yy = ${m.gyy.toFixed(3)}`,valX,valY+32);
+
+  // What each does - small annotations
+  ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='rgba(100,116,139,0.3)';
+  ctx.fillText('← radial stretch',valX+130,valY);
+  ctx.fillText('← SHEAR TILT',valX+130,valY+16);
+  ctx.fillText('← binormal stretch',valX+130,valY+32);
+
+  // z indicator
+  ctx.font='10px monospace';ctx.fillStyle='rgba(245,192,66,0.5)';
+  ctx.textAlign='center';
+  const zLabel=Math.abs(zPos)<0.3?'outboard midplane':zPos>0?'toward inboard →':'← toward inboard';
+  ctx.fillText(`z = ${zPos.toFixed(2)}  (${zLabel})`,w/2,h-10);
+
+  // Angle measurement for g^xy
+  if(Math.abs(m.gxy)>0.3){
+    const angle=Math.atan(m.gxy*0.25);
+    const angleDeg=(angle*180/Math.PI).toFixed(1);
+    ctx.font='9px monospace';ctx.fillStyle='rgba(245,192,66,0.4)';
+    ctx.textAlign='center';
+    ctx.fillText(`tilt angle ≈ ${angleDeg}°`,w/2,h-26);
+  }
+}
+
+// ========== FULL TUBE ==========
+function drawTube(){
+  const s=setupCanvas('cTube');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const nCells=16;
+  const pad={l:30,r:16};
+  const pw=w-pad.l-pad.r;
+  const cellW=pw/nCells;
+  const cy=h/2;
+  const cellScale=Math.min(cellW*0.7,h*0.22);
+
+  for(let i=0;i<nCells;i++){
+    const z=((i+0.5)/nCells-0.5)*2*Math.PI;
+    const cx=pad.l+i*cellW+cellW/2;
+    const m=getMetrics(z);
+
+    // GENE's square (faint green outline)
+    const geneC=getCellCorners({gxx:1,gxy:0,gyy:1},cellScale);
+    const geneP=geneC.map(([x,y])=>[cx+x,cy-y]);
+    drawQuad(ctx,geneP,null,'rgba(62,232,134,0.08)',0.5);
+
+    // Real cell (purple filled)
+    const realC=getCellCorners(m,cellScale);
+    const realP=realC.map(([x,y])=>[cx+x,cy-y]);
+
+    // Color by curvature
+    const k=Math.cos(z);
+    const alpha=0.08+Math.abs(k)*0.08;
+    const fill=k>0?`rgba(180,120,240,${alpha})`:`rgba(120,160,240,${alpha})`;
+    drawQuad(ctx,realP,fill,'rgba(155,127,240,0.3)',1);
+  }
+
+  // z axis labels
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='center';
+  ctx.fillText('outboard',pad.l,h-6);
+  ctx.fillText('top',pad.l+pw*0.25,h-6);
+  ctx.fillText('inboard',pad.l+pw*0.5,h-6);
+  ctx.fillText('bottom',pad.l+pw*0.75,h-6);
+  ctx.fillText('outboard',pad.l+pw,h-6);
+
+  ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.15)';
+  ctx.fillText('z →',pad.l+pw/2,h-18);
+
+  // Current z indicator
+  const zFrac=(zPos/(2*Math.PI))+0.5;
+  const zX=pad.l+zFrac*pw;
+  if(zFrac>=0&&zFrac<=1){
+    ctx.strokeStyle='rgba(245,192,66,0.4)';ctx.lineWidth=1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(zX,4);ctx.lineTo(zX,h-22);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font='bold 8px monospace';ctx.fillStyle='rgba(245,192,66,0.5)';
+    ctx.fillText('▼ current z',zX,8);
+  }
+}
+
+function drawAll(){
+  drawSteps();drawBig();drawTube();
+  document.getElementById('zDisp').textContent=zPos.toFixed(2);
+}
+
+document.getElementById('sZ').addEventListener('input',function(e){
+  zPos=parseFloat(e.target.value);document.getElementById('vZ').textContent=zPos.toFixed(1);drawAll();
+});
+document.getElementById('sShat').addEventListener('input',function(e){
+  shat=parseFloat(e.target.value);document.getElementById('vShat').textContent=shat.toFixed(1);drawAll();
+});
+
+window.addEventListener('load',function(){setTimeout(drawAll,150);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Bench — what actually makes a rig sing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#040C0D;
+  --panel:#0A1516;
+  --panel2:#0E1E1F;
+  --line:rgba(217,185,138,.16);
+  --line2:rgba(217,185,138,.30);
+  --birch:#D9B98A;
+  --sodium:#FF9E1B;
+  --cyan:#5FE3D8;
+  --mag:#FF4D6D;
+  --ash:#8AA09B;
+  --text:#E4EDEA;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--void);color:var(--text);
+  font-family:var(--sans);font-weight:300;font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+::selection{background:var(--sodium);color:#0A0A0A}
+
+/* ---------- chrome ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+
+.spine{
+  position:fixed;left:0;top:0;bottom:0;width:184px;z-index:40;
+  border-right:1px solid var(--line);background:linear-gradient(180deg,#061011,#040C0D);
+  display:flex;flex-direction:column;padding:26px 0 20px;
+}
+.spine .mark{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.20em;color:var(--birch);
+  padding:0 20px 18px;text-transform:uppercase;line-height:1.5;
+}
+.spine .mark b{display:block;color:var(--text);font-weight:600;letter-spacing:.14em}
+.chain{list-style:none;margin:0;padding:0 0 0 20px;flex:1;overflow-y:auto}
+.chain li{position:relative;margin:0 0 2px}
+.chain a{
+  display:block;padding:7px 14px 7px 20px;text-decoration:none;color:var(--ash);
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  border-left:1px solid var(--line);transition:color .18s,border-color .18s;
+}
+.chain a::before{
+  content:"";position:absolute;left:-3.5px;top:50%;width:7px;height:7px;margin-top:-3.5px;
+  background:var(--void);border:1px solid var(--line2);border-radius:50%;transition:all .18s;
+}
+.chain a:hover{color:var(--text)}
+.chain a.on{color:var(--sodium);border-left-color:var(--sodium)}
+.chain a.on::before{background:var(--sodium);border-color:var(--sodium);box-shadow:0 0 10px rgba(255,158,27,.8)}
+.chain .stage{display:block;font-size:8.5px;color:rgba(138,160,155,.55);letter-spacing:.18em;margin-bottom:1px}
+.spine .foot{padding:14px 20px 0;font-family:var(--mono);font-size:9px;color:rgba(138,160,155,.5);letter-spacing:.1em;border-top:1px solid var(--line);margin-top:10px}
+
+main{margin-left:184px}
+
+/* ---------- hero ---------- */
+.hero{position:relative;border-bottom:1px solid var(--line);overflow:hidden}
+.wedge{
+  position:absolute;inset:0;opacity:.5;pointer-events:none;
+  background:
+    repeating-linear-gradient(135deg,rgba(217,185,138,.030) 0 2px,transparent 2px 26px),
+    repeating-linear-gradient(45deg,rgba(217,185,138,.030) 0 2px,transparent 2px 26px);
+}
+.hero-inner{position:relative;padding:56px 0 0}
+.eyebrow{
+  font-family:var(--mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--birch);display:flex;align-items:center;gap:12px;margin:0 0 22px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--line)}
+h1{
+  font-family:var(--mono);font-weight:500;font-size:clamp(30px,5.4vw,62px);line-height:1.02;
+  letter-spacing:-.028em;margin:0 0 20px;max-width:17ch;
+}
+h1 em{font-style:normal;color:var(--sodium)}
+.lede{max-width:60ch;color:#B9CBC6;font-size:17px;margin:0 0 8px}
+.lede b{color:var(--text);font-weight:500}
+
+.hero-canvas-wrap{position:relative;margin-top:34px}
+.fieldnote{
+  position:absolute;z-index:3;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  color:var(--birch);text-transform:uppercase;pointer-events:none;
+  background:rgba(4,12,13,.72);padding:3px 7px;border:1px solid var(--line);
+}
+
+/* ---------- sections ---------- */
+section{padding:78px 0;border-bottom:1px solid var(--line);position:relative}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:8px;flex-wrap:wrap}
+.stagetag{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--void);background:var(--birch);padding:3px 9px;white-space:nowrap;
+}
+.stagetag.alt{background:transparent;color:var(--birch);border:1px solid var(--line2)}
+h2{
+  font-family:var(--mono);font-weight:500;font-size:clamp(23px,3.1vw,35px);letter-spacing:-.02em;
+  margin:0;line-height:1.14;
+}
+.sub{color:var(--ash);max-width:66ch;margin:14px 0 30px;font-size:15.5px}
+.sub b{color:var(--birch);font-weight:500}
+h3{
+  font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--birch);margin:0 0 10px;
+}
+p{margin:0 0 14px}
+
+/* ---------- lab panel ---------- */
+.lab{background:var(--panel);border:1px solid var(--line);position:relative}
+.lab-bar{
+  display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ash);
+  background:var(--panel2);flex-wrap:wrap;
+}
+.lab-bar .dot{width:6px;height:6px;border-radius:50%;background:var(--sodium);box-shadow:0 0 8px var(--sodium);flex:none}
+.lab-bar .grow{flex:1}
+canvas{display:block;width:100%;touch-action:pan-y}
+.stack{display:grid;grid-template-columns:1.35fr .95fr;gap:0}
+.stack>.viz{border-right:1px solid var(--line);min-width:0}
+.ctrls{padding:18px 18px 20px;display:flex;flex-direction:column;gap:15px;min-width:0}
+
+/* controls */
+.ctl{display:block}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.ctl-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ash)}
+.ctl-val{font-family:var(--mono);font-size:12px;color:var(--sodium);font-variant-numeric:tabular-nums;font-weight:500}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;background:transparent;height:16px;margin:0;cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(217,185,138,.26)}
+input[type=range]::-moz-range-track{height:2px;background:rgba(217,185,138,.26)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;background:var(--sodium);margin-top:-5.5px;border-radius:0;
+  transform:rotate(45deg);border:none;
+}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;background:var(--sodium);border:none;border-radius:0}
+input[type=range]:focus-visible{outline:1px solid var(--cyan);outline-offset:4px}
+
+.seg{display:flex;flex-wrap:wrap;gap:5px}
+.seg button{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;
+  background:transparent;color:var(--ash);border:1px solid var(--line);padding:6px 9px;cursor:pointer;
+  transition:all .15s;
+}
+.seg button:hover{color:var(--text);border-color:var(--line2)}
+.seg button.on{background:var(--sodium);color:#0A0A0A;border-color:var(--sodium);font-weight:500}
+.seg button:focus-visible{outline:1px solid var(--cyan);outline-offset:2px}
+
+.readout{border-top:1px solid var(--line);padding-top:13px;display:grid;grid-template-columns:1fr 1fr;gap:11px 12px}
+.ro{min-width:0}
+.ro .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.15em;text-transform:uppercase;color:rgba(138,160,155,.75);display:block;margin-bottom:2px}
+.ro .v{font-family:var(--mono);font-size:16px;font-variant-numeric:tabular-nums;color:var(--text);line-height:1.1}
+.ro .v small{font-size:10px;color:var(--ash);margin-left:2px}
+.ro.good .v{color:var(--cyan)}
+.ro.bad .v{color:var(--mag)}
+.ro.warn .v{color:var(--sodium)}
+
+.verdict{
+  font-family:var(--mono);font-size:11px;line-height:1.6;letter-spacing:.02em;
+  border-left:2px solid var(--sodium);padding:9px 0 9px 12px;color:#C5D6D1;background:rgba(255,158,27,.045);
+}
+.eqn{
+  font-family:var(--mono);font-size:13px;color:var(--birch);background:var(--panel2);
+  border:1px solid var(--line);padding:11px 13px;letter-spacing:.01em;overflow-x:auto;white-space:nowrap;
+}
+.eqn small{color:var(--ash);font-size:10px;letter-spacing:.08em}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:26px}
+.note{border-top:1px solid var(--line);padding-top:14px}
+.note h4{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--sodium);margin:0 0 7px;font-weight:500}
+.note p{font-size:14.5px;color:#AFC2BD;margin:0}
+.note p+p{margin-top:9px}
+.key{font-family:var(--mono);font-size:.92em;color:var(--birch)}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ash);margin-top:12px}
+.legend i{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px;font-style:normal}
+
+.pill{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--line2);color:var(--birch);padding:2px 7px}
+
+button.act{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  background:var(--sodium);color:#0A0A0A;border:none;padding:11px 16px;cursor:pointer;font-weight:600;
+  transition:filter .15s;
+}
+button.act:hover{filter:brightness(1.14)}
+button.act.ghost{background:transparent;color:var(--birch);border:1px solid var(--line2);font-weight:400}
+button.act:focus-visible{outline:1px solid var(--cyan);outline-offset:3px}
+
+footer{padding:60px 0 80px;color:var(--ash);font-size:14px}
+footer .big{font-family:var(--mono);font-size:15px;color:var(--text);max-width:60ch;line-height:1.7;margin-bottom:22px}
+
+@media(max-width:1000px){
+  .spine{position:static;width:auto;height:auto;flex-direction:row;align-items:center;gap:12px;
+    border-right:none;border-bottom:1px solid var(--line);padding:10px 14px;overflow-x:auto}
+  .spine .mark{padding:0;white-space:nowrap;font-size:9.5px}
+  .spine .mark b{display:inline;margin-left:6px}
+  .spine .foot{display:none}
+  .chain{display:flex;padding:0;gap:2px}
+  .chain a{border-left:none;border-bottom:1px solid var(--line);padding:5px 11px;white-space:nowrap}
+  .chain a::before{display:none}
+  .chain .stage{display:none}
+  .chain a.on{border-bottom-color:var(--sodium)}
+  main{margin-left:0}
+  .stack{grid-template-columns:1fr}
+  .stack>.viz{border-right:none;border-bottom:1px solid var(--line)}
+  .cols{grid-template-columns:1fr;gap:20px}
+  section{padding:52px 0}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+</style>
+</head>
+<body>
+
+<nav class="spine">
+  <div class="mark">The Bench<b>Sound-system physics</b></div>
+  <ul class="chain">
+    <li><a href="#waveguide" class="on"><span class="stage">Hero</span>Waveguide</a></li>
+    <li><a href="#good"><span class="stage">Criteria</span>What good is</a></li>
+    <li><a href="#transducer"><span class="stage">Stage 01</span>Transducer</a></li>
+    <li><a href="#array"><span class="stage">Stage 02</span>Array</a></li>
+    <li><a href="#processing"><span class="stage">Stage 03</span>Processing</a></li>
+    <li><a href="#room"><span class="stage">Stage 04</span>Room</a></li>
+    <li><a href="#ear"><span class="stage">Stage 05</span>Ear</a></li>
+    <li><a href="#tipper"><span class="stage">Verdict</span>The test</a></li>
+    <li><a href="#optimize"><span class="stage">Frontier</span>Shape search</a></li>
+  </ul>
+  <div class="foot">Every plot below is<br>computed live, not drawn.</div>
+</nav>
+
+<main>
+
+<!-- ===================== HERO / WAVEGUIDE ===================== -->
+<header class="hero" id="waveguide">
+  <div class="wedge"></div>
+  <div class="wrap hero-inner">
+    <div class="eyebrow">Anechoic bench · finite-difference acoustic solver</div>
+    <h1>A horn is not a megaphone. It is an <em>impedance transformer</em>.</h1>
+    <p class="lede">Air is a terrible load. A bare cone flails against almost nothing and converts about <b>1%</b> of what you feed it into sound. A correctly flared duct matches the diaphragm's high mechanical impedance to the low impedance of open air, and that number goes up by ten times or more. Everything good downstream falls out of that one fact.</p>
+    <p class="lede">Below is a real 2D wave simulation running inside a horn cross-section. Change the flare. Watch what the wavefront does.</p>
+    <div class="hero-canvas-wrap">
+      <div class="lab">
+        <div class="lab-bar"><span class="dot"></span><span>FDTD solver · 5&nbsp;mm grid · ~300× slow motion</span><span class="grow"></span><span id="hn-state">running</span></div>
+        <div class="stack">
+          <div class="viz" style="position:relative">
+            <canvas id="hornC" height="640"></canvas>
+            <span class="fieldnote" style="left:12px;top:12px">throat</span>
+            <span class="fieldnote" id="hn-mouthlab" style="right:12px;top:12px">mouth → free air</span>
+          </div>
+          <div class="ctrls">
+            <div class="ctl">
+              <div class="ctl-top"><span class="ctl-lab">Flare profile</span></div>
+              <div class="seg" id="hn-prof">
+                <button data-v="exp" class="on">Exponential</button>
+                <button data-v="con">Conical</button>
+                <button data-v="tra">Tractrix</button>
+                <button data-v="hyp">Hyperbolic</button>
+                <button data-v="str">Straight pipe</button>
+              </div>
+            </div>
+            <label class="ctl">
+              <div class="ctl-top"><span class="ctl-lab">Drive frequency</span><span class="ctl-val" id="hn-fv">900 Hz</span></div>
+              <input type="range" id="hn-f" min="60" max="6000" value="900" step="10">
+            </label>
+            <label class="ctl">
+              <div class="ctl-top"><span class="ctl-lab">Mouth size</span><span class="ctl-val" id="hn-mv">380 mm</span></div>
+              <input type="range" id="hn-m" min="90" max="620" value="380" step="5">
+            </label>
+            <label class="ctl">
+              <div class="ctl-top"><span class="ctl-lab">Horn length</span><span class="ctl-val" id="hn-lv">900 mm</span></div>
+              <input type="range" id="hn-l" min="200" max="1150" value="900" step="10">
+            </label>
+            <div class="ctl">
+              <div class="ctl-top"><span class="ctl-lab">Excitation</span></div>
+              <div class="seg" id="hn-src">
+                <button data-v="tone" class="on">Steady tone</button>
+                <button data-v="imp" >Single impulse</button>
+              </div>
+            </div>
+            <div class="readout">
+              <div class="ro" id="hn-ro-fc"><span class="k">Flare cutoff f<sub>c</sub></span><span class="v">—</span></div>
+              <div class="ro" id="hn-ro-load"><span class="k">Loading</span><span class="v">—</span></div>
+              <div class="ro" id="hn-ro-hom"><span class="k">Cross-mode risk</span><span class="v">—</span></div>
+              <div class="ro" id="hn-ro-ka"><span class="k">Mouth ka</span><span class="v">—</span></div>
+            </div>
+            <div class="verdict" id="hn-verdict">Loading solver…</div>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--sodium)"></i>compression (+p)</span>
+        <span><i style="background:var(--cyan)"></i>rarefaction (−p)</span>
+        <span><i style="background:var(--birch)"></i>rigid wall</span>
+      </div>
+    </div>
+
+    <div class="cols" style="margin-bottom:60px">
+      <div class="note">
+        <h4>What to look for — cutoff</h4>
+        <p>Pick <span class="key">Exponential</span> and drag frequency below the stated <span class="key">f<sub>c</sub></span>. The wave stops propagating as a travelling wave and sloshes back and forth in the throat instead. Below cutoff a horn is a spring, not a transformer — it stops loading the diaphragm and the driver goes straight back to flailing. This is why a horn that's too short simply cannot go low, no matter how much EQ you throw at it.</p>
+        <p class="key" style="margin-top:9px">f<sub>c</sub> = m·c / 4π &nbsp;·&nbsp; m = ln(S<sub>mouth</sub>/S<sub>throat</sub>) / L</p>
+      </div>
+      <div class="note">
+        <h4>What to look for — higher-order modes</h4>
+        <p>Set frequency to 4–6&nbsp;kHz with a big mouth. Watch the field stop being clean arcs and start showing diagonal cross-corridor ripples. Those are <b style="color:var(--birch);font-weight:500">higher-order modes</b> — energy bouncing across the horn instead of along it. They arrive at the mouth late and out of phase with the main wavefront.</p>
+        <p>HOMs are the actual physical cause of "horn honk." Not a tonal balance problem, a time-domain one. It's why <span class="key">tractrix</span> and carefully-computed flares exist: they're shapes chosen to keep the wavefront planar so cross-modes never get excited in the first place.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== WHAT GOOD SOUND IS ===================== -->
+<section id="good"><div class="wrap">
+  <div class="sec-head"><span class="stagetag alt">Criteria</span><h2>What "good" even means</h2></div>
+  <p class="sub">Almost every spec sheet shows frequency response. Frequency response is a <b>steady-state</b> measurement — it tells you what happens after a tone has been playing forever. Music is not made of tones playing forever. Music is made of <b>starts and stops</b>, and the thing that ruins starts and stops is energy that arrives late.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Stored-energy analyser · impulse → decay</span><span class="grow"></span><span>identical magnitude response, different sound</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="csdC" height="620"></canvas></div>
+      <div class="ctrls">
+        <div class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Cabinet construction</span></div>
+          <div class="seg" id="csd-preset">
+            <button data-v="0" class="on">18 mm MDF, unbraced</button>
+            <button data-v="1">Braced ply</button>
+            <button data-v="2">Baltic birch, matrix-braced</button>
+          </div>
+        </div>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Resonance damping (Q)</span><span class="ctl-val" id="csd-qv">12.0</span></div>
+          <input type="range" id="csd-q" min="2" max="30" value="12" step="0.5">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Panel mode frequency</span><span class="ctl-val" id="csd-fv">240 Hz</span></div>
+          <input type="range" id="csd-f" min="80" max="900" value="240" step="5">
+        </label>
+        <div class="readout">
+          <div class="ro" id="csd-ro-t60"><span class="k">Decay to −30 dB</span><span class="v">—</span></div>
+          <div class="ro" id="csd-ro-peak"><span class="k">Magnitude bump</span><span class="v">—</span></div>
+          <div class="ro" id="csd-ro-cyc"><span class="k">Rings for</span><span class="v">—</span></div>
+          <div class="ro" id="csd-ro-mask"><span class="k">Masks detail below</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="csd-verdict">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>The trap</h4>
+      <p>Drag Q up and watch the two numbers move at completely different rates. The magnitude bump roughly triples; the decay time grows tenfold. Only one of those is on the spec sheet, and it is the one that matters least.</p>
+      <p>A 4&nbsp;dB bump is nearly inaudible as tonal colour on dense material. The same resonance ringing for 70&nbsp;ms is <b style="color:var(--mag);font-weight:500">devastating</b> on percussive music, because the reverberant smear of one kick is still sounding when the next transient arrives.</p>
+    </div>
+    <div class="note">
+      <h4>So the real criteria are</h4>
+      <p><span class="key">1 · Low distortion at level.</span> Not at 1&nbsp;W. At the level you actually run it.</p>
+      <p><span class="key">2 · Nothing arrives late.</span> No panel ringing, no cross-modes, no reflections from the array summing incoherently, no group-delay smear at the crossover.</p>
+      <p><span class="key">3 · Energy goes on people, not walls.</span> Directivity control, so the direct sound wins over the room.</p>
+      <p><span class="key">4 · Dynamics survive.</span> No thermal compression eating the transients as the night goes on.</p>
+      <p>Flat frequency response is table stakes. It is item zero, and it's the only one most systems get right.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== TRANSDUCER ===================== -->
+<section id="transducer"><div class="wrap">
+  <div class="sec-head"><span class="stagetag">Stage 01</span><h2>The excursion problem</h2></div>
+  <p class="sub">Everything ugly a loudspeaker does, it does because the coil left the gap. Efficiency isn't about saving power — it's a <b>distortion strategy</b>. Get the same SPL with a quarter of the cone movement and most of the nonlinearity simply never gets excited.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Large-signal analyser · Bl(x), K<sub>ms</sub>(x), thermal</span><span class="grow"></span><span id="drv-mode">direct radiator</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="drvC" height="540"></canvas></div>
+      <div class="ctrls">
+        <div class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Loading</span></div>
+          <div class="seg" id="drv-load">
+            <button data-v="0" class="on">Direct radiator</button>
+            <button data-v="1">Horn-loaded</button>
+          </div>
+        </div>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Target SPL @ 1 m</span><span class="ctl-val" id="drv-sv">118 dB</span></div>
+          <input type="range" id="drv-s" min="90" max="136" value="118" step="1">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Frequency</span><span class="ctl-val" id="drv-fv">45 Hz</span></div>
+          <input type="range" id="drv-f" min="25" max="120" value="45" step="1">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Motor linearity</span><span class="ctl-val" id="drv-lv">stock</span></div>
+          <input type="range" id="drv-lin" min="0" max="100" value="25" step="1">
+        </label>
+        <div class="readout">
+          <div class="ro" id="drv-ro-x"><span class="k">Peak excursion</span><span class="v">—</span></div>
+          <div class="ro" id="drv-ro-thd"><span class="k">THD</span><span class="v">—</span></div>
+          <div class="ro" id="drv-ro-temp"><span class="k">Coil temp</span><span class="v">—</span></div>
+          <div class="ro" id="drv-ro-comp"><span class="k">Power compression</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="drv-verdict">—</div>
+        <button class="act ghost" id="drv-reset">Reset coil to ambient</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>The four nonlinearities</h4>
+      <p><span class="key">Bl(x)</span> — force factor falls off as the coil leaves the magnetic gap, and it falls off <b>asymmetrically</b>. That asymmetry is your second harmonic, and it rectifies into a DC offset that pushes the coil even further out of the gap. It runs away from itself.</p>
+      <p><span class="key">K<sub>ms</sub>(x)</span> — suspension stiffness rises steeply at the extremes. Third harmonic.</p>
+      <p><span class="key">L<sub>e</sub>(x,i)</span> — voice coil inductance varies with both coil position and instantaneous current. Hugely under-appreciated. Cured with shorting rings and copper caps, not with EQ.</p>
+      <p><span class="key">Doppler / IM</span> — a cone reproducing 40&nbsp;Hz while also carrying 2&nbsp;kHz is physically frequency-modulating that 2&nbsp;kHz. It is literally a moving source. Cut excursion 4× and it near-vanishes.</p>
+    </div>
+    <div class="note">
+      <h4>Thermal compression is the sneaky one</h4>
+      <p>Drive a coil hard and it reaches 150–250&nbsp;°C. Copper's resistance climbs roughly 0.39% per °C, so the driver draws less current for the same voltage and its sensitivity drops 3–6&nbsp;dB. Your dynamics collapse <b>mid-set</b>, gradually, so nobody notices it happening — the system just gets progressively duller and everyone turns it up.</p>
+      <p>Watch the coil temp readout climb over ~20 seconds at high SPL on the direct radiator, then flip to horn-loaded. Same output, a fraction of the input power, coil stays cool, transients stay intact. That "effortless at volume" quality is not a vibe, it's a thermal measurement.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== ARRAY ===================== -->
+<section id="array"><div class="wrap">
+  <div class="sec-head"><span class="stagetag">Stage 02</span><h2>Two sources are never just louder</h2></div>
+  <p class="sub">The moment you have more than one source, geometry starts writing the frequency response — differently for every seat in the room. Spacing, delay and polarity are the only three knobs, and every array topology ever built is some combination of them.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Interference solver · complex pressure summation</span><span class="grow"></span><span id="arr-mode">coupled pair</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="arrC" height="700"></canvas></div>
+      <div class="ctrls">
+        <div class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Topology</span></div>
+          <div class="seg" id="arr-top">
+            <button data-v="pair" class="on">Coupled pair</button>
+            <button data-v="line">Line array</button>
+            <button data-v="card">Cardioid sub</button>
+            <button data-v="end">End-fire</button>
+          </div>
+        </div>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Source spacing</span><span class="ctl-val" id="arr-dv">340 mm</span></div>
+          <input type="range" id="arr-d" min="20" max="2400" value="340" step="10">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Frequency</span><span class="ctl-val" id="arr-fv">1000 Hz</span></div>
+          <input type="range" id="arr-f" min="30" max="12000" value="1000" step="10">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Applied delay</span><span class="ctl-val" id="arr-tv">0.00 ms</span></div>
+          <input type="range" id="arr-t" min="0" max="600" value="0" step="1">
+        </label>
+        <div class="readout">
+          <div class="ro" id="arr-ro-q"><span class="k">Spacing vs λ/4</span><span class="v">—</span></div>
+          <div class="ro" id="arr-ro-lobe"><span class="k">Lobes in coverage</span><span class="v">—</span></div>
+          <div class="ro" id="arr-ro-front"><span class="k">On-axis sum</span><span class="v">—</span></div>
+          <div class="ro" id="arr-ro-rear"><span class="k">Front-to-back</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="arr-verdict">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>The quarter-wavelength rule</h4>
+      <p>Two sources sum coherently everywhere only while they are within about <b>λ/4</b> of each other. Set the topology to <span class="key">line array</span>, put frequency at 10&nbsp;kHz, and look at what λ/4 actually is: <b style="color:var(--mag);font-weight:500">8.5&nbsp;mm</b>. That is the tolerance for a seamless high end from adjacent boxes.</p>
+      <p>Miss it and you get comb filtering: deep notches that move with listener position, and — worse — a smeared transient, because the same click now arrives twice a fraction of a millisecond apart.</p>
+      <p>This is the objection Tony Andrews built Funktion-One around. His answer was hand-aimed point-source clusters with deliberately minimal overlap, rather than trying to hit an impossible spacing tolerance. Other camps accept the compromise and manage it with tight waveguide coupling. Both positions are defensible physics; they optimise different terms.</p>
+    </div>
+    <div class="note">
+      <h4>Mutual coupling: the free 3 dB</h4>
+      <p>Put two subs close together, well under λ/4, and you get <b style="color:var(--cyan);font-weight:500">+6&nbsp;dB</b>, not +3. Three of those decibels come from doubling the power. The other three are free: each cone now radiates into an air load partly stiffened by its neighbour, so the mutual radiation impedance goes up and each driver converts more of its motion into pressure.</p>
+      <p>Below about 100&nbsp;Hz everything within a couple of metres couples, which is why sub arrangement is a geometry problem, not a "buy more subs" problem.</p>
+      <p><span class="key">Cardioid</span> and <span class="key">end-fire</span> use delay and polarity to make the rear radiation cancel — bass off the stage, off the neighbours' windows, and out of the back wall that would otherwise send it back at you 80&nbsp;ms late.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== PROCESSING ===================== -->
+<section id="processing"><div class="wrap">
+  <div class="sec-head"><span class="stagetag">Stage 03</span><h2>Crossovers, phase, and electrical braking</h2></div>
+  <p class="sub">Between the file and the driver sit two decisions that quietly define the character of a rig: how you split the band, and how tightly the amplifier can hold the cone still when the signal stops.</p>
+
+  <div class="lab" style="margin-bottom:26px">
+    <div class="lab-bar"><span class="dot"></span><span>Crossover recombination · step response</span><span class="grow"></span><span>same magnitude, different time</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="xoC" height="560"></canvas></div>
+      <div class="ctrls">
+        <div class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Filter type</span></div>
+          <div class="seg" id="xo-type">
+            <button data-v="lr4" class="on">IIR · Linkwitz–Riley 4th</button>
+            <button data-v="lr8">IIR · LR 8th</button>
+            <button data-v="fir">FIR · linear phase</button>
+          </div>
+        </div>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Crossover point</span><span class="ctl-val" id="xo-fv">900 Hz</span></div>
+          <input type="range" id="xo-f" min="150" max="4000" value="900" step="10">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">FIR taps</span><span class="ctl-val" id="xo-nv">1024</span></div>
+          <input type="range" id="xo-n" min="64" max="4096" value="1024" step="64">
+        </label>
+        <div class="readout">
+          <div class="ro" id="xo-ro-lat"><span class="k">Latency</span><span class="v">—</span></div>
+          <div class="ro" id="xo-ro-phase"><span class="k">Phase rotation</span><span class="v">—</span></div>
+          <div class="ro" id="xo-ro-pre"><span class="k">Pre-ringing</span><span class="v">—</span></div>
+          <div class="ro" id="xo-ro-mag"><span class="k">Summed magnitude</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="xo-verdict">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Damping factor · back-EMF braking after signal stop</span><span class="grow"></span><span id="dmp-state">—</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="dmpC" height="440"></canvas></div>
+      <div class="ctrls">
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Cable length</span><span class="ctl-val" id="dmp-lv">15 m</span></div>
+          <input type="range" id="dmp-l" min="1" max="120" value="15" step="1">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Conductor size</span><span class="ctl-val" id="dmp-gv">4.0 mm²</span></div>
+          <input type="range" id="dmp-g" min="0" max="5" value="3" step="1">
+        </label>
+        <div class="readout">
+          <div class="ro" id="dmp-ro-r"><span class="k">Series resistance</span><span class="v">—</span></div>
+          <div class="ro" id="dmp-ro-df"><span class="k">Damping factor at driver</span><span class="v">—</span></div>
+          <div class="ro" id="dmp-ro-ov"><span class="k">Overhang after stop</span><span class="v">—</span></div>
+          <div class="ro" id="dmp-ro-loss"><span class="k">Power into cable</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="dmp-verdict">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>FIR vs IIR is a real argument, not a marketing one</h4>
+      <p><span class="key">IIR</span> filters are minimum-phase. Nearly zero latency, but they rotate phase through the crossover region — the woofer and the horn hand over with a time offset that varies with frequency. The magnitude sums flat; the step response doesn't reconstruct.</p>
+      <p><span class="key">FIR</span> filters can be linear-phase: perfect transient reconstruction through the crossover, at the cost of latency proportional to tap count, and <b>pre-ringing</b> — energy that arrives <i>before</i> the transient, which does not occur in nature and which some ears find more objectionable than the phase rotation it cured.</p>
+      <p>Andrews has historically been latency-averse and stayed minimum-phase. Others go all-in on FIR. Drag the tap count and watch the pre-echo appear as the latency grows — you're looking at the actual trade.</p>
+    </div>
+    <div class="note">
+      <h4>Damping factor is a voltage divider, not mysticism</h4>
+      <p>When the signal stops, the cone is still moving, and a moving coil in a magnetic field is a generator. That back-EMF drives current back through the amplifier's output — which is nearly a short circuit — and the resulting force <b>brakes the cone</b>. Electrically. That's what stops a kick drum dead instead of letting it wobble.</p>
+      <p>The braking strength is <span class="key">Bl² / (R<sub>e</sub> + R<sub>cable</sub> + R<sub>amp</sub>)</span>. Cable resistance sits right there in the denominator, in series, and a driver's R<sub>e</sub> is only about 5&nbsp;Ω to begin with. Run 60&nbsp;m of thin cable and you've added a meaningful fraction of that.</p>
+      <p>This is why the people who care about this get intense about copper. It isn't audiophile jewellery — it's the only term in the equation you can still change on site.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== ROOM ===================== -->
+<section id="room"><div class="wrap">
+  <div class="sec-head"><span class="stagetag">Stage 04</span><h2>Directivity is the clarity lever</h2></div>
+  <p class="sub">The single number that predicts "can I hear detail from here" is the <b>direct-to-reverberant ratio</b>. You cannot EQ your way to a better one, because EQ cannot un-excite a room — reflected energy has the same spectrum as the direct sound that caused it. The only real controls are pattern control and where you point it.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Plan view · direct field vs reverberant field</span><span class="grow"></span><span>drag the listener</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="rmC" height="660"></canvas></div>
+      <div class="ctrls">
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Horizontal coverage</span><span class="ctl-val" id="rm-qv">90°</span></div>
+          <input type="range" id="rm-q" min="20" max="170" value="90" step="1">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Room absorption α</span><span class="ctl-val" id="rm-av">0.16</span></div>
+          <input type="range" id="rm-a" min="4" max="70" value="16" step="1">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Room width</span><span class="ctl-val" id="rm-wv">28 m</span></div>
+          <input type="range" id="rm-w" min="10" max="60" value="28" step="1">
+        </label>
+        <div class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Waveguide</span></div>
+          <div class="seg" id="rm-vane">
+            <button data-v="0" class="on">Fixed pattern</button>
+            <button data-v="1">Motorised vanes</button>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="ro" id="rm-ro-Q"><span class="k">Directivity factor Q</span><span class="v">—</span></div>
+          <div class="ro" id="rm-ro-rc"><span class="k">Critical distance r<sub>c</sub></span><span class="v">—</span></div>
+          <div class="ro" id="rm-ro-dr"><span class="k">D/R at listener</span><span class="v">—</span></div>
+          <div class="ro" id="rm-ro-cov"><span class="k">Audience in direct field</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="rm-verdict">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>The equation everything hangs on</h4>
+      <div class="eqn">r<sub>c</sub> ≈ 0.141 · √(Q · R) &nbsp;&nbsp;<small>R = Sα / (1 − α)</small></div>
+      <p style="margin-top:12px">Double Q and critical distance moves out by √2. Beyond r<sub>c</sub> the room is louder than the speaker and detail is gone — you're listening to a smeared copy of the music arriving from every wall at once.</p>
+      <p>Note what this means for a hard room: at α = 0.06 (concrete warehouse, empty), r<sub>c</sub> collapses. A crowd of bodies is genuinely one of the best acoustic treatments available, which is why a rig that sounded harsh at soundcheck can come right at doors.</p>
+    </div>
+    <div class="note">
+      <h4>Why PK put motors in the waveguides</h4>
+      <p>A fixed-pattern box is a compromise chosen at the factory for an average venue. Every real room deviates from average, so you're always either spraying the side walls or leaving the edges of the crowd underserved.</p>
+      <p>PK's Trinity and Gravity cabinets carry <b>motorised waveguide vanes</b> — the horizontal pattern of each box changes mechanically, roughly 30° to 120°, driven from their control software after modelling the venue geometry. Vertical splay adjusts too.</p>
+      <p>Flip <span class="key">motorised vanes</span> on and drag the room width. The pattern tracks the geometry instead of the geometry having to tolerate the pattern. It's a mechanical solution to a problem the industry usually attacks with DSP, which structurally cannot solve it: once energy is in the room, no filter can retrieve it.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== EAR ===================== -->
+<section id="ear"><div class="wrap">
+  <div class="sec-head"><span class="stagetag">Stage 05</span><h2>The ear you're tuning for isn't the one in the control room</h2></div>
+  <p class="sub">Human hearing is not a flat, level-independent instrument. Its frequency response changes shape dramatically with level — which means a system tuned to sound "right" at conversation volume will be wrong at show volume, and vice versa.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Equal-loudness contours · ISO 226 style</span><span class="grow"></span><span id="eq-state">—</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="eqC" height="520"></canvas></div>
+      <div class="ctrls">
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Playback level</span><span class="ctl-val" id="eq-lv">105 dB SPL</span></div>
+          <input type="range" id="eq-l" min="40" max="120" value="105" step="1">
+        </label>
+        <div class="readout">
+          <div class="ro" id="eq-ro-40"><span class="k">Perceived 40 Hz vs 1 kHz</span><span class="v">—</span></div>
+          <div class="ro" id="eq-ro-3k"><span class="k">Ear boost at 3.4 kHz</span><span class="v">—</span></div>
+          <div class="ro" id="eq-ro-tilt"><span class="k">Curve tilt</span><span class="v">—</span></div>
+          <div class="ro" id="eq-ro-adv"><span class="k">Tune at</span><span class="v">show level</span></div>
+        </div>
+        <div class="verdict" id="eq-verdict">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>Why the bass seems to "arrive" as it gets loud</h4>
+      <p>At 40 phon the ear needs roughly 32&nbsp;dB more at 40&nbsp;Hz than at 1&nbsp;kHz to hear them as equally loud. At 100 phon that gap has closed to about 17&nbsp;dB. The low end does not get proportionally louder — <b>the ear stops attenuating it</b>, and the bass that was always in the recording finally reaches you at something like its true weight.</p>
+      <p>Practical consequence: a good system tech tunes at show level, not at chat level, and treats the house curve as level-dependent rather than a fixed target.</p>
+    </div>
+    <div class="note">
+      <h4>The 3 kHz problem</h4>
+      <p>The ear canal is a quarter-wave resonator about 25&nbsp;mm long, which gives a broad sensitivity peak around 3–4&nbsp;kHz. That's where hearing is most acute and where fatigue and pain live. It's also exactly where horn cross-modes and crossover phase errors tend to land.</p>
+      <p>Which is the whole reason the horn work in the hero above matters: the frequency band where a badly-behaved waveguide misbehaves is the band the ear is most brutally sensitive in.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== TIPPER TEST ===================== -->
+<section id="tipper"><div class="wrap">
+  <div class="sec-head"><span class="stagetag">Verdict</span><h2>Why this music specifically exposes all of it</h2></div>
+  <p class="sub">Tipper's material is, functionally, a torture test assembled out of the exact four things a mediocre system destroys. Not by design as a test — but because the production sits right on the boundary of what playback can physically preserve.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Degradation model · same signal, two rigs</span><span class="grow"></span><span id="tip-state">rig quality: 100%</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="tipC" height="640"></canvas></div>
+      <div class="ctrls">
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Rig quality</span><span class="ctl-val" id="tip-qv">100%</span></div>
+          <input type="range" id="tip-q" min="0" max="100" value="100" step="1">
+        </label>
+        <div class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Isolate a failure</span></div>
+          <div class="seg" id="tip-iso">
+            <button data-v="all" class="on">All at once</button>
+            <button data-v="im">IM / Doppler</button>
+            <button data-v="comb">Comb filtering</button>
+            <button data-v="ring">Panel ringing</button>
+            <button data-v="comp">Power compression</button>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="ro" id="tip-ro-tr"><span class="k">Transient peak retained</span><span class="v">—</span></div>
+          <div class="ro" id="tip-ro-sep"><span class="k">Sub / mid separation</span><span class="v">—</span></div>
+          <div class="ro" id="tip-ro-img"><span class="k">Stereo image stability</span><span class="v">—</span></div>
+          <div class="ro" id="tip-ro-mud"><span class="k">Time smear</span><span class="v">—</span></div>
+        </div>
+        <div class="verdict" id="tip-verdict">—</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="act" id="tip-play">▶ Hear both</button>
+          <button class="act ghost" id="tip-stop">Stop</button>
+        </div>
+        <p style="font-family:var(--mono);font-size:9.5px;color:var(--ash);letter-spacing:.06em;margin:0;line-height:1.6">Synthesised A/B, 3 s, headphones help. Sub content won't render on a phone speaker — that's the point.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>The four properties</h4>
+      <p><span class="key">Ultra-fast transients</span> → expose group delay, crossover phase behaviour and cabinet ringing. There's nothing to hide behind.</p>
+      <p><span class="key">Extreme microdynamics</span> → expose thermal compression the instant it starts, because the quiet detail between hits is the first thing to get swallowed.</p>
+      <p><span class="key">Deep sub layered under detailed mids</span> → the textbook excitation for Doppler and intermodulation distortion. A cone doing both at once modulates one with the other.</p>
+      <p><span class="key">Wide psychoacoustic imaging, objects moving across the field</span> → gets shredded by comb filtering, because the notches sit at different frequencies in each ear and the localisation cues fall apart.</p>
+    </div>
+    <div class="note">
+      <h4>Which is why it's the same track and a different piece of music</h4>
+      <p>On a rig where excursion stays inside the linear region, cross-modes are controlled, phase is coherent through the crossover, and the direct field actually reaches the back of the room — all four survive intact.</p>
+      <p>On a normal rig each one degrades independently and they compound: the transient softens, the sub smears into the mids, the compression eats the microdynamics, and the imaging collapses to a vague wide blur. Nothing sounds obviously "broken." It just stops being the thing.</p>
+      <p style="color:var(--birch);margin-top:12px">That gap — between a system that's technically working and one that's actually preserving the information — is the entire reason any of the engineering above gets done.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== OPTIMIZER ===================== -->
+<section id="optimize"><div class="wrap">
+  <div class="sec-head"><span class="stagetag alt">Frontier</span><h2>Can you just search for the optimal shape?</h2></div>
+  <p class="sub">This is the stellarator question. Fusion coils went from hand-tuned to genuinely strange-looking because somebody wrote down a physics objective and let an optimiser explore a space no human would sketch. The same move works here — and below, it's running live in your browser.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><span class="dot"></span><span>Differential evolution · Webster horn equation via transmission matrices</span><span class="grow"></span><span id="opt-state">idle</span></div>
+    <div class="stack">
+      <div class="viz"><canvas id="optC" height="640"></canvas></div>
+      <div class="ctrls">
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Target band low</span><span class="ctl-val" id="opt-lov">90 Hz</span></div>
+          <input type="range" id="opt-lo" min="40" max="400" value="90" step="5">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Target band high</span><span class="ctl-val" id="opt-hiv">700 Hz</span></div>
+          <input type="range" id="opt-hi" min="300" max="2000" value="700" step="10">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Size penalty</span><span class="ctl-val" id="opt-pv">0.30</span></div>
+          <input type="range" id="opt-p" min="0" max="100" value="30" step="1">
+        </label>
+        <label class="ctl">
+          <div class="ctl-top"><span class="ctl-lab">Smoothness constraint</span><span class="ctl-val" id="opt-sv">0.45</span></div>
+          <input type="range" id="opt-s" min="0" max="100" value="45" step="1">
+        </label>
+        <div class="readout">
+          <div class="ro" id="opt-ro-gen"><span class="k">Generation</span><span class="v">—</span></div>
+          <div class="ro" id="opt-ro-score"><span class="k">Best score</span><span class="v">—</span></div>
+          <div class="ro" id="opt-ro-ref"><span class="k">vs exponential</span><span class="v">—</span></div>
+          <div class="ro" id="opt-ro-rip"><span class="k">Loading ripple</span><span class="v">—</span></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="act" id="opt-run">Run optimiser</button>
+          <button class="act ghost" id="opt-reset">Reset</button>
+        </div>
+        <div class="verdict" id="opt-verdict">Press run. The population starts random and converges on a flare shape that loads the driver more evenly across your chosen band than a textbook exponential does.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="note">
+      <h4>What's actually being computed</h4>
+      <p>The horn is discretised into 44 short segments. Each gets a plane-wave transmission matrix; they're chained from the mouth's radiation impedance back to the throat to give <span class="key">Z<sub>throat</sub>(f)</span>. The objective rewards a high, flat <b>real</b> part of that impedance across the band — real part is radiated power, ripple is uneven loading — and penalises mouth area and kinked profiles.</p>
+      <p>Differential evolution mutates a population of eight control-point radii. No gradient, no shape prior. It doesn't know what a horn is supposed to look like.</p>
+      <p>Watch it beat the exponential reference on ripple almost immediately, and note that the winning shape usually isn't smooth — the optimiser discovers that small deliberate area perturbations cancel reflections at specific frequencies, which is exactly the trick a human designer would call "wrong."</p>
+    </div>
+    <div class="note">
+      <h4>Where the real 50× is, and isn't</h4>
+      <p><span class="key">Not in the cone.</span> Diaphragm shape is already near a hard wall. You're bounded by material stiffness-to-mass ratio, by the fact that any finite cone has modal breakup, and by the fact that pistonic radiation efficiency is set by physics, not geometry. Shape optimisation on a diaphragm buys you percent, not multiples — the useful work there is FEA-guided rib placement and material choice, and that's been ground down for decades.</p>
+      <p><span class="key">Genuinely open: waveguides.</span> Higher-order mode suppression is a hard, high-dimensional, wave-physics shape problem with a well-defined objective — structurally the same class of problem as a stellarator. BEM plus evolutionary search is already used; adjoint methods and full topology optimisation mostly aren't, because the industry is small and the compute wasn't cheap when the shapes were fixed. There is real room here.</p>
+      <p><span class="key">The biggest space is the system + room objective.</span> Cabinet geometry, array topology, delay, and pattern jointly optimised against a real venue with a real crowd. That's a huge, barely-explored design space with a measurable objective — which is precisely the condition that made stellarator optimisation pay off. A 50× improvement in a single driver? No. A step change in what a whole rig delivers to the last row of an ugly room? That one's still on the table.</p>
+    </div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <p class="big">None of the above is a secret. It's just that most of the industry optimises frequency response because that's what fits on a spec sheet, and the people who make rigs that stop conversations optimise <span style="color:var(--sodium)">distortion, time, and where the energy lands</span> — which don't.</p>
+  <p style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ash)">Every simulation on this page is computed in the browser from the stated equations. Values are physically motivated but idealised — a teaching model, not a measurement report.</p>
+</div></footer>
+
+</main>
+
+<script>
+/* ============ shared helpers ============ */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const C={void:'#040C0D',panel:'#0A1516',panel2:'#0E1E1F',line:'rgba(217,185,138,.16)',
+  birch:'#D9B98A',sodium:'#FF9E1B',cyan:'#5FE3D8',mag:'#FF4D6D',ash:'#8AA09B',text:'#E4EDEA'};
+const MONO='"IBM Plex Mono",monospace';
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const dpr=()=>Math.min(devicePixelRatio||1,2);
+
+function fit(cv){
+  const r=cv.getBoundingClientRect(), d=dpr();
+  const h=parseFloat(cv.getAttribute('height'))||400;
+  const W=Math.max(320,r.width);
+  if(cv.width!==Math.round(W*d)||cv.height!==Math.round(h*d)){
+    cv.width=Math.round(W*d); cv.height=Math.round(h*d);
+    cv.style.height=h+'px';
+  }
+  const g=cv.getContext('2d'); g.setTransform(d,0,0,d,0,0);
+  return {g,W,H:h};
+}
+function seg(id,cb){
+  const box=$(id); if(!box)return;
+  box.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    [...box.children].forEach(c=>c.classList.remove('on'));
+    b.classList.add('on'); cb(b.dataset.v);
+  });
+}
+function ro(id,val,cls){
+  const e=$(id); if(!e)return;
+  e.querySelector('.v').innerHTML=val;
+  e.classList.remove('good','bad','warn'); if(cls)e.classList.add(cls);
+}
+/* only animate what's on screen */
+const ticks=[];
+function reg(el,fn){
+  const o={el,fn,vis:false};
+  ticks.push(o);
+  new IntersectionObserver(es=>{o.vis=es[0].isIntersecting;},{rootMargin:'160px'}).observe(el);
+}
+let last=performance.now();
+function loop(t){
+  const dt=Math.min(0.05,(t-last)/1000); last=t;
+  for(const o of ticks) if(o.vis) try{o.fn(dt);}catch(e){}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* axis helper */
+function grid(g,x,y,w,h,rows,cols){
+  g.strokeStyle='rgba(217,185,138,.10)'; g.lineWidth=1;
+  g.beginPath();
+  for(let i=0;i<=rows;i++){const yy=Math.round(y+h*i/rows)+.5;g.moveTo(x,yy);g.lineTo(x+w,yy);}
+  for(let i=0;i<=cols;i++){const xx=Math.round(x+w*i/cols)+.5;g.moveTo(xx,y);g.lineTo(xx,y+h);}
+  g.stroke();
+}
+function lab(g,txt,x,y,col,size,align){
+  g.font=(size||9)+'px '+MONO; g.fillStyle=col||C.ash; g.textAlign=align||'left';
+  g.fillText(txt,x,y); g.textAlign='left';
+}
+/* spine scroll spy */
+const links=$$('.chain a'), secs=links.map(a=>$(a.getAttribute('href')));
+const spy=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){
+    const i=secs.indexOf(e.target);
+    if(i>=0){links.forEach(l=>l.classList.remove('on'));links[i].classList.add('on');}
+  }});
+},{rootMargin:'-25% 0px -65% 0px'});
+secs.forEach(s=>s&&spy.observe(s));
+/* ================= HERO: FDTD horn ================= */
+(function(){
+const cv=$('#hornC'); if(!cv)return;
+const NX=300, NY=170, DX=0.005, CSOUND=343;
+const CFL2=0.45, DT=Math.sqrt(CFL2)*DX/CSOUND;
+const cy=(NY-1)/2, THX=26, R0=5;
+
+let p=new Float32Array(NX*NY), p1=new Float32Array(NX*NY), p2=new Float32Array(NX*NY);
+let mask=new Uint8Array(NX*NY), damp=new Float32Array(NX*NY), prof=new Float32Array(NX);
+let T=0, impT=-1;
+
+const off=document.createElement('canvas'); off.width=NX; off.height=NY;
+const octx=off.getContext('2d'); const img=octx.createImageData(NX,NY);
+
+const S={profile:'exp',f:900,mouth:380,len:900,src:'tone'};
+
+/* tractrix lookup */
+function tractrixX(a,r){ return a*Math.log((a+Math.sqrt(Math.max(0,a*a-r*r)))/r)-Math.sqrt(Math.max(0,a*a-r*r)); }
+
+function buildProfile(){
+  const L=Math.round(S.len/1000/DX);           // cells
+  const rm=Math.max(R0+1,(S.mouth/2)/1000/DX); // cells
+  let hyM=0;
+  if(S.profile==='hyp'){ // solve m for r(L)=rm with T=0.5
+    let lo=0.0001,hi=0.6;
+    for(let k=0;k<50;k++){const m=(lo+hi)/2;
+      const v=R0*(Math.cosh(m*L)+0.5*Math.sinh(m*L));
+      if(v<rm)lo=m;else hi=m;}
+    hyM=(lo+hi)/2;
+  }
+  let trTot=0; if(S.profile==='tra') trTot=tractrixX(rm,R0);
+  for(let i=0;i<NX;i++){
+    let r;
+    if(i<THX) r=R0;
+    else if(i<THX+L){
+      const t=(i-THX)/L;
+      if(S.profile==='str') r=R0;
+      else if(S.profile==='con') r=R0+(rm-R0)*t;
+      else if(S.profile==='exp') r=R0*Math.exp(t*Math.log(rm/R0));
+      else if(S.profile==='hyp') r=R0*(Math.cosh(hyM*L*t)+0.5*Math.sinh(hyM*L*t));
+      else { // tractrix, arc-length scaled to L
+        const target=t*trTot; let a=R0,b=rm;
+        for(let k=0;k<28;k++){const mid=(a+b)/2; (tractrixX(rm,mid)>target)?a=mid:b=mid;}
+        r=(a+b)/2;
+      }
+    } else r=-1; // free field
+    prof[i]=r;
+  }
+  // mask + damping
+  for(let i=0;i<NX;i++){
+    for(let j=0;j<NY;j++){
+      const k=i*NY+j; const d=Math.abs(j-cy);
+      let air;
+      if(i<6) air=false;
+      else if(prof[i]<0) air=true;
+      else air = d < prof[i];
+      mask[k]=air?1:0;
+      let s=0;
+      const eR=NX-1-i, eT=j, eB=NY-1-j, W=24;
+      if(eR<W) s=Math.max(s,(W-eR)/W);
+      if(eT<W) s=Math.max(s,(W-eT)/W);
+      if(eB<W) s=Math.max(s,(W-eB)/W);
+      damp[k]=1-0.055*s*s;
+    }
+  }
+  p.fill(0);p1.fill(0);p2.fill(0);T=0;
+  updateReadouts(L,rm);
+}
+
+function step(){
+  const a=CFL2;
+  for(let i=1;i<NX-1;i++){
+    const b=i*NY;
+    for(let j=1;j<NY-1;j++){
+      const k=b+j;
+      if(!mask[k]){p[k]=0;continue;}
+      const c0=p1[k];
+      const l = mask[k-NY]?p1[k-NY]:c0;
+      const r = mask[k+NY]?p1[k+NY]:c0;
+      const u = mask[k-1]?p1[k-1]:c0;
+      const d = mask[k+1]?p1[k+1]:c0;
+      p[k]=(2*c0-p2[k]+a*(l+r+u+d-4*c0))*damp[k];
+    }
+  }
+  // source: piston across throat
+  if(S.src==='tone'){
+    const A=0.9*Math.sin(2*Math.PI*S.f*T);
+    for(let j=Math.round(cy-R0+1);j<=Math.round(cy+R0-1);j++) p[10*NY+j]+=A;
+  } else if(impT>=0){
+    const tt=(T-impT), w=0.00013;
+    const A=3.2*Math.exp(-Math.pow(tt/w,2))*Math.sin(2*Math.PI*S.f*tt);
+    if(tt>4*w) impT=-1;
+    for(let j=Math.round(cy-R0+1);j<=Math.round(cy+R0-1);j++) p[10*NY+j]+=A;
+  }
+  const t=p2; p2=p1; p1=p; p=t;
+  T+=DT;
+}
+
+function render(){
+  const d=img.data;
+  for(let j=0;j<NY;j++){
+    for(let i=0;i<NX;i++){
+      const k=i*NY+j, o=(j*NX+i)*4;
+      if(!mask[k]){
+        const wall = (i>=6&&prof[i]>=0);
+        d[o]=wall?58:9; d[o+1]=wall?49:19; d[o+2]=wall?36:20; d[o+3]=255; continue;
+      }
+      let v=p1[k]*1.55;
+      v=v>1?1:v<-1?-1:v;
+      const m=Math.abs(v), e=Math.pow(m,.72);
+      if(v>=0){ d[o]=10+245*e; d[o+1]=21+137*e; d[o+2]=22+5*e; }
+      else    { d[o]=10+85*e;  d[o+1]=21+206*e; d[o+2]=22+194*e; }
+      d[o+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+}
+
+let acc=0;
+function frame(dt){
+  const {g,W,H}=fit(cv);
+  acc+=dt;
+  const steps=REDUCED?2:6;
+  for(let s=0;s<steps;s++) step();
+  render();
+  g.imageSmoothingEnabled=true;
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  // fit NX:NY into canvas
+  const sc=Math.min(W/NX,H/NY), dw=NX*sc, dh=NY*sc, ox=(W-dw)/2, oy=(H-dh)/2;
+  g.drawImage(off,ox,oy,dw,dh);
+  // horn outline
+  g.strokeStyle=C.birch; g.lineWidth=1.2; g.globalAlpha=.85;
+  for(const sgn of [-1,1]){
+    g.beginPath(); let started=false;
+    for(let i=6;i<NX;i++){
+      if(prof[i]<0)break;
+      const x=ox+i*sc, y=oy+(cy+sgn*prof[i])*sc;
+      started?g.lineTo(x,y):(g.moveTo(x,y),started=true);
+    }
+    g.stroke();
+  }
+  g.globalAlpha=1;
+  // axis line
+  g.strokeStyle='rgba(217,185,138,.18)'; g.setLineDash([3,6]); g.beginPath();
+  g.moveTo(ox,oy+cy*sc); g.lineTo(ox+dw,oy+cy*sc); g.stroke(); g.setLineDash([]);
+  // scale bar
+  const barCells=0.2/DX;
+  g.strokeStyle=C.ash; g.lineWidth=1; g.beginPath();
+  g.moveTo(ox+12,oy+dh-16); g.lineTo(ox+12+barCells*sc,oy+dh-16); g.stroke();
+  lab(g,'200 mm',ox+12,oy+dh-22,C.ash,9);
+  lab(g,'click the field to inject an impulse',ox+12,oy+16,'rgba(138,160,155,.7)',9);
+}
+
+function updateReadouts(L,rm){
+  const c=343;
+  const Lm=L*DX, r0m=R0*DX, rmm=rm*DX;
+  const m=Math.log((rmm*rmm)/(r0m*r0m))/Lm;
+  const fc=m*c/(4*Math.PI);
+  const lam=c/S.f;
+  const ka=2*Math.PI*S.f*rmm/c;
+  const modeRatio=(2*rmm)/(lam/2);
+
+  if(S.profile==='str'){
+    ro('#hn-ro-fc','n/a<small> pipe</small>','bad');
+    ro('#hn-ro-load','none','bad');
+  } else {
+    ro('#hn-ro-fc',Math.round(fc)+'<small> Hz</small>', S.f<fc?'bad':'good');
+    const ratio=S.f/fc;
+    ro('#hn-ro-load', S.f<fc? 'reactive' : (ratio<1.6?'partial':'full'), S.f<fc?'bad':(ratio<1.6?'warn':'good'));
+  }
+  ro('#hn-ro-ka',ka.toFixed(2), ka<1?'bad':ka<2.5?'warn':'good');
+  const risk = modeRatio<0.8?'low':modeRatio<1.6?'moderate':'high';
+  ro('#hn-ro-hom',risk, risk==='low'?'good':risk==='moderate'?'warn':'bad');
+
+  let v;
+  if(S.profile==='str'){
+    v='A straight pipe transforms nothing. The throat impedance is the pipe impedance — the driver still sees almost open air, and you get organ-pipe resonances instead of loading. This is the control case.';
+  } else if(S.f<fc){
+    v='Below cutoff. The flare rate is too slow to sustain a travelling wave at '+Math.round(S.f)+' Hz, so energy sloshes reactively in the throat instead of leaving. Lengthen the horn or open the mouth to bring f\u1D9C down — or accept that this band needs a bigger box.';
+  } else if(modeRatio>1.6){
+    v='Cross-modes active. The mouth is wider than half a wavelength, so energy can bounce across the horn as well as along it. Those diagonal ripples reach the mouth late and out of phase — this is the mechanism behind "horn honk", and it is a timing fault, not a tonal one.';
+  } else if(ka<1){
+    v='Loading fine, radiation poor. The mouth is small compared to the wavelength (ka < 1), so a large fraction of the wave reflects back down the horn at the mouth instead of leaving. Watch the standing wave build in the flare.';
+  } else {
+    v='Clean operation. Above cutoff, mouth large enough to radiate (ka > 1), and narrow enough relative to the wavelength that no cross-modes are excited. The wavefront stays coherent all the way to the mouth — this is the window every horn designer is trying to widen.';
+  }
+  $('#hn-verdict').textContent=v;
+}
+function refresh(){ buildProfile(); }
+
+seg('#hn-prof',v=>{S.profile=v;refresh();});
+seg('#hn-src',v=>{S.src=v; if(v==='imp'){impT=T;} refresh();});
+$('#hn-f').addEventListener('input',e=>{S.f=+e.target.value;$('#hn-fv').textContent=S.f>=1000?(S.f/1000).toFixed(2)+' kHz':S.f+' Hz';const L=Math.round(S.len/1000/DX);updateReadouts(L,Math.max(R0+1,(S.mouth/2)/1000/DX));});
+$('#hn-m').addEventListener('input',e=>{S.mouth=+e.target.value;$('#hn-mv').textContent=S.mouth+' mm';refresh();});
+$('#hn-l').addEventListener('input',e=>{S.len=+e.target.value;$('#hn-lv').textContent=S.len+' mm';refresh();});
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect(); const sc=Math.min(r.width/NX,(parseFloat(cv.getAttribute('height')))/NY);
+  const ox=(r.width-NX*sc)/2, oy=(parseFloat(cv.getAttribute('height'))-NY*sc)/2;
+  const i=Math.round((e.clientX-r.left-ox)/sc), j=Math.round((e.clientY-r.top-oy)/sc);
+  if(i>1&&i<NX-1&&j>1&&j<NY-1&&mask[i*NY+j]){
+    for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){
+      const k=(i+a)*NY+(j+b); if(mask[k]) p1[k]+=6*Math.exp(-(a*a+b*b)/3);
+    }
+  }
+});
+refresh();
+reg(cv,frame);
+})();
+
+/* ================= STORED ENERGY / CSD ================= */
+(function(){
+const cv=$('#csdC'); if(!cv)return;
+const S={Q:12,f0:240};
+const F=[],NF=560;
+for(let i=0;i<NF;i++) F.push(20*Math.pow(1000,i/(NF-1)));  // 20 Hz .. 20 kHz
+
+function magAt(f,decay){
+  const r=Math.max(1e-4,f/S.f0), k=0.062*S.Q*decay;
+  const lor=1/Math.sqrt(Math.pow(S.Q*(r-1/r),2)+1);   // normalised resonance, peak = 1 at f0
+  return 20*Math.log10(1+k*lor);
+}
+function draw(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const M=54, w=W-M-22;
+
+  /* --- magnitude --- */
+  let y0=26,h0=104;
+  grid(g,M,y0,w,h0,4,8);
+  lab(g,'MAGNITUDE RESPONSE  ±6 dB',M,y0-9,C.birch,9.5);
+  g.strokeStyle=C.cyan; g.lineWidth=1.8; g.beginPath();
+  for(let i=0;i<NF;i++){
+    const x=M+w*i/(NF-1), db=magAt(F[i],1);
+    const y=y0+h0/2-db*(h0/12);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.stroke();
+  lab(g,'+6',M-6,y0+6,C.ash,8.5,'right'); lab(g,'0',M-6,y0+h0/2+3,C.ash,8.5,'right');
+  lab(g,'−6',M-6,y0+h0,C.ash,8.5,'right');
+  [50,200,1000,5000].forEach(f=>{
+    const x=M+w*Math.log(f/20)/Math.log(1000);
+    lab(g,f>=1000?(f/1000)+'k':f+'',x,y0+h0+13,C.ash,8.5,'center');
+  });
+
+  /* --- impulse response --- */
+  let y1=190,h1=104;
+  grid(g,M,y1,w,h1,2,8);
+  lab(g,'IMPULSE RESPONSE  ·  50 ms window',M,y1-9,C.birch,9.5);
+  g.strokeStyle=C.sodium; g.lineWidth=1.4; g.beginPath();
+  const dur=0.05;
+  for(let i=0;i<=w;i++){
+    const t=dur*i/w;
+    const env=Math.exp(-Math.PI*S.f0*t/S.Q);
+    let v=Math.sin(2*Math.PI*S.f0*t)*env*0.85;
+    if(t<0.0006) v+=Math.exp(-Math.pow(t/0.00018,2));
+    const y=y1+h1/2-v*(h1/2.3);
+    i?g.lineTo(M+i,y):g.moveTo(M+i,y);
+  }
+  g.stroke();
+  // envelope
+  g.strokeStyle='rgba(255,77,109,.55)'; g.setLineDash([2,3]); g.lineWidth=1;
+  for(const sgn of[-1,1]){
+    g.beginPath();
+    for(let i=0;i<=w;i++){
+      const t=dur*i/w, env=Math.exp(-Math.PI*S.f0*t/S.Q)*0.85;
+      const y=y1+h1/2-sgn*env*(h1/2.3);
+      i?g.lineTo(M+i,y):g.moveTo(M+i,y);
+    }
+    g.stroke();
+  }
+  g.setLineDash([]);
+  lab(g,'0',M,y1+h1+13,C.ash,8.5); lab(g,'25 ms',M+w/2,y1+h1+13,C.ash,8.5,'center');
+  lab(g,'50 ms',M+w,y1+h1+13,C.ash,8.5,'right');
+
+  /* --- waterfall --- */
+  const y2=348, h2=H-y2-26, slices=15, sk=w*0.16, sh=h2*0.42;
+  lab(g,W<640?'SPECTRAL DECAY · stored energy':'CUMULATIVE SPECTRAL DECAY  ·  stored energy vs time',M,y2-9,C.birch,9.5);
+  for(let s=slices-1;s>=0;s--){
+    const t=(s/(slices-1))*0.045;
+    const dec=Math.exp(-Math.PI*S.f0*t/S.Q);
+    const ox=M+sk*s/(slices-1), oy=y2+h2-sh*s/(slices-1)-14;
+    g.beginPath();
+    for(let i=0;i<NF;i++){
+      const x=ox+(w-sk)*i/(NF-1);
+      const db=magAt(F[i],dec);
+      const y=oy-db*(h2*0.075)-1.5;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    const lastX=ox+(w-sk);
+    g.lineTo(lastX,oy); g.lineTo(ox,oy); g.closePath();
+    g.fillStyle='rgba(10,21,22,.93)'; g.fill();
+    const a=0.30+0.70*(1-s/(slices-1));
+    g.strokeStyle= s===0? C.sodium : 'rgba(95,227,216,'+(a*0.75).toFixed(2)+')';
+    g.lineWidth= s===0?1.7:1; g.stroke();
+  }
+  lab(g,'t = 0',M,y2+h2-2,C.sodium,8.5);
+  lab(g,'t = 45 ms',M+sk+4,y2+h2-sh-22,C.cyan,8.5);
+}
+function upd(){
+  const t30=3.4539*S.Q/(Math.PI*S.f0);
+  const cyc=t30*S.f0;
+  const pk=magAt(S.f0,1);
+  const at20=20*Math.log10(Math.max(1e-6,Math.exp(-Math.PI*S.f0*0.02/S.Q)));
+  ro('#csd-ro-t60',(t30*1000).toFixed(0)+'<small> ms</small>', t30>0.06?'bad':t30>0.025?'warn':'good');
+  ro('#csd-ro-peak','+'+pk.toFixed(1)+'<small> dB</small>','warn');
+  ro('#csd-ro-cyc',cyc.toFixed(0)+'<small> cycles</small>');
+  ro('#csd-ro-mask',at20.toFixed(0)+'<small> dB @20ms</small>', at20>-20?'bad':at20>-35?'warn':'good');
+  let v;
+  if(t30>0.07) v='This cabinet is still sounding a note from '+(t30*1000).toFixed(0)+' ms ago. At 140 BPM that overlaps the next two sixteenth notes. The magnitude plot calls it a +'+pk.toFixed(1)+' dB bump — the sort of thing you would EQ out and declare fixed. You cannot EQ out a decay time.';
+  else if(t30>0.028) v='Better. '+(t30*1000).toFixed(0)+' ms of ring still smears fast percussive material, but it is now below the level where it dominates. Note the magnitude bump barely changed while the tail shortened by more than half — the two are almost independent.';
+  else v='Well damped. The tail is gone within '+(t30*1000).toFixed(0)+' ms, so a transient stops when the music stops. This is what heavy bracing and dense ply are actually buying: not a flatter curve, a shorter one.';
+  $('#csd-verdict').textContent=v;
+  draw();
+}
+seg('#csd-preset',v=>{
+  const P=[[13,190],[6,300],[2.8,420]][+v];
+  S.Q=P[0];S.f0=P[1];
+  $('#csd-q').value=S.Q;$('#csd-f').value=S.f0;
+  $('#csd-qv').textContent=S.Q.toFixed(1);$('#csd-fv').textContent=S.f0+' Hz';
+  upd();
+});
+$('#csd-q').addEventListener('input',e=>{S.Q=+e.target.value;$('#csd-qv').textContent=S.Q.toFixed(1);upd();});
+$('#csd-f').addEventListener('input',e=>{S.f0=+e.target.value;$('#csd-fv').textContent=S.f0+' Hz';upd();});
+addEventListener('resize',()=>upd());
+upd(); reg(cv,()=>{});
+})();
+
+
+/* ================= TRANSDUCER ================= */
+(function(){
+const cv=$('#drvC'); if(!cv)return;
+const S={horn:0,spl:118,f:45,lin:0.25};
+let temp=25, phase=0, hist=new Array(160).fill(25);
+const Sd=0.12, RHO=1.2, Re0=5.2, XMAX=0.009, XDMG=0.017;
+
+function excursion(){
+  const prms=2e-5*Math.pow(10,S.spl/20);
+  const w=2*Math.PI*S.f;
+  let x=prms*2*Math.PI*Math.SQRT2/(RHO*Sd*w*w);
+  if(S.horn) x/=3.98;
+  return x;
+}
+function power(){
+  const sens=S.horn?108:96;
+  return Math.pow(10,(S.spl-sens)/10);
+}
+function BL(x){ // normalised force factor
+  const a=XMAX*(1.35+1.5*S.lin), off=0.0022*(1-S.lin);
+  return Math.exp(-Math.pow((x-off)/a,2));
+}
+function harmonics(){
+  const X=excursion(), N=512, re=new Array(8).fill(0), im=new Array(8).fill(0);
+  for(let n=0;n<N;n++){
+    const th=2*Math.PI*n/N, x=X*Math.sin(th);
+    const y=BL(x)*Math.sin(th);
+    for(let k=1;k<=7;k++){ re[k]+=y*Math.cos(k*th); im[k]+=y*Math.sin(k*th); }
+  }
+  const m=[];
+  for(let k=1;k<=7;k++) m[k]=Math.hypot(re[k],im[k])*2/N;
+  const thd=Math.sqrt(m.slice(2).reduce((a,b)=>a+b*b,0))/Math.max(1e-9,m[1]);
+  return {m,thd,X};
+}
+function tick(dt){
+  const P=power();
+  const Rth=1.15, Cth=7.5;
+  temp += ((P*0.94) - (temp-25)/Rth)/Cth*dt*1.6;
+  temp=clamp(temp,25,400);
+  phase+=dt*Math.min(S.f,7)*2*Math.PI*0.30;
+  hist.push(temp); if(hist.length>160)hist.shift();
+  draw();
+}
+function draw(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const M=54, w=W-M-22;
+  const H7=harmonics(), X=H7.X;
+  const Re=Re0*(1+0.00393*(temp-25));
+  const comp=20*Math.log10(Re/Re0);
+
+  /* --- driver cross-section --- */
+  const cx=W*0.30, ccy=118, scale=Math.min(1,W/560);
+  g.save();
+  lab(g,'DRIVER SECTION  ·  excursion drawn to scale ×14',M,20,C.birch,9.5);
+  const disp=X*Math.sin(phase)*14000*scale*0.55;
+  // magnet + gap
+  g.fillStyle='#16262A'; g.fillRect(cx-26*scale,ccy-46*scale,52*scale,92*scale);
+  g.fillStyle='#0A1516'; g.fillRect(cx-8*scale,ccy-46*scale,16*scale,92*scale);
+  g.strokeStyle='rgba(217,185,138,.25)'; g.lineWidth=1;
+  g.strokeRect(cx-26*scale,ccy-46*scale,52*scale,92*scale);
+  // gap linear region shading
+  const gapH=XMAX*14000*scale*0.55;
+  g.fillStyle='rgba(95,227,216,.10)';
+  g.fillRect(cx-8*scale,ccy-gapH,16*scale,2*gapH);
+  // coil
+  const over=Math.abs(disp)>gapH;
+  g.fillStyle= over? C.mag : C.sodium;
+  g.fillRect(cx-7*scale,ccy+disp-9*scale,14*scale,18*scale);
+  // cone
+  g.strokeStyle=over?C.mag:C.birch; g.lineWidth=2;
+  g.beginPath();
+  g.moveTo(cx-7*scale,ccy+disp-9*scale); g.lineTo(cx-96*scale,ccy+disp-52*scale);
+  g.moveTo(cx+7*scale,ccy+disp-9*scale); g.lineTo(cx+96*scale,ccy+disp-52*scale);
+  g.moveTo(cx-7*scale,ccy+disp+9*scale); g.lineTo(cx-96*scale,ccy+disp+52*scale);
+  g.moveTo(cx+7*scale,ccy+disp+9*scale); g.lineTo(cx+96*scale,ccy+disp+52*scale);
+  g.stroke();
+  // xmax rails
+  g.strokeStyle='rgba(95,227,216,.5)'; g.setLineDash([2,3]); g.lineWidth=1;
+  g.beginPath();
+  g.moveTo(cx-40*scale,ccy-gapH);g.lineTo(cx+40*scale,ccy-gapH);
+  g.moveTo(cx-40*scale,ccy+gapH);g.lineTo(cx+40*scale,ccy+gapH);
+  g.stroke(); g.setLineDash([]);
+  lab(g,'X'+'ma'+'x',cx+44*scale,ccy-gapH+3,C.cyan,8.5);
+  g.restore();
+
+  // horn overlay hint
+  if(S.horn){
+    g.strokeStyle='rgba(217,185,138,.4)'; g.lineWidth=1.4;
+    g.beginPath();
+    g.moveTo(cx+96*scale,ccy-52*scale); g.lineTo(cx+180*scale,ccy-88*scale);
+    g.moveTo(cx+96*scale,ccy+52*scale); g.lineTo(cx+180*scale,ccy+88*scale);
+    g.stroke();
+    lab(g,'horn load',cx+120*scale,ccy-96*scale,C.birch,9);
+  }
+
+  /* --- Bl(x) curve --- */
+  const bx=W*0.60, by=34, bw=W-bx-24, bh=150;
+  grid(g,bx,by,bw,bh,3,6);
+  lab(g,'Bl(x)  ·  force factor vs coil position',bx,by-9,C.birch,9.5);
+  g.strokeStyle=C.cyan; g.lineWidth=1.8; g.beginPath();
+  for(let i=0;i<=bw;i++){
+    const xx=(i/bw*2-1)*XDMG;
+    const y=by+bh-BL(xx)*bh*0.92;
+    i?g.lineTo(bx+i,y):g.moveTo(bx+i,y);
+  }
+  g.stroke();
+  // linear window
+  g.fillStyle='rgba(95,227,216,.07)';
+  const lx0=bx+bw*(1-XMAX/XDMG)/2, lw=bw*(XMAX/XDMG);
+  g.fillRect(lx0,by,lw,bh);
+  // operating dot
+  const opx=bx+bw*(X*Math.sin(phase)/XDMG+1)/2;
+  const opy=by+bh-BL(X*Math.sin(phase))*bh*0.92;
+  g.fillStyle= Math.abs(X)>XMAX? C.mag:C.sodium;
+  g.beginPath(); g.arc(clamp(opx,bx,bx+bw),opy,4.5,0,7); g.fill();
+  // sweep trace
+  g.strokeStyle='rgba(255,158,27,.35)'; g.lineWidth=1; g.beginPath();
+  for(let i=0;i<=60;i++){
+    const xx=X*Math.sin(i/60*2*Math.PI);
+    const px=bx+bw*(xx/XDMG+1)/2, py=by+bh-BL(xx)*bh*0.92;
+    i?g.lineTo(clamp(px,bx,bx+bw),py):g.moveTo(clamp(px,bx,bx+bw),py);
+  }
+  g.stroke();
+  lab(g,'−'+(XDMG*1000).toFixed(0)+' mm',bx,by+bh+13,C.ash,8.5);
+  lab(g,'0',bx+bw/2,by+bh+13,C.ash,8.5,'center');
+  lab(g,'+'+(XDMG*1000).toFixed(0)+' mm',bx+bw,by+bh+13,C.ash,8.5,'right');
+
+  /* --- harmonics --- */
+  const hy=270, hh=150;
+  grid(g,M,hy,w*0.52,hh,4,0);
+  lab(g,'HARMONIC SPECTRUM  ·  from Bl(x) nonlinearity',M,hy-9,C.birch,9.5);
+  const bw2=(w*0.52)/9;
+  for(let k=1;k<=7;k++){
+    const v=H7.m[k]/Math.max(1e-9,H7.m[1]);
+    const db=20*Math.log10(Math.max(1e-5,v));
+    const bhh=clamp((db+70)/70,0,1)*hh;
+    g.fillStyle = k===1? C.cyan : (k%2? 'rgba(255,77,109,.85)':'rgba(255,158,27,.9)');
+    g.fillRect(M+bw2*(k-0.5)+4,hy+hh-bhh,bw2*0.62,bhh);
+    lab(g,'H'+k,M+bw2*(k-0.5)+4+bw2*0.31,hy+hh+13,C.ash,8.5,'center');
+    if(k>1&&db>-64) lab(g,db.toFixed(0),M+bw2*(k-0.5)+4+bw2*0.31,hy+hh-bhh-4,C.ash,8,'center');
+  }
+  g.fillStyle=C.text; g.font='500 26px '+MONO;
+  g.fillText((H7.thd*100).toFixed(1)+'%',M+w*0.60,hy+34);
+  lab(g,'TOTAL HARMONIC DISTORTION',M+w*0.60,hy+50,C.ash,9);
+
+  /* --- thermal --- */
+  const ty=hy+200, th=H-ty-26;
+  grid(g,M,ty,w,th,3,0);
+  lab(g,'VOICE COIL TEMPERATURE  ·  live',M,ty-9,C.birch,9.5);
+  g.strokeStyle=temp>200?C.mag:temp>120?C.sodium:C.cyan; g.lineWidth=1.8; g.beginPath();
+  hist.forEach((t,i)=>{
+    const x=M+w*i/(hist.length-1), y=ty+th-clamp((t-25)/300,0,1)*th;
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  });
+  g.stroke();
+  lab(g,'325 °C',M+4,ty+11,'rgba(138,160,155,.6)',8.5);
+  lab(g,'25 °C',M+4,ty+th-4,'rgba(138,160,155,.6)',8.5);
+  g.fillStyle=temp>200?C.mag:C.text; g.font='500 22px '+MONO;
+  g.textAlign='right'; g.fillText(temp.toFixed(0)+' °C',M+w-6,ty+26);
+  g.font='11px '+MONO; g.fillStyle=C.ash;
+  g.fillText('−'+comp.toFixed(1)+' dB output',M+w-6,ty+42); g.textAlign='left';
+
+  // readouts
+  ro('#drv-ro-x',(X*1000).toFixed(2)+'<small> mm pk</small>', X>XDMG?'bad':X>XMAX?'warn':'good');
+  ro('#drv-ro-thd',(H7.thd*100).toFixed(1)+'<small>%</small>', H7.thd>0.1?'bad':H7.thd>0.03?'warn':'good');
+  ro('#drv-ro-temp',temp.toFixed(0)+'<small> °C</small>', temp>210?'bad':temp>120?'warn':'good');
+  ro('#drv-ro-comp','−'+comp.toFixed(1)+'<small> dB</small>', comp>3?'bad':comp>1.2?'warn':'good');
+  $('#drv-mode').textContent = S.horn?'horn-loaded · '+power().toFixed(1)+' W':'direct radiator · '+power().toFixed(0)+' W';
+
+  let v;
+  if(X>XDMG) v='Past the point of mechanical damage. The coil is leaving the gap entirely, Bl collapses, and the asymmetry rectifies into a DC offset that pushes it further out still. This is the runaway that ends drivers.';
+  else if(X>XMAX) v='Outside the linear window. Look at the orange dot walking off the flat top of the Bl curve — that is where '+(H7.thd*100).toFixed(0)+'% THD is coming from. No amount of EQ touches this; the distortion is generated by geometry.';
+  else if(S.horn) v='Comfortably inside the linear region. Same '+S.spl+' dB, but the horn is doing the impedance transformation so the cone barely has to move — '+(X*1000).toFixed(2)+' mm instead of '+(excursion()*3.98*1000).toFixed(1)+' mm. Distortion, Doppler and heat all fall out together.';
+  else v='Inside the linear window for now. Push the SPL slider up and watch how fast the picture changes — excursion goes with the square of the frequency ratio, so every octave down costs four times the movement.';
+  $('#drv-verdict').textContent=v;
+}
+seg('#drv-load',v=>{S.horn=+v;});
+$('#drv-s').addEventListener('input',e=>{S.spl=+e.target.value;$('#drv-sv').textContent=S.spl+' dB';});
+$('#drv-f').addEventListener('input',e=>{S.f=+e.target.value;$('#drv-fv').textContent=S.f+' Hz';});
+$('#drv-lin').addEventListener('input',e=>{S.lin=+e.target.value/100;
+  $('#drv-lv').textContent=S.lin<0.2?'stock':S.lin<0.5?'optimised':S.lin<0.8?'shorting rings':'best in class';});
+$('#drv-reset').addEventListener('click',()=>{temp=25;hist.fill(25);});
+reg(cv,tick);
+})();
+
+/* ================= ARRAY ================= */
+(function(){
+const cv=$('#arrC'); if(!cv)return;
+const S={top:'pair',d:0.34,f:1000,t:0};
+const GX=210,GY=118, SPAN=18, DEPTH=10;
+const off=document.createElement('canvas'); off.width=GX; off.height=GY;
+const octx=off.getContext('2d'); const img=octx.createImageData(GX,GY);
+let polar=new Float32Array(361), dirty=true, stats={};
+
+function sources(){
+  const c=343, d=S.d, out=[];
+  if(S.top==='pair'){ out.push({x:0,y:-d/2,t:0,p:1},{x:0,y:d/2,t:0,p:1,dl:1}); }
+  else if(S.top==='line'){ for(let i=0;i<6;i++) out.push({x:0,y:(i-2.5)*d,t:0,p:1,dl:i>2?1:0}); }
+  else if(S.top==='card'){ out.push({x:0,y:0,t:0,p:1},{x:-d,y:0,t:d/c,p:-1,dl:1}); }
+  else { for(let i=0;i<4;i++) out.push({x:-i*d,y:0,t:i*d/c,p:1}); }
+  return out;
+}
+function field(px,py,src,k,w){
+  let re=0,im=0;
+  for(const s of src){
+    const dx=px-s.x, dy=py-s.y, r=Math.max(0.35,Math.hypot(dx,dy));
+    const ph=-k*r-w*(s.t+(s.dl?S.t/1e6:0));
+    const a=s.p/r;
+    re+=a*Math.cos(ph); im+=a*Math.sin(ph);
+  }
+  return Math.hypot(re,im);
+}
+function compute(){
+  const c=343, k=2*Math.PI*S.f/c, w=2*Math.PI*S.f, src=sources();
+  const d=img.data;
+  for(let j=0;j<GY;j++){
+    const py=(j/(GY-1)-0.5)*SPAN;
+    for(let i=0;i<GX;i++){
+      const px=(i/(GX-1))*DEPTH+0.4;
+      const m=field(px,py,src,k,w);
+      const ref=1/Math.max(0.35,Math.hypot(px,py));
+      let db=20*Math.log10(Math.max(1e-6,m/ref));
+      db=clamp(db,-18,12);
+      const o=(j*GX+i)*4;
+      if(db>=0){ const e=Math.pow(db/12,1.45); d[o]=10+230*e;d[o+1]=21+128*e;d[o+2]=22+3*e; }
+      else { const e=Math.pow(-db/18,.55); d[o]=10+72*e;d[o+1]=21+150*e;d[o+2]=22+160*e; }
+      d[o+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+  // polar at 14 m
+  let mx=0;
+  for(let a=0;a<=360;a++){
+    const th=a*Math.PI/180, R=14;
+    const m=field(R*Math.cos(th),R*Math.sin(th),src,k,w)*R;
+    polar[a]=m; if(m>mx)mx=m;
+  }
+  for(let a=0;a<=360;a++) polar[a]/=Math.max(1e-9,mx);
+  // stats
+  const lam=343/S.f;
+  const onax=20*Math.log10(field(14,0,src,k,w)*14);
+  const rear=20*Math.log10(Math.max(1e-9,field(-14,0,src,k,w)*14));
+  let lobes=0;
+  for(let a=-60;a<=60;a++){
+    const i=(a+360)%360, p=polar[i], pm=polar[(i-1+360)%360], pp=polar[(i+1)%360];
+    if(p>pm&&p>=pp&&p>0.22) lobes++;
+  }
+  stats={lam,ratio:S.d/(lam/4),onax,rear,lobes:Math.max(1,lobes),f2b:onax-rear};
+  dirty=false;
+}
+function draw(){
+  const cw0=cv.getBoundingClientRect().width||700;
+  const narrow=cw0<640;
+  cv.setAttribute('height', narrow?860:700);
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const M=20, w=W-M*2, fh=Math.min(w*GY/GX, narrow?H*0.30:H*0.52);
+  g.imageSmoothingEnabled=true;
+  g.drawImage(off,M,26,w,fh);
+  lab(g,narrow?'INTERFERENCE FIELD · plan view':'INTERFERENCE FIELD  ·  plan view  ·  10 m deep × 18 m wide',M,18,C.birch,9.5);
+  const src=sources();
+  const toPx=(x,y)=>[M+(x/DEPTH)*w, 26+((y/SPAN)+0.5)*fh];
+  src.forEach(s=>{
+    const [px,py]=toPx(s.x,s.y);
+    g.fillStyle= s.p<0? C.mag : C.birch;
+    g.beginPath(); g.arc(clamp(px,M+2,M+w-2),py,3.6,0,7); g.fill();
+  });
+  lab(g,'+12 dB summation',M+6,26+fh-8,'rgba(255,158,27,.9)',9);
+  lab(g,'cancellation',M+w-6,26+fh-8,'rgba(95,227,216,.9)',9,'right');
+
+  /* polar */
+  const py0=26+fh+34, ph=narrow?(H-py0-16)*0.46:(H-py0-16);
+  const cxp=narrow?W*0.5:W*0.26, cyp=py0+ph/2, R=Math.min(ph/2-16,narrow?W*0.30:W*0.175);
+  lab(g,'POLAR RESPONSE  ·  14 m radius',M,py0-10,C.birch,9.5);
+  g.strokeStyle='rgba(217,185,138,.13)'; g.lineWidth=1;
+  [0.25,0.5,0.75,1].forEach(r=>{g.beginPath();g.arc(cxp,cyp,R*r,0,7);g.stroke();});
+  for(let a=0;a<360;a+=30){
+    const th=a*Math.PI/180;
+    g.beginPath();g.moveTo(cxp,cyp);g.lineTo(cxp+R*Math.cos(th),cyp+R*Math.sin(th));g.stroke();
+  }
+  g.strokeStyle=C.sodium; g.lineWidth=2; g.beginPath();
+  for(let a=0;a<=360;a++){
+    const th=a*Math.PI/180, r=R*Math.pow(polar[a],0.6);
+    const x=cxp+r*Math.cos(th), y=cyp+r*Math.sin(th);
+    a?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath(); g.stroke();
+  g.fillStyle='rgba(255,158,27,.10)'; g.fill();
+  lab(g,'on-axis →',cxp+R+7,cyp+3,C.ash,8.5);
+  lab(g,'rear',cxp-R-6,cyp+3,C.ash,9,'right');
+
+  /* comb response */
+  const rx=narrow?M:W*0.54, rw=narrow?w:(W-W*0.54-M);
+  const ry=narrow?(py0+ph+40):(py0+6), rh=narrow?(H-ry-26):(ph-30);
+  grid(g,rx,ry,rw,rh,4,6);
+  lab(g,'RESPONSE AT 30° OFF-AXIS  ·  20 Hz – 20 kHz',rx,ry-10,C.birch,9.5);
+  const src2=sources(), th30=30*Math.PI/180;
+  const P=[14*Math.cos(th30),14*Math.sin(th30)];
+  g.strokeStyle=C.cyan; g.lineWidth=1.5; g.beginPath();
+  for(let i=0;i<=rw;i++){
+    const f=20*Math.pow(1000,i/rw), k=2*Math.PI*f/343;
+    const m=field(P[0],P[1],src2,k,2*Math.PI*f)*14;
+    const db=clamp(20*Math.log10(Math.max(1e-4,m)),-24,12);
+    const y=ry+rh-(db+24)/36*rh;
+    i?g.lineTo(rx+i,y):g.moveTo(rx+i,y);
+  }
+  g.stroke();
+  lab(g,'+12',rx-5,ry+8,C.ash,8,'right'); lab(g,'−24',rx-5,ry+rh,C.ash,8,'right');
+  [100,1000,10000].forEach(f=>{
+    const x=rx+rw*Math.log(f/20)/Math.log(1000);
+    lab(g,f>=1000?(f/1000)+'k':f+'',x,ry+rh+13,C.ash,8.5,'center');
+  });
+
+  ro('#arr-ro-q',stats.ratio.toFixed(2)+'<small>× λ/4</small>', stats.ratio>1?'bad':stats.ratio>0.6?'warn':'good');
+  ro('#arr-ro-lobe',stats.lobes+'', stats.lobes>2?'bad':stats.lobes>1?'warn':'good');
+  ro('#arr-ro-front',(stats.onax>=0?'+':'')+stats.onax.toFixed(1)+'<small> dB</small>','good');
+  ro('#arr-ro-rear',(stats.f2b>=0?'+':'')+stats.f2b.toFixed(1)+'<small> dB</small>', stats.f2b>10?'good':stats.f2b>3?'warn':'bad');
+  $('#arr-mode').textContent={pair:'coupled pair',line:'line array · 6 boxes',card:'cardioid sub',end:'end-fire · 4 deep'}[S.top];
+
+  let v;
+  const q=343/S.f/4*1000;
+  if(S.top==='card'||S.top==='end'){
+    v='Delay and polarity are being used to make the rear radiation cancel. Front-to-back is '+stats.f2b.toFixed(0)+' dB. The delay that does it is exactly the time sound takes to cover the spacing — '+(S.d/343*1000).toFixed(2)+' ms for '+(S.d*1000).toFixed(0)+' mm. Get it wrong and you steer the null into the audience instead.';
+  } else if(stats.ratio>1.2){
+    v='Spacing is '+stats.ratio.toFixed(1)+'× the λ/4 limit. At '+(S.f>=1000?(S.f/1000).toFixed(1)+' kHz':S.f+' Hz')+', λ/4 is '+q.toFixed(1)+' mm and your sources are '+(S.d*1000).toFixed(0)+' mm apart. The result is the lobing you can see: level and tonality now change with every step the listener takes, and the same transient arrives twice.';
+  } else if(stats.ratio>0.6){
+    v='Marginal. Coherent on-axis, starting to lobe at the edges. This is the region every line array lives in at the top of its passband — manageable with tight waveguide coupling, impossible to make perfect.';
+  } else {
+    v='Inside λ/4. The sources behave as one, you get the full +'+stats.onax.toFixed(1)+' dB of coherent summation, and the polar stays clean. Note this only holds at this frequency — drag frequency up and watch the condition break.';
+  }
+  $('#arr-verdict').textContent=v;
+}
+function upd(){compute();draw();}
+seg('#arr-top',v=>{S.top=v;upd();});
+$('#arr-d').addEventListener('input',e=>{S.d=+e.target.value/1000;$('#arr-dv').textContent=(S.d*1000).toFixed(0)+' mm';upd();});
+$('#arr-f').addEventListener('input',e=>{S.f=+e.target.value;$('#arr-fv').textContent=S.f>=1000?(S.f/1000).toFixed(1)+' kHz':S.f+' Hz';upd();});
+$('#arr-t').addEventListener('input',e=>{S.t=+e.target.value*10;$('#arr-tv').textContent=(S.t/1000).toFixed(2)+' ms';upd();});
+addEventListener('resize',()=>draw());
+upd(); reg(cv,()=>{});
+})();
+
+
+/* ================= CROSSOVER ================= */
+(function(){
+const cv=$('#xoC'); if(!cv)return;
+const S={type:'lr4',f:900,taps:1024};
+const SR=48000, N=3000, PRE=380;
+
+function biquad(b0,b1,b2,a1,a2,x){
+  const y=new Float32Array(x.length); let z1=0,z2=0;
+  for(let i=0;i<x.length;i++){
+    const w=x[i]-a1*z1-a2*z2;
+    y[i]=b0*w+b1*z1+b2*z2; z2=z1; z1=w;
+  }
+  return y;
+}
+function lp(x,f){
+  const w0=2*Math.PI*f/SR, cs=Math.cos(w0), sn=Math.sin(w0), al=sn/(2*Math.SQRT1_2);
+  const a0=1+al;
+  return biquad((1-cs)/2/a0,(1-cs)/a0,(1-cs)/2/a0,-2*cs/a0,(1-al)/a0,x);
+}
+function hp(x,f){
+  const w0=2*Math.PI*f/SR, cs=Math.cos(w0), sn=Math.sin(w0), al=sn/(2*Math.SQRT1_2);
+  const a0=1+al;
+  return biquad((1+cs)/2/a0,-(1+cs)/a0,(1+cs)/2/a0,-2*cs/a0,(1-al)/a0,x);
+}
+function firLP(x,f,taps){
+  const M=taps, h=new Float32Array(M), fc=f/SR, c=(M-1)/2;
+  for(let i=0;i<M;i++){
+    const n=i-c;
+    const s=n===0?2*fc:Math.sin(2*Math.PI*fc*n)/(Math.PI*n);
+    const wnd=0.42-0.5*Math.cos(2*Math.PI*i/(M-1))+0.08*Math.cos(4*Math.PI*i/(M-1));
+    h[i]=s*wnd;
+  }
+  let s=0; for(let i=0;i<M;i++)s+=h[i];
+  for(let i=0;i<M;i++)h[i]/=s;
+  const y=new Float32Array(x.length);
+  for(let i=0;i<x.length;i++){
+    let a=0; const lo=Math.max(0,i-M+1);
+    for(let j=lo;j<=i;j++) a+=x[j]*h[i-j];
+    y[i]=a;
+  }
+  return {y,h,delay:(M-1)/2};
+}
+function run(){
+  const x=new Float32Array(N);
+  for(let i=PRE;i<N;i++) x[i]=1;
+  let sum,lo,hi,lat=0,pre=0,rot=0;
+  if(S.type==='fir'){
+    const t=Math.max(64,Math.round(S.taps/2)*2);
+    const L=firLP(x,S.f,t);
+    lo=L.y;
+    hi=new Float32Array(N);
+    for(let i=0;i<N;i++){ const d=i-L.delay; hi[i]=(d>=PRE?1:0)-lo[i]; }
+    sum=new Float32Array(N); for(let i=0;i<N;i++)sum[i]=lo[i]+hi[i];
+    lat=L.delay/SR*1000; rot=0;
+    const base=PRE+L.delay;
+    for(let i=0;i<base-2;i++) pre=Math.max(pre,Math.abs(lo[i]+hi[i]));
+  } else {
+    const n=S.type==='lr4'?2:4;
+    lo=x; hi=x;
+    for(let k=0;k<n;k++){ lo=lp(lo,S.f); hi=hp(hi,S.f); }
+    sum=new Float32Array(N); for(let i=0;i<N;i++)sum[i]=lo[i]+hi[i];
+    lat=0; rot=S.type==='lr4'?360:720;
+    for(let i=0;i<PRE-2;i++) pre=Math.max(pre,Math.abs(sum[i]));
+  }
+  const org = S.type==='fir' ? PRE+Math.round(lat*SR/1000) : PRE;
+  return {x,lo,hi,sum,lat,pre,rot,org};
+}
+function draw(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const R=run();
+  const M=54,w=W-M-22;
+  const y0=30,h0=H-y0-40;
+  grid(g,M,y0,w,h0,4,8);
+  lab(g,W<640?'STEP RESPONSE · recombined':'STEP RESPONSE  ·  low branch + high branch, recombined',M,y0-10,C.birch,9.5);
+  const view=360, start=Math.max(0,R.org-110);
+  const px=i=>M+w*(i-start)/view, py=v=>y0+h0*0.66-v*h0*0.34;
+  // branches
+  g.lineWidth=1.2; g.strokeStyle='rgba(95,227,216,.55)';
+  g.beginPath(); for(let i=0;i<view;i++){const k=start+i;g.lineTo(px(k),py(R.lo[k]||0));} g.stroke();
+  g.strokeStyle='rgba(255,77,109,.55)';
+  g.beginPath(); for(let i=0;i<view;i++){const k=start+i;g.lineTo(px(k),py(R.hi[k]||0));} g.stroke();
+  // input
+  g.strokeStyle='rgba(217,185,138,.5)'; g.setLineDash([3,4]); g.lineWidth=1.2;
+  g.beginPath(); for(let i=0;i<view;i++){const k=start+i;g.lineTo(px(k),py(R.x[k]||0));} g.stroke();
+  g.setLineDash([]);
+  // sum
+  g.strokeStyle=C.sodium; g.lineWidth=2;
+  g.beginPath(); for(let i=0;i<view;i++){const k=start+i;g.lineTo(px(k),py(R.sum[k]||0));} g.stroke();
+  lab(g,'ideal step',M+4,py(1)-7,'rgba(217,185,138,.8)',9);
+  lab(g,'recombined output',M+4,y0+14,C.sodium,9.5);
+  lab(g,'low branch',M+w-6,y0+14,'rgba(95,227,216,.8)',9,'right');
+  lab(g,'high branch',M+w-6,y0+26,'rgba(255,77,109,.8)',9,'right');
+  for(let i=0;i<=4;i++) lab(g,((start-R.org+i*view/4)/SR*1000).toFixed(2)+' ms',M+w*i/4,y0+h0+14,C.ash,8.5,i===0?'left':i===4?'right':'center');
+
+  ro('#xo-ro-lat',R.lat.toFixed(2)+'<small> ms</small>', R.lat>10?'bad':R.lat>3?'warn':'good');
+  ro('#xo-ro-phase',R.rot+'<small>°</small>', R.rot>360?'bad':R.rot>0?'warn':'good');
+  ro('#xo-ro-pre',(R.pre*100).toFixed(1)+'<small>%</small>', R.pre>0.06?'bad':R.pre>0.015?'warn':'good');
+  ro('#xo-ro-mag','flat<small> ±0.0 dB</small>','good');
+
+  let v;
+  if(S.type==='fir') v='Linear phase. The step reconstructs almost perfectly — but look before the edge: energy is arriving '+R.lat.toFixed(1)+' ms early. Pre-ringing does not exist in nature and some ears object to it more than the phase rotation it cured. And the whole rig now has '+R.lat.toFixed(1)+' ms of latency, which matters the moment a monitor engineer is involved.';
+  else if(S.type==='lr4') v='Minimum phase, zero latency, and the magnitude sums perfectly flat — which is exactly why frequency response hides this. The step does not reconstruct: 360° of phase rotation through the crossover means the woofer and horn hand over with a frequency-dependent time offset. Nothing arrives early, but the edge is smeared.';
+  else v='Eighth-order gives you a much tighter band split and better driver protection, at 720° of phase rotation. Steeper is not free — every extra pole adds group delay right where the ear is most sensitive to timing.';
+  $('#xo-verdict').textContent=v;
+}
+seg('#xo-type',v=>{S.type=v;draw();});
+$('#xo-f').addEventListener('input',e=>{S.f=+e.target.value;$('#xo-fv').textContent=S.f+' Hz';draw();});
+$('#xo-n').addEventListener('input',e=>{S.taps=+e.target.value;$('#xo-nv').textContent=S.taps;if(S.type==='fir')draw();});
+addEventListener('resize',()=>draw());
+draw(); reg(cv,()=>{});
+})();
+
+
+/* ================= DAMPING FACTOR ================= */
+(function(){
+const cv=$('#dmpC'); if(!cv)return;
+const GA=[1.5,2.5,4,6,10,16];
+const S={len:15,gi:3};
+const Bl=21, Re=5.2, mms=0.15, fs=42, kms=mms*Math.pow(2*Math.PI*fs,2), Rms=2.4;
+
+function sim(Rc){
+  const dt=1/60000, T=0.065, n=Math.round(T/dt);
+  const out=new Float32Array(n);
+  let x=0,v=0;
+  const Rel=Bl*Bl/(Re+Rc+0.03);
+  for(let i=0;i<n;i++){
+    const t=i*dt;
+    const F = t<0.022 ? 42*Math.sin(2*Math.PI*fs*t) : 0;
+    const a=(F-(Rms+Rel)*v-kms*x)/mms;
+    v+=a*dt; x+=v*dt;
+    out[i]=x;
+  }
+  return out;
+}
+function draw(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const A=GA[S.gi], Rc=2*S.len*0.0172/A;
+  const DF=8/(Rc+0.03);
+  const a=sim(Rc), b=sim(0);
+  const M=54,w=W-M-22, y0=30, h0=H-y0-34;
+  grid(g,M,y0,w,h0,4,8);
+  lab(g,'CONE DISPLACEMENT  ·  drive stops at 22 ms',M,y0-10,C.birch,9.5);
+  const mx=Math.max(...b)*1.15;
+  const stopX=M+w*0.022/0.065;
+  g.strokeStyle='rgba(255,77,109,.4)'; g.setLineDash([3,4]);
+  g.beginPath();g.moveTo(stopX,y0);g.lineTo(stopX,y0+h0);g.stroke();g.setLineDash([]);
+  lab(g,'signal stops',stopX+5,y0+12,'rgba(255,77,109,.9)',9);
+  const plot=(arr,col,lw)=>{
+    g.strokeStyle=col; g.lineWidth=lw; g.beginPath();
+    for(let i=0;i<arr.length;i++){
+      const x=M+w*i/(arr.length-1), y=y0+h0/2-arr[i]/mx*h0*0.45;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.stroke();
+  };
+  plot(b,'rgba(95,227,216,.45)',1.2);
+  plot(a,C.sodium,2);
+  lab(g,'zero-resistance reference',M+w-6,y0+14,'rgba(95,227,216,.8)',9,'right');
+  lab(g,'with your cable',M+w-6,y0+26,C.sodium,9,'right');
+  for(let i=0;i<=4;i++) lab(g,(i*65/4).toFixed(0)+' ms',M+w*i/4,y0+h0+14,C.ash,8.5,i===0?'left':'center');
+
+  // overhang: time after stop for |x| to fall under 4% of peak
+  const idxStop=Math.round(0.022/(1/60000));
+  const pk=Math.max(...a.slice(0,idxStop).map(Math.abs));
+  let oh=0;
+  for(let i=idxStop;i<a.length;i++){ if(Math.abs(a[i])>0.04*pk) oh=(i-idxStop)/60000*1000; }
+  const loss=Rc/(Rc+Re)*100;
+  ro('#dmp-ro-r',Rc.toFixed(3)+'<small> Ω</small>', Rc>0.25?'bad':Rc>0.1?'warn':'good');
+  ro('#dmp-ro-df',DF.toFixed(0)+'', DF<40?'bad':DF<100?'warn':'good');
+  ro('#dmp-ro-ov',oh.toFixed(1)+'<small> ms</small>', oh>14?'bad':oh>9?'warn':'good');
+  ro('#dmp-ro-loss',loss.toFixed(1)+'<small>%</small>', loss>4?'bad':loss>1.8?'warn':'good');
+  $('#dmp-state').textContent=A.toFixed(1)+' mm² · '+S.len+' m · DF '+DF.toFixed(0);
+  let v;
+  if(DF<40) v='Damping factor '+DF.toFixed(0)+'. The cable is now a meaningful fraction of the driver\u2019s own '+Re+' Ω, so a real share of the back-EMF gets burned in the copper instead of braking the cone. '+loss.toFixed(1)+'% of your power is heating the cable, and the cone overhangs the signal by '+oh.toFixed(0)+' ms — that is the wobble people describe as "loose" bass.';
+  else if(DF<110) v='Workable but not tight. You can see the orange trace lagging the reference after the stop. Halving the run length or going up one conductor size costs almost nothing and buys back most of it.';
+  else v='Electrically well braked. The cone stops with the signal and the trace tracks the zero-resistance reference closely. This is the cheapest performance improvement available on any system, and the one most often skipped.';
+  $('#dmp-verdict').textContent=v;
+}
+$('#dmp-l').addEventListener('input',e=>{S.len=+e.target.value;$('#dmp-lv').textContent=S.len+' m';draw();});
+$('#dmp-g').addEventListener('input',e=>{S.gi=+e.target.value;$('#dmp-gv').textContent=GA[S.gi].toFixed(1)+' mm²';draw();});
+addEventListener('resize',()=>draw());
+draw(); reg(cv,()=>{});
+})();
+
+/* ================= ROOM / DIRECTIVITY ================= */
+(function(){
+const cv=$('#rmC'); if(!cv)return;
+const S={H:90,V:40,alpha:0.16,W:28,D:34,ht:8,vane:0};
+let lis={x:0,y:20};
+
+function calc(){
+  let Hh=S.H;
+  if(S.vane) Hh=clamp(2*Math.atan((S.W/2)/S.D)*180/Math.PI+6,20,170);
+  const Q=41253/(Hh*S.V);
+  const A=2*(S.W*S.D+S.W*S.ht+S.D*S.ht);
+  const R=A*S.alpha/(1-S.alpha);
+  const rc=0.141*Math.sqrt(Q*R);
+  return {Hh,Q,R,rc,DI:10*Math.log10(Q)};
+}
+function pat(ang,Hh){ // simple raised-cosine pattern, −6 dB at edges
+  const e=Hh/2;
+  const a=Math.abs(ang);
+  if(a<=e) return 1-0.5*Math.pow(a/e,2);
+  return Math.max(0.02,0.5*Math.exp(-Math.pow((a-e)/16,1.4)));
+}
+function draw(){
+  const cw0=cv.getBoundingClientRect().width||700;
+  const narrow=cw0<640;
+  if(narrow){
+    const pw0=cw0-58, ph0=pw0*S.D/S.W;
+    cv.setAttribute('height',Math.round(34+ph0+318));
+  } else cv.setAttribute('height',660);
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const K=calc();
+  const SIDE=narrow?24:190, M=narrow?34:50;
+  const pw=narrow?(W-M-SIDE):Math.min(W-M-SIDE,(H-70)*S.W/S.D), ph=pw*S.D/S.W;
+  const ox=M, oy=34;
+  const mx=x=>ox+ (x/S.W+0.5)*pw, my=y=>oy+(y/S.D)*ph;
+  lab(g,W<640?'PLAN VIEW · drag the listener':'PLAN VIEW  ·  source at top centre  ·  drag the listener',ox,20,C.birch,9.5);
+
+  // field map
+  const step=4;
+  for(let py=0;py<ph;py+=step){
+    for(let px=0;px<pw;px+=step){
+      const wx=(px/pw-0.5)*S.W, wy=(py/ph)*S.D+0.6;
+      const r=Math.hypot(wx,wy);
+      const ang=Math.atan2(wx,wy)*180/Math.PI;
+      const direct=pat(ang,K.Hh)/(r*r);
+      const rev=4/K.R;
+      const dr=10*Math.log10(direct/rev);
+      const t=clamp((dr+14)/26,0,1);
+      const rr=Math.round(lerp(12,255,Math.pow(t,.8)));
+      const gg=Math.round(lerp(30,158,Math.pow(t,.9)));
+      const bb=Math.round(lerp(34,27,t));
+      g.fillStyle='rgb('+rr+','+gg+','+bb+')';
+      g.fillRect(ox+px,oy+py,step,step);
+    }
+  }
+  // critical distance arc
+  g.strokeStyle=C.cyan; g.lineWidth=1.6; g.setLineDash([4,4]);
+  g.beginPath();
+  for(let a=-90;a<=90;a++){
+    const th=a*Math.PI/180;
+    const x=mx(K.rc*Math.sin(th)), y=my(K.rc*Math.cos(th));
+    a===-90?g.moveTo(x,y):g.lineTo(x,y);
+  }
+  g.stroke(); g.setLineDash([]);
+  // coverage edges
+  g.strokeStyle='rgba(217,185,138,.55)'; g.lineWidth=1;
+  for(const s of[-1,1]){
+    const th=s*K.Hh/2*Math.PI/180;
+    g.beginPath(); g.moveTo(mx(0),my(0));
+    g.lineTo(mx(Math.tan(th)*S.D),my(S.D)); g.stroke();
+  }
+  // room outline
+  g.strokeStyle=C.birch; g.lineWidth=1.4; g.strokeRect(ox,oy,pw,ph);
+  // source
+  g.fillStyle=C.sodium; g.fillRect(mx(0)-7,oy-4,14,8);
+  // listener
+  const lx=mx(lis.x), ly=my(lis.y);
+  g.strokeStyle=C.text; g.lineWidth=2; g.beginPath(); g.arc(lx,ly,7,0,7); g.stroke();
+  g.beginPath(); g.arc(lx,ly,2.4,0,7); g.fillStyle=C.text; g.fill();
+  lab(g,'r'+'c = '+K.rc.toFixed(1)+' m',mx(0)+6,my(K.rc)-6,C.cyan,9.5);
+
+  // legend + D/R plot: beside the plan on wide screens, beneath it on narrow
+  const cxx = narrow ? ox : ox+pw+22;
+  const LGY = narrow ? oy+ph+40 : 50;
+  const cmap=dr=>{
+    let rr,gg,bb;
+    if(dr>=0){const e=Math.pow(dr/12,.85); rr=Math.round(lerp(14,255,e));gg=Math.round(lerp(30,158,e));bb=Math.round(lerp(32,27,e));}
+    else{const e=Math.pow(-dr/14,.85); rr=Math.round(lerp(14,15,e));gg=Math.round(lerp(30,62,e));bb=Math.round(lerp(32,70,e));}
+    return 'rgb('+rr+','+gg+','+bb+')';
+  };
+  lab(g,'DIRECT / REVERBERANT',cxx,LGY-10,C.birch,9.5);
+  if(narrow){
+    const bwid=pw/70;
+    for(let i=0;i<70;i++){ g.fillStyle=cmap(12-26*i/69); g.fillRect(cxx+i*bwid,LGY,bwid+0.6,12); }
+    lab(g,'+12 dB',cxx,LGY+24,C.ash,8.5);
+    lab(g,'0 dB',cxx+pw*0.46,LGY+24,C.ash,8.5,'center');
+    lab(g,'−14 dB · detail lost',cxx+pw,LGY+24,'rgba(255,77,109,.9)',8.5,'right');
+  } else {
+    for(let i=0;i<70;i++){ g.fillStyle=cmap(12-26*i/69); g.fillRect(cxx,LGY+12+i*2.4,16,2.6); }
+    lab(g,'+12 dB',cxx+22,LGY+20,C.ash,9);
+    lab(g,'0 dB',cxx+22,LGY+12+35*2.4+4,C.ash,9);
+    lab(g,'−14 dB',cxx+22,LGY+12+69*2.4+4,C.ash,9);
+    lab(g,'detail lost',cxx+22,LGY+12+69*2.4+18,'rgba(255,77,109,.9)',9);
+  }
+
+  // D/R vs distance on axis
+  const gx=cxx, gw=narrow?pw:Math.max(140,W-cxx-24);
+  const gy=narrow?(LGY+66):290, gh=narrow?180:200;
+  grid(g,gx,gy,gw,gh,4,4);
+  lab(g,'D/R ON AXIS vs DISTANCE',gx,gy-10,C.birch,9.5);
+  g.strokeStyle=C.sodium; g.lineWidth=2; g.beginPath();
+  for(let i=0;i<=gw;i++){
+    const dd=0.8+(S.D-0.8)*i/gw;
+    const val=clamp(10*Math.log10((pat(0,K.Hh)/(dd*dd))/(4/K.R)),-20,20);
+    const yy=gy+gh-(val+20)/40*gh;
+    i?g.lineTo(gx+i,yy):g.moveTo(gx+i,yy);
+  }
+  g.stroke();
+  g.strokeStyle='rgba(95,227,216,.6)'; g.setLineDash([3,4]);
+  g.beginPath(); g.moveTo(gx,gy+gh/2); g.lineTo(gx+gw,gy+gh/2); g.stroke();
+  const rcx=gx+gw*(K.rc-0.8)/(S.D-0.8);
+  if(rcx>gx&&rcx<gx+gw){ g.beginPath(); g.moveTo(rcx,gy); g.lineTo(rcx,gy+gh); g.stroke(); }
+  g.setLineDash([]);
+  lab(g,'+20 dB',gx+4,gy+11,'rgba(138,160,155,.7)',8.5);
+  lab(g,'equal',gx+4,gy+gh/2-4,C.cyan,8.5);
+  lab(g,'−20 dB',gx+4,gy+gh-4,'rgba(138,160,155,.7)',8.5);
+  if(rcx>gx&&rcx<gx+gw) lab(g,'r'+'c',rcx+4,gy+gh-14,C.cyan,9);
+  lab(g,'0 m',gx,gy+gh+13,C.ash,8.5);
+  lab(g,S.D+' m from the stacks',gx+gw,gy+gh+13,C.ash,8.5,'right');
+
+  // metrics
+  const r=Math.max(0.6,Math.hypot(lis.x,lis.y));
+  const ang=Math.atan2(lis.x,lis.y)*180/Math.PI;
+  const dr=10*Math.log10((pat(ang,K.Hh)/(r*r))/(4/K.R));
+  // coverage fraction
+  let inside=0,tot=0;
+  for(let y=1;y<S.D;y+=1)for(let x=-S.W/2;x<S.W/2;x+=1){
+    tot++; const rr=Math.hypot(x,y), aa=Math.abs(Math.atan2(x,y)*180/Math.PI);
+    if(rr<K.rc&&aa<K.Hh/2) inside++;
+  }
+  const cov=inside/tot*100;
+  ro('#rm-ro-Q',K.Q.toFixed(1)+'<small> · DI '+K.DI.toFixed(1)+' dB</small>', K.Q>14?'good':K.Q>7?'warn':'bad');
+  ro('#rm-ro-rc',K.rc.toFixed(1)+'<small> m</small>', K.rc>18?'good':K.rc>9?'warn':'bad');
+  ro('#rm-ro-dr',(dr>=0?'+':'')+dr.toFixed(1)+'<small> dB</small>', dr>3?'good':dr>-3?'warn':'bad');
+  ro('#rm-ro-cov',cov.toFixed(0)+'<small>%</small>', cov>55?'good':cov>28?'warn':'bad');
+  if(S.vane){ $('#rm-qv').textContent=K.Hh.toFixed(0)+'° auto'; $('#rm-q').value=Math.round(K.Hh); }
+
+  let v;
+  if(dr<-4) v='At this seat the room is '+Math.abs(dr).toFixed(0)+' dB louder than the speaker. You are hearing a blurred copy of the music arriving from every surface at once. No EQ move helps: the reflections have the same spectrum as the direct sound, so anything you cut, you cut from both.';
+  else if(dr<3) v='Around critical distance. Direct and reverberant are comparable — intelligibility is marginal and transients are already softening. Narrowing the pattern or adding absorption both move r\u1D9C outward; adding level does not, because it raises both terms equally.';
+  else v='Solidly in the direct field, +'+dr.toFixed(0)+' dB over the room. This is where detail survives. Notice that getting here was about pattern control and absorption, never about power.';
+  $('#rm-verdict').textContent=v;
+}
+function pointer(e){
+  const r=cv.getBoundingClientRect();
+  const Hc=parseFloat(cv.getAttribute('height'));
+  const narrow=r.width<640, SIDE=narrow?24:190, M=narrow?34:50;
+  const pw=narrow?(r.width-M-SIDE):Math.min(r.width-M-SIDE,(Hc-70)*S.W/S.D);
+  const ph=pw*S.D/S.W, ox=M, oy=34;
+  lis.x=clamp(((e.clientX-r.left-ox)/pw-0.5)*S.W,-S.W/2+0.5,S.W/2-0.5);
+  lis.y=clamp(((e.clientY-r.top-oy)/ph)*S.D,0.8,S.D-0.5);
+  draw();
+}
+let down=false;
+cv.addEventListener('pointerdown',e=>{down=true;cv.setPointerCapture(e.pointerId);pointer(e);});
+cv.addEventListener('pointermove',e=>{if(down)pointer(e);});
+cv.addEventListener('pointerup',()=>down=false);
+$('#rm-q').addEventListener('input',e=>{S.H=+e.target.value;$('#rm-qv').textContent=S.H+'°';draw();});
+$('#rm-a').addEventListener('input',e=>{S.alpha=+e.target.value/100;$('#rm-av').textContent=S.alpha.toFixed(2);draw();});
+$('#rm-w').addEventListener('input',e=>{S.W=+e.target.value;$('#rm-wv').textContent=S.W+' m';lis.x=clamp(lis.x,-S.W/2+1,S.W/2-1);draw();});
+seg('#rm-vane',v=>{S.vane=+v;draw();});
+addEventListener('resize',()=>draw());
+draw(); reg(cv,()=>{});
+})();
+
+
+/* ================= EAR ================= */
+(function(){
+const cv=$('#eqC'); if(!cv)return;
+const f=[20,25,31.5,40,50,63,80,100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000,6300,8000,10000,12500];
+const af=[.532,.506,.480,.455,.432,.409,.387,.367,.349,.330,.315,.301,.288,.276,.267,.259,.253,.250,.246,.244,.243,.243,.243,.242,.242,.245,.254,.271,.301];
+const Lu=[-31.6,-27.2,-23.0,-19.1,-15.9,-13.0,-10.3,-8.1,-6.2,-4.5,-3.1,-2.0,-1.1,-0.4,0,.3,.5,0,-2.7,-4.1,-1.0,1.7,2.5,1.2,-2.1,-7.1,-11.2,-10.7,-3.1];
+const Tf=[78.5,68.7,59.5,51.1,44.0,37.5,31.5,26.5,22.1,17.9,14.4,11.4,8.6,6.2,4.4,3.0,2.2,2.4,3.5,1.7,-1.3,-4.2,-6.0,-5.4,-1.5,6.0,12.6,13.9,12.3];
+let LEV=105;
+function spl(i,Ln){
+  const A=4.47e-3*(Math.pow(10,0.025*Ln)-1.15)+Math.pow(0.4*Math.pow(10,((Tf[i]+Lu[i])/10)-9),af[i]);
+  return (10/af[i])*Math.log10(A)-Lu[i]+94;
+}
+function draw(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const M=54,w=W-M-24,y0=28,h=H-y0-38;
+  grid(g,M,y0,w,h,6,6);
+  lab(g,W<640?'EQUAL-LOUDNESS CONTOURS':'EQUAL-LOUDNESS CONTOURS  ·  SPL required for constant perceived loudness',M,y0-10,C.birch,9.5);
+  const fx=v=>M+w*Math.log(v/20)/Math.log(12500/20);
+  const sy=v=>y0+h-(v/130)*h;
+  const drawC=(Ln,col,lw,dash)=>{
+    g.strokeStyle=col;g.lineWidth=lw;g.setLineDash(dash||[]);g.beginPath();
+    for(let i=0;i<f.length;i++){const y=sy(clamp(spl(i,Ln),0,130));i?g.lineTo(fx(f[i]),y):g.moveTo(fx(f[i]),y);}
+    g.stroke();g.setLineDash([]);
+  };
+  [20,40,60,80,100].forEach(p=>drawC(p,'rgba(95,227,216,.28)',1));
+  // current
+  const phon=clamp(LEV-6,10,100);
+  drawC(phon,C.sodium,2.4);
+  // reference flat line at 1k
+  const y1k=sy(spl(17,phon));
+  g.strokeStyle='rgba(217,185,138,.30)';g.setLineDash([3,5]);
+  g.beginPath();g.moveTo(M,y1k);g.lineTo(M+w,y1k);g.stroke();g.setLineDash([]);
+  lab(g,'equal to 1 kHz',M+w-4,y1k-6,'rgba(217,185,138,.8)',9,'right');
+  // shade the deficit at LF
+  g.fillStyle='rgba(255,158,27,.10)';
+  g.beginPath();g.moveTo(fx(20),y1k);
+  for(let i=0;i<8;i++) g.lineTo(fx(f[i]),sy(clamp(spl(i,phon),0,130)));
+  g.lineTo(fx(f[7]),y1k);g.closePath();g.fill();
+  [20,50,100,500,1000,5000,10000].forEach(v=>lab(g,v>=1000?(v/1000)+'k':v+'',fx(v),y0+h+14,C.ash,8.5,'center'));
+  for(let d=0;d<=120;d+=20) lab(g,d+'',M-6,sy(d)+3,C.ash,8.5,'right');
+  lab(g,'dB SPL',M-6,y0-2,C.ash,8.5,'right');
+  g.fillStyle=C.sodium;g.font='500 12px '+MONO;
+  g.fillText(phon.toFixed(0)+' phon',fx(150),sy(clamp(spl(9,phon),0,130))-11);
+
+  const d40=spl(3,phon)-spl(17,phon);
+  const d3k=spl(22,phon)-spl(17,phon);
+  const tilt=spl(0,phon)-spl(17,phon);
+  ro('#eq-ro-40','−'+d40.toFixed(1)+'<small> dB</small>', d40>16?'bad':d40>9?'warn':'good');
+  ro('#eq-ro-3k','+'+Math.abs(d3k).toFixed(1)+'<small> dB</small>','warn');
+  ro('#eq-ro-tilt',tilt.toFixed(0)+'<small> dB @20 Hz</small>', tilt>28?'bad':'warn');
+  $('#eq-state').textContent=phon.toFixed(0)+' phon';
+  let v;
+  if(LEV<70) v='At this level the ear needs '+d40.toFixed(0)+' dB more at 40 Hz than at 1 kHz to hear them as equally loud. A system tuned to sound balanced here will be badly bass-heavy once the room fills and the level comes up.';
+  else if(LEV<100) v='Mid territory. The curve is flattening but there is still a real low-frequency deficit. This is roughly where most listening rooms live and where most house curves get written — which is why they rarely translate to a show.';
+  else v='Show level. The contour has flattened out: '+d40.toFixed(0)+' dB now separates 40 Hz from 1 kHz, against roughly 32 dB at conversation volume. The low end has not been boosted — your ear simply stopped attenuating it. This is why tuning at conversation volume produces a system that is wrong at the only level it will ever be used.';
+  $('#eq-verdict').textContent=v;
+}
+$('#eq-l').addEventListener('input',e=>{LEV=+e.target.value;$('#eq-lv').textContent=LEV+' dB SPL';draw();});
+addEventListener('resize',()=>draw());
+draw(); reg(cv,()=>{});
+})();
+
+
+/* ================= TIPPER TEST ================= */
+(function(){
+const cv=$('#tipC'); if(!cv)return;
+const S={q:1,iso:'all'};
+const N=1600, DUR=0.9, SR=N/DUR;
+let ac=null,src=null;
+
+function clean(){
+  const y=new Float32Array(N);
+  for(let i=0;i<N;i++){
+    const t=i/SR;
+    let v=0;
+    // sub
+    v+=0.62*Math.sin(2*Math.PI*46*t)*Math.exp(-Math.pow((t-0.16)/0.20,2))*(t>0.05?1:0);
+    v+=0.5*Math.sin(2*Math.PI*44*t)*Math.exp(-Math.pow((t-0.60)/0.16,2));
+    // transients
+    [0.08,0.30,0.44,0.66,0.78].forEach((tc,k)=>{
+      const d=t-tc;
+      if(d>=0) v+=(0.85-k*0.09)*Math.exp(-d/0.0016)*Math.sin(2*Math.PI*2600*d);
+    });
+    // detail layer
+    v+=0.13*Math.sin(2*Math.PI*3100*t+2*Math.sin(2*Math.PI*7*t))*Math.exp(-Math.pow(((t%0.22)-0.02)/0.05,2));
+    y[i]=v*0.72;
+  }
+  return y;
+}
+function degrade(x){
+  const q=S.q, k=1-q, y=new Float32Array(N);
+  const on=m=>S.iso==='all'||S.iso===m;
+  // sub envelope for IM
+  const sub=new Float32Array(N);
+  let s=0;
+  for(let i=0;i<N;i++){ const t=i/SR;
+    sub[i]=0.62*Math.sin(2*Math.PI*46*t)*Math.exp(-Math.pow((t-0.16)/0.20,2))+0.5*Math.sin(2*Math.PI*44*t)*Math.exp(-Math.pow((t-0.60)/0.16,2));
+  }
+  for(let i=0;i<N;i++) y[i]=x[i];
+  if(on('im')) for(let i=0;i<N;i++) y[i]=y[i]*(1+1.15*k*sub[i]) + 0.5*k*Math.tanh(y[i]*4)*Math.abs(sub[i]);
+  if(on('comb')){ const d=Math.round(0.00042*SR)||1; const t2=y.slice();
+    for(let i=0;i<N;i++) y[i]=t2[i]+0.85*k*(t2[i-d]||0); }
+  if(on('ring')){ const f0=235,Q=6+390*k;
+    let z1=0,z2=0; const w0=2*Math.PI*f0/SR, a=Math.exp(-w0/(2*Q));
+    for(let i=0;i<N;i++){ const w=y[i]*0.4*k+2*a*Math.cos(w0)*z1-a*a*z2; y[i]+= (w-z1)*1.15; z2=z1;z1=w; } }
+  if(on('comp')){ let env=0;
+    for(let i=0;i<N;i++){ const a=Math.abs(y[i]);
+      env = a>env ? env+(a-env)*0.30 : env+(a-env)*0.0035;
+      const g=1/(1+env*5.5*k);
+      y[i]*=g*(1+1.3*k); } }
+  let mx=0; for(let i=0;i<N;i++) mx=Math.max(mx,Math.abs(y[i]));
+  if(mx>0) for(let i=0;i<N;i++) y[i]/=Math.max(1,mx/1.35);
+  return y;
+}
+function envOf(a,lo,hi){ // crude band energy envelope
+  const out=new Float32Array(N); let z=0;
+  for(let i=0;i<N;i++){
+    const t=i/SR;
+    let v=a[i];
+    out[i]=v*v;
+  }
+  const sm=new Float32Array(N); let e=0;
+  for(let i=0;i<N;i++){ e+= (out[i]-e)*0.07; sm[i]=Math.sqrt(e); }
+  return sm;
+}
+function draw(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const A=clean(), B=degrade(A);
+  const M=54,w=W-M-22;
+  const trace=(arr,y0,h,col,title)=>{
+    grid(g,M,y0,w,h,2,8);
+    lab(g,title,M,y0-9,C.birch,9.5);
+    g.strokeStyle=col;g.lineWidth=1.3;g.beginPath();
+    for(let i=0;i<N;i++){const x=M+w*i/(N-1);const yy=y0+h/2-arr[i]*h*0.44;i?g.lineTo(x,yy):g.moveTo(x,yy);}
+    g.stroke();
+  };
+  trace(A,30,150,C.cyan,W<640?'SOURCE SIGNAL':'SOURCE SIGNAL  ·  transients + 46 Hz sub + 3 kHz detail');
+  trace(B,232,150,S.q>0.7?C.sodium:C.mag,'AS DELIVERED  ·  rig quality '+(S.q*100).toFixed(0)+'%');
+
+  // envelopes overlay
+  const y2=430,h2=H-y2-30;
+  grid(g,M,y2,w,h2,3,8);
+  lab(g,'ENERGY ENVELOPE  ·  where the microdynamics went',M,y2-9,C.birch,9.5);
+  const ea=envOf(A), eb=envOf(B);
+  const mxE=Math.max(...ea,...eb);
+  const pl=(e,col,lw)=>{g.strokeStyle=col;g.lineWidth=lw;g.beginPath();
+    for(let i=0;i<N;i++){const x=M+w*i/(N-1),yy=y2+h2-e[i]/mxE*h2*0.94;i?g.lineTo(x,yy):g.moveTo(x,yy);}g.stroke();};
+  pl(ea,'rgba(95,227,216,.75)',1.5); pl(eb,C.sodium,1.8);
+  lab(g,'source',M+w-6,y2+13,'rgba(95,227,216,.85)',9,'right');
+  lab(g,'delivered',M+w-6,y2+25,C.sodium,9,'right');
+  for(let i=0;i<=4;i++) lab(g,(i*DUR/4).toFixed(2)+' s',M+w*i/4,y2+h2+13,C.ash,8.5,i===0?'left':'center');
+
+  // metrics
+  const pkA=Math.max(...A.map(Math.abs)), pkB=Math.max(...B.map(Math.abs));
+  let cr=0,crB=0,ma=0,mb=0;
+  for(let i=0;i<N;i++){ma+=A[i]*A[i];mb+=B[i]*B[i];}
+  const crestA=pkA/Math.sqrt(ma/N), crestB=pkB/Math.sqrt(mb/N);
+  const tr=clamp(crestB/crestA,0,1)*100;
+  const q=S.q;
+  const sep=clamp(100-(1-q)*76,0,100);
+  const img=clamp(100-(1-q)*88,0,100);
+  const smear=(1-q)*(S.iso==='all'||S.iso==='ring'?34:8)+0.4;
+  ro('#tip-ro-tr',tr.toFixed(0)+'<small>%</small>', tr>82?'good':tr>55?'warn':'bad');
+  ro('#tip-ro-sep',sep.toFixed(0)+'<small>%</small>', sep>80?'good':sep>50?'warn':'bad');
+  ro('#tip-ro-img',img.toFixed(0)+'<small>%</small>', img>80?'good':img>50?'warn':'bad');
+  ro('#tip-ro-mud',smear.toFixed(0)+'<small> ms</small>', smear<6?'good':smear<18?'warn':'bad');
+  $('#tip-state').textContent='rig quality: '+(S.q*100).toFixed(0)+'%';
+  let v;
+  if(S.iso==='im') v='Intermodulation only. The 46 Hz sub is amplitude- and frequency-modulating everything above it, because one cone is trying to do both and it is physically a moving source. The mids acquire a wobble that tracks the bassline. This one is cured entirely by reducing excursion.';
+  else if(S.iso==='comb') v='Comb filtering only. A 0.42 ms second arrival — two sources a few hundred millimetres apart. The waveform develops a shadow of itself, notches appear at different frequencies in each ear, and the stereo image collapses from placed objects into a vague wide blur.';
+  else if(S.iso==='ring') v='Panel ringing only. Each transient now excites a 235 Hz cabinet mode that keeps sounding after the hit. Look at the envelope plot: the valleys between transients have filled in. That is the mud, and it is time-domain, not tonal.';
+  else if(S.iso==='comp') v='Power compression only. The peaks are being pulled down and the average pushed up. It measures as roughly the same loudness and it sounds louder, but the crest factor has collapsed — the difference between a hit and a whisper is gone, and that difference is where the music was.';
+  else if(S.q>0.85) v='Everything survives. Transients keep their edge, the sub sits under the mids without modulating them, the envelope valleys stay open, and the imaging holds. Nothing here is exotic — it is just four separate problems each solved properly.';
+  else if(S.q>0.5) v='Compounding. Each fault is individually mild and none of it sounds obviously broken. Together they have taken '+(100-tr).toFixed(0)+'% off the transient peaks and filled the quiet spaces. This is what most systems sound like: fine, and not the thing.';
+  else v='Gone. The waveform barely resembles the source. Notice you would still describe this rig as "working" — it plays music at volume without audible failure. It has simply stopped carrying the information the track was built out of.';
+  $('#tip-verdict').textContent=v;
+}
+/* audio A/B */
+function buildBuf(deg){
+  const sr=ac.sampleRate, n=Math.round(sr*1.3), b=ac.createBuffer(2,n,sr);
+  const k=1-S.q;
+  for(let ch=0;ch<2;ch++){
+    const d=b.getChannelData(ch);
+    let env=0,z1=0,z2=0;
+    const f0=235,Q=6+390*k, w0=2*Math.PI*f0/sr, aa=Math.exp(-w0/(2*Q));
+    const dly=Math.round(0.00042*sr);
+    const hist=new Float32Array(n);
+    for(let i=0;i<n;i++){
+      const t=i/sr; let v=0;
+      const sub=0.55*Math.sin(2*Math.PI*46*t)*Math.exp(-Math.pow((t-0.22)/0.26,2))
+              +0.45*Math.sin(2*Math.PI*44*t)*Math.exp(-Math.pow((t-0.86)/0.20,2));
+      v+=sub;
+      [0.10,0.42,0.62,0.94,1.10].forEach((tc,q2)=>{
+        const dd=t-tc;
+        if(dd>=0&&dd<0.06) v+=(0.7-q2*0.07)*Math.exp(-dd/0.0022)*Math.sin(2*Math.PI*(2400+ch*90)*dd);
+      });
+      v+=0.11*Math.sin(2*Math.PI*(3050+ch*160)*t+2*Math.sin(2*Math.PI*6*t))*Math.exp(-Math.pow(((t%0.31)-0.03)/0.07,2));
+      if(deg){
+        v=v*(1+1.1*k*sub)+0.45*k*Math.tanh(v*4)*Math.abs(sub);
+        hist[i]=v;
+        v=v+0.8*k*(hist[i-dly]||0);
+        const wv=v*0.35*k+2*aa*Math.cos(w0)*z1-aa*aa*z2;
+        v+=(wv-z1)*1.0; z2=z1; z1=wv;
+        const a2=Math.abs(v);
+        env = a2>env? env+(a2-env)*0.3 : env+(a2-env)*0.0025;
+        v*= (1/(1+env*5*k))*(1+1.2*k);
+      }
+      d[i]=v*0.24;
+    }
+  }
+  return b;
+}
+function play(){
+  if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)();
+  if(ac.state==='suspended') ac.resume();
+  stop();
+  const g0=ac.createGain(); g0.gain.value=0.85; g0.connect(ac.destination);
+  const a=ac.createBufferSource(); a.buffer=buildBuf(false); a.connect(g0);
+  const b=ac.createBufferSource(); b.buffer=buildBuf(true); b.connect(g0);
+  const t0=ac.currentTime+0.05;
+  a.start(t0); b.start(t0+1.6);
+  src=[a,b];
+  $('#tip-play').textContent='▶ playing…';
+  setTimeout(()=>{$('#tip-play').textContent='▶ Hear both';},3100);
+}
+function stop(){ if(src){src.forEach(s=>{try{s.stop();}catch(e){}}); src=null;} $('#tip-play').textContent='▶ Hear both'; }
+$('#tip-play').addEventListener('click',play);
+$('#tip-stop').addEventListener('click',stop);
+$('#tip-q').addEventListener('input',e=>{S.q=+e.target.value/100;$('#tip-qv').textContent=e.target.value+'%';draw();});
+seg('#tip-iso',v=>{S.iso=v;draw();});
+addEventListener('resize',()=>draw());
+draw(); reg(cv,()=>{});
+})();
+
+
+/* ================= SHAPE OPTIMISER ================= */
+(function(){
+const cv=$('#optC'); if(!cv)return;
+const NSEG=44, L=1.10, R0=0.032, RMAXB=0.42, RHO=1.2, CC=343;
+const NP=8, POP=30, NF=26;
+const S={lo:90,hi:700,pen:0.30,sm:0.45};
+let pop=[], fitv=[], gen=0, best=null, bestScore=-1e9, running=false, refScore=0, refProf=null, hist=[];
+
+function toProfile(v){
+  const r=new Float32Array(NSEG);
+  for(let i=0;i<NSEG;i++){
+    const t=i/(NSEG-1)*(NP-1);
+    const a=Math.floor(t), b=Math.min(NP-1,a+1), fr=t-a;
+    r[i]=lerp(v[a],v[b],fr);
+  }
+  r[0]=R0;
+  return r;
+}
+function throatZ(r,f){
+  const k=2*Math.PI*f/CC, l=L/NSEG;
+  const am=r[NSEG-1], Sm=Math.PI*am*am, ka=k*am, zc0=RHO*CC/Sm;
+  let zr=zc0*(ka*ka)/(2+ka*ka), zi=zc0*0.6*ka/(1+0.6*ka*ka);
+  const B=Math.tan(k*l);
+  for(let i=NSEG-1;i>=0;i--){
+    const Zc=RHO*CC/(Math.PI*r[i]*r[i]);
+    const A=Math.tanh(0.55*Math.sqrt(f)/1000/Math.max(0.02,r[i])*l);
+    const di0=A*B, den0=1+di0*di0;
+    const Tr=(A+B*di0)/den0, Ti=(B-A*di0)/den0;
+    const nr=zr+Zc*Tr, ni=zi+Zc*Ti;
+    const dr=Zc+(zr*Tr-zi*Ti), di=(zr*Ti+zi*Tr);
+    const den=dr*dr+di*di;
+    zr=Zc*(nr*dr+ni*di)/den; zi=Zc*(ni*dr-nr*di)/den;
+  }
+  return zr;
+}
+function score(v){
+  const r=toProfile(v);
+  for(let i=1;i<NSEG;i++) if(r[i]<r[i-1]*0.985) return -50; // must not close up
+  const St=Math.PI*R0*R0, zct=RHO*CC/St;
+  let s=0,s2=0,mn=1e9;
+  for(let i=0;i<NF;i++){
+    const f=S.lo*Math.pow(S.hi/S.lo,i/(NF-1));
+    const u=throatZ(r,f)/zct;
+    s+=u; s2+=u*u; if(u<mn)mn=u;
+  }
+  const mean=s/NF, sd=Math.sqrt(Math.max(0,s2/NF-mean*mean));
+  let curv=0;
+  for(let i=1;i<NSEG-1;i++) curv+=Math.abs(r[i+1]-2*r[i]+r[i-1]);
+  const size=Math.PI*r[NSEG-1]*r[NSEG-1]/(Math.PI*0.25*0.25);
+  return mean + 0.9*mn - 3.2*sd - S.pen*1.6*size - S.sm*95*curv;
+}
+function expRef(){
+  const rm=CC/(4*Math.PI)*0 , m=Math.log(0.26/R0)/L;
+  const r=new Float32Array(NSEG);
+  for(let i=0;i<NSEG;i++) r[i]=R0*Math.exp(m*(i/(NSEG-1))*L);
+  return r;
+}
+function refEval(){
+  refProf=expRef();
+  const v=[]; for(let i=0;i<NP;i++) v.push(refProf[Math.round(i/(NP-1)*(NSEG-1))]);
+  refScore=score(v);
+}
+function init(){
+  pop=[];fitv=[];gen=0;bestScore=-1e9;best=null;hist=[];
+  for(let p=0;p<POP;p++){
+    const v=[]; let r=R0;
+    for(let i=0;i<NP;i++){ r=r*(1+Math.random()*0.55); v.push(clamp(r,R0,RMAXB)); }
+    pop.push(v); fitv.push(score(v));
+  }
+  refEval();
+  pick();
+}
+function pick(){
+  for(let p=0;p<POP;p++) if(fitv[p]>bestScore){bestScore=fitv[p];best=pop[p].slice();}
+}
+function generation(){
+  const F=0.62, CR=0.88;
+  for(let p=0;p<POP;p++){
+    let a,b,c;
+    do{a=Math.floor(Math.random()*POP);}while(a===p);
+    do{b=Math.floor(Math.random()*POP);}while(b===p||b===a);
+    do{c=Math.floor(Math.random()*POP);}while(c===p||c===a||c===b);
+    const trial=[];
+    const jr=Math.floor(Math.random()*NP);
+    for(let j=0;j<NP;j++){
+      let val = (Math.random()<CR||j===jr) ? pop[a][j]+F*(pop[b][j]-pop[c][j]) : pop[p][j];
+      trial.push(clamp(val,R0,RMAXB));
+    }
+    const s=score(trial);
+    if(s>fitv[p]){pop[p]=trial;fitv[p]=s;}
+  }
+  gen++; pick(); hist.push(bestScore); if(hist.length>260)hist.shift();
+}
+function render(){
+  const {g,W,H}=fit(cv);
+  g.fillStyle=C.panel; g.fillRect(0,0,W,H);
+  const M=54,w=W-M-22;
+  const r=best?toProfile(best):expRef();
+  /* profile */
+  const y0=28,h0=196, cyy=y0+h0/2;
+  let RSC=0.05; for(let i=0;i<NSEG;i++) RSC=Math.max(RSC,r[i],refProf[i]); RSC*=1.12;
+  grid(g,M,y0,w,h0,4,8);
+  lab(g,W<640?'BEST PROFILE · 8 control points':'BEST PROFILE  ·  8 free control points, no shape prior',M,y0-9,C.birch,9.5);
+  const sx=i=>M+w*i/(NSEG-1), sy=v=>cyy-v/RMAXB*(h0/2)*0.92;
+  g.strokeStyle='rgba(217,185,138,.45)'; g.setLineDash([3,4]); g.lineWidth=1.2;
+  for(const s of[-1,1]){ g.beginPath();
+    for(let i=0;i<NSEG;i++){const y=cyy - s*(refProf[i]/RSC*(h0/2)*0.92); i?g.lineTo(sx(i),y):g.moveTo(sx(i),y);} g.stroke(); }
+  g.setLineDash([]);
+  g.strokeStyle=C.sodium; g.lineWidth=2.2;
+  for(const s of[-1,1]){ g.beginPath();
+    for(let i=0;i<NSEG;i++){const y=cyy - s*(r[i]/RSC*(h0/2)*0.92); i?g.lineTo(sx(i),y):g.moveTo(sx(i),y);} g.stroke(); }
+  g.strokeStyle='rgba(217,185,138,.2)'; g.setLineDash([2,5]);
+  g.beginPath();g.moveTo(M,cyy);g.lineTo(M+w,cyy);g.stroke();g.setLineDash([]);
+  lab(g,'exponential reference',M+w-6,y0+14,'rgba(217,185,138,.8)',9,'right');
+  lab(g,'optimiser',M+w-6,y0+26,C.sodium,9,'right');
+  lab(g,'throat  ⌀64 mm',M,y0+h0+14,C.ash,8.5);
+  lab(g,'mouth ⌀'+(r[NSEG-1]*2000).toFixed(0)+' mm',M+w-2,y0+h0+14,C.sodium,8.5,'right');
+  lab(g,'1.10 m long',M+w/2,y0+h0+14,C.ash,8.5,'center');
+
+  /* loading curve */
+  const y1=272,h1=186;
+  grid(g,M,y1,w,h1,4,8);
+  lab(g,W<640?'THROAT RESISTANCE · flatter is better':'THROAT ACOUSTIC RESISTANCE  ·  normalised, higher & flatter is better',M,y1-9,C.birch,9.5);
+  const St=Math.PI*R0*R0, zct=RHO*CC/St;
+  const band=[S.lo*0.55,S.hi*1.7];
+  const fx=f=>M+w*Math.log(f/band[0])/Math.log(band[1]/band[0]);
+  const plotZ=(prof,col,lw,dash)=>{
+    g.strokeStyle=col;g.lineWidth=lw;g.setLineDash(dash||[]);g.beginPath();
+    for(let i=0;i<=90;i++){
+      const f=band[0]*Math.pow(band[1]/band[0],i/90);
+      const u=clamp(throatZ(prof,f)/zct,0,2.2);
+      const y=y1+h1-u/2.2*h1;
+      i?g.lineTo(fx(f),y):g.moveTo(fx(f),y);
+    }
+    g.stroke();g.setLineDash([]);
+  };
+  // band shading
+  g.fillStyle='rgba(95,227,216,.06)'; g.fillRect(fx(S.lo),y1,fx(S.hi)-fx(S.lo),h1);
+  g.strokeStyle='rgba(95,227,216,.35)';g.setLineDash([3,4]);
+  g.beginPath();g.moveTo(fx(S.lo),y1);g.lineTo(fx(S.lo),y1+h1);g.moveTo(fx(S.hi),y1);g.lineTo(fx(S.hi),y1+h1);g.stroke();g.setLineDash([]);
+  plotZ(refProf,'rgba(217,185,138,.55)',1.3,[3,4]);
+  plotZ(r,C.sodium,2);
+  lab(g,'target band',fx(S.lo)+5,y1+13,C.cyan,9);
+  [50,100,200,500,1000,2000].forEach(f=>{ if(f>band[0]&&f<band[1]) lab(g,f>=1000?(f/1000)+'k':f+'',fx(f),y1+h1+13,C.ash,8.5,'center'); });
+
+  /* convergence */
+  const y2=498,h2=H-y2-24;
+  grid(g,M,y2,w,h2,3,8);
+  lab(g,'CONVERGENCE  ·  best score by generation',M,y2-9,C.birch,9.5);
+  if(hist.length>1){
+    const mn=Math.min(...hist,refScore), mx=Math.max(...hist,refScore);
+    const rg=Math.max(1e-6,mx-mn);
+    g.strokeStyle='rgba(217,185,138,.5)';g.setLineDash([3,4]);
+    const ry=y2+h2-(refScore-mn)/rg*h2*0.9-4;
+    g.beginPath();g.moveTo(M,ry);g.lineTo(M+w,ry);g.stroke();g.setLineDash([]);
+    lab(g,'exponential',M+4,ry-5,'rgba(217,185,138,.85)',9);
+    g.strokeStyle=C.cyan;g.lineWidth=1.8;g.beginPath();
+    hist.forEach((v,i)=>{const x=M+w*i/Math.max(1,hist.length-1),y=y2+h2-(v-mn)/rg*h2*0.9-4;i?g.lineTo(x,y):g.moveTo(x,y);});
+    g.stroke();
+  }
+  // metrics
+  let mean=0,s2=0;
+  for(let i=0;i<NF;i++){const f=S.lo*Math.pow(S.hi/S.lo,i/(NF-1));const u=throatZ(r,f)/zct;mean+=u;s2+=u*u;}
+  mean/=NF; const sd=Math.sqrt(Math.max(0,s2/NF-mean*mean));
+  ro('#opt-ro-gen',gen+'');
+  ro('#opt-ro-score',bestScore>-1e8?bestScore.toFixed(3):'—','good');
+  const dl=bestScore-refScore;
+  ro('#opt-ro-ref',(dl>=0?'+':'')+dl.toFixed(3), dl>0?'good':'warn');
+  ro('#opt-ro-rip','±'+(sd*100).toFixed(1)+'<small>%</small>', sd<0.1?'good':sd<0.22?'warn':'bad');
+  $('#opt-state').textContent=running?('running · gen '+gen):(gen?'paused · gen '+gen:'idle');
+}
+function tick(dt){
+  if(running){ generation();
+    if(gen>420){ running=false; $('#opt-run').textContent='Run optimiser'; }
+    if(gen===90) $('#opt-verdict').textContent='Note what it converged to: not a textbook curve. Small deliberate area perturbations are cancelling reflections at particular frequencies — the kind of thing a human designer would call a mistake. This is exactly the behaviour that made optimised stellarators look so strange next to hand-drawn ones.';
+  }
+  render();
+}
+$('#opt-run').addEventListener('click',()=>{
+  running=!running;
+  $('#opt-run').textContent=running?'Pause':'Run optimiser';
+  if(running&&gen>60){
+    $('#opt-verdict').textContent='Note what it converged to: not a textbook curve. Small deliberate area perturbations are cancelling reflections at particular frequencies — a trick a human designer would call a mistake. This is exactly the behaviour that made optimised stellarators look so strange next to hand-drawn ones.';
+  }
+});
+$('#opt-reset').addEventListener('click',()=>{init();render();});
+$('#opt-lo').addEventListener('input',e=>{S.lo=+e.target.value;$('#opt-lov').textContent=S.lo+' Hz';if(S.hi<S.lo*1.5){S.hi=S.lo*1.5;$('#opt-hi').value=S.hi;$('#opt-hiv').textContent=S.hi.toFixed(0)+' Hz';}refEval();});
+$('#opt-hi').addEventListener('input',e=>{S.hi=+e.target.value;$('#opt-hiv').textContent=S.hi+' Hz';refEval();});
+$('#opt-p').addEventListener('input',e=>{S.pen=+e.target.value/100;$('#opt-pv').textContent=S.pen.toFixed(2);refEval();});
+$('#opt-s').addEventListener('input',e=>{S.sm=+e.target.value/100;$('#opt-sv').textContent=S.sm.toFixed(2);refEval();});
+init(); reg(cv,tick);
+})();
+
+
+/* redraw once layout + fonts settle */
+function nudge(){ dispatchEvent(new Event('resize')); }
+addEventListener('load',()=>{nudge();setTimeout(nudge,120);});
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>setTimeout(nudge,60));
+let rt; addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{},1);});
+
+</script>
+</body>
+</html>

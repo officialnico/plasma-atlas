@@ -1,0 +1,449 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>partial derivative hd</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function PartialDerivativeVisualization() {
+  const canvasRef = useRef(null);
+  const [pointX, setPointX] = useState(0.8);
+  const [pointY, setPointY] = useState(0.8);
+  const [showSliceX, setShowSliceX] = useState(true);
+  const [showTangent, setShowTangent] = useState(true);
+  const [rotationY, setRotationY] = useState(0.6);
+  const [rotationX, setRotationX] = useState(0.35);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [resolution, setResolution] = useState(40);
+
+  // f(x,y) = x²y² + x² + y³
+  const f = (x, y) => x * x * y * y + x * x + y * y * y;
+  
+  // ∂f/∂x = 2xy² + 2x
+  const dfdx = (x, y) => 2 * x * y * y + 2 * x;
+  
+  const fValue = f(pointX, pointY);
+  const partialValue = dfdx(pointX, pointY);
+
+  // 3D projection with zoom
+  const project = (x, y, z, width, height) => {
+    let tempX = x * Math.cos(rotationY) - z * Math.sin(rotationY);
+    let tempZ = x * Math.sin(rotationY) + z * Math.cos(rotationY);
+    x = tempX;
+    z = tempZ;
+
+    let tempY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
+    tempZ = y * Math.sin(rotationX) + z * Math.cos(rotationX);
+    y = tempY;
+    z = tempZ;
+
+    const scale = 50 * zoom;
+    const perspective = 600;
+    const factor = perspective / (perspective + z + 5);
+    
+    return {
+      x: width / 2 + x * scale * factor,
+      y: height / 2 - y * scale * factor,
+      z: z
+    };
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+    
+    // Gradient background
+    const bgGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width/2);
+    bgGradient.addColorStop(0, '#1e2a4a');
+    bgGradient.addColorStop(1, '#0f1525');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, width, height);
+
+    const range = 2;
+    const step = (range * 2) / resolution;
+    const zScale = 0.12;
+
+    // Collect polygons for depth sorting
+    const polygons = [];
+
+    // Build surface mesh
+    for (let xi = -range; xi < range; xi += step) {
+      for (let yi = -range; yi < range; yi += step) {
+        const x1 = xi, y1 = yi;
+        const x2 = xi + step, y2 = yi + step;
+        
+        const z1 = f(x1, y1) * zScale;
+        const z2 = f(x2, y1) * zScale;
+        const z3 = f(x2, y2) * zScale;
+        const z4 = f(x1, y2) * zScale;
+        
+        const p1 = project(x1, z1, y1, width, height);
+        const p2 = project(x2, z2, y1, width, height);
+        const p3 = project(x2, z3, y2, width, height);
+        const p4 = project(x1, z4, y2, width, height);
+        
+        const avgZ = (p1.z + p2.z + p3.z + p4.z) / 4;
+        const avgHeight = (z1 + z2 + z3 + z4) / 4;
+        
+        // Calculate surface normal for shading
+        const v1 = { x: x2 - x1, y: z2 - z1, z: 0 };
+        const v2 = { x: 0, y: z4 - z1, z: y2 - y1 };
+        const normal = {
+          x: v1.y * v2.z - v1.z * v2.y,
+          y: v1.z * v2.x - v1.x * v2.z,
+          z: v1.x * v2.y - v1.y * v2.x
+        };
+        const normalLen = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+        const lightDir = { x: 0.3, y: 1, z: 0.3 };
+        const shade = Math.abs(normal.y / normalLen);
+        
+        const hue = 210 + avgHeight * 30;
+        const sat = 60 + shade * 20;
+        const light = 25 + shade * 30;
+        
+        polygons.push({
+          type: 'surface',
+          points: [p1, p2, p3, p4],
+          z: avgZ,
+          fill: `hsla(${hue}, ${sat}%, ${light}%, 0.85)`,
+          stroke: `hsla(${hue + 20}, ${sat}%, ${light + 20}%, 0.4)`
+        });
+      }
+    }
+
+    // Slice at fixed y (yellow curve) - for ∂f/∂x
+    if (showSliceX) {
+      const slicePoints = [];
+      for (let xi = -range; xi <= range; xi += 0.02) {
+        const z = f(xi, pointY) * zScale;
+        const p = project(xi, z, pointY, width, height);
+        slicePoints.push(p);
+      }
+      polygons.push({
+        type: 'sliceX',
+        points: slicePoints,
+        z: 100 // Always on top
+      });
+    }
+
+    // Point on surface
+    const pointZ = fValue * zScale;
+    const pointProj = project(pointX, pointZ, pointY, width, height);
+    
+    // Tangent line in x direction
+    if (showTangent) {
+      const tangentLength = 0.6;
+      const slope = partialValue * zScale;
+      
+      const t1x = pointX - tangentLength;
+      const t1z = pointZ - slope * tangentLength;
+      const t2x = pointX + tangentLength;
+      const t2z = pointZ + slope * tangentLength;
+      
+      const t1 = project(t1x, t1z, pointY, width, height);
+      const t2 = project(t2x, t2z, pointY, width, height);
+      
+      polygons.push({
+        type: 'tangent',
+        points: [t1, t2],
+        z: 101
+      });
+    }
+
+    // Point
+    polygons.push({
+      type: 'point',
+      proj: pointProj,
+      z: 102
+    });
+
+    // Sort by depth
+    polygons.sort((a, b) => b.z - a.z);
+
+    // Draw everything
+    for (const item of polygons) {
+      if (item.type === 'surface') {
+        // Fill
+        ctx.fillStyle = item.fill;
+        ctx.beginPath();
+        ctx.moveTo(item.points[0].x, item.points[0].y);
+        for (let i = 1; i < item.points.length; i++) {
+          ctx.lineTo(item.points[i].x, item.points[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        
+        // Subtle edge
+        ctx.strokeStyle = item.stroke;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        
+      } else if (item.type === 'sliceX') {
+        // Glow effect
+        ctx.shadowColor = '#f1c40f';
+        ctx.shadowBlur = 15;
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(item.points[0].x, item.points[0].y);
+        for (let i = 1; i < item.points.length; i++) {
+          ctx.lineTo(item.points[i].x, item.points[i].y);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+      } else if (item.type === 'tangent') {
+        // Glow effect for tangent
+        ctx.shadowColor = '#e74c3c';
+        ctx.shadowBlur = 12;
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(item.points[0].x, item.points[0].y);
+        ctx.lineTo(item.points[1].x, item.points[1].y);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+      } else if (item.type === 'point') {
+        // Glowing point
+        ctx.shadowColor = '#2ecc71';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#2ecc71';
+        ctx.beginPath();
+        ctx.arc(item.proj.x, item.proj.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    // Draw axes
+    const axisLen = 2.8;
+    const origin = project(0, 0, 0, width, height);
+    const xEnd = project(axisLen, 0, 0, width, height);
+    const yEnd = project(0, 2.5, 0, width, height);
+    const zEnd = project(0, 0, axisLen, width, height);
+
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    
+    // X axis
+    ctx.strokeStyle = 'rgba(255,100,100,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(xEnd.x, xEnd.y);
+    ctx.stroke();
+    
+    // f axis (vertical)
+    ctx.strokeStyle = 'rgba(100,255,100,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(yEnd.x, yEnd.y);
+    ctx.stroke();
+    
+    // y axis (depth)
+    ctx.strokeStyle = 'rgba(100,100,255,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(zEnd.x, zEnd.y);
+    ctx.stroke();
+
+    // Axis labels
+    ctx.font = 'bold 16px Arial';
+    ctx.fillStyle = 'rgba(255,100,100,0.9)';
+    ctx.fillText('x', xEnd.x + 8, xEnd.y + 5);
+    ctx.fillStyle = 'rgba(100,255,100,0.9)';
+    ctx.fillText('f', yEnd.x - 5, yEnd.y - 12);
+    ctx.fillStyle = 'rgba(100,100,255,0.9)';
+    ctx.fillText('y', zEnd.x + 8, zEnd.y + 5);
+
+    // Vertical guide line
+    const baseProj = project(pointX, 0, pointY, width, height);
+    ctx.strokeStyle = 'rgba(46, 204, 113, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(baseProj.x, baseProj.y);
+    ctx.lineTo(pointProj.x, pointProj.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+  }, [pointX, pointY, rotationX, rotationY, showSliceX, showTangent, fValue, partialValue, zoom, resolution]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    setRotationY(prev => prev + dx * 0.008);
+    setRotationX(prev => Math.max(-1.2, Math.min(1.2, prev + dy * 0.008)));
+    setLastMouse({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+  
+  const handleWheel = (e) => {
+    e.preventDefault();
+    setZoom(prev => Math.max(0.5, Math.min(2.5, prev - e.deltaY * 0.001)));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold mb-1 text-center">Partial Derivative ∂f/∂x</h1>
+      <p className="text-center text-gray-400 mb-3">f(x,y) = x²y² + x² + y³</p>
+      
+      <div className="flex flex-col lg:flex-row gap-4 max-w-7xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={700}
+            height={600}
+            className="border border-gray-700 rounded-xl cursor-grab active:cursor-grabbing w-full bg-gray-900"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+          />
+          <p className="text-gray-500 text-xs mt-2 text-center">Drag to rotate • Scroll to zoom</p>
+        </div>
+
+        <div className="lg:w-80 space-y-3">
+          
+          {/* Point controls */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <h2 className="font-semibold mb-3 text-sm">Point Location</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="flex justify-between mb-1 text-sm">
+                  <span className="text-red-400">x</span>
+                  <span className="font-mono text-green-400">{pointX.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min="-1.8" max="1.8" step="0.05" value={pointX}
+                  onChange={(e) => setPointX(parseFloat(e.target.value))}
+                  className="w-full accent-green-500 h-2"
+                />
+              </div>
+              <div>
+                <label className="flex justify-between mb-1 text-sm">
+                  <span className="text-blue-400">y</span>
+                  <span className="font-mono text-green-400">{pointY.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min="-1.5" max="1.8" step="0.05" value={pointY}
+                  onChange={(e) => setPointY(parseFloat(e.target.value))}
+                  className="w-full accent-green-500 h-2"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Yellow slice explanation */}
+          <div className="bg-yellow-900/30 border border-yellow-600/50 p-4 rounded-xl">
+            <h2 className="font-semibold mb-2 text-yellow-400 text-sm flex items-center gap-2">
+              <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+              Yellow Curve
+            </h2>
+            <p className="text-xs text-gray-300">
+              f(x, <span className="text-blue-400">{pointY.toFixed(1)}</span>) — the surface sliced at fixed y. 
+              This is now a 1D function of x alone.
+            </p>
+          </div>
+
+          {/* Red tangent explanation */}
+          <div className="bg-red-900/30 border border-red-600/50 p-4 rounded-xl">
+            <h2 className="font-semibold mb-2 text-red-400 text-sm flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              Red Tangent
+            </h2>
+            <p className="text-xs text-gray-300 mb-2">
+              Slope = ∂f/∂x — how fast f changes as you walk in the x direction.
+            </p>
+            <div className="font-mono text-xs bg-gray-900/50 p-2 rounded-lg">
+              <p className="text-gray-500">∂f/∂x = 2xy² + 2x</p>
+              <p className="text-red-400 font-bold text-lg mt-1">{partialValue.toFixed(3)}</p>
+            </div>
+          </div>
+
+          {/* Values */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <h2 className="font-semibold mb-2 text-sm">At this point</h2>
+            <div className="grid grid-cols-2 gap-2 font-mono text-sm">
+              <div className="bg-gray-900/50 p-2 rounded">
+                <p className="text-gray-500 text-xs">f(x,y)</p>
+                <p className="text-green-400">{fValue.toFixed(3)}</p>
+              </div>
+              <div className="bg-gray-900/50 p-2 rounded">
+                <p className="text-gray-500 text-xs">∂f/∂x</p>
+                <p className="text-red-400">{partialValue.toFixed(3)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Toggles */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" checked={showSliceX} onChange={(e) => setShowSliceX(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
+                <span className="text-yellow-400">Show slice curve</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" checked={showTangent} onChange={(e) => setShowTangent(e.target.checked)} className="accent-red-500 w-4 h-4" />
+                <span className="text-red-400">Show tangent line</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Quality */}
+          <div className="bg-gray-800/80 p-4 rounded-xl">
+            <label className="flex justify-between mb-1 text-sm">
+              <span>Resolution</span>
+              <span className="font-mono text-gray-400">{resolution}</span>
+            </label>
+            <input
+              type="range" min="20" max="60" step="5" value={resolution}
+              onChange={(e) => setResolution(parseInt(e.target.value))}
+              className="w-full accent-blue-500 h-2"
+            />
+          </div>
+
+          {/* Key insight */}
+          <div className="bg-blue-900/20 border border-blue-700/50 p-4 rounded-xl text-xs">
+            <p className="text-gray-300">
+              <strong className="text-blue-400">Key:</strong> ∂f/∂x treats y as a constant. 
+              Change y and watch the yellow curve reshape — the slope at each x changes!
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PartialDerivativeVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

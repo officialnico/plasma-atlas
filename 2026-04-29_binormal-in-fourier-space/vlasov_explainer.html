@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Vlasov equation — step by step</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; }
+
+.wrap {
+  max-width: 1100px; margin: 0 auto;
+  padding: 32px 24px 80px;
+}
+.intro {
+  margin-bottom: 32px;
+}
+h1 {
+  font-family: 'Fraunces', serif; font-weight: 700;
+  font-size: 32px; letter-spacing: -0.02em; line-height: 1.15;
+  margin-bottom: 8px; color: #fff;
+}
+.sub {
+  font-family: 'Fraunces', serif; color: #a8a59c;
+  font-size: 14px; line-height: 1.55; max-width: 720px;
+}
+
+.step {
+  background: rgba(12, 12, 18, 0.85);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 24px 28px;
+  margin-bottom: 22px;
+  position: relative;
+}
+.step-num {
+  position: absolute; top: -12px; left: 24px;
+  background: #d4a04a; color: #1a1408;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  letter-spacing: 0.18em; font-weight: 600;
+  padding: 4px 12px; border-radius: 3px; text-transform: uppercase;
+}
+.step h2 {
+  font-family: 'Fraunces', serif; font-weight: 600;
+  font-size: 22px; color: #fff; margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+.step p {
+  font-size: 14px; line-height: 1.7; color: #d4cfc0;
+  margin-bottom: 12px;
+}
+.step p:last-child { margin-bottom: 0; }
+.step strong { color: #fff; }
+.step em { color: #d4a04a; font-style: normal; font-weight: 600; }
+.step code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+  background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 3px;
+  color: #f0e6d0;
+}
+.formula {
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  background: rgba(212, 160, 74, 0.06); border-left: 2px solid #d4a04a;
+  padding: 10px 14px; margin: 14px 0;
+  color: #f0e6d0; border-radius: 3px;
+}
+.viz {
+  margin: 18px 0 8px;
+  background: #050508;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.viz canvas { display: block; width: 100%; }
+.viz-controls {
+  display: flex; gap: 8px; justify-content: center;
+  padding: 10px;
+  background: rgba(0,0,0,0.5);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.btn {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  color: #e8e6e0; padding: 6px 14px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn:hover { background: rgba(255,255,255,0.12); }
+.btn.primary { background: #d4a04a; color: #1a1408; border-color: #d4a04a; font-weight: 600; }
+.btn.primary:hover { background: #e0ad57; }
+
+.caption {
+  font-size: 11.5px; color: #888; text-align: center; padding: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  background: rgba(0,0,0,0.3);
+}
+.tag-x { color: #ff8b8b; font-weight: 600; }
+.tag-v { color: #6fdb9e; font-weight: 600; }
+.tag-f { color: #d4a04a; font-weight: 600; }
+
+.aside {
+  background: rgba(91, 141, 191, 0.06);
+  border-left: 2px solid #7badd6;
+  padding: 12px 16px; margin: 14px 0; border-radius: 3px;
+  font-size: 13px; line-height: 1.6;
+}
+.aside .lbl {
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+  letter-spacing: 0.18em; color: #7badd6;
+  text-transform: uppercase; margin-bottom: 4px; display: block; font-weight: 600;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>The Vlasov equation, step by step</h1>
+    <p class="sub">From "what is a distribution function" to "how does GENE solve plasma turbulence." Each step has a small interactive visualization. No prior physics required — just curiosity.</p>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-num">step 1 / 8</div>
+    <h2>Forget particles for a second. Track <em>density</em>.</h2>
+    <p>Here are 200 particles bouncing around in a 1D box. Each red dot is a particle.</p>
+    <p>Now imagine asking, "how many particles are between x=0.3 and x=0.4 right now?" You'd count them. Do that for every little chunk of space, and you get a <strong>density</strong> — a function n(x) that says how many particles are at each location.</p>
+    <p>The density is the smooth blue curve below the particles. We're going to track <em>that</em>, not the individual particles.</p>
+    <div class="viz">
+      <canvas id="viz1" height="220"></canvas>
+      <div class="caption">red = individual particles · blue = density n(x), the histogram of where they are</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play1">▶ play</button>
+        <button class="btn" id="reset1">reset</button>
+      </div>
+    </div>
+    <p>Why? Because once you have <em>billions</em> of particles, tracking them individually is hopeless. But the density evolves smoothly and predictably.</p>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-num">step 2 / 8</div>
+    <h2>But position alone isn't enough — particles also have <em>velocity</em>.</h2>
+    <p>Two particles at the same location can be doing wildly different things: one moving fast right, one drifting slowly left. They'll be in totally different places a second from now.</p>
+    <p>So instead of asking "how many particles are at x?", we ask <strong>"how many particles are at x AND moving with velocity v?"</strong>. That's a function of <em>two</em> variables: <code>f(x, v)</code>.</p>
+    <p>Below: the same particles, but plotted in <strong>phase space</strong> — horizontal axis is position, vertical axis is velocity. Each dot is a particle. The grid behind shows the cells where we count them.</p>
+    <div class="viz">
+      <canvas id="viz2" height="320"></canvas>
+      <div class="caption">phase space (x, v): each dot is one particle; the grid is the bookkeeping cells</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play2">▶ play</button>
+        <button class="btn" id="reset2">reset</button>
+      </div>
+    </div>
+    <p>Phase space has a beautiful property: a particle's future is fully determined by <em>where</em> in phase space it is. Position tells you where you are; velocity tells you where you're going next. So if you know the density at every (x, v), you know everything.</p>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-num">step 3 / 8</div>
+    <h2>The distribution function <em>f(x, v)</em>: counting particles per cell.</h2>
+    <p>Now let's count. Divide phase space into a grid of cells. For each cell, count how many particles are inside. Divide by the cell's area to get a <em>density</em> per cell. That's <code>f(x, v)</code>.</p>
+    <p>Below: same particles, but now we color each cell by how dense it is. Bright = lots of particles. Dark = empty. <strong>This colored grid IS the distribution function.</strong></p>
+    <div class="viz">
+      <canvas id="viz3" height="320"></canvas>
+      <div class="caption">f(x, v) as a color field: this is the actual quantity GENE stores. The dots become almost irrelevant.</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play3">▶ play</button>
+        <button class="btn" id="toggleParts3">hide particles</button>
+      </div>
+    </div>
+    <div class="aside">
+      <span class="lbl">Cell size — your question</span>
+      "How big is each cell?" You pick. It's a tradeoff: smaller cells = more accurate but more compute. GENE typically uses ~128 cells in x, ~16-32 in y (Fourier modes), ~16-32 in z, ~32 in v∥, ~16 in μ. Multiply: that's ~30 million cells, each holding one floating-point value of f. The continuous distribution function is approximated by these 30 million numbers. <strong>Cell size IS the resolution of the simulation.</strong>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step">
+    <div class="step-num">step 4 / 8</div>
+    <h2>Particles flow through phase space — that's the Vlasov equation.</h2>
+    <p>Watch what each particle does in phase space:</p>
+    <ul style="margin-left: 18px; line-height: 1.8;">
+      <li>If it has positive velocity (v > 0), it moves <em>right</em> in x. So in (x, v) space, it drifts to the right.</li>
+      <li>If a force F is acting on it (like an electric field), the velocity changes. So the dot drifts <em>up</em> (if F > 0) or <em>down</em> (if F < 0).</li>
+    </ul>
+    <p>Below, watch the dots flow through phase space. Notice the systematic flow pattern — it's like a fluid in (x, v) space.</p>
+    <div class="viz">
+      <canvas id="viz4" height="320"></canvas>
+      <div class="caption">phase-space "wind": particles drift right when v>0, left when v<0; force changes v</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play4">▶ play</button>
+        <button class="btn" id="reset4">reset</button>
+      </div>
+    </div>
+    <p>The Vlasov equation just says <strong>the density f follows this flow</strong>. If a cell sends 100 particles per second to the cell on its right (because they have positive v there), that cell loses 100 and the right neighbor gains 100. Bookkeeping.</p>
+    <div class="formula">
+∂f/∂t  +  v · ∂f/∂x  +  (F/m) · ∂f/∂v  =  0
+&nbsp;
+[change in time] = [flux in space due to v] + [flux in velocity due to force]
+    </div>
+    <p>Don't be intimidated by the equation. Read it as: "the change in f at a point equals what flows in minus what flows out." Same as water flowing in and out of buckets.</p>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step">
+    <div class="step-num">step 5 / 8</div>
+    <h2>The Vlasov equation in action.</h2>
+    <p>Here's the full Vlasov picture: f(x, v) as a colored field, evolving in time. No more individual particles — just the density flowing.</p>
+    <p>Watch what happens when we add a "potential well" at x=0.5 (a region where particles get pulled in, like gravity at the bottom of a hill). Bright streaks form as particles oscillate back and forth.</p>
+    <div class="viz">
+      <canvas id="viz5" height="340"></canvas>
+      <div class="caption">f(x, v, t) evolving under a potential. The swirly structures are <em>real physics</em> — Landau damping, particle trapping.</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play5">▶ play</button>
+        <button class="btn" id="reset5">reset</button>
+      </div>
+    </div>
+    <p>The swirls and stripes are how the Vlasov equation captures things like <strong>Landau damping</strong> and <strong>particle trapping</strong> — physics where some particles oscillate back and forth in a wave's potential while others zoom past. You can SEE this in the structure of f(x, v).</p>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step">
+    <div class="step-num">step 6 / 8</div>
+    <h2>Real plasma: 6D phase space (3 position + 3 velocity).</h2>
+    <p>Real particles in a tokamak live in 3D, with 3 velocity components. So f is a function of <strong>6 variables</strong>: f(x, y, z, vx, vy, vz, t). That's a 6-dimensional grid.</p>
+    <p>Even at modest resolution — say 64 cells per dimension — that's 64⁶ ≈ <strong>70 billion cells</strong>. Each one holds a floating-point number. Each one updates every timestep. Even modern supercomputers can't do that for a real tokamak.</p>
+    <p>Below: a slice through 6D, showing one (x, vx) face at a fixed (y, z, vy, vz). That's already a 2D field — and there are millions of other slices.</p>
+    <div class="viz">
+      <canvas id="viz6" height="280"></canvas>
+      <div class="caption">one 2D slice through 6D phase space. The full f has trillions of values.</div>
+    </div>
+    <div class="aside">
+      <span class="lbl">Why this is impossible at brute force</span>
+      ITER (the next-gen tokamak) has ~10²² particles. Tracking them individually: impossible. Tracking f at brute-force 6D resolution: also impossible. We need a clever trick to reduce the dimensionality.
+    </div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="step">
+    <div class="step-num">step 7 / 8</div>
+    <h2>The gyrokinetic trick: integrate out the gyration.</h2>
+    <p>Charged particles in a strong magnetic field don't fly straight — they spiral around field lines, like a kid skating in tight circles. The circle (called the <em>gyro-orbit</em>) is small compared to anything interesting.</p>
+    <p>Insight: <strong>we don't care where on the circle the particle is right now.</strong> We just care about (a) where the center of the circle is, and (b) how fast the particle is moving along B and around its circle.</p>
+    <p>So we <em>average over the gyration angle</em>. That kills one velocity dimension. We're left with f(x, y, z, v∥, μ): 5D instead of 6D. μ is the "magnetic moment," basically how big the gyro-circle is.</p>
+    <div class="viz">
+      <canvas id="viz7" height="320"></canvas>
+      <div class="caption">left: spiraling particles in 3D. right: gyro-averaged "rings" — gyrokinetics tracks just these.</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play7">▶ play</button>
+        <button class="btn" id="reset7">reset</button>
+      </div>
+    </div>
+    <p>This 5D vs 6D may not sound dramatic, but it cuts the cost by ~64x at typical resolutions, AND removes the fastest timescale (the gyration), which lets you take much bigger time steps. Combined: ~10,000x speedup.</p>
+  </div>
+
+  <!-- STEP 8 -->
+  <div class="step">
+    <div class="step-num">step 8 / 8</div>
+    <h2>How turbulence shows up.</h2>
+    <p>How does the Vlasov equation capture turbulent eddies? Here's how:</p>
+    <p>The fluctuating quantities (δT, δn, δφ that we've been visualizing) are all <em>derived from</em> δf — the perturbation of the distribution function. To get δT at a point, you do a velocity-space integral:</p>
+    <div class="formula">
+δT(x, y, z) = ∫∫ ½ m (v∥² + 2μB) · δf(x, y, z, v∥, μ) dv∥ dμ
+    </div>
+    <p>So when GENE evolves f under the gyrokinetic equation (which is just Vlasov's bigger sibling, with extra terms from the gyro-averaging), the eddies and stripes seen here all <em>emerge</em> from the way f develops fine structure in velocity space and then gets integrated back to physical quantities.</p>
+    <p>Below: a side-by-side. Left, f(x, v) shows fine swirls — the velocity-space structure. Right, the integrated δT(x) shows the eddies you'd actually measure. <strong>Same physics, two views.</strong></p>
+    <div class="viz">
+      <canvas id="viz8" height="380"></canvas>
+      <div class="caption">f(x, v) → integrate over v → δT(x). The turbulent eddies emerge from the integral.</div>
+      <div class="viz-controls">
+        <button class="btn primary" id="play8">▶ play</button>
+        <button class="btn" id="reset8">reset</button>
+      </div>
+    </div>
+    <p style="margin-top:18px"><strong>Big picture:</strong> Vlasov is bookkeeping in 6D. It tracks where particles are and how fast they're going, as a smooth density. Gyrokinetics drops one dimension to make it tractable. From the resulting 5D field, you compute the things you care about (temperature, density, potential) by integrating over velocity. Turbulent eddies are what you see when you do this in a tokamak.</p>
+    <p>The "magic" was just: don't track particles, track <em>where particles are likely to be</em>.</p>
+  </div>
+</div>
+
+<script>
+// ============ Helpers ============
+function setupCanvas(canvas, h) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+// ============ STEP 1: 1D particles + density histogram ============
+(function step1() {
+  const canvas = document.getElementById('viz1');
+  let particles = [];
+  let playing = false;
+
+  function reset() {
+    particles = [];
+    for (let i = 0; i < 200; i++) {
+      // Initial gaussian-ish distribution centered at 0.5
+      let x;
+      do { x = 0.5 + (Math.random() - Math.random()) * 0.2; } while (x < 0.05 || x > 0.95);
+      particles.push({ x, v: (Math.random() - 0.5) * 0.4 });
+    }
+  }
+  reset();
+
+  function step(dt) {
+    for (const p of particles) {
+      p.x += p.v * dt;
+      // Reflect off walls
+      if (p.x < 0.05) { p.x = 0.05; p.v = -p.v; }
+      if (p.x > 0.95) { p.x = 0.95; p.v = -p.v; }
+    }
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 220);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const ph = 60; // particle line height
+    const dh = h - ph - 30;
+
+    // density histogram
+    const nbins = 30;
+    const bins = new Array(nbins).fill(0);
+    for (const p of particles) {
+      const i = Math.min(nbins - 1, Math.max(0, Math.floor(p.x * nbins)));
+      bins[i]++;
+    }
+    const maxB = Math.max(...bins, 1);
+    // bars
+    ctx.fillStyle = 'rgba(91, 141, 191, 0.7)';
+    for (let i = 0; i < nbins; i++) {
+      const bx = (i / nbins) * w;
+      const bw = w / nbins;
+      const bH = (bins[i] / maxB) * dh * 0.85;
+      ctx.fillRect(bx + 0.5, ph + dh - bH, bw - 1, bH);
+    }
+    // smooth curve over bars
+    ctx.strokeStyle = '#7badd6'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < nbins; i++) {
+      const cx = (i + 0.5) / nbins * w;
+      const cy = ph + dh - (bins[i] / maxB) * dh * 0.85;
+      if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+
+    // particles
+    ctx.fillStyle = '#ff6b6b';
+    for (const p of particles) {
+      ctx.beginPath();
+      ctx.arc(p.x * w, 30, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // labels
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('particles →', 10, 18);
+    ctx.fillText('density n(x) →', 10, ph + 18);
+    ctx.fillText('x', w - 10, h - 4);
+  }
+
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min((t - last) / 1000, 0.05);
+    last = t;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  document.getElementById('play1').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset1').addEventListener('click', reset);
+})();
+
+// ============ STEP 2: phase space (x, v) with grid ============
+(function step2() {
+  const canvas = document.getElementById('viz2');
+  let particles = [];
+  let playing = false;
+  function reset() {
+    particles = [];
+    for (let i = 0; i < 200; i++) {
+      let x;
+      do { x = 0.5 + (Math.random() - Math.random()) * 0.2; } while (x < 0.05 || x > 0.95);
+      particles.push({ x, v: (Math.random() - 0.5) * 0.4 });
+    }
+  }
+  reset();
+  function step(dt) {
+    for (const p of particles) {
+      p.x += p.v * dt;
+      if (p.x < 0.05) { p.x = 0.05; p.v = -p.v; }
+      if (p.x > 0.95) { p.x = 0.95; p.v = -p.v; }
+    }
+  }
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 320);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = w - padL - padR, ph = h - padT - padB;
+    // Grid
+    const nx = 12, nv = 8;
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= nx; i++) {
+      ctx.beginPath();
+      ctx.moveTo(padL + (i / nx) * pw, padT);
+      ctx.lineTo(padL + (i / nx) * pw, padT + ph);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= nv; j++) {
+      ctx.beginPath();
+      ctx.moveTo(padL, padT + (j / nv) * ph);
+      ctx.lineTo(padL + pw, padT + (j / nv) * ph);
+      ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + ph / 2); ctx.lineTo(padL + pw, padT + ph / 2);
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + ph);
+    ctx.stroke();
+    // particles
+    for (const p of particles) {
+      const px = padL + p.x * pw;
+      const py = padT + ph / 2 - (p.v / 0.5) * (ph / 2);
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('x →', padL + pw / 2 - 8, padT + ph + 18);
+    ctx.save();
+    ctx.translate(padL - 28, padT + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('v →', -10, 0);
+    ctx.restore();
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('phase space (x, v)', padL, 16);
+    ctx.fillText('+v', padL - 24, padT + 6);
+    ctx.fillText('0', padL - 14, padT + ph / 2 + 3);
+    ctx.fillText('-v', padL - 24, padT + ph - 2);
+  }
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min((t - last) / 1000, 0.05);
+    last = t;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  document.getElementById('play2').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset2').addEventListener('click', reset);
+})();
+
+// ============ STEP 3: phase space with cell density f(x,v) ============
+(function step3() {
+  const canvas = document.getElementById('viz3');
+  let particles = [];
+  let playing = false;
+  let showParts = true;
+  function reset() {
+    particles = [];
+    for (let i = 0; i < 1500; i++) {
+      // gaussian in x and v
+      const x = 0.5 + (Math.random() - Math.random() + Math.random() - Math.random()) * 0.12;
+      const v = (Math.random() - Math.random() + Math.random() - Math.random()) * 0.15;
+      if (x > 0.05 && x < 0.95) particles.push({ x, v });
+    }
+  }
+  reset();
+  function step(dt) {
+    for (const p of particles) {
+      p.x += p.v * dt;
+      if (p.x < 0.05) { p.x = 0.05; p.v = -p.v; }
+      if (p.x > 0.95) { p.x = 0.95; p.v = -p.v; }
+    }
+  }
+  function colorMap(t) {
+    // Black to amber to white (heat)
+    if (t < 0.001) return 'rgb(15,15,22)';
+    if (t < 0.33) { const u = t / 0.33; return `rgb(${(60*u)|0}, ${(20*u)|0}, ${(40*u)|0})`; }
+    if (t < 0.66) { const u = (t - 0.33) / 0.33; return `rgb(${(60 + 195*u)|0}, ${(20 + 100*u)|0}, ${(40 - 30*u)|0})`; }
+    const u = (t - 0.66) / 0.34;
+    return `rgb(255, ${(120 + 135*u)|0}, ${(10 + 200*u)|0})`;
+  }
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 320);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = w - padL - padR, ph = h - padT - padB;
+    const nx = 24, nv = 16;
+    const cells = new Array(nx * nv).fill(0);
+    for (const p of particles) {
+      const i = Math.min(nx - 1, Math.max(0, Math.floor((p.x - 0.05) / 0.9 * nx)));
+      const j = Math.min(nv - 1, Math.max(0, Math.floor((p.v + 0.5) / 1.0 * nv)));
+      cells[j * nx + i]++;
+    }
+    const maxC = Math.max(...cells, 1);
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < nv; j++) {
+        const t = cells[j * nx + i] / maxC;
+        ctx.fillStyle = colorMap(t);
+        const cx = padL + (i / nx) * pw;
+        const cy = padT + ph - ((j + 1) / nv) * ph;
+        ctx.fillRect(cx, cy, pw / nx + 0.5, ph / nv + 0.5);
+      }
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= nx; i++) {
+      ctx.beginPath();
+      ctx.moveTo(padL + (i / nx) * pw, padT); ctx.lineTo(padL + (i / nx) * pw, padT + ph);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= nv; j++) {
+      ctx.beginPath();
+      ctx.moveTo(padL, padT + (j / nv) * ph); ctx.lineTo(padL + pw, padT + (j / nv) * ph);
+      ctx.stroke();
+    }
+    if (showParts) {
+      for (const p of particles) {
+        const px = padL + (p.x - 0.05) / 0.9 * pw;
+        const py = padT + ph - (p.v + 0.5) / 1.0 * ph;
+        ctx.fillStyle = 'rgba(255, 230, 230, 0.45)';
+        ctx.beginPath(); ctx.arc(px, py, 1.2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('f(x, v) — distribution function', padL, 16);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('x →', padL + pw / 2 - 8, padT + ph + 18);
+    ctx.save();
+    ctx.translate(padL - 28, padT + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('v →', -10, 0); ctx.restore();
+  }
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min((t - last) / 1000, 0.05);
+    last = t;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  document.getElementById('play3').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('toggleParts3').addEventListener('click', e => {
+    showParts = !showParts;
+    e.target.textContent = showParts ? 'hide particles' : 'show particles';
+  });
+})();
+
+// ============ STEP 4: phase-space flow with arrows ============
+(function step4() {
+  const canvas = document.getElementById('viz4');
+  let particles = [];
+  let playing = false;
+  function reset() {
+    particles = [];
+    for (let i = 0; i < 350; i++) {
+      const x = 0.5 + (Math.random() - 0.5) * 0.2;
+      const v = (Math.random() - 0.5) * 0.4;
+      particles.push({ x, v });
+    }
+  }
+  reset();
+  // Force: harmonic restoring toward x=0.5
+  function force(x) { return -2.0 * (x - 0.5); }
+  function step(dt) {
+    for (const p of particles) {
+      p.x += p.v * dt;
+      p.v += force(p.x) * dt;
+      if (p.x < 0.02) { p.x = 0.02; p.v = Math.abs(p.v); }
+      if (p.x > 0.98) { p.x = 0.98; p.v = -Math.abs(p.v); }
+    }
+  }
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 320);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = w - padL - padR, ph = h - padT - padB;
+    // arrow field showing the flow
+    const ax = 14, av = 10;
+    ctx.strokeStyle = 'rgba(91, 141, 191, 0.4)';
+    ctx.fillStyle = 'rgba(91, 141, 191, 0.4)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < ax; i++) {
+      for (let j = 0; j < av; j++) {
+        const x = (i + 0.5) / ax;
+        const v = ((j + 0.5) / av - 0.5) * 1.0;
+        const cx = padL + x * pw;
+        const cy = padT + ph - ((v / 1.0) + 0.5) * ph;
+        const dx = v * 8;
+        const dv = force(x) * 8;
+        const dpx = dx;
+        const dpy = -dv;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy); ctx.lineTo(cx + dpx, cy + dpy);
+        ctx.stroke();
+        // tip
+        ctx.beginPath();
+        ctx.arc(cx + dpx, cy + dpy, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // particles
+    for (const p of particles) {
+      const px = padL + p.x * pw;
+      const py = padT + ph - (p.v / 1.0 + 0.5) * ph;
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath(); ctx.arc(px, py, 2.0, 0, Math.PI * 2); ctx.fill();
+    }
+    // axes
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + ph / 2); ctx.lineTo(padL + pw, padT + ph / 2);
+    ctx.stroke();
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('phase-space flow (with restoring force toward x=0.5)', padL, 16);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('x →', padL + pw / 2 - 8, padT + ph + 18);
+    ctx.save(); ctx.translate(padL - 28, padT + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('v →', -10, 0); ctx.restore();
+  }
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min((t - last) / 1000, 0.05);
+    last = t;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  document.getElementById('play4').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset4').addEventListener('click', reset);
+})();
+
+// ============ STEP 5: f(x,v,t) evolving as a colored field ============
+(function step5() {
+  const canvas = document.getElementById('viz5');
+  let playing = false;
+  const NX = 80, NV = 50;
+  let f = new Float32Array(NX * NV);
+  let t = 0;
+  function reset() {
+    t = 0;
+    // gaussian initial
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NV; j++) {
+        const x = i / NX;
+        const v = (j / NV - 0.5) * 2.0;
+        const dx = x - 0.5, dv = v;
+        f[j * NX + i] = Math.exp(-(dx * dx) / 0.01 - (dv * dv) / 0.5);
+      }
+    }
+  }
+  reset();
+  // Vlasov-like step with potential well at x=0.5
+  function step(dt) {
+    // Use simple semi-Lagrangian-ish update: each cell looks back at where it came from
+    const newF = new Float32Array(NX * NV);
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NV; j++) {
+        const x = i / NX;
+        const v = (j / NV - 0.5) * 2.0;
+        // departure point
+        const dx = x - v * dt * 0.3;
+        const F = -3.5 * (x - 0.5);
+        const dv = v - F * dt * 0.3;
+        const ii = dx * NX;
+        const jj = (dv / 2.0 + 0.5) * NV;
+        const i0 = Math.max(0, Math.min(NX - 1, Math.floor(ii)));
+        const j0 = Math.max(0, Math.min(NV - 1, Math.floor(jj)));
+        newF[j * NX + i] = f[j0 * NX + i0];
+      }
+    }
+    f.set(newF);
+    t += dt;
+  }
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 340);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = w - padL - padR, ph = h - padT - padB;
+    // find max
+    let maxF = 0; for (let k = 0; k < f.length; k++) if (f[k] > maxF) maxF = f[k];
+    if (maxF < 1e-6) maxF = 1;
+    // draw cells
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NV; j++) {
+        const val = f[j * NX + i] / maxF;
+        const tt = Math.max(0, Math.min(1, val));
+        let r, g, b;
+        if (tt < 0.001) { r = 8; g = 8; b = 12; }
+        else if (tt < 0.4) { const u = tt / 0.4; r = 60 * u; g = 20 * u; b = 50 * u; }
+        else if (tt < 0.75) { const u = (tt - 0.4) / 0.35; r = 60 + 195 * u; g = 20 + 100 * u; b = 50 - 30 * u; }
+        else { const u = (tt - 0.75) / 0.25; r = 255; g = 120 + 135 * u; b = 20 + 200 * u; }
+        ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+        const cx = padL + (i / NX) * pw;
+        const cy = padT + ph - ((j + 1) / NV) * ph;
+        ctx.fillRect(cx, cy, pw / NX + 0.5, ph / NV + 0.5);
+      }
+    }
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText(`f(x, v) at t = ${t.toFixed(2)}`, padL, 16);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('x →', padL + pw / 2 - 8, padT + ph + 18);
+    ctx.save(); ctx.translate(padL - 28, padT + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('v →', -10, 0); ctx.restore();
+  }
+  let last = performance.now();
+  function loop(tt) {
+    const dt = Math.min((tt - last) / 1000, 0.05);
+    last = tt;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  document.getElementById('play5').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset5').addEventListener('click', reset);
+})();
+
+// ============ STEP 6: 6D as a stack of slices ============
+(function step6() {
+  const canvas = document.getElementById('viz6');
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 280);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    // stack of skewed slices
+    const cx = w / 2, cy = h / 2;
+    const sliceW = 180, sliceH = 110;
+    for (let i = 7; i >= 0; i--) {
+      const off = i * 22;
+      const alpha = 0.15 + (7 - i) * 0.1;
+      ctx.fillStyle = `rgba(212, 160, 74, ${alpha * 0.15})`;
+      ctx.strokeStyle = `rgba(212, 160, 74, ${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - sliceW/2 + off, cy - sliceH/2 - off);
+      ctx.lineTo(cx + sliceW/2 + off, cy - sliceH/2 - off);
+      ctx.lineTo(cx + sliceW/2 + off, cy + sliceH/2 - off);
+      ctx.lineTo(cx - sliceW/2 + off, cy + sliceH/2 - off);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // simple pattern inside
+      if (i === 0) {
+        // detailed front slice
+        for (let r = 0; r < 6; r++) {
+          for (let c = 0; c < 12; c++) {
+            const fx = cx - sliceW/2 + (c + 0.5) / 12 * sliceW;
+            const fy = cy - sliceH/2 + (r + 0.5) / 6 * sliceH;
+            const gx = fx - cx, gy = fy - cy;
+            const intensity = Math.exp(-(gx*gx + gy*gy*4) / 5000);
+            ctx.fillStyle = `rgba(255, ${(120 + 100 * intensity)|0}, 50, ${intensity})`;
+            ctx.beginPath(); ctx.arc(fx, fy, 4 * intensity + 1, 0, Math.PI*2); ctx.fill();
+          }
+        }
+      }
+    }
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('6D phase space — only one slice (x, vx) shown', 16, 18);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('millions of slices behind →', cx + sliceW/2 + 20, cy);
+  }
+  draw();
+  window.addEventListener('resize', draw);
+})();
+
+// ============ STEP 7: gyration → gyro-averaged ring ============
+(function step7() {
+  const canvas = document.getElementById('viz7');
+  let playing = false;
+  let t = 0;
+  let particles = [];
+  function reset() {
+    t = 0;
+    particles = [];
+    for (let i = 0; i < 7; i++) {
+      particles.push({
+        cx: 0.25 + Math.random() * 0.18,
+        cy: 0.25 + Math.random() * 0.5,
+        radius: 0.04 + Math.random() * 0.03,
+        phase: Math.random() * Math.PI * 2,
+        omega: 4 + Math.random() * 2,
+        vpar: 0.05 + Math.random() * 0.1
+      });
+    }
+  }
+  reset();
+  function step(dt) {
+    t += dt;
+    for (const p of particles) {
+      p.cx += p.vpar * dt * 0.3;
+      if (p.cx > 0.45) p.cx = 0.05;
+    }
+  }
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 320);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    // Two panels side by side
+    const half = w / 2;
+    // Left: spiraling particles
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(0, 0, half, h);
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('full motion: spirals', 10, 18);
+    // Field line trails
+    ctx.strokeStyle = 'rgba(123, 173, 214, 0.3)'; ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const yy = 60 + i * 60;
+      ctx.beginPath();
+      ctx.moveTo(0, yy); ctx.lineTo(half, yy);
+      ctx.stroke();
+    }
+    for (const p of particles) {
+      // spiraling trail
+      const cxPx = p.cx * half * 2;
+      const cyPx = p.cy * h;
+      // current particle position
+      const angle = p.phase + t * p.omega;
+      const px = cxPx + p.radius * half * 2 * Math.cos(angle);
+      const py = cyPx + p.radius * half * 0.6 * Math.sin(angle);
+      // trail
+      ctx.strokeStyle = 'rgba(255, 107, 107, 0.4)'; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let s = 0; s < Math.PI * 2; s += 0.1) {
+        const a = p.phase + t * p.omega + s;
+        const tx = cxPx + p.radius * half * 2 * Math.cos(a);
+        const ty = cyPx + p.radius * half * 0.6 * Math.sin(a);
+        if (s === 0) ctx.moveTo(tx, ty); else ctx.lineTo(tx, ty);
+      }
+      ctx.stroke();
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    // Right: gyro-averaged rings (just the rings, no spinning particle)
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('gyro-averaged: rings (5D)', half + 10, 18);
+    for (let i = 0; i < 4; i++) {
+      const yy = 60 + i * 60;
+      ctx.strokeStyle = 'rgba(123, 173, 214, 0.3)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(half, yy); ctx.lineTo(w, yy);
+      ctx.stroke();
+    }
+    for (const p of particles) {
+      const cxPx = half + p.cx * half * 2;
+      const cyPx = p.cy * h;
+      ctx.strokeStyle = 'rgba(255, 107, 107, 0.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(cxPx, cyPx, p.radius * half * 2, p.radius * half * 0.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 107, 107, 0.5)';
+      ctx.fill();
+      // center marker
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cxPx, cyPx, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+    // divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(half, 0); ctx.lineTo(half, h); ctx.stroke();
+    // labels
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('(6D: x, y, z, vx, vy, vz)', 10, h - 8);
+    ctx.fillText('(5D: x, y, z, v∥, μ)', half + 10, h - 8);
+  }
+  let last = performance.now();
+  function loop(tt) {
+    const dt = Math.min((tt - last) / 1000, 0.05);
+    last = tt;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  document.getElementById('play7').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset7').addEventListener('click', reset);
+})();
+
+// ============ STEP 8: f(x,v) → integrate to δT(x) ============
+(function step8() {
+  const canvas = document.getElementById('viz8');
+  let playing = false;
+  const NX = 80, NV = 40;
+  let f = new Float32Array(NX * NV);
+  let t = 0;
+  function reset() {
+    t = 0;
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NV; j++) {
+        const x = i / NX;
+        const v = (j / NV - 0.5) * 2.0;
+        const dv = v;
+        // Add some structure: bumps at specific x
+        let bumpAmp = 0;
+        for (let k = 0; k < 4; k++) {
+          const xx = (k + 0.5) / 4;
+          bumpAmp += 0.6 * Math.exp(-Math.pow((x - xx) / 0.06, 2)) * Math.cos(8 * x + k);
+        }
+        f[j * NX + i] = (Math.exp(-(dv * dv) / 0.5)) * (1 + 0.4 * bumpAmp);
+      }
+    }
+  }
+  reset();
+  function step(dt) {
+    const newF = new Float32Array(NX * NV);
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NV; j++) {
+        const x = i / NX;
+        const v = (j / NV - 0.5) * 2.0;
+        const dx = x - v * dt * 0.5;
+        const F = -2 * (x - 0.5) + 0.5 * Math.sin(6 * x + t * 2);
+        const dv = v - F * dt * 0.5;
+        const ii = ((dx % 1) + 1) % 1 * NX;
+        const jj = (dv / 2.0 + 0.5) * NV;
+        const i0 = Math.max(0, Math.min(NX - 1, Math.floor(ii)));
+        const j0 = Math.max(0, Math.min(NV - 1, Math.floor(jj)));
+        newF[j * NX + i] = f[j0 * NX + i0];
+      }
+    }
+    f.set(newF);
+    t += dt;
+  }
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 380);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16;
+    const half = (w - padL - padR) / 2;
+    const padT = 24, gap = 36;
+
+    // Left: f(x, v)
+    const leftX = padL, leftY = padT;
+    const leftW = half - 8, leftH = h - padT - gap;
+    let maxF = 0; for (let k = 0; k < f.length; k++) if (f[k] > maxF) maxF = f[k];
+    if (maxF < 1e-6) maxF = 1;
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NV; j++) {
+        const val = f[j * NX + i] / maxF;
+        const tt = Math.max(0, Math.min(1, val));
+        let r, g, b;
+        if (tt < 0.001) { r = 8; g = 8; b = 12; }
+        else if (tt < 0.4) { const u = tt / 0.4; r = 60 * u; g = 20 * u; b = 50 * u; }
+        else if (tt < 0.75) { const u = (tt - 0.4) / 0.35; r = 60 + 195 * u; g = 20 + 100 * u; b = 50 - 30 * u; }
+        else { const u = (tt - 0.75) / 0.25; r = 255; g = 120 + 135 * u; b = 20 + 200 * u; }
+        ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+        const cx = leftX + (i / NX) * leftW;
+        const cy = leftY + leftH - ((j + 1) / NV) * leftH;
+        ctx.fillRect(cx, cy, leftW / NX + 0.5, leftH / NV + 0.5);
+      }
+    }
+
+    // Right: δT(x) = integral over v
+    const rightX = leftX + leftW + 16, rightY = leftY;
+    const rightW = leftW, rightH = leftH;
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(rightX, rightY, rightW, rightH);
+    // Compute δT(x) = sum over v of v² * f
+    const dT = new Float32Array(NX);
+    for (let i = 0; i < NX; i++) {
+      let s = 0;
+      for (let j = 0; j < NV; j++) {
+        const v = (j / NV - 0.5) * 2.0;
+        s += v * v * f[j * NX + i];
+      }
+      dT[i] = s;
+    }
+    const meanDT = dT.reduce((a,b)=>a+b, 0) / NX;
+    const dTfluct = dT.map(d => d - meanDT);
+    const maxDT = Math.max(...dTfluct.map(Math.abs), 0.01);
+    // baseline
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(rightX, rightY + rightH/2); ctx.lineTo(rightX + rightW, rightY + rightH/2);
+    ctx.stroke();
+    // filled δT curve
+    ctx.fillStyle = 'rgba(212, 160, 74, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(rightX, rightY + rightH/2);
+    for (let i = 0; i < NX; i++) {
+      const px = rightX + (i + 0.5) / NX * rightW;
+      const py = rightY + rightH/2 - dTfluct[i] / maxDT * rightH * 0.4;
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(rightX + rightW, rightY + rightH/2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < NX; i++) {
+      const px = rightX + (i + 0.5) / NX * rightW;
+      const py = rightY + rightH/2 - dTfluct[i] / maxDT * rightH * 0.4;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('f(x, v) — full distribution', leftX, 18);
+    ctx.fillText('δT(x) — integrate over v →', rightX, 18);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('x →', leftX + leftW / 2 - 8, leftY + leftH + 18);
+    ctx.fillText('x →', rightX + rightW / 2 - 8, rightY + rightH + 18);
+    ctx.save();
+    ctx.translate(leftX - 28, leftY + leftH / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText('v →', -10, 0); ctx.restore();
+  }
+  let last = performance.now();
+  function loop(tt) {
+    const dt = Math.min((tt - last) / 1000, 0.05);
+    last = tt;
+    if (playing) step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  document.getElementById('play8').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset8').addEventListener('click', reset);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 2 — The grid vs. the knobs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Newsreader:ital,opsz,wght@0,6..72,300..500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0f17;--ink:#edecf4;--soft:#b3b1c8;--faint:#76748f;
+  --cyan:#5fe6ff;--gold:#ffd166;--mag:#ff6fae;--green:#7fe7b0;--red:#ff7a7a;
+  --line:rgba(149,140,255,0.16);--card:rgba(22,24,38,0.6);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:
+    radial-gradient(1000px 600px at 85% 0%,rgba(95,230,255,0.05),transparent 60%),
+    radial-gradient(800px 500px at 5% 40%,rgba(255,111,174,0.04),transparent 60%),var(--bg);
+  color:var(--ink);font-family:'Newsreader',serif;font-size:21px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.rail{position:fixed;top:0;left:0;height:3px;width:0%;z-index:100;background:linear-gradient(90deg,var(--cyan),var(--gold));box-shadow:0 0 10px rgba(95,230,255,.5)}
+section{max-width:820px;margin:0 auto;padding:13vh 26px;min-height:72vh;display:flex;flex-direction:column;justify-content:center}
+.first{min-height:88vh;padding-top:8vh}
+.step{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--cyan);margin-bottom:18px}
+h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(34px,6.5vw,62px);line-height:1.02;letter-spacing:-.02em;margin-bottom:22px}
+h1 em{font-style:italic;color:var(--gold)}
+h2{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(26px,4.6vw,42px);line-height:1.08;margin-bottom:14px}
+p{font-size:21px;color:var(--soft);margin:16px 0;max-width:660px}
+p b{color:var(--ink);font-weight:500}
+p .c{color:var(--cyan);font-weight:500}.p .g{color:var(--gold)}
+p .g{color:var(--gold);font-weight:500}p .m{color:var(--mag);font-weight:500}
+.small{font-size:15px;color:var(--faint);font-family:'Spline Sans Mono',monospace}
+
+/* dual-panel lab */
+.lab{margin:30px 0;border:1px solid var(--line);border-radius:16px;background:var(--card);overflow:hidden;backdrop-filter:blur(6px)}
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+@media(max-width:640px){.panes{grid-template-columns:1fr}}
+.pane{background:#10121d;padding:0}
+.pane .hd{display:flex;justify-content:space-between;align-items:center;padding:13px 16px 4px}
+.pane .hd .name{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.pane.grid .name{color:var(--gold)}.pane.herm .name{color:var(--cyan)}
+.pane .count{font-family:'Spline Sans Mono',monospace;font-size:13px;color:var(--soft)}
+.pane .count b{font-size:22px}
+.pane.grid .count b{color:var(--gold)}.pane.herm .count b{color:var(--cyan)}
+.pane canvas{display:block;width:100%;height:190px}
+.pane .verdict{font-family:'Spline Sans Mono',monospace;font-size:12px;text-align:center;padding:6px 0 12px;letter-spacing:.05em}
+.ok{color:var(--green)}.bad{color:var(--red)}
+
+.controls{padding:20px 22px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:20px}
+.ctl label{display:flex;justify-content:space-between;font-family:'Spline Sans Mono',monospace;font-size:13px;letter-spacing:.06em;color:var(--ink);margin-bottom:9px}
+.ctl label .v{color:var(--cyan)}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(149,140,255,.25);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--cyan);cursor:grab;box-shadow:0 0 14px rgba(95,230,255,.6);border:2px solid #0d0f17}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border:2px solid #0d0f17;border-radius:50%;background:var(--cyan);cursor:grab}
+input.weird::-webkit-slider-thumb{background:var(--mag);box-shadow:0 0 14px rgba(255,111,174,.6)}
+input.weird::-moz-range-thumb{background:var(--mag)}
+input.weird{background:rgba(255,111,174,.22)}
+
+.headline{margin:6px 22px 22px;padding:16px 18px;border-radius:12px;background:rgba(127,231,176,0.07);
+  border:1px solid rgba(127,231,176,0.25);font-size:18px;color:var(--ink);text-align:center;font-family:'Newsreader',serif}
+.headline.warn{background:rgba(255,122,122,0.07);border-color:rgba(255,122,122,0.3)}
+.headline b{font-family:'Spline Sans Mono',monospace}
+
+.got{display:flex;gap:13px;align-items:flex-start;margin:28px 0;padding:18px 20px;border-radius:12px;background:rgba(127,231,176,0.07);border:1px solid rgba(127,231,176,0.25)}
+.got .tick{color:var(--green);font-size:24px;flex-shrink:0;line-height:1}
+.got p{margin:0;font-size:18px;color:var(--ink)}.got p b{color:var(--green)}
+.warn{border-color:rgba(255,209,102,.3);background:rgba(255,209,102,.07)}.warn .tick{color:var(--gold)}.warn p b{color:var(--gold)}
+.reveal{opacity:0;transform:translateY(24px);transition:.7s cubic-bezier(.2,.7,.2,1)}.reveal.in{opacity:1;transform:none}
+.cue{font-family:'Spline Sans Mono',monospace;font-size:13px;color:var(--faint);letter-spacing:.1em;margin-top:28px}
+.endcard{border:1px solid var(--line);border-radius:14px;padding:26px;background:var(--card);margin-top:22px}
+.endcard h3{font-family:'Fraunces',serif;font-size:22px;font-weight:500;margin-bottom:10px}
+.endcard p{font-size:17px;margin:7px 0}
+</style>
+</head>
+<body>
+<div class="rail" id="rail"></div>
+
+<!-- INTRO -->
+<section class="first">
+  <div class="step">Chapter 2 · the actual optimization</div>
+  <h1>The thing<br>Hermite <em>beats.</em></h1>
+  <p>Last chapter: a curve is a few meaningful numbers. You felt it with the knobs.</p>
+  <p>Now the real question — <b>beats what, exactly?</b> What's the dumb, obvious alternative, and why is the knob-trick worth it? And the part you spotted yourself: <b>why was anyone unsure it'd work?</b></p>
+  <p class="small">↓ one curve, stored two ways, side by side</p>
+</section>
+
+<!-- THE ALTERNATIVE -->
+<section>
+  <div class="step reveal">Step 1 — meet the dumb way</div>
+  <h2 class="reveal">Just measure the height everywhere.</h2>
+  <p class="reveal">The obvious way to store a curve needs zero cleverness: pick a bunch of speeds, <b>write down how tall the curve is at each one</b>, connect the dots. That's a <span class="g">grid</span>. It's what the big established codes do.</p>
+  <p class="reveal">It always works. Any shape, no thinking required. But it's expensive — you're carrying a number for every single sample point. Here's the same bell curve stored both ways, with a live count of <b>how many numbers each method needs:</b></p>
+
+  <div class="lab reveal">
+    <div class="panes">
+      <div class="pane grid">
+        <div class="hd"><span class="name">▦ the grid (dumb)</span><span class="count"><b id="gridN">50</b> numbers</span></div>
+        <canvas data-p="grid"></canvas>
+        <div class="verdict ok" id="gridV">always fits ✓</div>
+      </div>
+      <div class="pane herm">
+        <div class="hd"><span class="name">◠ the knobs (Hermite)</span><span class="count"><b id="hermN">1</b> numbers</span></div>
+        <canvas data-p="herm"></canvas>
+        <div class="verdict ok" id="hermV">fits ✓</div>
+      </div>
+    </div>
+    <div class="headline" id="headline">A clean bell needs <b>1 knob</b> vs <b>50 grid points</b> — same curve, <b>50× less.</b></div>
+    <div class="controls">
+      <div class="ctl">
+        <label>KNOBS SPENT ON THE HERMITE SIDE <span class="v" id="mv">1</span></label>
+        <input type="range" min="1" max="20" value="1" data-k="M">
+      </div>
+    </div>
+  </div>
+
+  <p class="reveal">Right now the curve is a <b>perfect bell</b>, so the knob side nails it with almost nothing while the grid lugs around 50 numbers for the same picture. <span class="g">That gap, multiplied across a million points in space, is the whole speed story.</span></p>
+  <div class="got reveal"><span class="tick">✓</span><p>When the curve is simple, <b>the knobs crush the grid</b> — far fewer numbers, identical result. The grid pays full price for detail that isn't there.</p></div>
+</section>
+
+<!-- THE CATCH -->
+<section>
+  <div class="step reveal">Step 2 — the catch you already guessed</div>
+  <h2 class="reveal">But what if the curve gets ugly?</h2>
+  <p class="reveal">The sharp question: if it's such a free win, why was it ever in doubt? Here's the answer, and now you can <b>do it with your hands.</b></p>
+  <p class="reveal">Drag the <span class="m">WEIRDNESS</span> slider. It deforms the curve away from a clean bell — a second hump, some ripples, the kind of mess a violent plasma actually makes. Watch <b>both number-counts</b> as you do.</p>
+
+  <div class="lab reveal">
+    <div class="panes">
+      <div class="pane grid">
+        <div class="hd"><span class="name">▦ the grid</span><span class="count"><b id="gridN2">50</b> numbers</span></div>
+        <canvas data-p="grid2"></canvas>
+        <div class="verdict ok" id="gridV2">still fits ✓</div>
+      </div>
+      <div class="pane herm">
+        <div class="hd"><span class="name">◠ the knobs</span><span class="count"><b id="hermN2">1</b> numbers</span></div>
+        <canvas data-p="herm2"></canvas>
+        <div class="verdict ok" id="hermV2">fits ✓</div>
+      </div>
+    </div>
+    <div class="headline" id="headline2"></div>
+    <div class="controls">
+      <div class="ctl">
+        <label>WEIRDNESS OF THE CURVE <span class="v" id="wv">0.0</span></label>
+        <input type="range" class="weird" min="0" max="1" step="0.01" value="0" data-k="W">
+      </div>
+      <div class="ctl">
+        <label>KNOBS SPENT (try to keep up with the weirdness) <span class="v" id="mv2">1</span></label>
+        <input type="range" min="1" max="24" value="1" data-k="M2">
+      </div>
+    </div>
+  </div>
+
+  <p class="reveal">See what happens? The <span class="g">grid doesn't flinch</span> — 50 numbers, fits perfectly, no matter how ugly you make it. It never cared what shape the curve was. But the <span class="c">knobs start to struggle</span>: to chase the new bumps and ripples you have to keep <b>spending more and more knobs</b>, and if you don't, the blue curve peels away from the target.</p>
+  <div class="got reveal warn"><span class="tick">!</span><p>This is the catch: <b>the knob-trick's advantage is conditional.</b> Cheap and brilliant when the curve is a clean bell — but as the curve gets wild, the knobs you need pile up and the advantage shrinks. The dumb grid is bulletproof; the clever knobs are only clever when the curve cooperates.</p></div>
+</section>
+
+<!-- THE BET -->
+<section>
+  <div class="step reveal">Step 3 — so that's the whole bet</div>
+  <h2 class="reveal">Now the paper makes sense.</h2>
+  <p class="reveal">Everything in that document hangs on one wager: <b>in a real fusion plasma, does the curve stay close enough to a clean bell that the knobs keep winning?</b></p>
+  <p class="reveal">For decades people assumed <b>no</b> — that in the violent, turbulent regions that matter most, the curve goes ugly exactly where the knobs fail. So everyone used the bulletproof grid. Then someone finally tested the knobs in one of those violent regions (a tokamak edge) and found: the curve was messier than a bell, but <span class="g">not so messy that the knobs broke.</span> A modest number kept up. The old fear was overblown.</p>
+  <div class="got reveal"><span class="tick">✓</span><p>That test is why the new code is even proposable. <b>But it was a tokamak.</b> The new code bets the same holds in a <b>stellarator</b> — a more twisted machine that might warp the curve in new ways nobody's measured. That single unanswered question — <i>do the knobs keep up in a stellarator?</i> — is the entire risk the paper keeps circling.</p></div>
+  <div class="endcard reveal">
+    <h3>What you now understand.</h3>
+    <p>✓ The alternative to Hermite is a <b>grid</b> — store the curve's height at many sample points. Dumb, bulletproof, expensive.</p>
+    <p>✓ Hermite stores a few meaningful <b>knobs</b> instead. Cheap and brilliant — <i>when the curve is bell-like.</i></p>
+    <p>✓ The win is conditional: ugly curve → knobs pile up → advantage shrinks.</p>
+    <p>✓ The paper's whole bet: plasma curves stay bell-enough that knobs win — <b>proven in tokamaks, unproven in stellarators.</b></p>
+    <p class="small" style="margin-top:14px">Next, when ready: why these particular knobs are called "Hermite," what the higher knobs actually are, and how the grid-vs-knobs choice shows up in the code you'd write.</p>
+  </div>
+  <p class="reveal cue">how did this one land? →</p>
+</section>
+
+<script>
+/* ---- honest Hermite machinery (verified) ---- */
+function He(n,v){let h0=1,h1=v;if(n===0)return 1;if(n===1)return v;for(let k=1;k<n;k++){const h2=v*h1-k*h0;h0=h1;h1=h2;}return h1;}
+function fact(n){let f=1;for(let k=2;k<=n;k++)f*=k;return f;}
+function phi(n,v){return He(n,v)*Math.exp(-v*v/4)/Math.sqrt(fact(n)*Math.sqrt(2*Math.PI));}
+function target(v,w){
+  const bell=Math.exp(-v*v/4);
+  const bump2=Math.exp(-Math.pow(v-1.8,2)*1.1);
+  const ripple=0.35*Math.exp(-v*v/8)*Math.cos(2.2*v);
+  return (1-0.55*w)*bell + w*(0.8*bump2+ripple);
+}
+const _cc={};
+function coeffs(w,M){const key=w.toFixed(3)+':'+M;if(_cc[key])return _cc[key];
+  const L=9,K=400,c=[];for(let n=0;n<M;n++){let s=0;for(let i=0;i<K;i++){const v=-L+2*L*i/K;s+=target(v,w)*phi(n,v);}c.push(s*2*L/K);}
+  _cc[key]=c;return c;}
+function recon(v,c){let s=0;for(let n=0;n<c.length;n++)s+=c[n]*phi(n,v);return s;}
+function relErr(w,c){let num=0,den=0,L=9,K=300;for(let i=0;i<K;i++){const v=-L+2*L*i/K;const t=target(v,w);const d=t-recon(v,c);num+=d*d;den+=t*t;}return Math.sqrt(num/den);}
+function knobsNeeded(w){const c=coeffs(w,40);for(let M=1;M<=40;M++){if(relErr(w,c.slice(0,M))<0.04)return M;}return 40;}
+
+const C={cyan:'#5fe6ff',gold:'#ffd166',mag:'#ff6fae',green:'#7fe7b0',red:'#ff7a7a',soft:'#b3b1c8',faint:'#76748f',line:'rgba(149,140,255,0.16)'};
+const GRID_N=50;
+const st={M:1,W:0,M2:1};
+
+function sizeCanvas(cv){const d=window.devicePixelRatio||1;cv.width=cv.clientWidth*d;cv.height=cv.clientHeight*d;return d;}
+
+function drawTargetCurve(ctx,w,h,base,sx,sy,cx,vmax,weird){
+  ctx.strokeStyle='rgba(255,209,102,0.55)';ctx.lineWidth=2.2;ctx.setLineDash([6,6]);ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const y=base-target(v,weird)*sy;i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+  ctx.stroke();ctx.setLineDash([]);
+}
+
+function drawGrid(cv,ctx,weird){
+  const d=cv._d,w=cv.clientWidth,h=cv.clientHeight;ctx.clearRect(0,0,cv.width,cv.height);ctx.save();ctx.scale(d,d);
+  const base=h-16,vmax=4.5,sx=w/(2*vmax),cx=w/2,sy=95;
+  ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  drawTargetCurve(ctx,w,h,base,sx,sy,cx,vmax,weird);
+  // grid samples = dots + connect (always good)
+  const G=GRID_N;ctx.fillStyle=C.gold;ctx.strokeStyle='rgba(255,209,102,0.9)';ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<G;i++){const v=-vmax+2*vmax*i/(G-1);const y=base-target(v,weird)*sy;i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+  ctx.stroke();
+  for(let i=0;i<G;i+=2){const v=-vmax+2*vmax*i/(G-1);const y=base-target(v,weird)*sy;ctx.beginPath();ctx.arc(cx+v*sx,y,1.6,0,7);ctx.fill();}
+  ctx.restore();
+}
+function drawHerm(cv,ctx,weird,M){
+  const d=cv._d,w=cv.clientWidth,h=cv.clientHeight;ctx.clearRect(0,0,cv.width,cv.height);ctx.save();ctx.scale(d,d);
+  const base=h-16,vmax=4.5,sx=w/(2*vmax),cx=w/2,sy=95;
+  ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  drawTargetCurve(ctx,w,h,base,sx,sy,cx,vmax,weird);
+  const c=coeffs(weird,M);
+  const err=relErr(weird,c);
+  const good=err<0.06;
+  ctx.strokeStyle=good?C.cyan:C.red;ctx.lineWidth=3;ctx.shadowColor=good?C.cyan:C.red;ctx.shadowBlur=10;ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const y=base-recon(v,c)*sy;i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+  ctx.stroke();ctx.shadowBlur=0;ctx.restore();
+  return err;
+}
+
+const panes=[...document.querySelectorAll('canvas[data-p]')].map(cv=>({cv,ctx:cv.getContext('2d'),p:cv.dataset.p,vis:true}));
+function resize(){panes.forEach(o=>o.cv._d=sizeCanvas(o.cv));}
+addEventListener('resize',resize);resize();
+const io=new IntersectionObserver(es=>es.forEach(e=>{const o=panes.find(x=>x.cv===e.target);if(o)o.vis=e.isIntersecting;}),{threshold:0.02});
+panes.forEach(o=>io.observe(o.cv));
+
+function loop(){
+  panes.forEach(o=>{if(!o.vis)return;
+    if(o.p==='grid')drawGrid(o.cv,o.ctx,0);
+    if(o.p==='herm')drawHerm(o.cv,o.ctx,0,st.M);
+    if(o.p==='grid2')drawGrid(o.cv,o.ctx,st.W);
+    if(o.p==='herm2'){const e=drawHerm(o.cv,o.ctx,st.W,st.M2);updatePane2(e);}
+  });
+  requestAnimationFrame(loop);
+}
+loop();
+
+/* panel 1 readouts */
+function updatePane1(){
+  document.getElementById('hermN').textContent=st.M;
+  const e=relErr(0,coeffs(0,st.M));const good=e<0.06;
+  const hv=document.getElementById('hermV');hv.textContent=good?'fits ✓':'too few — peeling off ✗';hv.className='verdict '+(good?'ok':'bad');
+  const need=knobsNeeded(0);
+  document.getElementById('headline').innerHTML=`A clean bell needs just <b>${need} knob${need>1?'s':''}</b> vs <b>${GRID_N} grid points</b> — same curve, <b>${Math.round(GRID_N/need)}× less.</b>`;
+}
+/* panel 2 readouts */
+function updatePane2(err){
+  document.getElementById('hermN2').textContent=st.M2;
+  document.getElementById('gridN2').textContent=GRID_N;
+  const good=err<0.06;
+  const hv=document.getElementById('hermV2');hv.textContent=good?'keeping up ✓':'can\u2019t keep up ✗';hv.className='verdict '+(good?'ok':'bad');
+  const need=knobsNeeded(st.W);
+  const hl=document.getElementById('headline2');
+  const ratio=GRID_N/need;
+  if(st.W<0.05){hl.className='headline';hl.innerHTML=`Clean bell: knobs win big — <b>${need} vs ${GRID_N}</b>.`;}
+  else if(ratio>2){hl.className='headline';hl.innerHTML=`Getting weird: now needs <b>~${need} knobs</b> to match the grid\u2019s ${GRID_N}. Still <b>${ratio.toFixed(1)}× less</b> — knobs still win.`;}
+  else{hl.className='headline warn';hl.innerHTML=`Very weird: needs <b>~${need} knobs</b> vs ${GRID_N} grid points. The advantage has nearly <b>collapsed.</b>`;}
+}
+
+document.querySelectorAll('input[data-k]').forEach(inp=>{
+  inp.addEventListener('input',()=>{const k=inp.dataset.k;st[k]=parseFloat(inp.value);
+    if(k==='M'){document.getElementById('mv').textContent=inp.value;updatePane1();}
+    if(k==='M2'){document.getElementById('mv2').textContent=inp.value;}
+    if(k==='W'){document.getElementById('wv').textContent=parseFloat(inp.value).toFixed(1);}
+  });
+});
+updatePane1();
+
+const rIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');}),{threshold:0.1});
+document.querySelectorAll('.reveal').forEach(el=>rIO.observe(el));
+const rail=document.getElementById('rail');
+addEventListener('scroll',()=>{rail.style.width=(scrollY/(document.body.scrollHeight-innerHeight)*100)+'%';});
+</script>
+</body>
+</html>

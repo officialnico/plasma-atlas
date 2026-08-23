@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spacetime, curved</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070b16; --bg2:#0d1424; --ink:#eaeefb; --muted:#97a3c4; --faint:#5c6a8c;
+    --line:rgba(255,255,255,0.09);
+    --cyan:#6ee7f0; --violet:#b794f6; --pink:#ec4899; --warm:#fbbf24;
+    --r:16px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.02em;margin:0;font-weight:600}
+  .mono{font-family:'IBM Plex Mono',monospace}
+  .wrap{max-width:840px;margin:0 auto;padding:0 22px}
+
+  /* ---- 3D stage ---- */
+  #stage{
+    position:relative;width:100%;height:min(82vh,680px);
+    background:
+      radial-gradient(900px 500px at 70% 0%, #11203f 0%, transparent 55%),
+      radial-gradient(700px 500px at 12% 90%, #1a1233 0%, transparent 55%),
+      var(--bg);
+    overflow:hidden;border-bottom:1px solid var(--line);cursor:grab;touch-action:none;
+  }
+  #stage.grabbing{cursor:grabbing}
+  #stage canvas{display:block}
+
+  .overlay{position:absolute;pointer-events:none;}
+  .topleft{top:22px;left:24px;max-width:60%}
+  .topleft .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--cyan);opacity:.85}
+  .topleft h1{font-size:clamp(26px,4.5vw,42px);margin:8px 0 6px}
+  .topleft p{font-size:13.5px;color:var(--muted);margin:0;max-width:340px}
+
+  .hint{position:absolute;bottom:18px;left:24px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--faint);pointer-events:none}
+  .hint b{color:var(--cyan);font-weight:500}
+
+  /* control dock */
+  .dock{
+    position:absolute;top:22px;right:22px;width:230px;
+    background:rgba(10,16,30,.72);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:var(--r);padding:16px 16px 14px;
+    pointer-events:auto;
+  }
+  .dock .grp{margin-bottom:16px}
+  .dock .grp:last-child{margin-bottom:0}
+  .dock label{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:8px}
+  .dock label b{color:var(--cyan);font-weight:500}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:#16203a;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px rgba(110,231,240,.7);border:2px solid #04121a;cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px rgba(110,231,240,.7);border:2px solid #04121a;cursor:pointer}
+  .row{display:flex;gap:8px}
+  .btn{flex:1;font-family:'IBM Plex Mono',monospace;font-size:12px;background:#16203a;color:var(--ink);border:1px solid var(--line);padding:9px 8px;border-radius:9px;cursor:pointer;transition:.15s;text-align:center}
+  .btn:hover{border-color:var(--cyan);color:var(--cyan)}
+  .btn.on{background:rgba(110,231,240,.14);border-color:var(--cyan);color:var(--cyan)}
+  .legend{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--faint);margin-top:4px}
+  .bar{height:7px;flex:1;border-radius:4px;background:linear-gradient(90deg,#2b4a6b,#2bd4e0,#8b5cf6,#ec4899)}
+  .tinyread{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-top:13px;line-height:1.85;border-top:1px solid var(--line);padding-top:11px}
+  .tinyread .r1{color:var(--cyan)} .tinyread .r2{color:var(--pink)}
+
+  /* ---- prose below ---- */
+  section{padding:64px 0;border-top:1px solid var(--line)}
+  .eyebrow2{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--cyan);opacity:.85;display:block;margin-bottom:14px}
+  section h2{font-size:clamp(26px,4.6vw,38px);margin-bottom:20px}
+  section h2 .a{color:var(--cyan)}
+  .body{font-size:17px;color:#cdd5ec}
+  .body strong{color:var(--ink)}
+  .body .hl{color:var(--warm);font-weight:600}
+  .callout{background:linear-gradient(135deg,#0e1a33,#130f28);border:1px solid var(--line);border-radius:var(--r);padding:22px 24px;margin:26px 0}
+  .callout h3{font-size:16px;color:var(--violet);margin-bottom:8px}
+  .callout p{font-size:15px;color:var(--muted);margin:0}
+  footer{padding:60px 0 80px;text-align:center;color:var(--faint);font-family:'IBM Plex Mono',monospace;font-size:13px;border-top:1px solid var(--line)}
+
+  @media(max-width:620px){
+    .dock{position:static;width:auto;margin:0;border-radius:0;border-left:none;border-right:none}
+    #stage{height:62vh}
+    .topleft{max-width:78%}
+    .dock-host{position:absolute;left:0;right:0;bottom:0;padding:0}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div class="overlay topleft">
+    <span class="eyebrow">general relativity · embedding diagram</span>
+    <h1>Mass bends the<br>fabric. Bending<br>is gravity.</h1>
+    <p>The grid is a stand-in for spacetime. Drop mass on it and it dips — and anything moving nearby just follows the dip.</p>
+  </div>
+  <div class="dock">
+    <div class="grp">
+      <label>central mass <b id="massLbl">3.0</b></label>
+      <input type="range" id="mass" min="5" max="60" value="30" aria-label="central mass">
+    </div>
+    <div class="grp">
+      <div class="row">
+        <button class="btn" id="binaryBtn">binary</button>
+        <button class="btn" id="marbleBtn">marbles</button>
+      </div>
+    </div>
+    <div class="grp" style="margin-bottom:8px">
+      <div class="row">
+        <button class="btn on" id="clockBtn">clocks</button>
+        <button class="btn" id="resetBtn">reset view</button>
+      </div>
+    </div>
+    <div class="legend"><span>flat</span><span class="bar"></span><span>deep</span></div>
+    <div class="tinyread" id="rateRead">
+      <div>slowest clock: <span class="r2" id="slowRate">–</span></div>
+      <div>reference (∞, zero&nbsp;g): <span class="r1">1.00×</span></div>
+    </div>
+  </div>
+  <div class="hint"><b>drag</b> to orbit · <b>scroll</b> to zoom · clock hands sweep at the local rate of time</div>
+</div>
+
+<section class="wrap">
+  <span class="eyebrow2">what you're looking at</span>
+  <h2>Orbits are just <span class="a">straight lines</span> in a curved space.</h2>
+  <div class="body">
+    <p>In flat space, a thing with no force on it travels in a straight line forever. Einstein's idea is that this never stops being true — mass doesn't <em>pull</em> on the marble with a force, it <strong>changes the shape of the space the marble is moving through</strong>. The marble keeps going as straight as it can; the straightest possible path through a curved region just happens to curve. That's an orbit. That's a falling apple. No tug-of-war, no rope — just geometry.</p>
+    <p>Turn on <span class="hl">binary</span> to watch two masses carve moving wells around each other, and the whole sheet flexes to keep up. Crank the mass slider and the funnel deepens — more mass, more curvature, steeper "downhill" for everything nearby.</p>
+  </div>
+
+  <div class="callout">
+    <h3>One honest caveat — because you're clearly trying to really get this</h3>
+    <p>This rubber-sheet picture is a teaching crutch, and it quietly cheats in two ways. First, it shows a <strong>2D sheet bending into a 3rd dimension</strong>, but real spacetime is 4D curving with no "outside" to bend into — there's no literal down. Second, and this is the big one: for slow everyday objects, the gravity you feel is mostly the curvature of <strong>time</strong>, not space. The apple falls because clocks run slightly slower near the ground, and the apple's path through spacetime bends toward where its own time ticks slowest. The sheet shows you space curving, which is the easy part to draw — but the part that actually drops the apple is the time-curvature you saw two steps ago. Same machinery, just hard to render as a mesh.</p>
+  </div>
+
+  <div class="callout">
+    <h3>Your question: is there a "zero gravity" to measure from?</h3>
+    <p>Yes — and this is where gravity differs from motion. With speed there's no "really at rest," no preferred frame. But gravitational time dilation <strong>does</strong> have a natural zero: a clock infinitely far from all mass, where the pull drops to nothing, ticks at the maximum rate. Every other clock runs slow relative to <em>that</em>. The clock hands in the visual sweep at their local rate, and the readout compares the slowest one to that ∞ reference set at 1.00×. The honest catch: it's a limit you approach, never a spot you reach — in a universe with mass everywhere, nowhere is truly at zero. So it's a fastest-possible baseline, not a master clock sitting at the middle of the universe.</p>
+  </div>
+
+  <div class="body">
+    <p>So tying it all together: there's no center, no master clock — just clocks compared to clocks. Motion stretches time by γ. Mass curves spacetime, and that curvature <em>is</em> what we call gravity. The marbles aren't being pulled. They're coasting in straight lines across a floor that mass tilted underneath them.</p>
+  </div>
+</section>
+
+<footer class="wrap">a 2D shadow of a 4D idea · drag it around</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stage = document.getElementById('stage');
+
+  // ---------- renderer / scene / camera ----------
+  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  stage.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x070b16, 0.0042);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
+  camera.up.set(0,0,1); // Z is "up/down" (well depth)
+
+  // orbit state (spherical around origin, Z-up)
+  const view = {r:96, theta:0.7, phi:0.86};
+  const VIEW0 = {...view};
+  const target = new THREE.Vector3(0,0,-4);
+  function applyCamera(){
+    const sp = Math.sin(view.phi), cp = Math.cos(view.phi);
+    camera.position.set(
+      target.x + view.r*sp*Math.cos(view.theta),
+      target.y + view.r*sp*Math.sin(view.theta),
+      target.z + view.r*cp
+    );
+    camera.lookAt(target);
+  }
+
+  // ---------- the spacetime grid ----------
+  const SIZE = 64, SEG = 72;
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+  const pos = geo.attributes.position;
+  const N = pos.count;
+  // cache flat x,y (these never change; we only move z)
+  const baseX = new Float32Array(N), baseY = new Float32Array(N);
+  for(let i=0;i<N;i++){ baseX[i]=pos.getX(i); baseY[i]=pos.getY(i); }
+  const colors = new Float32Array(N*3);
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+
+  const gridMat = new THREE.MeshBasicMaterial({
+    vertexColors:true, wireframe:true, transparent:true, opacity:0.92,
+    blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const grid = new THREE.Mesh(geo, gridMat);
+  scene.add(grid);
+
+  // depth -> color ramp
+  const C0=new THREE.Color('#26415f'), C1=new THREE.Color('#2bd4e0'),
+        C2=new THREE.Color('#8b5cf6'), C3=new THREE.Color('#ec4899');
+  const tmp=new THREE.Color();
+  function ramp(t){
+    t=Math.max(0,Math.min(1,t));
+    if(t<0.33){ tmp.copy(C0).lerp(C1, t/0.33); }
+    else if(t<0.66){ tmp.copy(C1).lerp(C2,(t-0.33)/0.33); }
+    else { tmp.copy(C2).lerp(C3,(t-0.66)/0.34); }
+    return tmp;
+  }
+
+  // ---------- masses ----------
+  const DEPTH = 7.0, COLOR_REF = 20;
+  const masses = [{x:0,y:0,m:3,core:1.3}];
+
+  function depthAt(x,y){
+    let z=0;
+    for(const M of masses){
+      const dx=x-M.x, dy=y-M.y;
+      z -= DEPTH * M.m / Math.sqrt(dx*dx + dy*dy + M.core*M.core);
+    }
+    return z;
+  }
+
+  // gravitational potential magnitude (same 1/r shape) -> local rate of time.
+  // rate -> 1 as you move infinitely far (zero gravity); nothing in-scene quite reaches it.
+  const RATE_ALPHA = 0.9;
+  function potentialMag(x,y){
+    let p=0;
+    for(const M of masses){
+      const dx=x-M.x, dy=y-M.y;
+      p += M.m / Math.sqrt(dx*dx + dy*dy + M.core*M.core);
+    }
+    return p;
+  }
+  function rateAt(x,y){
+    return Math.max(0.05, 1/(1 + RATE_ALPHA*potentialMag(x,y)));
+  }
+
+  function deform(){
+    for(let i=0;i<N;i++){
+      const z = depthAt(baseX[i], baseY[i]);
+      pos.setZ(i, z);
+      const c = ramp(-z / COLOR_REF);
+      colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
+    }
+    pos.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+  }
+
+  // ---------- glowing body (sun + halo) ----------
+  function makeBody(radius, color){
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 24, 24),
+      new THREE.MeshBasicMaterial({color})
+    );
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(radius*2.4, 20, 20),
+      new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.28, blending:THREE.AdditiveBlending, depthWrite:false})
+    );
+    g.add(halo); g.add(core);
+    scene.add(g);
+    return g;
+  }
+  const sun  = makeBody(1.4, 0xffe08a);
+  const sun2 = makeBody(1.2, 0xff9d6e); sun2.visible=false;
+
+  // ---------- marbles (test particles riding the sheet) ----------
+  function makeMarble(color){
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,16),
+      new THREE.MeshBasicMaterial({color}));
+    scene.add(m);
+    const trailGeo = new THREE.BufferGeometry();
+    const trailMat = new THREE.LineBasicMaterial({color, transparent:true, opacity:0.5, blending:THREE.AdditiveBlending});
+    const trail = new THREE.Line(trailGeo, trailMat);
+    scene.add(trail);
+    return {mesh:m, trail, hist:[], color};
+  }
+  const marbles = [
+    {obj:makeMarble(0x6ee7f0), R:9,  a:0,        k:17},
+    {obj:makeMarble(0xb794f6), R:15, a:Math.PI,  k:17}
+  ];
+  let showMarbles = false;
+  marbles.forEach(mb=>{ mb.obj.mesh.visible=false; mb.obj.trail.visible=false; });
+
+  // ---------- clocks (the time layer) ----------
+  const CLK_FAST=new THREE.Color(0x6ee7f0), CLK_SLOW=new THREE.Color(0xec4899);
+  const clocks=[];
+  let showClocks=true;
+  function makeClock(x,y){
+    const g=new THREE.Group();
+    const ringMat=new THREE.MeshBasicMaterial({color:0x6ee7f0});
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.15,0.085,8,30), ringMat); // lies in XY (horizontal)
+    const handMat=new THREE.MeshBasicMaterial({color:0xffffff});
+    const handGeo=new THREE.BoxGeometry(0.14,0.95,0.07); handGeo.translate(0,0.48,0); // pivot at base
+    const hand=new THREE.Mesh(handGeo, handMat);
+    const dot=new THREE.Mesh(new THREE.SphereGeometry(0.17,10,10), new THREE.MeshBasicMaterial({color:0xffffff}));
+    g.add(ring); g.add(hand); g.add(dot);
+    scene.add(g);
+    return {grp:g, hand, ringMat, handMat, x, y, ang:Math.random()*6.28};
+  }
+  // a transect of clocks running from deep in the well out toward flat space (both directions)
+  [-31,-23,-16,-10,-5,5,10,16,23,31].forEach(rx=> clocks.push(makeClock(rx,0)));
+
+  function placeMarble(mb, ang){
+    const x = mb.R*Math.cos(ang), y = mb.R*Math.sin(ang);
+    const z = depthAt(x,y) + 0.4; // sit just on the surface
+    mb.obj.mesh.position.set(x,y,z);
+    mb.obj.hist.push(new THREE.Vector3(x,y,z));
+    if(mb.obj.hist.length>70) mb.obj.hist.shift();
+    mb.obj.trail.geometry.setFromPoints(mb.obj.hist);
+  }
+
+  // ---------- starfield ----------
+  (function(){
+    const n=260, arr=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const rr=70+Math.random()*120, th=Math.random()*6.283, ph=Math.acos(2*Math.random()-1);
+      arr[i*3]=rr*Math.sin(ph)*Math.cos(th);
+      arr[i*3+1]=rr*Math.sin(ph)*Math.sin(th);
+      arr[i*3+2]=rr*Math.cos(ph);
+    }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr,3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0x8aa0d0, size:0.6, transparent:true, opacity:0.55, fog:false})));
+  })();
+
+  // ---------- modes ----------
+  let binary = false;
+  let dirty = true;
+
+  function setBinary(on){
+    binary = on;
+    document.getElementById('binaryBtn').classList.toggle('on', on);
+    if(on){
+      masses.length=0;
+      masses.push({x:6,y:0,m:2.6,core:1.2},{x:-6,y:0,m:2.6,core:1.2});
+      sun2.visible=true;
+    }else{
+      masses.length=0;
+      masses.push({x:0,y:0,m:currentMass(),core:1.3});
+      sun2.visible=false;
+      sun.position.set(0,0,depthAt(0,0));
+    }
+    dirty=true;
+  }
+
+  // ---------- controls UI ----------
+  const massSlider=document.getElementById('mass'), massLbl=document.getElementById('massLbl');
+  const slowRateEl=document.getElementById('slowRate');
+  function currentMass(){ return massSlider.value/10; }
+  function refreshMassLbl(){ massLbl.textContent = currentMass().toFixed(1); }
+  massSlider.addEventListener('input',()=>{
+    refreshMassLbl();
+    if(!binary){ masses[0].m=currentMass(); masses[0].core=1.0+0.12*currentMass(); }
+    dirty=true;
+  });
+  refreshMassLbl();
+
+  document.getElementById('binaryBtn').addEventListener('click',()=> setBinary(!binary));
+  document.getElementById('marbleBtn').addEventListener('click',(e)=>{
+    showMarbles=!showMarbles;
+    e.currentTarget.classList.toggle('on',showMarbles);
+    marbles.forEach(mb=>{ mb.obj.mesh.visible=showMarbles; mb.obj.trail.visible=showMarbles; if(!showMarbles) mb.obj.hist.length=0; });
+  });
+  document.getElementById('clockBtn').addEventListener('click',(e)=>{
+    showClocks=!showClocks;
+    e.currentTarget.classList.toggle('on',showClocks);
+    clocks.forEach(c=> c.grp.visible=showClocks);
+  });
+  document.getElementById('resetBtn').addEventListener('click',()=>{ Object.assign(view,VIEW0); applyCamera(); });
+
+  // ---------- pointer / drag / zoom ----------
+  let dragging=false, lastX=0, lastY=0;
+  stage.addEventListener('pointerdown',(e)=>{
+    if(e.target.closest('.dock')) return;
+    dragging=true; lastX=e.clientX; lastY=e.clientY; stage.classList.add('grabbing');
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove',(e)=>{
+    if(!dragging) return;
+    view.theta -= (e.clientX-lastX)*0.006;
+    view.phi   -= (e.clientY-lastY)*0.006;
+    view.phi = Math.max(0.12, Math.min(1.45, view.phi));
+    lastX=e.clientX; lastY=e.clientY; applyCamera();
+  });
+  function endDrag(){ dragging=false; stage.classList.remove('grabbing'); }
+  stage.addEventListener('pointerup',endDrag);
+  stage.addEventListener('pointercancel',endDrag);
+  stage.addEventListener('wheel',(e)=>{
+    e.preventDefault();
+    view.r *= (1 + e.deltaY*0.001);
+    view.r = Math.max(22, Math.min(190, view.r));
+    applyCamera();
+  },{passive:false});
+  // pinch zoom
+  let pinch0=null;
+  stage.addEventListener('touchstart',(e)=>{ if(e.touches.length===2) pinch0=dist2(e); },{passive:true});
+  stage.addEventListener('touchmove',(e)=>{
+    if(e.touches.length===2 && pinch0){
+      const d=dist2(e); view.r *= pinch0/d; view.r=Math.max(22,Math.min(190,view.r)); pinch0=d; applyCamera();
+    }
+  },{passive:true});
+  stage.addEventListener('touchend',()=>{ pinch0=null; });
+  function dist2(e){ const a=e.touches[0],b=e.touches[1]; return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY); }
+
+  // ---------- resize ----------
+  function resize(){
+    const w=stage.clientWidth, h=stage.clientHeight;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize',resize);
+
+  // ---------- loop ----------
+  let bAng=0;
+  function animate(now){
+    requestAnimationFrame(animate);
+    const dt = 1/60;
+
+    if(binary && !reduce){
+      bAng += dt*0.45;
+      const d=6;
+      masses[0].x= d*Math.cos(bAng);  masses[0].y= d*Math.sin(bAng);
+      masses[1].x=-d*Math.cos(bAng);  masses[1].y=-d*Math.sin(bAng);
+      dirty=true;
+    }
+
+    if(dirty){
+      deform();
+      // sit the bodies in their wells
+      if(binary){
+        sun.position.set(masses[0].x, masses[0].y, depthAt(masses[0].x,masses[0].y)+1.0);
+        sun2.position.set(masses[1].x, masses[1].y, depthAt(masses[1].x,masses[1].y)+1.0);
+      }else{
+        sun.position.set(0,0, depthAt(0,0)+1.2);
+      }
+      dirty = binary; // stay dirty while binary animates; otherwise rest
+    }
+
+    if(showMarbles && !reduce){
+      for(const mb of marbles){
+        mb.a += (mb.k / Math.pow(mb.R,1.5)) * dt;  // faster when closer (Kepler-ish)
+        placeMarble(mb, mb.a);
+      }
+    } else if(showMarbles){
+      for(const mb of marbles) placeMarble(mb, mb.a);
+    }
+
+    if(showClocks){
+      let slowest=1;
+      for(const c of clocks){
+        const rate=rateAt(c.x,c.y);
+        if(rate<slowest) slowest=rate;
+        c.grp.position.set(c.x, c.y, depthAt(c.x,c.y)+0.7);
+        if(!reduce) c.ang += 3.0*rate*dt;   // hand sweeps at the local rate of time
+        c.hand.rotation.z = -c.ang;
+        const col = CLK_FAST.clone().lerp(CLK_SLOW, Math.min(1,(1-rate)*1.4));
+        c.ringMat.color.copy(col);
+        c.handMat.color.copy(col);
+      }
+      slowRateEl.textContent = slowest.toFixed(2)+'×';
+    }
+
+    renderer.render(scene,camera);
+  }
+
+  // init
+  resize();
+  applyCamera();
+  deform();
+  sun.position.set(0,0,depthAt(0,0)+1.2);
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

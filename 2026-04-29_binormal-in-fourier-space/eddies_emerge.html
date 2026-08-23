@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Eddies emerge — they're not in the equation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; overflow-x: hidden; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 28px 24px 80px; }
+
+h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin-bottom: 6px; color: #fff; }
+.sub { color: #a8a59c; font-size: 14px; line-height: 1.6; max-width: 760px; margin-bottom: 24px; }
+
+.demo {
+  background: rgba(12,12,18,0.85);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 22px 24px;
+  margin-bottom: 22px;
+}
+.demo h2 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 22px; color: #fff; margin-bottom: 8px; letter-spacing: -0.01em; }
+.demo p { font-size: 14px; line-height: 1.65; color: #d4cfc0; margin-bottom: 12px; }
+.demo strong { color: #fff; }
+.demo em { color: #d4a04a; font-style: normal; font-weight: 600; }
+
+.viz { background: #050508; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); margin: 14px 0; overflow: hidden; }
+.viz canvas { display: block; width: 100%; }
+.viz .controls { display: flex; gap: 8px; padding: 10px 12px; background: rgba(0,0,0,0.4); border-top: 1px solid rgba(255,255,255,0.06); align-items: center; flex-wrap: wrap; }
+.btn {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  color: #e8e6e0; padding: 6px 14px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn:hover { background: rgba(255,255,255,0.12); }
+.btn.primary { background: #d4a04a; color: #1a1408; border-color: #d4a04a; font-weight: 600; }
+.controls .stat {
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #888;
+  margin-left: auto;
+}
+.controls .stat .v { color: #d4a04a; font-weight: 600; }
+
+.controls .slider-block { display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+.controls input[type=range] {
+  width: 120px; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: rgba(212,160,74,0.2); border-radius: 2px; outline: none;
+}
+.controls input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+  background: #d4a04a; cursor: pointer; border: none;
+}
+
+.formula {
+  font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+  background: rgba(212,160,74,0.06); border-left: 2px solid #d4a04a;
+  padding: 10px 14px; margin: 14px 0;
+  color: #f0e6d0; border-radius: 3px;
+  white-space: pre-wrap; line-height: 1.6;
+}
+
+.aside {
+  background: rgba(91,141,191,0.06);
+  border-left: 2px solid #7badd6;
+  padding: 12px 16px; margin: 14px 0; border-radius: 3px;
+  font-size: 13px; line-height: 1.6;
+}
+.aside .lbl { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: 0.18em; color: #7badd6; text-transform: uppercase; margin-bottom: 4px; display: block; font-weight: 600; }
+
+.tag-x { color: #ff8b8b; font-weight: 600; }
+.tag-y { color: #6fdb9e; font-weight: 600; }
+.tag-z { color: #8bbde6; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>How eddies actually emerge from the equation</h1>
+  <p class="sub">The eddy size, location, and frequency aren't programmed in. They're <em>instabilities</em> of the gyrokinetic equation. Tiny random noise grows, the geometry decides which modes grow fastest, the nonlinear term saturates them. Here's the demo.</p>
+
+  <div class="demo">
+    <h2>Demo: watch eddies grow from nothing</h2>
+    <p>This is a real simulation of a simplified instability — a 2D fluid with a temperature gradient and a magnetic curvature term, very close to the heart of how ITG (Ion Temperature Gradient) turbulence works in a tokamak.</p>
+    <p><strong>What you start with:</strong> a smooth temperature field that drops linearly from left (hot) to right (cold). Plus tiny <em>random</em> fluctuations of size 10⁻³ — like static. No eddies anywhere.</p>
+    <p><strong>What you watch:</strong> hit play. The gradient is steep enough that the equation is unstable. The random noise grows exponentially. After a while, structure emerges — and that structure has a <em>characteristic size</em> set by physics, not by you.</p>
+
+    <div class="viz">
+      <canvas id="sim" height="380"></canvas>
+      <div class="controls">
+        <button class="btn primary" id="playBtn">▶ play</button>
+        <button class="btn" id="resetBtn">reset (re-noise)</button>
+        <div class="slider-block">
+          <span style="color:#ff8b8b">∇T strength</span>
+          <input type="range" id="grad" min="0" max="3" step="0.05" value="1.5">
+          <span class="v" id="gradV">1.50</span>
+        </div>
+        <div class="slider-block">
+          <span style="color:#6fdb9e">curvature</span>
+          <input type="range" id="curv" min="0" max="2" step="0.05" value="1.0">
+          <span class="v" id="curvV">1.00</span>
+        </div>
+        <div class="stat">
+          step: <span class="v" id="step">0</span> &nbsp;
+          fluct level: <span class="v" id="amp">0.001</span>
+        </div>
+      </div>
+    </div>
+
+    <p>What just happened:</p>
+    <ul style="margin-left: 18px; line-height: 1.8; color: #d4cfc0; font-size: 14px;">
+      <li><strong>Phase 1 — linear growth.</strong> The noise grows exponentially in amplitude. Each ky mode grows at its own rate γ(ky). The fastest one wins.</li>
+      <li><strong>Phase 2 — saturation.</strong> Once amplitudes get big enough, modes scatter into each other. Energy stops piling up at the fastest-growing mode and spreads across the spectrum.</li>
+      <li><strong>Phase 3 — steady turbulence.</strong> The eddies you see now have a characteristic size set by where this energy spreading balances dissipation.</li>
+    </ul>
+  </div>
+
+  <div class="demo">
+    <h2>Where each piece comes from in the equation</h2>
+    <p>The gyrokinetic equation has roughly four terms. Each one is responsible for something specific:</p>
+
+    <div class="formula">∂f/∂t   +   v∥ ∇∥ f   +   v_drift · ∇⊥ f   +   nonlinear   =   sources/sinks
+   ↑           ↑              ↑                  ↑
+ evolution    parallel        drift              eddy-eddy
+ in time     streaming        through B          coupling</div>
+
+    <p><strong><span class="tag-z">v∥ ∇∥ f</span> — parallel streaming.</strong> "Particles slide along field lines." This term knows about z (poloidal angle). On the inboard side B is bigger, so particles bounce around more. This is why eddies have <em>parallel structure</em> — they extend along the field but don't extend uniformly. Trapped vs passing particles, ballooning structure.</p>
+
+    <p><strong><span class="tag-y">v_drift · ∇⊥ f</span> — drift through B.</strong> The drift velocity v_drift is where the magnetic geometry shows up most directly. Concretely:</p>
+
+    <div class="formula">v_drift  =  (v∥² + v⊥²/2) · (b̂ × ∇B  +  curvature) / (q B)</div>
+
+    <p>The <code>b̂ × ∇B</code> piece points in the binormal direction (yes, the y direction!) and depends on whether you're inboard or outboard. <strong>Outboard: ∇B points outward, so v_drift points one way. Inboard: ∇B flips, so v_drift flips.</strong> Combined with the temperature gradient, this drives instability on the outboard side and stabilizes the inboard side. <em>This is the equation-level reason for ballooning.</em></p>
+
+    <p><strong>The nonlinear term — eddy-eddy coupling.</strong> Schematically <code>{φ, f}</code> (a Poisson bracket). It looks like <code>∂φ/∂x · ∂f/∂y - ∂φ/∂y · ∂f/∂x</code>. This term is zero when there are no fluctuations (small δφ, small δf). Once fluctuations grow, this term kicks in and lets modes scatter into each other. <em>This is what saturates the instability and sets eddy sizes.</em></p>
+
+    <p><strong>The equilibrium gradients.</strong> The driving term comes from the equilibrium gradients. There's a piece in the linear part that looks like <code>ω*_T · δφ</code> where <code>ω*_T ~ ky · (dT₀/dx) / T₀</code>. <em>This is what makes higher-ky modes grow faster (up to a point) — it scales linearly with ky.</em></p>
+
+    <div class="aside">
+      <span class="lbl">The bottom line</span>
+      None of these terms says "make eddies of size L." They say "particles drift like this," "energy can scatter like that," "gradients drive growth." The eddy size, the spectrum peak, the ballooning shape — all of these <strong>emerge</strong> from the equation responding to the geometry and gradients you fed it. That's the whole point. GENE doesn't simulate eddies; it simulates the equation, and eddies fall out.
+    </div>
+  </div>
+
+  <div class="demo">
+    <h2>The growth rate spectrum γ(ky) — the smoking gun</h2>
+    <p>Here's the most concrete test: solve the <em>linearized</em> gyrokinetic equation (drop the nonlinear term, keep everything else). For each ky, find the rate γ at which a mode of that ky grows or decays.</p>
+    <p>Plot γ vs ky. The curve has a peak — there's a fastest-growing ky. When you start with random noise (which has a flat spectrum across all ky), only the modes near the peak grow. Everything else decays or grows too slowly to compete. After a few growth times, the surviving modes ARE your eddies, with size 1/ky_peak.</p>
+    <div class="viz">
+      <canvas id="growthCanvas" height="280"></canvas>
+      <div class="controls">
+        <div class="slider-block">
+          <span style="color:#ff8b8b">∇T strength</span>
+          <input type="range" id="grad2" min="0" max="3" step="0.05" value="1.5">
+          <span class="v" id="grad2V">1.50</span>
+        </div>
+        <div class="slider-block">
+          <span style="color:#6fdb9e">FLR damping</span>
+          <input type="range" id="flr" min="0.1" max="2" step="0.05" value="0.6">
+          <span class="v" id="flrV">0.60</span>
+        </div>
+      </div>
+    </div>
+    <p>Drag <strong>∇T</strong>: stronger gradient → modes grow faster. Drag <strong>FLR damping</strong> (Finite Larmor Radius): higher → small-scale modes (high ky) get killed by gyro-averaging. The peak position is where these two effects balance — <strong>that's where ky_peak comes from</strong>.</p>
+    <p>For a typical tokamak: ky_peak corresponds to eddies of size ~ a few ion gyroradii. <strong>The geometry sets the gyroradius. The gradient sets the drive. Together they fix eddy size.</strong> No magic, just two competing physical effects.</p>
+  </div>
+
+  <div class="demo">
+    <h2>Recap: where each thing in the eddies comes from</h2>
+    <p>Walk through the question "what determines [X]":</p>
+    <ul style="margin-left: 18px; line-height: 1.9; color: #d4cfc0; font-size: 14px;">
+      <li><strong>What determines eddy size?</strong> The growth rate spectrum γ(ky). Peak ky → eddy size ~ 1/ky_peak. Set by drive (∇T) vs damping (FLR, Landau damping).</li>
+      <li><strong>What determines where eddies are concentrated (outboard, ballooning)?</strong> The drift term v_drift · ∇⊥f. Outboard has destabilizing curvature; inboard has stabilizing curvature. The equation amplifies fluctuations only where it's destabilized.</li>
+      <li><strong>What determines how often eddies form?</strong> The nonlinear saturation rate vs the linear growth rate. Stronger gradients → more rapid eddy turnover.</li>
+      <li><strong>What determines eddy lifetime?</strong> Decorrelation rate from the nonlinear scattering — eddies live ~ 1/γ_nonlinear.</li>
+      <li><strong>What determines parallel structure?</strong> The interplay of v∥ ∇∥ f (smooths along z) and the drift term (localizes at outboard). Result: long along z, but with ballooning envelope.</li>
+    </ul>
+    <p>None of these are programmed in. <strong>All emerge from solving the equation</strong> with the given geometry and gradients.</p>
+  </div>
+
+</div>
+
+<script>
+// ============ SIMPLIFIED 2D ITG-LIKE SIMULATION ============
+// We solve a simplified Hasegawa-Wakatani-like model that captures the essential physics:
+//   Temperature gradient + curvature + nonlinear advection
+// This is NOT the full gyrokinetic equation, but it shows the key behavior:
+// random noise grows into eddies of a characteristic size in unstable parameter regimes.
+
+const N = 64;       // grid resolution (NxN)
+const L = 2 * Math.PI; // box size
+const dx = L / N;
+let phi = new Float32Array(N * N);   // electrostatic potential (the thing we visualize)
+let phi_prev = new Float32Array(N * N);
+let stepCount = 0;
+let playing = false;
+
+let gradT = 1.5;   // temperature gradient strength
+let curv = 1.0;    // curvature drive
+const FLR = 0.5;   // finite Larmor radius damping coefficient
+const visc = 0.005; // numerical viscosity
+
+function reset() {
+  // Fill with small random noise
+  for (let i = 0; i < N * N; i++) {
+    phi[i] = (Math.random() - 0.5) * 2 * 0.001;
+    phi_prev[i] = phi[i];
+  }
+  stepCount = 0;
+}
+reset();
+
+function idx(i, j) {
+  // periodic indexing
+  i = ((i % N) + N) % N;
+  j = ((j % N) + N) % N;
+  return j * N + i;
+}
+
+function step(dt) {
+  // We'll evolve phi using a simple model:
+  //   ∂φ/∂t = γ_lin(ky) · φ + nonlinear_advection - dissipation
+  // where γ_lin is built up from the gradient and curvature terms in spectral form.
+  // Simplest implementation: real-space update with derivatives.
+  //
+  // The model:
+  //   ∂φ/∂t  =  -gradT · ∂φ/∂y · curv·sin(x)        (curvature-modulated drive — outboard ballooning)
+  //              + nonlinear: -{φ_prev, φ}            (Poisson bracket for E×B advection)
+  //              - FLR · (-∇⁴φ)                       (small-scale damping)
+  //              + visc · ∇²φ                         (numerical regularization)
+
+  const newPhi = new Float32Array(N * N);
+  const inv_dx = 1 / dx;
+  const inv_dx2 = 1 / (dx * dx);
+
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const k = idx(i, j);
+      const x = (i + 0.5) * dx;
+
+      // first derivatives
+      const dphi_dx = (phi[idx(i + 1, j)] - phi[idx(i - 1, j)]) * 0.5 * inv_dx;
+      const dphi_dy = (phi[idx(i, j + 1)] - phi[idx(i, j - 1)]) * 0.5 * inv_dx;
+
+      // Laplacian
+      const lap = (phi[idx(i + 1, j)] + phi[idx(i - 1, j)] + phi[idx(i, j + 1)] + phi[idx(i, j - 1)] - 4 * phi[k]) * inv_dx2;
+
+      // Bilaplacian (for FLR-like hyperviscosity that kills small scales)
+      const lap_n = (
+        phi[idx(i + 2, j)] + phi[idx(i - 2, j)] + phi[idx(i, j + 2)] + phi[idx(i, j - 2)]
+        - 4 * (phi[idx(i + 1, j)] + phi[idx(i - 1, j)] + phi[idx(i, j + 1)] + phi[idx(i, j - 1)])
+        + 12 * phi[k]
+      ) * inv_dx2 * inv_dx2;
+
+      // ITG drive: -gradT · dphi/dy · (curvature spatial profile — emulates outboard/inboard)
+      // sin(x) gives "good curvature" on left, "bad curvature" on right (or vice versa)
+      const drive = -gradT * dphi_dy * (1 + curv * Math.sin(x));
+
+      // Nonlinear: simplified — phi_prev advecting phi
+      // {phi_prev, phi} = dphi_prev/dx * dphi/dy - dphi_prev/dy * dphi/dx
+      const dpp_dx = (phi_prev[idx(i + 1, j)] - phi_prev[idx(i - 1, j)]) * 0.5 * inv_dx;
+      const dpp_dy = (phi_prev[idx(i, j + 1)] - phi_prev[idx(i, j - 1)]) * 0.5 * inv_dx;
+      const nonlin = -(dpp_dx * dphi_dy - dpp_dy * dphi_dx);
+
+      // FLR damping (negative of bilaplacian — kills small scales)
+      const flr_damp = -FLR * 0.0005 * lap_n;
+
+      // Viscous regularization
+      const visc_term = visc * lap;
+
+      newPhi[k] = phi[k] + dt * (drive + nonlin + flr_damp + visc_term);
+    }
+  }
+
+  // Cap amplitude to prevent blowup
+  let maxAbs = 0;
+  for (let k = 0; k < N * N; k++) maxAbs = Math.max(maxAbs, Math.abs(newPhi[k]));
+  if (maxAbs > 5.0) {
+    const scale = 5.0 / maxAbs;
+    for (let k = 0; k < N * N; k++) newPhi[k] *= scale;
+  }
+
+  phi_prev.set(phi);
+  phi.set(newPhi);
+  stepCount++;
+}
+
+// ============ Render the simulation ============
+const simCanvas = document.getElementById('sim');
+function drawSim() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = simCanvas.clientWidth;
+  const h = 380;
+  simCanvas.width = w * dpr; simCanvas.height = h * dpr;
+  simCanvas.style.height = h + 'px';
+  const ctx = simCanvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+
+  // Find max |phi| for color scaling
+  let maxAbs = 0;
+  for (let k = 0; k < N * N; k++) maxAbs = Math.max(maxAbs, Math.abs(phi[k]));
+  if (maxAbs < 1e-8) maxAbs = 1e-8;
+
+  // Background gradient bar (left = hot, right = cold) at the top
+  const padTop = 50;
+  const grad = ctx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, 'rgba(255, 100, 80, 0.4)');
+  grad.addColorStop(1, 'rgba(80, 130, 255, 0.4)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(40, 12, w - 60, 18);
+  ctx.fillStyle = '#fff'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('hot →', 44, 24);
+  ctx.fillText('→ cold', w - 70, 24);
+  ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText('background T₀(x): a temperature gradient drives the instability', 40, 44);
+
+  // Draw the phi field as a colored grid
+  const padL = 40, padR = 20;
+  const fieldH = h - padTop - 20;
+  const cw = (w - padL - padR) / N;
+  const ch = fieldH / N;
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const v = phi[idx(i, j)] / maxAbs;
+      const t = Math.max(-1, Math.min(1, v * 1.5));
+      let r, g, b;
+      if (t >= 0) { r = 255; g = (255 * (0.4 - 0.3 * t))|0; b = (255 * (0.3 - 0.25 * t))|0; }
+      else        { r = (255 * (0.3 + 0.2 * t))|0; g = (255 * (0.55 + 0.2 * t))|0; b = 255; }
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(padL + i * cw, padTop + j * ch, cw + 0.5, ch + 0.5);
+    }
+  }
+
+  // Outline
+  ctx.strokeStyle = 'rgba(255, 209, 122, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padL, padTop, w - padL - padR, fieldH);
+
+  // labels
+  ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('x →', padL + (w - padL - padR) / 2 - 8, h - 6);
+  ctx.save(); ctx.translate(20, padTop + fieldH / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('y →', -10, 0); ctx.restore();
+
+  // Update stat readout
+  document.getElementById('step').textContent = stepCount;
+  document.getElementById('amp').textContent = maxAbs.toExponential(2);
+}
+
+let last = performance.now();
+function loop(t) {
+  const dt = 0.02; // fixed step for stability
+  if (playing) step(dt);
+  drawSim();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.getElementById('playBtn').addEventListener('click', e => {
+  playing = !playing;
+  e.target.textContent = playing ? '⏸ pause' : '▶ play';
+  e.target.classList.toggle('primary', !playing);
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  reset();
+});
+const gradSl = document.getElementById('grad');
+const gradV = document.getElementById('gradV');
+gradSl.addEventListener('input', () => { gradT = parseFloat(gradSl.value); gradV.textContent = gradT.toFixed(2); });
+const curvSl = document.getElementById('curv');
+const curvV = document.getElementById('curvV');
+curvSl.addEventListener('input', () => { curv = parseFloat(curvSl.value); curvV.textContent = curv.toFixed(2); });
+
+// ============ GROWTH RATE SPECTRUM γ(ky) ============
+const growthCanvas = document.getElementById('growthCanvas');
+let grad2 = 1.5;
+let flr2 = 0.6;
+
+function drawGrowth() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = growthCanvas.clientWidth;
+  const h = 280;
+  growthCanvas.width = w * dpr; growthCanvas.height = h * dpr;
+  growthCanvas.style.height = h + 'px';
+  const ctx = growthCanvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+
+  // Compute γ(ky) for ky = 0 to 12
+  // Simple model: γ(ky) = grad2 · ky · exp(-flr2² · ky²) - 0.05 · ky²
+  // (drive scales linearly with ky for small ky, FLR-damped at high ky)
+  const samples = [];
+  let maxG = 0;
+  let kyAtMax = 0;
+  const KY_MAX = 12;
+  const N = 200;
+  for (let i = 0; i <= N; i++) {
+    const ky = (i / N) * KY_MAX;
+    const drive = grad2 * ky;
+    const flrDamp = Math.exp(-Math.pow(flr2 * ky / 4, 2));
+    const collDamp = 0.04 * ky * ky;
+    const gamma = drive * flrDamp - collDamp;
+    samples.push({ ky, gamma });
+    if (gamma > maxG) { maxG = gamma; kyAtMax = ky; }
+  }
+  if (maxG < 0.1) maxG = 0.1;
+
+  const padL = 50, padR = 20, padT = 30, padB = 36;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  const yMid = padT + ph * 0.85; // place zero line near bottom (most values positive)
+
+  // grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 6; i++) {
+    const x = padL + (i / 6) * pw;
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + ph); ctx.stroke();
+  }
+  for (let j = 0; j <= 4; j++) {
+    const y = padT + (j / 4) * ph;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + pw, y); ctx.stroke();
+  }
+
+  // zero line
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, yMid); ctx.lineTo(padL + pw, yMid); ctx.stroke();
+
+  // filled curve
+  ctx.fillStyle = 'rgba(212, 160, 74, 0.2)';
+  ctx.beginPath();
+  ctx.moveTo(padL, yMid);
+  for (const s of samples) {
+    const px = padL + (s.ky / KY_MAX) * pw;
+    const py = yMid - (s.gamma / maxG) * ph * 0.8;
+    ctx.lineTo(px, py);
+  }
+  ctx.lineTo(padL + pw, yMid);
+  ctx.closePath();
+  ctx.fill();
+
+  // line
+  ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    const px = padL + (s.ky / KY_MAX) * pw;
+    const py = yMid - (s.gamma / maxG) * ph * 0.8;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // peak marker
+  const peakX = padL + (kyAtMax / KY_MAX) * pw;
+  const peakY = yMid - (maxG / maxG) * ph * 0.8;
+  ctx.strokeStyle = '#5fc28e'; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(peakX, padT); ctx.lineTo(peakX, yMid); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#5fc28e';
+  ctx.beginPath(); ctx.arc(peakX, peakY, 5, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(peakX, peakY, 5, 0, Math.PI*2); ctx.stroke();
+
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 10px JetBrains Mono';
+  ctx.fillText(`peak at kᵧ ≈ ${kyAtMax.toFixed(1)}`, peakX + 8, peakY - 6);
+  ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+  ctx.fillText('linear growth rate γ(kᵧ)', padL, 18);
+  ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('kᵧ →', padL + pw / 2 - 12, h - 8);
+  ctx.fillText('0', padL - 12, yMid + 3);
+  ctx.fillText('γ', padL - 14, padT + 4);
+  // axis tick labels
+  for (let i = 0; i <= 6; i++) {
+    const k = (i / 6) * KY_MAX;
+    ctx.fillText(k.toFixed(0), padL + (i / 6) * pw - 4, padT + ph + 14);
+  }
+  // annotation
+  ctx.fillStyle = '#a8a59c'; ctx.font = '10px JetBrains Mono';
+  ctx.fillText('drive ~ kᵧ · ∇T (linear)', padL + 6, padT + ph * 0.7);
+  ctx.fillText('FLR damping (kills high kᵧ)', padL + pw - 200, padT + ph * 0.5);
+}
+drawGrowth();
+window.addEventListener('resize', () => { drawSim(); drawGrowth(); });
+document.getElementById('grad2').addEventListener('input', e => {
+  grad2 = parseFloat(e.target.value);
+  document.getElementById('grad2V').textContent = grad2.toFixed(2);
+  drawGrowth();
+});
+document.getElementById('flr').addEventListener('input', e => {
+  flr2 = parseFloat(e.target.value);
+  document.getElementById('flrV').textContent = flr2.toFixed(2);
+  drawGrowth();
+});
+</script>
+</body>
+</html>

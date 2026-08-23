@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Click a Cell — See Its Metrics</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:880px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#f5c042;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:14px;line-height:1.5;max-width:560px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:110px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;color:#f5c042;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#f5c042;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>Tap Any Cell on the <span>Ring</span></h1>
+<p class="sub">Each cell is transformed by its local metrics. Tap one to see the transformation and the numbers.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Shear</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.1" value="1.5"><span class="cg-v" id="vShat">1.5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Radial layers</div>
+    <div class="cg-r"><input type="range" id="sLayers" min="2" max="10" step="1" value="5"><span class="cg-v" id="vLayers" style="color:#1fd6e8">5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Poloidal cells</div>
+    <div class="cg-r"><input type="range" id="sNz" min="12" max="48" step="4" value="28"><span class="cg-v" id="vNz" style="color:#9b7ff0">28</span></div>
+  </div>
+</div>
+
+<!-- Ring with clickable cells -->
+<div class="panel">
+  <div class="plbl"><span>TAP A CELL TO INSPECT IT</span><span id="tapHint" style="color:#f5c042">tap anywhere on the tube</span></div>
+  <canvas id="cRing" style="height:500px;"></canvas>
+</div>
+
+<!-- Selected cell detail -->
+<div class="panel" id="detailPanel" style="display:none;">
+  <div class="plbl"><span>SELECTED CELL — GENE vs REAL</span><span id="cellPos" style="color:#9b7ff0">outboard z=0.0</span></div>
+  <canvas id="cDetail" style="height:250px;"></canvas>
+</div>
+
+<div class="box" id="detailBox" style="display:none;">
+  <p id="detailText"></p>
+</div>
+
+<div class="box">
+  <p>The tube has <b>multiple radial layers</b> — these represent GENE's radial grid points across the thin tube width. Each layer is a ring of cells. The metrics are the same for all radial layers at a given poloidal position (same z), but the shear tilt (g^xy) shifts each layer slightly differently because they're on slightly different flux surfaces.</p>
+  <p style="margin-top:6px;">More layers = GENE resolves finer radial structure in the turbulence. More poloidal cells = finer resolution along the field line.</p>
+</div>
+
+</div>
+
+<script>
+let shat=1.5, nLayers=5, nZ=28, selRho=0.6;
+let selectedIz=-1, selectedIr=-1;
+
+// All cell data stored for click detection
+let cellData=[];
+
+function getElong(rho){return 1.0+0.4*rho;}
+function getTri(rho){return 0.05+0.28*rho;}
+function getShift(rho){return 0.1*(1-rho);}
+
+function surfPt(theta,rho,maxR){
+  const r=maxR*rho, e=getElong(rho), d=getTri(rho), sh=getShift(rho)*maxR;
+  return{x:sh+r*Math.cos(theta+d*Math.sin(theta)), y:r*e*Math.sin(theta)};
+}
+
+function getMetrics(z){
+  return{
+    gxx:1+0.18*Math.cos(z),
+    gxy:shat*z,
+    gyy:1+0.5*shat*shat*z*z*0.15+0.08*Math.cos(z)
+  };
+}
+
+function kappa(th,rho){
+  return Math.cos(th+getTri(rho)*Math.sin(th))*(0.3+0.6*rho)/getElong(rho);
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+function drawRing(){
+  const s=setupCanvas('cRing');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+  const cx=w/2, cy=h/2, maxR=Math.min(w,h)*0.39;
+
+  // Background tint
+  const bg=ctx.createLinearGradient(cx-maxR*1.5,cy,cx+maxR*1.5,cy);
+  bg.addColorStop(0,'rgba(62,232,134,0.008)');bg.addColorStop(0.5,'transparent');bg.addColorStop(1,'rgba(239,100,97,0.008)');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+
+  // Ghost surfaces
+  for(let i=1;i<=8;i++){
+    const rho=i/8;
+    ctx.beginPath();
+    for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,rho,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+    ctx.closePath();
+    ctx.strokeStyle=`rgba(31,214,232,${0.02+0.008*rho})`;ctx.lineWidth=0.4;ctx.stroke();
+  }
+
+  // Build cell data and draw
+  cellData=[];
+  const drho=0.015;
+  const halfLayers=nLayers/2;
+
+  for(let iz=0;iz<nZ;iz++){
+    const theta0=(iz/nZ)*Math.PI*2;
+    const theta1=((iz+1)/nZ)*Math.PI*2;
+    const thetaMid=(theta0+theta1)/2;
+    const z=thetaMid>Math.PI?thetaMid-2*Math.PI:thetaMid;
+    const m=getMetrics(z);
+
+    for(let ir=0;ir<nLayers;ir++){
+      const irCentered=ir-nLayers/2+0.5;
+      const radialOffset=irCentered*drho;
+      const shearShift=radialOffset*m.gxy*2.2;
+      const gxxScale=Math.sqrt(Math.abs(m.gxx));
+
+      const r0=selRho+(irCentered-0.5)*drho*gxxScale;
+      const r1=selRho+(irCentered+0.5)*drho*gxxScale;
+      const t0=theta0+shearShift;
+      const t1=theta1+shearShift;
+
+      const p00=surfPt(t0,r0,maxR);
+      const p10=surfPt(t1,r0,maxR);
+      const p11=surfPt(t1,r1,maxR);
+      const p01=surfPt(t0,r1,maxR);
+
+      const screenPts=[
+        [cx+p00.x,cy-p00.y],[cx+p10.x,cy-p10.y],
+        [cx+p11.x,cy-p11.y],[cx+p01.x,cy-p01.y]
+      ];
+
+      const isSelected=(iz===selectedIz&&ir===selectedIr);
+      const k=kappa(thetaMid,selRho);
+
+      // Fill
+      ctx.beginPath();
+      screenPts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+      ctx.closePath();
+
+      if(isSelected){
+        ctx.fillStyle='rgba(245,192,66,0.25)';ctx.fill();
+        ctx.strokeStyle='rgba(245,192,66,0.8)';ctx.lineWidth=2;ctx.stroke();
+      } else {
+        const alpha=0.04+Math.abs(k)*0.06;
+        ctx.fillStyle=`rgba(155,127,240,${alpha})`;ctx.fill();
+        ctx.strokeStyle='rgba(155,127,240,0.15)';ctx.lineWidth=0.5;ctx.stroke();
+      }
+
+      // Store for hit testing
+      cellData.push({iz,ir,z,m,thetaMid,screenPts,k});
+    }
+  }
+
+  // Labels
+  ctx.font='7px monospace';ctx.fillStyle='rgba(100,116,139,0.12)';ctx.textAlign='center';
+  ctx.fillText('AXIS',cx,cy);
+
+  ctx.font='bold 8px monospace';
+  ctx.fillStyle='rgba(239,100,97,0.3)';ctx.textAlign='left';
+  ctx.fillText('outboard',cx+maxR*selRho+10,cy-4);
+  ctx.fillStyle='rgba(62,232,134,0.3)';ctx.textAlign='right';
+  ctx.fillText('inboard',cx-maxR*selRho-10,cy-4);
+
+  // Selected cell pointer line
+  if(selectedIz>=0){
+    const cell=cellData.find(c=>c.iz===selectedIz&&c.ir===selectedIr);
+    if(cell){
+      const centX=cell.screenPts.reduce((s,p)=>s+p[0],0)/4;
+      const centY=cell.screenPts.reduce((s,p)=>s+p[1],0)/4;
+      // Arrow pointing to it
+      ctx.beginPath();ctx.arc(centX,centY,8,0,Math.PI*2);
+      const gr=ctx.createRadialGradient(centX,centY,0,centX,centY,8);
+      gr.addColorStop(0,'rgba(245,192,66,0.3)');gr.addColorStop(1,'rgba(245,192,66,0)');
+      ctx.fillStyle=gr;ctx.fill();
+    }
+  }
+}
+
+// Point-in-polygon test
+function pointInPoly(px,py,pts){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i][0],yi=pts[i][1];
+    const xj=pts[j][0],yj=pts[j][1];
+    if((yi>py)!==(yj>py)&&px<(xj-xi)*(py-yi)/(yj-yi)+xi)inside=!inside;
+  }
+  return inside;
+}
+
+// Click/tap handler
+function handleClick(px,py){
+  for(let i=cellData.length-1;i>=0;i--){
+    if(pointInPoly(px,py,cellData[i].screenPts)){
+      selectedIz=cellData[i].iz;
+      selectedIr=cellData[i].ir;
+      drawRing();
+      drawDetail();
+      document.getElementById('detailPanel').style.display='block';
+      document.getElementById('detailBox').style.display='block';
+      return;
+    }
+  }
+}
+
+const cRing=document.getElementById('cRing');
+cRing.addEventListener('click',function(e){
+  const r=cRing.getBoundingClientRect();
+  handleClick(e.clientX-r.left,e.clientY-r.top);
+});
+cRing.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  const r=cRing.getBoundingClientRect();
+  handleClick(e.touches[0].clientX-r.left,e.touches[0].clientY-r.top);
+},{passive:false});
+
+// Detail panel
+function drawDetail(){
+  if(selectedIz<0)return;
+  const cell=cellData.find(c=>c.iz===selectedIz&&c.ir===selectedIr);
+  if(!cell)return;
+
+  const s=setupCanvas('cDetail');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const m=cell.m;
+  const z=cell.z;
+  const scale=Math.min(w*0.16,h*0.35);
+
+  // === Left: GENE's square ===
+  const cx1=w*0.18, cy1=h*0.42;
+  const sq=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+  const genePts=sq.map(([x,y])=>[cx1+x*scale,cy1-y*scale]);
+  ctx.beginPath();genePts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.fillStyle='rgba(62,232,134,0.06)';ctx.fill();
+  ctx.strokeStyle='rgba(62,232,134,0.35)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(62,232,134,0.5)';ctx.textAlign='center';
+  ctx.fillText("GENE's cell",cx1,h*0.78);
+
+  // === Arrow 1 ===
+  const arrowY=cy1;
+  ctx.strokeStyle='rgba(245,192,66,0.25)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(w*0.28,arrowY);ctx.lineTo(w*0.36,arrowY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w*0.36,arrowY);ctx.lineTo(w*0.36-6,arrowY-3);ctx.lineTo(w*0.36-6,arrowY+3);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.25)';ctx.fill();
+
+  // === Middle: step-by-step ===
+  const cx2=w*0.43;
+  // After gxx only
+  const gxxPts=sq.map(([x,y])=>{
+    const rx=x*Math.sqrt(Math.abs(m.gxx));
+    return[cx2+rx*scale,cy1-y*scale];
+  });
+  ctx.beginPath();gxxPts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.strokeStyle='rgba(167,139,250,0.2)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+  ctx.font='7px monospace';ctx.fillStyle='rgba(167,139,250,0.3)';ctx.textAlign='center';
+  ctx.fillText('+g^xx',cx2,h*0.78);
+
+  // Arrow 2
+  ctx.strokeStyle='rgba(245,192,66,0.25)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(w*0.5,arrowY);ctx.lineTo(w*0.56,arrowY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w*0.56,arrowY);ctx.lineTo(w*0.56-6,arrowY-3);ctx.lineTo(w*0.56-6,arrowY+3);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.25)';ctx.fill();
+
+  // After gxx + gxy
+  const cx3=w*0.63;
+  const gxyPts=sq.map(([x,y])=>{
+    const rx=x*Math.sqrt(Math.abs(m.gxx))+y*m.gxy*0.2;
+    return[cx3+rx*scale,cy1-y*scale];
+  });
+  ctx.beginPath();gxyPts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.strokeStyle='rgba(196,168,255,0.2)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+  ctx.font='7px monospace';ctx.fillStyle='rgba(196,168,255,0.3)';ctx.textAlign='center';
+  ctx.fillText('+g^xy',cx3,h*0.78);
+
+  // Arrow 3
+  ctx.strokeStyle='rgba(245,192,66,0.25)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(w*0.72,arrowY);ctx.lineTo(w*0.78,arrowY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w*0.78,arrowY);ctx.lineTo(w*0.78-6,arrowY-3);ctx.lineTo(w*0.78-6,arrowY+3);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.25)';ctx.fill();
+
+  // === Right: final shape ===
+  const cx4=w*0.86;
+  const realPts=sq.map(([x,y])=>{
+    const rx=x*Math.sqrt(Math.abs(m.gxx))+y*m.gxy*0.2;
+    const ry=y*Math.sqrt(Math.abs(m.gyy));
+    return[cx4+rx*scale,cy1-ry*scale];
+  });
+  ctx.beginPath();realPts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.fillStyle='rgba(155,127,240,0.12)';ctx.fill();
+  ctx.strokeStyle='rgba(155,127,240,0.7)';ctx.lineWidth=2;ctx.stroke();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(155,127,240,0.5)';ctx.textAlign='center';
+  ctx.fillText('real shape',cx4,h*0.78);
+
+  // Metric values at bottom
+  ctx.font='bold 10px monospace';ctx.textAlign='left';
+  const vy=h*0.88;
+  ctx.fillStyle='rgba(167,139,250,0.6)';ctx.fillText(`g^xx = ${m.gxx.toFixed(3)}`,w*0.05,vy);
+  ctx.fillStyle=Math.abs(m.gxy)>0.3?'rgba(245,192,66,0.7)':'rgba(196,168,255,0.4)';
+  ctx.fillText(`g^xy = ${m.gxy>=0?'+':''}${m.gxy.toFixed(3)}`,w*0.32,vy);
+  ctx.fillStyle='rgba(124,95,207,0.6)';ctx.fillText(`g^yy = ${m.gyy.toFixed(3)}`,w*0.63,vy);
+
+  // Position label
+  let posName;
+  const deg=((cell.thetaMid*180/Math.PI)%360+360)%360;
+  if(deg<25||deg>335)posName='outboard';
+  else if(deg<115)posName='top';
+  else if(deg<205)posName='inboard';
+  else if(deg<295)posName='bottom';
+  else posName='outboard';
+  document.getElementById('cellPos').textContent=`${posName} — z=${z.toFixed(2)} — layer ${cell.ir+1}/${nLayers}`;
+
+  // Detail text
+  const absGxy=Math.abs(m.gxy);
+  let explanation;
+  if(absGxy<0.3){
+    explanation=`This cell is near the <b class="r">outboard midplane</b> where g^xy ≈ 0. The real shape is almost the same as GENE's square — minimal distortion. This is the only region where GENE's coordinates closely match reality.`;
+  } else if(absGxy<2){
+    explanation=`This cell is partway around the ring. g^xy = ${m.gxy.toFixed(2)} means the cell is <b class="p">moderately tilted</b> by shear. The further from the outboard midplane, the more tilt. g^yy = ${m.gyy.toFixed(2)} also stretches it binormally.`;
+  } else {
+    explanation=`This cell is far from the outboard midplane. g^xy = ${m.gxy.toFixed(2)} means <b class="p">heavy shear tilt</b> — the cell is a pronounced parallelogram. g^yy = ${m.gyy.toFixed(2)} means significant binormal stretching too. GENE's square is very different from reality here.`;
+  }
+  explanation+=` Curvature here: κ = ${cell.k>0?'+':''}${cell.k.toFixed(3)} (${cell.k>0?'<span class="r">bad — drives turbulence</span>':'<span class="g">good — stabilizes</span>'}).`;
+  document.getElementById('detailText').innerHTML=explanation;
+}
+
+function drawAll(){
+  drawRing();
+  if(selectedIz>=0)drawDetail();
+}
+
+document.getElementById('sShat').addEventListener('input',function(e){
+  shat=parseFloat(e.target.value);document.getElementById('vShat').textContent=shat.toFixed(1);
+  selectedIz=-1;selectedIr=-1;
+  document.getElementById('detailPanel').style.display='none';
+  document.getElementById('detailBox').style.display='none';
+  document.getElementById('tapHint').textContent='tap anywhere on the tube';
+  drawAll();
+});
+document.getElementById('sLayers').addEventListener('input',function(e){
+  nLayers=parseInt(e.target.value);document.getElementById('vLayers').textContent=nLayers;
+  selectedIz=-1;selectedIr=-1;
+  document.getElementById('detailPanel').style.display='none';
+  document.getElementById('detailBox').style.display='none';
+  drawAll();
+});
+document.getElementById('sNz').addEventListener('input',function(e){
+  nZ=parseInt(e.target.value);document.getElementById('vNz').textContent=nZ;
+  selectedIz=-1;selectedIr=-1;
+  document.getElementById('detailPanel').style.display='none';
+  document.getElementById('detailBox').style.display='none';
+  drawAll();
+});
+
+window.addEventListener('load',function(){setTimeout(drawAll,150);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

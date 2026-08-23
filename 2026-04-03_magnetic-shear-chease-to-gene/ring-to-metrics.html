@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ring Shape → Metric Cells</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:880px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#f5c042;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:14px;line-height:1.5;max-width:560px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}.box p .c{color:#1fd6e8;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:110px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;color:#f5c042;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#f5c042;cursor:pointer;}
+.btn{background:rgba(245,192,66,.08);border:1px solid rgba(245,192,66,.2);color:#f5c042;font-family:-apple-system,sans-serif;font-size:11px;font-weight:600;padding:8px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>Ring Shape <span>→</span> Grid Cells</h1>
+<p class="sub">The D-shaped ring defines the geometry. The metric coefficients translate that geometry into cell distortions. Watch both at once.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Shear</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.1" value="1.5"><span class="cg-v" id="vShat">1.5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Surface rho</div>
+    <div class="cg-r"><input type="range" id="sRho" min="0.15" max="0.9" step="0.05" value="0.6"><span class="cg-v" id="vRho">0.60</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Speed</div>
+    <div class="cg-r"><input type="range" id="sSpd" min="0" max="2" step="0.1" value="0.6"><span class="cg-v" id="vSpd" style="color:#5a7094">0.6</span></div>
+  </div>
+  <div class="cg" style="flex:0;display:flex;align-items:flex-end;">
+    <button class="btn" id="bPause">⏸</button>
+  </div>
+</div>
+
+<!-- Main combined view -->
+<div class="panel">
+  <div class="plbl"><span>THE RING WITH METRIC-TRANSFORMED CELLS</span><span style="color:#f5c042">ANIMATED</span></div>
+  <canvas id="cMain" style="height:500px;"></canvas>
+</div>
+
+<!-- Zoomed current cell -->
+<div class="panel">
+  <div class="plbl"><span>CURRENT POSITION — GENE'S SQUARE vs REAL SHAPE</span><span style="color:#9b7ff0" id="posLabel">outboard (z=0.0)</span></div>
+  <canvas id="cCell" style="height:220px;"></canvas>
+</div>
+
+<div class="box">
+  <p><b>Top:</b> The full D-shaped ring with grid cells placed on it. Each cell is warped by its local metrics. The <span class="a">yellow dot</span> traces the field line path. Where the ring curves sharply (outboard), curvature is strong. Where it's flatter (top/bottom), curvature is weak. The cell tilt shows shear (g^xy) growing as you move away from the outboard midplane.</p>
+  <p style="margin-top:6px;"><b>Bottom:</b> Zoomed view of the cell at the current dot position. <span class="g">Green = GENE's square</span>. <span class="p">Purple = real shape</span> after metrics. The three metric values update live. Watch how g^xy grows from 0 (outboard) to its maximum (inboard), and the cell tilts to match.</p>
+  <p style="margin-top:6px;"><b>The connection:</b> the ring's <span class="r">local curvature</span> (how tight the bend is) relates to what the metrics look like there. Where the ring bends sharply outward, |B| is weak and g^xx is different. Where it's on the inboard straight section, |B| is strong. And the progressive tilt from shear shows up as g^xy growing with z regardless of the ring shape — that's purely from neighboring surfaces twisting at different rates.</p>
+</div>
+
+<!-- Metric values along the ring -->
+<div class="panel">
+  <div class="plbl"><span>METRIC VALUES ALONG THE RING</span><span style="color:#9b7ff0">SYNCED</span></div>
+  <canvas id="cPlots" style="height:300px;"></canvas>
+</div>
+
+<div class="box">
+  <p><b>Three plots synced with the dot above.</b> Each plot is one metric coefficient going around the ring. The <span class="a">yellow line</span> shows where the dot currently is. Notice:</p>
+  <p style="margin-top:4px;">• <b class="p">g^xx</b> — gentle wave, slightly larger outboard. This is from the flux surfaces being spaced differently.</p>
+  <p style="margin-top:4px;">• <b class="p">g^xy</b> — starts at 0 at outboard, grows linearly. This is pure shear. The ring shape doesn't cause this — neighboring surfaces twisting differently does.</p>
+  <p style="margin-top:4px;">• <b class="p">g^yy</b> — grows quadratically from center. This is shear compounding — further from the midplane, the binormal distance gets more and more stretched.</p>
+</div>
+
+</div>
+
+<script>
+let shat=1.5, selRho=0.6, spd=0.6, playing=true, time=0;
+
+function getElong(rho){return 1.0+0.4*rho;}
+function getTri(rho){return 0.05+0.28*rho;}
+function getShift(rho){return 0.1*(1-rho);}
+
+function surfPt(theta,rho,maxR){
+  const r=maxR*rho, e=getElong(rho), d=getTri(rho), sh=getShift(rho)*maxR;
+  return{x:sh+r*Math.cos(theta+d*Math.sin(theta)), y:r*e*Math.sin(theta)};
+}
+
+function getMetrics(z){
+  return{
+    gxx:1+0.18*Math.cos(z),
+    gxy:shat*z,
+    gyy:1+0.5*shat*shat*z*z*0.15+0.08*Math.cos(z)
+  };
+}
+
+function kappa(th,rho){
+  return Math.cos(th+getTri(rho)*Math.sin(th))*(0.3+0.6*rho)/getElong(rho);
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+// ===== MAIN: Ring + Cells =====
+function drawMain(){
+  const s=setupCanvas('cMain');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+  const cx=w/2, cy=h/2, maxR=Math.min(w,h)*0.38;
+
+  // Background curvature tint
+  const bg=ctx.createLinearGradient(cx-maxR*1.5,cy,cx+maxR*1.5,cy);
+  bg.addColorStop(0,'rgba(62,232,134,0.01)');bg.addColorStop(0.5,'transparent');bg.addColorStop(1,'rgba(239,100,97,0.01)');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+
+  // Ghost surfaces
+  for(let i=1;i<=8;i++){
+    const rho=i/8;
+    ctx.beginPath();
+    for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,rho,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+    ctx.closePath();
+    ctx.strokeStyle=`rgba(31,214,232,${0.025+0.01*rho})`;ctx.lineWidth=0.5;ctx.stroke();
+  }
+
+  // Selected surface colored by κ
+  const nSeg=60;
+  for(let i=0;i<nSeg;i++){
+    const th0=(i/nSeg)*Math.PI*2, th1=((i+1)/nSeg)*Math.PI*2;
+    const sp0=surfPt(th0,selRho,maxR), sp1=surfPt(th1,selRho,maxR);
+    const k=kappa((th0+th1)/2,selRho);
+    const alpha=0.15+Math.abs(k)*0.35;
+    ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);
+    ctx.strokeStyle=k>0?`rgba(239,100,97,${alpha})`:`rgba(62,232,134,${alpha})`;
+    ctx.lineWidth=2;ctx.stroke();
+  }
+
+  // Grid cells on the surface
+  const nZ=28, nR=3, drho=0.012;
+
+  for(let iz=0;iz<nZ;iz++){
+    const theta0=(iz/nZ)*Math.PI*2;
+    const theta1=((iz+1)/nZ)*Math.PI*2;
+    const thetaMid=(theta0+theta1)/2;
+    const z=thetaMid>Math.PI?thetaMid-2*Math.PI:thetaMid;
+    const m=getMetrics(z);
+
+    for(let ir=-1;ir<=1;ir++){
+      const radialOffset=ir*drho;
+      const shearShift=radialOffset*m.gxy*2.5;
+      const gxxScale=Math.sqrt(Math.abs(m.gxx));
+
+      const r0=selRho+(ir-0.5)*drho*gxxScale;
+      const r1=selRho+(ir+0.5)*drho*gxxScale;
+      const t0=theta0+shearShift;
+      const t1=theta1+shearShift;
+
+      const p00=surfPt(t0,r0,maxR);
+      const p10=surfPt(t1,r0,maxR);
+      const p11=surfPt(t1,r1,maxR);
+      const p01=surfPt(t0,r1,maxR);
+
+      ctx.beginPath();
+      ctx.moveTo(cx+p00.x,cy-p00.y);ctx.lineTo(cx+p10.x,cy-p10.y);
+      ctx.lineTo(cx+p11.x,cy-p11.y);ctx.lineTo(cx+p01.x,cy-p01.y);
+      ctx.closePath();
+
+      const k=kappa(thetaMid,selRho);
+      ctx.fillStyle=`rgba(155,127,240,${0.06+Math.abs(k)*0.08})`;
+      ctx.fill();
+      ctx.strokeStyle='rgba(155,127,240,0.18)';ctx.lineWidth=0.6;ctx.stroke();
+    }
+  }
+
+  // Animated dot
+  const dotTheta=(time*spd*1.3)%(Math.PI*2);
+  const dsp=surfPt(dotTheta,selRho,maxR);
+  const dx=cx+dsp.x, dy=cy-dsp.y;
+
+  // Glow
+  ctx.beginPath();ctx.arc(dx,dy,18,0,Math.PI*2);
+  const gr=ctx.createRadialGradient(dx,dy,0,dx,dy,18);
+  gr.addColorStop(0,'rgba(245,192,66,0.4)');gr.addColorStop(1,'rgba(245,192,66,0)');
+  ctx.fillStyle=gr;ctx.fill();
+  ctx.beginPath();ctx.arc(dx,dy,5,0,Math.PI*2);
+  ctx.fillStyle='#f5c042';ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // Trail
+  for(let t=1;t<=20;t++){
+    const age=t/20;
+    const tth=dotTheta-age*0.5;
+    if(tth<0)continue;
+    const tsp=surfPt(tth,selRho,maxR);
+    ctx.beginPath();ctx.arc(cx+tsp.x,cy-tsp.y,2.5*(1-age),0,Math.PI*2);
+    ctx.fillStyle=`rgba(245,192,66,${0.25*(1-age)})`;ctx.fill();
+  }
+
+  // Labels
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.15)';ctx.textAlign='center';
+  ctx.fillText('AXIS',cx,cy);
+
+  // Curvature labels
+  ctx.font='bold 9px monospace';
+  ctx.fillStyle='rgba(239,100,97,0.35)';ctx.textAlign='left';
+  ctx.fillText('outboard',cx+maxR*selRho+14,cy-6);
+  ctx.font='7px monospace';ctx.fillStyle='rgba(239,100,97,0.2)';
+  ctx.fillText('bad κ, g^xy≈0',cx+maxR*selRho+14,cy+6);
+
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(62,232,134,0.35)';ctx.textAlign='right';
+  ctx.fillText('inboard',cx-maxR*selRho-14,cy-6);
+  ctx.font='7px monospace';ctx.fillStyle='rgba(62,232,134,0.2)';
+  const mIn=getMetrics(Math.PI);
+  ctx.fillText(`good κ, g^xy≈${mIn.gxy.toFixed(1)}`,cx-maxR*selRho-14,cy+6);
+
+  return dotTheta;
+}
+
+// ===== ZOOMED CELL =====
+function drawCell(dotTheta){
+  const s=setupCanvas('cCell');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const z=dotTheta>Math.PI?dotTheta-2*Math.PI:dotTheta;
+  const m=getMetrics(z);
+  const scale=Math.min(w*0.18,h*0.35);
+
+  // Three panels: GENE square, arrow, Real shape
+  const cx1=w*0.2, cx2=w*0.5, cx3=w*0.8;
+  const cy=h*0.45;
+
+  // GENE's square
+  const sq=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+  const genePts=sq.map(([x,y])=>[cx1+x*scale,cy-y*scale]);
+  ctx.beginPath();genePts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.fillStyle='rgba(62,232,134,0.08)';ctx.fill();
+  ctx.strokeStyle='rgba(62,232,134,0.4)';ctx.lineWidth=2;ctx.stroke();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(62,232,134,0.5)';ctx.textAlign='center';
+  ctx.fillText("GENE's cell",cx1,cy+scale*0.5+16);
+
+  // Arrow
+  ctx.beginPath();ctx.moveTo(cx1+scale*0.7,cy);ctx.lineTo(cx2-scale*0.7,cy);
+  ctx.strokeStyle='rgba(245,192,66,0.3)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx2-scale*0.7,cy);ctx.lineTo(cx2-scale*0.7-8,cy-4);ctx.lineTo(cx2-scale*0.7-8,cy+4);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.3)';ctx.fill();
+  ctx.font='8px monospace';ctx.fillStyle='rgba(245,192,66,0.35)';
+  ctx.fillText('apply',w*0.35,cy-12);
+  ctx.fillText('metrics',w*0.35,cy+2);
+
+  // Transformed cell in the middle
+  const realPts=sq.map(([x,y])=>{
+    const rx=x*Math.sqrt(Math.abs(m.gxx))+y*m.gxy*0.22;
+    const ry=y*Math.sqrt(Math.abs(m.gyy));
+    return[cx2+rx*scale,cy-ry*scale];
+  });
+  ctx.beginPath();realPts.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+  ctx.fillStyle='rgba(155,127,240,0.12)';ctx.fill();
+  ctx.strokeStyle='rgba(155,127,240,0.7)';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(155,127,240,0.5)';ctx.textAlign='center';
+  ctx.fillText('real shape',cx2,cy+scale*0.5+16);
+
+  // Arrow to "on the ring"
+  ctx.beginPath();ctx.moveTo(cx2+scale*0.7,cy);ctx.lineTo(cx3-scale*0.7,cy);
+  ctx.strokeStyle='rgba(245,192,66,0.3)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx3-scale*0.7,cy);ctx.lineTo(cx3-scale*0.7-8,cy-4);ctx.lineTo(cx3-scale*0.7-8,cy+4);ctx.closePath();
+  ctx.fillStyle='rgba(245,192,66,0.3)';ctx.fill();
+  ctx.font='8px monospace';ctx.fillStyle='rgba(245,192,66,0.35)';
+  ctx.fillText('place on',w*0.65,cy-12);
+  ctx.fillText('ring',w*0.65,cy+2);
+
+  // Mini ring with dot showing placement
+  const miniR=scale*0.8;
+  const maxR=miniR*1.2;
+  ctx.beginPath();
+  for(let j=0;j<=48;j++){
+    const th=(j/48)*Math.PI*2;
+    const sp=surfPt(th,selRho,maxR);
+    j===0?ctx.moveTo(cx3+sp.x*0.6,cy-sp.y*0.6):ctx.lineTo(cx3+sp.x*0.6,cy-sp.y*0.6);
+  }
+  ctx.closePath();ctx.strokeStyle='rgba(31,214,232,0.15)';ctx.lineWidth=1;ctx.stroke();
+
+  // Dot on mini ring
+  const dsp=surfPt(dotTheta,selRho,maxR);
+  ctx.beginPath();ctx.arc(cx3+dsp.x*0.6,cy-dsp.y*0.6,4,0,Math.PI*2);
+  ctx.fillStyle='#f5c042';ctx.fill();
+  ctx.font='bold 9px monospace';ctx.fillStyle='rgba(245,192,66,0.5)';
+  ctx.fillText('on the ring',cx3,cy+scale*0.5+16);
+
+  // Metric values
+  ctx.font='bold 10px monospace';ctx.textAlign='left';
+  const valX=8, valY=h-50;
+  ctx.fillStyle='rgba(167,139,250,0.5)';ctx.fillText(`g^xx = ${m.gxx.toFixed(3)}`,valX,valY);
+  ctx.fillStyle=Math.abs(m.gxy)>0.3?'rgba(245,192,66,0.6)':'rgba(196,168,255,0.4)';
+  ctx.fillText(`g^xy = ${m.gxy>0?'+':''}${m.gxy.toFixed(3)}`,valX,valY+14);
+  ctx.fillStyle='rgba(124,95,207,0.5)';ctx.fillText(`g^yy = ${m.gyy.toFixed(3)}`,valX,valY+28);
+
+  // What each does
+  ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='rgba(100,116,139,0.25)';
+  ctx.fillText('radial stretch',valX+120,valY);
+  ctx.fillText(Math.abs(m.gxy)<0.3?'no tilt here':'SHEAR TILT',valX+120,valY+14);
+  ctx.fillText('binormal stretch',valX+120,valY+28);
+
+  // Update position label
+  let posName;
+  const deg=(dotTheta*180/Math.PI)%360;
+  if(deg<30||deg>330)posName='outboard';
+  else if(deg<120)posName='top';
+  else if(deg<210)posName='inboard';
+  else if(deg<300)posName='bottom';
+  else posName='outboard';
+  document.getElementById('posLabel').textContent=`${posName} (z=${z.toFixed(1)})`;
+}
+
+// ===== METRIC PLOTS =====
+function drawPlots(dotTheta){
+  const s=setupCanvas('cPlots');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const z=dotTheta>Math.PI?dotTheta-2*Math.PI:dotTheta;
+  const dotFrac=(z/(2*Math.PI))+0.5;
+
+  const plots=[
+    {name:'g^xx',fn:th=>getMetrics(th).gxx,color:'#a78bfa',range:[0.6,1.4]},
+    {name:'g^xy',fn:th=>getMetrics(th).gxy,color:'#c4a8ff',range:[-5,5],isZero:true},
+    {name:'g^yy',fn:th=>getMetrics(th).gyy,color:'#7c5fcf',range:[0,5]},
+  ];
+
+  const pad={l:42,r:12,t:6,b:4};
+  const gap=4;
+  const pH=(h-pad.t-pad.b-(plots.length-1)*gap)/plots.length;
+
+  plots.forEach((pl,pi)=>{
+    const py=pad.t+pi*(pH+gap);
+    const pw=w-pad.l-pad.r;
+    const[yMin,yMax]=pl.range;
+    const toY=v=>py+pH-(v-yMin)/(yMax-yMin)*pH;
+
+    ctx.fillStyle='rgba(11,18,34,0.6)';ctx.fillRect(pad.l,py,pw,pH);
+    ctx.strokeStyle='rgba(23,37,63,0.5)';ctx.lineWidth=0.5;ctx.strokeRect(pad.l,py,pw,pH);
+
+    if(pl.isZero){
+      const zy=toY(0);ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+pw,zy);ctx.stroke();ctx.setLineDash([]);
+    }
+
+    // Curve
+    const N=200;
+    for(let i=0;i<N;i++){
+      const f0=i/N,f1=(i+1)/N;
+      const th0=(f0-0.5)*2*Math.PI,th1=(f1-0.5)*2*Math.PI;
+      ctx.beginPath();ctx.moveTo(pad.l+f0*pw,toY(pl.fn(th0)));ctx.lineTo(pad.l+f1*pw,toY(pl.fn(th1)));
+      ctx.strokeStyle=pl.color;ctx.lineWidth=2;ctx.stroke();
+    }
+
+    // Synced line
+    const syncX=pad.l+dotFrac*pw;
+    ctx.strokeStyle='rgba(245,192,66,0.3)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(syncX,py);ctx.lineTo(syncX,py+pH);ctx.stroke();ctx.setLineDash([]);
+
+    // Dot
+    const v=pl.fn(z);
+    ctx.beginPath();ctx.arc(syncX,toY(v),4,0,Math.PI*2);
+    ctx.fillStyle='#f5c042';ctx.fill();
+
+    // Value
+    ctx.font='bold 9px monospace';ctx.fillStyle='#f5c042';
+    ctx.textAlign=dotFrac>0.8?'right':'left';
+    ctx.fillText(`${v>0?'+':''}${v.toFixed(2)}`,dotFrac>0.8?syncX-8:syncX+8,toY(v)-6);
+
+    // Label
+    ctx.font='bold 9px monospace';ctx.fillStyle=pl.color;ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(pl.name,pad.l-4,py+pH/2);
+
+    // X labels on last
+    if(pi===plots.length-1){
+      ctx.font='7px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';ctx.textBaseline='top';
+      ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(pw/4)*i,py+pH+1));
+    }
+  });
+}
+
+function drawAll(){
+  const dotTheta=drawMain();
+  drawCell((time*spd*1.3)%(Math.PI*2));
+  drawPlots((time*spd*1.3)%(Math.PI*2));
+}
+
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  if(playing)time+=(ts-lastT)/1000;
+  lastT=ts;
+  drawAll();
+  requestAnimationFrame(frame);
+}
+
+document.getElementById('sShat').addEventListener('input',function(e){shat=parseFloat(e.target.value);document.getElementById('vShat').textContent=shat.toFixed(1);});
+document.getElementById('sRho').addEventListener('input',function(e){selRho=parseFloat(e.target.value);document.getElementById('vRho').textContent=selRho.toFixed(2);});
+document.getElementById('sSpd').addEventListener('input',function(e){spd=parseFloat(e.target.value);document.getElementById('vSpd').textContent=spd.toFixed(1);});
+document.getElementById('bPause').addEventListener('click',function(){playing=!playing;this.textContent=playing?'⏸':'▶';});
+
+window.addEventListener('load',function(){setTimeout(function(){requestAnimationFrame(frame);},150);});
+window.addEventListener('resize',function(){});
+</script>
+</body>
+</html>

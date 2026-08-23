@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real space vs phase space — the same particles, two pictures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#080b16;--bg2:#0d1224;--panel:#121830;--panel2:#171e3b;--line:#26305a;
+  --ink:#eaeefb;--muted:#8b95bd;--faint:#5a648c;--mag:#ff5d8f;--gold:#ffd35e;--violet:#9a6bff;--cyan:#4fd6e0;--good:#6fe0a8;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+.mono{font-family:'IBM Plex Mono',monospace}
+header{padding:50px 0 20px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.3em;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+h1{font-family:'Spectral',serif;font-weight:400;font-size:clamp(2rem,4.6vw,3.2rem);line-height:1.05;letter-spacing:-.02em;margin:0}
+h1 em{font-style:italic;color:var(--mag)}
+.sub{max-width:720px;margin:18px 0 0;font-size:1.06rem;color:#dde3f6}
+.lab{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0 0}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px 15px 16px;display:flex;flex-direction:column}
+.cell h3{font-family:'Spectral',serif;font-weight:500;font-size:1.12rem;margin:2px 0}
+.cell.real h3{color:var(--cyan)} .cell.phase h3{color:var(--gold)}
+.cell .tag{color:var(--faint)} .cell .desc{font-size:.87rem;color:#c3cbe8;margin:5px 0 11px;min-height:54px}
+canvas.sim{width:100%;display:block;background:#0a0e1f;border:1px solid var(--line);border-radius:10px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:20px 0 4px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:15px 18px}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:.84rem;background:#0e1430;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 18px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--mag)} .btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btn.primary{background:rgba(255,93,143,.16);border-color:var(--mag);color:#fff}
+.btn.on{background:rgba(79,214,224,.16);border-color:var(--cyan);color:#fff}
+.timepill{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--gold);margin-left:auto}
+.note{border-left:2px solid var(--mag);padding:6px 0 6px 20px;margin:26px 0 0;color:#dde3f6}
+.note.cyan{border-color:var(--cyan)} .note.gold{border-color:var(--gold)}
+.note strong{color:#fff}
+footer{padding:26px 0 70px;color:var(--faint);font-size:.84rem}
+@media(max-width:820px){.stage{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <p class="eyebrow">Same particles · two ways of drawing them</p>
+  <h1>Make the vertical axis<br>a real <em>y</em> — what happens?</h1>
+  <p class="sub">Left is your idea: dots in actual space, moving at their true speed (x is real position; y is just vertical spacing so they don't pile up). Right is the same exact particles drawn in phase space, with velocity as the vertical axis. Press play and compare what you can <em>see</em> in each.</p>
+</div></header>
+
+<div class="wrap">
+  <div class="stage">
+    <div class="cell real">
+      <div class="lab tag">your idea · real space</div>
+      <h3>Particles in a box (x, y)</h3>
+      <div class="desc">Dots move at their real speed. Intuitive — but a snapshot can't show speed. Turn on arrows to reveal the velocity you can't otherwise see.</div>
+      <canvas id="realCv" class="sim" width="490" height="340"></canvas>
+    </div>
+    <div class="cell phase">
+      <div class="lab tag">the trick · phase space</div>
+      <h3>The same particles (x, v)</h3>
+      <div class="desc">Velocity is now the vertical axis. The two beams are obviously separate, and the cat's-eye vortex blooms — structure that is invisible on the left.</div>
+      <canvas id="phaseCv" class="sim" width="490" height="340"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="play">Pause</button>
+    <button class="btn" id="reset">Reset</button>
+    <button class="btn" id="arrows">Show velocity arrows (left)</button>
+    <span class="timepill" id="timepill">t = 0.0</span>
+  </div>
+
+  <div class="note cyan"><strong>On the left,</strong> you see two crowds (cyan moving right, magenta moving left) slide through each other and then bunch into vertical clumps as the instability grows. That bunching is real and visible — it's the density wave. But you cannot see <em>why</em> it happens, because the mechanism is about velocity, and velocity isn't drawn. Without the arrows, a frozen frame tells you nothing about how fast anything moves.</div>
+  <div class="note gold"><strong>On the right,</strong> the same instant shows the whole story: two clean velocity bands that wind up and trap each other into the cat's-eye. That swirl is a pattern in <em>position-paired-with-velocity</em> — it simply has no shape in real space. This is the payoff of spending a drawable axis on velocity.</div>
+  <div class="note"><strong>The takeaway.</strong> Your instinct gives a truer-to-life movie, and there's nothing wrong with it — that's basically a particle (PIC) simulation watched in real space. But plasma physics keeps asking questions about the <em>shape of the velocities</em>, and phase space is the one view that makes that shape something you can look at. The "weird" axis is weird on purpose.</div>
+  <footer>Both panels are the identical particle-in-cell two-stream run (k=0.5, beams at ±1.5). Only the drawing differs: left plots (position, display-y); right plots (position, velocity).</footer>
+</div>
+
+<script>
+const k=0.5,L=2*Math.PI/k,Nx=32,dx=L/Nx;
+const v0=1.5,vt=0.4,A=0.05,dt=0.05,SUB=2,VW=3.2,N=3500;
+const REDUCE=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+/* shared spectral field solve */
+const COS=[],SIN=[],KX=[];
+for(let kk=0;kk<Nx;kk++){COS[kk]=new Float64Array(Nx);SIN[kk]=new Float64Array(Nx);for(let n=0;n<Nx;n++){const a=2*Math.PI*kk*n/Nx;COS[kk][n]=Math.cos(a);SIN[kk][n]=Math.sin(a);}const fr=(kk<=Nx/2)?kk:kk-Nx;KX[kk]=2*Math.PI*fr/L;}
+const _Re=new Float64Array(Nx),_Im=new Float64Array(Nx);
+function solveE(rho,E){for(let kk=0;kk<Nx;kk++){let sr=0,si=0;const c=COS[kk],s=SIN[kk];for(let n=0;n<Nx;n++){sr+=rho[n]*c[n];si-=rho[n]*s[n];}_Re[kk]=sr;_Im[kk]=si;}
+  for(let kk=0;kk<Nx;kk++){if(KX[kk]===0){_Re[kk]=0;_Im[kk]=0;}else{const er=_Im[kk]/KX[kk],ei=-_Re[kk]/KX[kk];_Re[kk]=er;_Im[kk]=ei;}}
+  for(let n=0;n<Nx;n++){let s=0;for(let kk=0;kk<Nx;kk++)s+=_Re[kk]*COS[kk][n]-_Im[kk]*SIN[kk][n];E[n]=s/Nx;}}
+/* particles */
+let px,pv,py,E=new Float64Array(Nx),dens=new Float64Array(Nx),rho=new Float64Array(Nx);
+function init(){px=new Float64Array(N);pv=new Float64Array(N);py=new Float64Array(N);const rng=mulberry32(12345);
+  for(let i=0;i<N;i++){let x=rng()*L;x-=(A/k)*Math.sin(k*x);px[i]=((x%L)+L)%L;let g=0;for(let j=0;j<3;j++)g+=rng();g=(g/3-0.5)*2;pv[i]=(i%2?v0:-v0)+g*vt;py[i]=0.05+0.9*rng();}}
+function step(){const wgt=Nx/N;dens.fill(0);
+  for(let i=0;i<N;i++){const xs=px[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;dens[i0]+=(1-fr)*wgt;dens[(i0+1)%Nx]+=fr*wgt;}
+  let mean=0;for(let i=0;i<Nx;i++)mean+=dens[i];mean/=Nx;for(let i=0;i<Nx;i++)rho[i]=mean-dens[i];
+  solveE(rho,E);
+  for(let i=0;i<N;i++){const xs=px[i]/dx,fl=Math.floor(xs),fr=xs-fl,i0=((fl%Nx)+Nx)%Nx;const Ei=E[i0]*(1-fr)+E[(i0+1)%Nx]*fr;pv[i]+=(-Ei)*dt;px[i]+=pv[i]*dt;px[i]=((px[i]%L)+L)%L;}}
+/* drawing */
+function fit(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{ctx:x,w:r.width,h:r.height};}
+const AX={l:30,r:9,t:11,b:18};
+function vaxis(ctx,x0,y0,x1,y1,title,topLab,midLab,botLab){
+  ctx.textBaseline='alphabetic';ctx.font="10px 'IBM Plex Mono'";ctx.fillStyle='rgba(234,238,251,.55)';ctx.textAlign='left';
+  ctx.fillText(topLab,4,y0+9);ctx.fillText(midLab,4,(y0+y1)/2+3);ctx.fillText(botLab,4,y1);
+  ctx.save();ctx.translate(12,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillStyle='rgba(234,238,251,.9)';ctx.fillText(title,0,0);ctx.restore();
+  ctx.textAlign='left';ctx.fillStyle='rgba(234,238,251,.55)';ctx.fillText('x = 0',x0,y1+13);
+  ctx.textAlign='right';ctx.fillText('x = L',x1,y1+13);
+  ctx.textAlign='center';ctx.fillStyle='rgba(234,238,251,.9)';ctx.fillText('position  x',(x0+x1)/2,y1+13);ctx.textAlign='left';
+}
+let showArrows=false;
+function drawReal(){const {ctx,w,h}=fit(realCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  const x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b;const X=x=>x0+x/L*(x1-x0),Y=yy=>y0+(1-yy)*(y1-y0);
+  for(let i=0;i<N;i++){const X0=X(px[i]),Y0=Y(py[i]);ctx.fillStyle=pv[i]>=0?'rgba(79,214,224,.6)':'rgba(255,93,143,.6)';ctx.fillRect(X0,Y0,1.6,1.6);
+    if(showArrows){ctx.strokeStyle=pv[i]>=0?'rgba(79,214,224,.5)':'rgba(255,93,143,.5)';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(X0,Y0);ctx.lineTo(X0+pv[i]*8,Y0);ctx.stroke();}}
+  vaxis(ctx,x0,y0,x1,y1,'y (display only)','top','—','bot');}
+function drawPhase(){const {ctx,w,h}=fit(phaseCv);ctx.fillStyle='#0a0e1f';ctx.fillRect(0,0,w,h);
+  const x0=AX.l,x1=w-AX.r,y0=AX.t,y1=h-AX.b;const X=x=>x0+x/L*(x1-x0),Y=v=>{const t=(v+VW)/(2*VW);return y1-t*(y1-y0);};
+  ctx.strokeStyle='rgba(255,255,255,.10)';ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x1,Y(0));ctx.stroke();
+  for(let i=0;i<N;i++){const vv=pv[i];if(vv<-VW||vv>VW)continue;ctx.fillStyle=vv>=0?'rgba(79,214,224,.55)':'rgba(255,93,143,.55)';ctx.fillRect(X(px[i]),Y(vv),1.6,1.6);}
+  vaxis(ctx,x0,y0,x1,y1,'speed  v','+'+VW.toFixed(1),'0','-'+VW.toFixed(1));}
+/* driver */
+const realCv=document.getElementById('realCv'),phaseCv=document.getElementById('phaseCv');
+const playBtn=document.getElementById('play'),resetBtn=document.getElementById('reset'),arrowsBtn=document.getElementById('arrows'),timepill=document.getElementById('timepill');
+let playing=!REDUCE,T=0;
+function resetAll(){T=0;init();drawReal();drawPhase();timepill.textContent='t = 0.0';}
+function frame(){if(playing){for(let s=0;s<SUB;s++){step();T+=dt;}timepill.textContent='t = '+T.toFixed(1);}drawReal();drawPhase();requestAnimationFrame(frame);}
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';});
+resetBtn.addEventListener('click',resetAll);
+arrowsBtn.addEventListener('click',()=>{showArrows=!showArrows;arrowsBtn.classList.toggle('on',showArrows);drawReal();});
+window.addEventListener('resize',()=>{drawReal();drawPhase();});
+resetAll();playBtn.textContent=playing?'Pause':'Play';
+if(REDUCE){for(let s=0;s<240;s++){step();T+=dt;}timepill.textContent='t = '+T.toFixed(1);drawReal();drawPhase();}else requestAnimationFrame(frame);
+</script>
+</body>
+</html>

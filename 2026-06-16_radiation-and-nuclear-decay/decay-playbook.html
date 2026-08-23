@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Radioactive Decay Playbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f;--ink:#eef0fb;--muted:#8a90b4;--line:rgba(255,255,255,.09);
+    --alpha:#ff9d5c;--bminus:#39c2ff;--bplus:#ff5d73;--gamma:#c98bff;--stable:#5fe0a0;
+    --gold:#ffd166;--hot:#ff4d6d;--proton:#ff5d73;--neutron:#39c2ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1100px 700px at 85% -10%, rgba(255,209,102,.13), transparent 60%),
+      radial-gradient(900px 600px at -10% 25%, rgba(57,194,255,.10), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .wrap{max-width:780px;margin:0 auto;padding:0 20px}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:70px 0 36px}
+  .kicker{color:var(--gold);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:24px;background:rgba(255,209,102,.06)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.3rem,8vw,4.2rem);line-height:.99;letter-spacing:-.02em;margin-bottom:20px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--alpha),var(--gold),var(--bminus),var(--gamma));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.16rem;color:#c7cbe6;max-width:58ch}.lede b{color:var(--ink);font-weight:700}
+  .toc{margin-top:28px;display:flex;flex-wrap:wrap;gap:8px}
+  .toc a{font-family:"Space Mono",monospace;font-size:.68rem;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:100px;text-decoration:none;transition:.18s}
+  .toc a:hover{color:var(--ink);border-color:var(--gold)}
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.6rem,5.5vw,2.3rem);letter-spacing:-.01em;line-height:1.06;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.82rem;color:var(--gold);display:block;margin-bottom:13px;font-weight:700;letter-spacing:.2em}
+  .sub{color:var(--muted);margin-bottom:24px;max-width:62ch}
+  p+p{margin-top:14px}.body{color:#c7cbe6}.body b{color:var(--ink)}
+  .callout{margin-top:18px;border-left:3px solid var(--gold);background:rgba(255,209,102,.06);padding:14px 18px;border-radius:0 12px 12px 0}
+  .callout b{color:var(--gold)}
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(124,139,255,.08),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 4px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.18s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle.on{background:var(--gold);color:#1a1405;border-color:var(--gold);font-weight:700}
+  button.toggle:disabled{opacity:.35;cursor:default}
+  .readout{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--muted)}
+  .big{font-family:"Fraunces",serif;font-weight:900}
+
+  /* ---- the one rule ---- */
+  .rulebox{margin-top:6px;border:1px solid var(--line);border-radius:18px;padding:26px;text-align:center;background:linear-gradient(180deg,rgba(255,209,102,.06),rgba(255,255,255,.01))}
+  .rulebox .r{font-family:"Fraunces",serif;font-size:clamp(1.3rem,5vw,1.9rem);font-weight:600;line-height:1.3}
+  .rulebox .r b{color:var(--gold)}
+
+  /* ---- flowchart ---- */
+  .flowtree{margin-top:6px}
+  .root{border:1px dashed var(--line);border-radius:14px;padding:14px 18px;text-align:center;font-family:"Space Mono",monospace;font-size:.82rem;color:#c7cbe6;background:rgba(255,255,255,.03)}
+  .branches{display:grid;gap:10px;margin-top:14px}
+  .branch{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:rgba(255,255,255,.02);cursor:pointer;transition:.16s;font-family:inherit}
+  .branch:hover{background:rgba(255,255,255,.05)}
+  .branch.on{border-color:var(--c);background:rgba(255,255,255,.05);box-shadow:inset 3px 0 0 var(--c)}
+  .branch .cond{flex:1;font-size:.95rem;color:var(--ink)}
+  .branch .cond small{display:block;color:var(--muted);font-size:.8rem;font-weight:400}
+  .branch .arrow{color:var(--muted);font-family:"Space Mono",monospace}
+  .branch .out{font-family:"Space Mono",monospace;font-size:.8rem;font-weight:700;color:var(--c);white-space:nowrap}
+  .bdetail{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:18px;min-height:96px;background:rgba(255,255,255,.03)}
+  .bdetail h4{font-family:"Fraunces",serif;font-size:1.3rem;margin-bottom:6px}
+  .bdetail .eqn{font-family:"Space Mono",monospace;font-size:.86rem;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:8px;padding:8px 12px;display:inline-block;margin:8px 0;color:#c7cbe6}
+  .bdetail p{font-size:.92rem;color:#c7cbe6}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-family:"Space Mono",monospace;font-size:.68rem;padding:4px 10px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
+  .chip b{color:var(--ink)}
+
+  /* ---- mode cards ---- */
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(max-width:600px){.modes{grid-template-columns:1fr}}
+  .mode{border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden;background:rgba(255,255,255,.02)}
+  .mode::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+  .mode h4{font-family:"Fraunces",serif;font-size:1.2rem;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .mode h4 .sym{font-family:"Space Mono",monospace;font-size:.95rem;color:var(--c)}
+  .mode .line{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:.72rem;padding:4px 0;border-bottom:1px dashed var(--line)}
+  .mode .line span:first-child{color:var(--muted)}.mode .line span:last-child{color:var(--ink);text-align:right}
+  .mode .ex{margin-top:9px;font-size:.8rem;color:#c7cbe6}.mode .ex b{color:var(--c)}
+
+  /* ---- aftermath flow ---- */
+  .after{display:grid;gap:10px;margin-top:6px}
+  .step{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:16px;background:rgba(255,255,255,.02)}
+  .step .n{flex:none;width:30px;height:30px;border-radius:50%;background:rgba(255,209,102,.14);color:var(--gold);font-family:"Space Mono",monospace;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+  .step .c h4{font-family:"Fraunces",serif;font-size:1.1rem;margin-bottom:3px}
+  .step .c .t{font-family:"Space Mono",monospace;font-size:.68rem;color:var(--gold);letter-spacing:.05em}
+  .step .c p{font-size:.9rem;color:var(--muted);margin-top:4px}
+
+  /* ---- chain ---- */
+  .chainpanel{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:18px;background:rgba(255,255,255,.03);min-height:108px}
+  .chainpanel .now{font-family:"Fraunces",serif;font-size:1.6rem;font-weight:700}
+  .chainpanel .mv{font-family:"Space Mono",monospace;font-size:.85rem;margin-top:6px}
+  .chainpanel .mv .a{color:var(--alpha)}.chainpanel .mv .b{color:var(--bminus)}
+  .chainpanel .note{font-size:.86rem;color:var(--muted);margin-top:8px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:"Space Mono",monospace;font-size:.7rem;margin-top:10px}
+  .legend i{font-style:normal;display:inline-flex;align-items:center;gap:5px}
+  .legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* ---- cheat ---- */
+  .cheat{width:100%;border-collapse:collapse;margin-top:6px;font-size:.84rem}
+  .cheat th,.cheat td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}
+  .cheat th{font-family:"Space Mono",monospace;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .cheat td{color:#c7cbe6;font-family:"Space Mono",monospace;font-size:.76rem}
+  .cheat td b{color:var(--ink)}
+  .cheat .m{font-weight:700}
+  footer{padding:46px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce;font-family:"Space Mono",monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Field guide · the rules, all in one place</span>
+  <h1>The radioactive decay <em>playbook.</em></h1>
+  <p class="lede">The rules usually surface one question at a time — but there's a tidy system underneath. So here it is whole: <b>every path a nucleus can take</b>, the single rule that decides which, <b>what happens in the aftermath</b>, how fast it all goes, and how one decay leads to the next until everything settles. One diagnostic flowchart, one reference table, one cheat sheet.</p>
+  <nav class="toc">
+    <a href="#s1">1 · the one rule</a><a href="#s2">2 · the five cases</a><a href="#s3">3 · mode reference</a>
+    <a href="#s4">4 · the aftermath</a><a href="#s5">5 · when & how fast</a><a href="#s6">6 · decay chains</a><a href="#s7">7 · cheat sheet</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">01 / THE MASTER RULE</span>Everything reduces to one principle</h2>
+  <p class="sub body">Before the cases, the rule they all obey. There is really only one, and every mode below is just a different <i>route</i> for satisfying it:</p>
+  <div class="rulebox"><div class="r">A nucleus changes only when a different arrangement has <b>lower total energy</b> — and it always moves toward the <b>valley of stability</b>. The mode it picks is simply the fastest available step downhill.</div></div>
+  <p class="body" style="margin-top:18px">Two corollaries make the whole system predictable. First, <b>direction is set by the energy balance (the Q-value):</b> a decay runs spontaneously only if Q &gt; 0, i.e. the products weigh less than the parent. Second, <b>the goal is always the same place</b> — the narrow belt of stable nuclei — so where a nucleus sits <i>relative to that belt</i> tells you exactly which move it will make. That's the entire logic of the next section.</p>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">02 / THE DECISION</span>The five cases — diagnose any nucleus</h2>
+  <p class="sub body">Hand me a nucleus and I can tell you what it does by asking where it sits relative to the belt. There are only five answers. Tap each to see the rule, the reaction, and what changes.</p>
+  <div class="flowtree">
+    <div class="root">An unstable nucleus asks: which single step drops my energy the most?</div>
+    <div class="branches" id="branches"></div>
+    <div class="bdetail" id="bdetail"></div>
+  </div>
+  <div class="callout body"><b>Rare cases exist too.</b> The very heaviest nuclei can skip the ladder and <b>spontaneously fission</b> (split in two), and a few exotic nuclides emit a lone proton, a lone neutron, or even a small cluster like carbon-14. These are uncommon — the five above cover almost everything you'll meet — but they obey the same Q &gt; 0 rule.</div>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2><span class="num">03 / THE REFERENCE</span>Every mode, on one card each</h2>
+  <p class="sub body">The full table of what gets emitted and how the nucleus's numbers change. <b>Z</b> = protons, <b>N</b> = neutrons, <b>A</b> = Z + N (mass number).</p>
+  <div class="modes">
+    <div class="mode" style="--c:var(--alpha)">
+      <h4>Alpha decay <span class="sym">α</span></h4>
+      <div class="line"><span>emits</span><span>a ⁴He nucleus (2p + 2n)</span></div>
+      <div class="line"><span>changes</span><span>Z −2 · N −2 · A −4</span></div>
+      <div class="line"><span>trigger</span><span>nucleus too heavy (Z ≳ 83)</span></div>
+      <div class="line"><span>timescale</span><span>µs → billions of yr</span></div>
+      <div class="ex">e.g. <b>U-238 → Th-234</b>, Ra-226 → Rn-222</div>
+    </div>
+    <div class="mode" style="--c:var(--bminus)">
+      <h4>Beta-minus <span class="sym">β⁻</span></h4>
+      <div class="line"><span>emits</span><span>electron + antineutrino</span></div>
+      <div class="line"><span>changes</span><span>Z +1 · N −1 · A same</span></div>
+      <div class="line"><span>trigger</span><span>too many neutrons</span></div>
+      <div class="line"><span>timescale</span><span>ms → millions of yr</span></div>
+      <div class="ex">e.g. <b>C-14 → N-14</b>, Sr-90 → Y-90</div>
+    </div>
+    <div class="mode" style="--c:var(--bplus)">
+      <h4>Beta-plus <span class="sym">β⁺</span></h4>
+      <div class="line"><span>emits</span><span>positron + neutrino</span></div>
+      <div class="line"><span>changes</span><span>Z −1 · N +1 · A same</span></div>
+      <div class="line"><span>trigger</span><span>too many protons</span></div>
+      <div class="line"><span>timescale</span><span>seconds → years</span></div>
+      <div class="ex">e.g. <b>F-18 → O-18</b> (PET scans)</div>
+    </div>
+    <div class="mode" style="--c:var(--bplus)">
+      <h4>Electron capture <span class="sym">EC</span></h4>
+      <div class="line"><span>emits</span><span>neutrino (+ X-ray after)</span></div>
+      <div class="line"><span>changes</span><span>Z −1 · N +1 · A same</span></div>
+      <div class="line"><span>trigger</span><span>too many protons (low-energy route)</span></div>
+      <div class="line"><span>timescale</span><span>days → years</span></div>
+      <div class="ex">e.g. <b>Be-7 → Li-7</b>; grabs own inner electron</div>
+    </div>
+    <div class="mode" style="--c:var(--gamma)">
+      <h4>Gamma <span class="sym">γ</span></h4>
+      <div class="line"><span>emits</span><span>a photon (no matter)</span></div>
+      <div class="line"><span>changes</span><span>Z same · N same · A same</span></div>
+      <div class="line"><span>trigger</span><span>nucleus left in an excited state</span></div>
+      <div class="line"><span>timescale</span><span>~10⁻¹² s (usually instant)</span></div>
+      <div class="ex">e.g. the flash <b>after</b> a β or α leaves a daughter buzzing</div>
+    </div>
+    <div class="mode" style="--c:var(--gold)">
+      <h4>Spontaneous fission <span class="sym">SF</span></h4>
+      <div class="line"><span>emits</span><span>2 big fragments + neutrons</span></div>
+      <div class="line"><span>changes</span><span>splits into two lighter nuclei</span></div>
+      <div class="line"><span>trigger</span><span>extremely heavy nuclei only</span></div>
+      <div class="line"><span>timescale</span><span>rare; competes with α</span></div>
+      <div class="ex">e.g. <b>Cf-252</b> (a lab neutron source)</div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="num">04 / THE AFTERMATH</span>What happens right after a decay</h2>
+  <p class="sub body">A single decay is rarely "one event." It sets off a short, ordered sequence — on wildly different clocks — and it usually isn't the end of the road.</p>
+  <div class="after">
+    <div class="step"><div class="n">1</div><div class="c"><div class="t">~INSTANT</div><h4>The conversion fires</h4><p>A quark flips (β) or a chunk is ejected (α), and the emitted particle — plus any neutrino — flies off carrying the Q-value as kinetic energy.</p></div></div>
+    <div class="step"><div class="n">2</div><div class="c"><div class="t">~10⁻¹² SECONDS</div><h4>The daughter relaxes → γ</h4><p>The new nucleus is usually left in an excited state, like a struck bell. It sheds that energy almost instantly as a gamma photon, dropping to its ground state. This is why β and α are so often shadowed by a γ.</p></div></div>
+    <div class="step"><div class="n">3</div><div class="c"><div class="t">~10⁻¹⁵ – 10⁻⁹ SECONDS</div><h4>The atom is now a new element</h4><p>Z changed by one, so it's a different element with the wrong-sized electron cloud. The electrons resettle; after electron capture an inner-shell hole fills and releases a characteristic <b>X-ray</b> (or an Auger electron).</p></div></div>
+    <div class="step"><div class="n">4</div><div class="c"><div class="t">ITS OWN HALF-LIFE</div><h4>Stable? If not — repeat</h4><p>If the daughter still sits off the belt, it's radioactive too. It waits out its own half-life, then decays again. One step becomes a <b>chain</b> (section 6), ending only when a stable nucleus is reached.</p></div></div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="num">05 / THE CLOCK</span>When, and how fast, it happens</h2>
+  <p class="sub body">"When" has two layers. <b>Which</b> nucleus decays and <b>exactly when</b> is pure quantum chance — but the <i>rate</i>, the half-life, is fixed and spans an almost unbelievable range. Here are real nuclides on a logarithmic time axis.</p>
+  <div class="stage"><canvas id="spectrumCanvas"></canvas></div>
+  <p class="body" style="margin-top:16px">From a fraction of a millisecond to far longer than the age of the universe — roughly <b>twenty-plus orders of magnitude.</b> What sets the rate?</p>
+  <div class="callout body"><b>For alpha:</b> the particle is trapped behind a Coulomb barrier and must <b>quantum-tunnel</b> out. Tunneling probability is exponentially sensitive to the energy Q, so a small change in Q swings the half-life by many orders of magnitude — the Geiger–Nuttall relation. That's why α half-lives alone run from microseconds to billions of years. <b>For beta:</b> it's governed by the feeble weak force and rises steeply with available energy (rate ∝ ~Q⁵), so low-energy betas can be extremely slow. <b>For gamma:</b> electromagnetic and fast — usually under a nanosecond.</div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="num">06 / THE CASCADE</span>Decay chains — one step leads to the next</h2>
+  <p class="sub body">When a daughter is itself unstable, you get a <b>chain</b>: a staircase of decays, each alternating α (down-left: Z−2, N−2) and β⁻ (down-right: Z+1, N−1), marching toward the belt until it hits something stable. Here's the famous one — from where this all started, <b>uranium-238, all the way down to stable lead-206</b>, in 14 steps. Step through it.</p>
+  <div class="stage"><canvas id="chainCanvas"></canvas></div>
+  <div class="controls" style="justify-content:space-between">
+    <button class="toggle" id="chPrev">◀ back</button>
+    <span class="readout" id="chStep">step 1 / 15</span>
+    <button class="toggle on" id="chNext">step ▶</button>
+  </div>
+  <div class="legend">
+    <i><span class="sw" style="background:var(--alpha)"></span>α decay (Z−2, N−2)</i>
+    <i><span class="sw" style="background:var(--bminus)"></span>β⁻ decay (Z+1, N−1)</i>
+    <i><span class="sw" style="background:var(--stable)"></span>stable endpoint</i>
+  </div>
+  <div class="chainpanel" id="chainPanel"></div>
+  <div class="callout body"><b>Notice step 7:</b> radium-226 alpha-decays into <b>radon-222 — a gas.</b> That's the one link in the chain that can drift out of rock and soil and accumulate in basements, which is why radon is a real-world concern even though the uranium it came from is locked in the ground. The chain also shows the timescale whiplash: a 4.5-billion-year first step, but a polonium-214 step lasting 164 <i>millionths</i> of a second.</div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">07 / AT A GLANCE</span>The whole system on one card</h2>
+  <p class="sub body">Everything above, compressed. If you remember nothing else, remember this table and the one rule: <i>move toward the belt, by the fastest downhill step.</i></p>
+  <table class="cheat">
+    <thead><tr><th>If the nucleus is…</th><th>it does</th><th>reaction</th><th>Z / N / A</th></tr></thead>
+    <tbody>
+      <tr><td><b>too heavy</b> (Z ≳ 83)</td><td class="m" style="color:var(--alpha)">α decay</td><td>ejects ⁴He</td><td>−2 / −2 / −4</td></tr>
+      <tr><td><b>neutron-rich</b></td><td class="m" style="color:var(--bminus)">β⁻</td><td>n → p + e⁻ + ν̄</td><td>+1 / −1 / 0</td></tr>
+      <tr><td><b>proton-rich</b></td><td class="m" style="color:var(--bplus)">β⁺ or EC</td><td>p → n + e⁺ + ν</td><td>−1 / +1 / 0</td></tr>
+      <tr><td><b>excited</b> (post-decay)</td><td class="m" style="color:var(--gamma)">γ</td><td>sheds a photon</td><td>0 / 0 / 0</td></tr>
+      <tr><td><b>on the belt</b></td><td class="m" style="color:var(--stable)">nothing</td><td>stable forever</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <div class="callout body"><b>The reading order for any nucleus:</b> ① Is it on the belt? → done, stable. ② Is it very heavy? → α. ③ Off the belt — too many neutrons → β⁻, too many protons → β⁺/EC. ④ Whatever it lands on, if left excited → γ instantly. ⑤ If the daughter is still unstable → repeat from ①. That loop <i>is</i> radioactivity.</div>
+</section>
+
+<footer>
+  <p class="mono">THE RADIOACTIVE DECAY PLAYBOOK</p>
+  <p style="margin-top:8px">One rule (descend toward the valley of stability), five routes (α, β⁻, β⁺/EC, γ, and rare fission), one aftermath sequence (relax → re-element → maybe repeat), and a rate set by tunneling and the weak force that spans the lifetime of a polonium isotope to the age of the cosmos. Every radioactive thing you'll ever meet is some walk through this same diagram.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function dot(ctx,x,y,r,col,glow){ctx.fillStyle=col;if(glow){ctx.shadowColor=col;ctx.shadowBlur=glow;}ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowBlur=0;}
+
+/* ===== 2. DECISION FLOWCHART ===== */
+(function(){
+  const cases=[
+    {id:"heavy",c:"var(--alpha)",cond:"Too heavy",sub:"Z ≳ 83 — more protons than the strong force can hold",out:"→ α decay",
+      title:"Alpha decay",eqn:"₉₂U²³⁸ → ₉₀Th²³⁴ + α",
+      p:"A bloated heavy nucleus sheds a tightly-bound ⁴He chunk (2 protons + 2 neutrons) to shrink toward stability. It's the only common way to lose mass number A.",chips:["Z −2","N −2","A −4"]},
+    {id:"nrich",c:"var(--bminus)",cond:"Too many neutrons",sub:"sitting above the stability belt",out:"→ β⁻",
+      title:"Beta-minus decay",eqn:"n → p + e⁻ + ν̄   (d quark → u quark)",
+      p:"A neutron converts to a proton, emitting an electron (the β particle) and an antineutrino. The proton count rises, the neutron count falls, sliding the nucleus down onto the belt.",chips:["Z +1","N −1","A same"]},
+    {id:"prich",c:"var(--bplus)",cond:"Too many protons",sub:"sitting below the stability belt",out:"→ β⁺ / EC",
+      title:"Beta-plus or electron capture",eqn:"p → n + e⁺ + ν   (or  p + e⁻ → n + ν)",
+      p:"A proton converts to a neutron — either emitting a positron, or by capturing one of the atom's own inner electrons. Both move the nucleus up toward the belt. Only ever happens inside a nucleus; a free proton can't.",chips:["Z −1","N +1","A same"]},
+    {id:"excited",c:"var(--gamma)",cond:"Left in an excited state",sub:"just finished another decay, still buzzing",out:"→ γ",
+      title:"Gamma emission",eqn:"X* → X + γ",
+      p:"Not a change of identity — the same nucleus simply drops from a high-energy arrangement to its ground state, releasing the difference as a photon. Almost always instantaneous, riding right behind an α or β.",chips:["Z 0","N 0","A 0"]},
+    {id:"stable",c:"var(--stable)",cond:"On the valley floor",sub:"already at the lowest available energy",out:"→ stable",
+      title:"Nothing happens — ever",eqn:"no Q > 0 move exists",
+      p:"There's no lower-energy arrangement to fall into, so the nucleus is stable and stays put indefinitely. Iron-56, lead-206, ordinary carbon-12 — the endpoints every chain is trying to reach.",chips:["unchanging"]},
+  ];
+  const wrap=document.getElementById("branches"),detail=document.getElementById("bdetail");
+  function show(k){
+    const cs=cases[k];
+    [...wrap.children].forEach((b,i)=>b.classList.toggle("on",i===k));
+    detail.innerHTML=`<h4 style="color:${cs.c}">${cs.title}</h4>
+      <div class="eqn">${cs.eqn}</div>
+      <p>${cs.p}</p>
+      <div class="chips">${cs.chips.map(c=>`<span class="chip"><b>${c}</b></span>`).join("")}</div>`;
+  }
+  cases.forEach((cs,i)=>{const b=document.createElement("button");b.className="branch";b.style.setProperty("--c",cs.c);
+    b.innerHTML=`<span class="cond">${cs.cond}<small>${cs.sub}</small></span><span class="arrow">→</span><span class="out">${cs.out}</span>`;
+    b.onclick=()=>show(i);wrap.appendChild(b);});
+  show(0);
+})();
+
+/* ===== 5. HALF-LIFE SPECTRUM ===== */
+(function(){
+  const c=document.getElementById("spectrumCanvas");let S;
+  function size(){S=setup(c,Math.min(300,Math.max(250,c.clientWidth*0.6)));draw();}
+  // log10(seconds)
+  const LMIN=-5,LMAX=18;
+  const nucl=[
+    {n:"Po-214",l:-3.79,mode:"a",t:"164 µs"},
+    {n:"free neutron",l:2.79,mode:"b",t:"10 min"},
+    {n:"Rn-222",l:5.52,mode:"a",t:"3.8 d"},
+    {n:"I-131",l:5.84,mode:"b",t:"8 d"},
+    {n:"Po-210",l:7.08,mode:"a",t:"138 d"},
+    {n:"Co-60",l:8.22,mode:"b",t:"5.3 yr"},
+    {n:"Cs-137",l:8.98,mode:"b",t:"30 yr"},
+    {n:"Ra-226",l:10.70,mode:"a",t:"1600 yr"},
+    {n:"C-14",l:11.26,mode:"b",t:"5730 yr"},
+    {n:"U-235",l:16.35,mode:"a",t:"700 Myr"},
+    {n:"K-40",l:16.60,mode:"b",t:"1.3 Gyr"},
+    {n:"U-238",l:17.15,mode:"a",t:"4.5 Gyr"},
+  ];
+  const ticks=[{l:-3,t:"1 ms"},{l:0,t:"1 s"},{l:3.56,t:"1 hr"},{l:4.94,t:"1 day"},{l:7.50,t:"1 yr"},{l:10.50,t:"1 kyr"},{l:13.50,t:"1 Myr"},{l:16.50,t:"1 Gyr"}];
+  const col={a:"#ff9d5c",b:"#39c2ff"};
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const padL=14,padR=14,axisY=h-46;const X=l=>padL+((l-LMIN)/(LMAX-LMIN))*(w-padL-padR);
+    // axis
+    ctx.strokeStyle="rgba(255,255,255,.25)";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(padL,axisY);ctx.lineTo(w-padR,axisY);ctx.stroke();
+    ctx.font='9px "Space Mono"';ctx.textAlign="center";
+    ticks.forEach(tk=>{const x=X(tk.l);ctx.strokeStyle="rgba(255,255,255,.15)";ctx.beginPath();ctx.moveTo(x,axisY-4);ctx.lineTo(x,axisY+4);ctx.stroke();
+      ctx.fillStyle="rgba(238,240,251,.5)";ctx.fillText(tk.t,x,axisY+18);});
+    ctx.fillStyle="rgba(238,240,251,.4)";ctx.textAlign="left";ctx.fillText("◀ faster",padL,axisY+34);ctx.textAlign="right";ctx.fillText("slower ▶",w-padR,axisY+34);
+    // nuclides, alternate above/below
+    nucl.forEach((nu,i)=>{const x=X(nu.l);const up=i%2===0;const y=up?axisY-18-(i%4)*0:axisY-18;
+      const yy=up?axisY-22:axisY-22; // stems
+      const stemY=up? axisY-14 : axisY-14;
+      // we place all above axis at staggered heights to reduce overlap
+      const tier=(i%3);const py=axisY-20-tier*26;
+      ctx.strokeStyle="rgba(255,255,255,.15)";ctx.beginPath();ctx.moveTo(x,axisY);ctx.lineTo(x,py+6);ctx.stroke();
+      dot(ctx,x,py,4,col[nu.mode],8);
+      ctx.fillStyle="#eef0fb";ctx.font='bold 9px "Space Mono"';ctx.textAlign="center";ctx.fillText(nu.n,x,py-8);
+      ctx.fillStyle=col[nu.mode];ctx.font='8px "Space Mono"';ctx.fillText(nu.t,x,py+16);
+    });
+    // legend
+    ctx.textAlign="left";ctx.font='9px "Space Mono"';
+    ctx.fillStyle="#ff9d5c";ctx.fillText("● α emitters",padL,16);
+    ctx.fillStyle="#39c2ff";ctx.fillText("● β emitters",padL+86,16);
+  }
+  size();window.addEventListener("resize",size);
+})();
+
+/* ===== 6. U-238 DECAY CHAIN ===== */
+(function(){
+  const c=document.getElementById("chainCanvas");let S;
+  function size(){S=setup(c,Math.min(380,Math.max(320,c.clientWidth*0.8)));draw();}
+  // each node: symbol, Z, N, mode that takes it to NEXT (last is stable)
+  const chain=[
+    {s:"U-238",Z:92,N:146,mode:"a",t:"4.5 billion yr"},
+    {s:"Th-234",Z:90,N:144,mode:"b",t:"24 days"},
+    {s:"Pa-234",Z:91,N:143,mode:"b",t:"1.2 min"},
+    {s:"U-234",Z:92,N:142,mode:"a",t:"245,000 yr"},
+    {s:"Th-230",Z:90,N:140,mode:"a",t:"75,000 yr"},
+    {s:"Ra-226",Z:88,N:138,mode:"a",t:"1600 yr"},
+    {s:"Rn-222",Z:86,N:136,mode:"a",t:"3.8 days",tag:"radon gas ☢"},
+    {s:"Po-218",Z:84,N:134,mode:"a",t:"3.1 min"},
+    {s:"Pb-214",Z:82,N:132,mode:"b",t:"27 min"},
+    {s:"Bi-214",Z:83,N:131,mode:"b",t:"20 min"},
+    {s:"Po-214",Z:84,N:130,mode:"a",t:"164 µs"},
+    {s:"Pb-210",Z:82,N:128,mode:"b",t:"22 yr"},
+    {s:"Bi-210",Z:83,N:127,mode:"b",t:"5 days"},
+    {s:"Po-210",Z:84,N:126,mode:"a",t:"138 days"},
+    {s:"Pb-206",Z:82,N:124,mode:"stable",t:"stable — chain ends"},
+  ];
+  let idx=0;
+  const Zmin=81.5,Zmax=92.5,Nmin=123,Nmax=147;
+  const prev=document.getElementById("chPrev"),next=document.getElementById("chNext"),stepLbl=document.getElementById("chStep"),panel=document.getElementById("chainPanel");
+  const col={a:"#ff9d5c",b:"#39c2ff",stable:"#5fe0a0"};
+  function pos(node,w,h){const padL=40,padR=20,padT=24,padB=30;
+    const x=padL+((node.Z-Zmin)/(Zmax-Zmin))*(w-padL-padR);
+    const y=padT+((Nmax-node.N)/(Nmax-Nmin))*(h-padT-padB);
+    return [x,y];}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    // axes
+    ctx.strokeStyle="rgba(255,255,255,.16)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(36,20);ctx.lineTo(36,h-26);ctx.lineTo(w-16,h-26);ctx.stroke();
+    ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='10px "Space Mono"';ctx.textAlign="center";ctx.fillText("protons Z →",w/2,h-8);
+    ctx.save();ctx.translate(13,(h)/2);ctx.rotate(-Math.PI/2);ctx.fillText("neutrons N →",0,0);ctx.restore();
+    // edges up to current
+    for(let i=0;i<chain.length-1;i++){const [x1,y1]=pos(chain[i],w,h),[x2,y2]=pos(chain[i+1],w,h);
+      const active=i<idx;
+      ctx.strokeStyle=active?col[chain[i].mode]:"rgba(255,255,255,.12)";ctx.lineWidth=active?2.5:1.2;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+    // nodes
+    chain.forEach((node,i)=>{const [x,y]=pos(node,w,h);const isNow=i===idx;const done=i<=idx;
+      let cc = node.mode==="stable"?col.stable:(done?"#eef0fb":"rgba(255,255,255,.3)");
+      dot(ctx,x,y,isNow?8:5,cc,isNow?16:0);
+      if(node.tag){ctx.strokeStyle="#ff7ad1";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,12,0,7);ctx.stroke();}
+      if(isNow||i===chain.length-1){ctx.fillStyle="#eef0fb";ctx.font='bold 9px "Space Mono"';ctx.textAlign="left";ctx.fillText(node.s,x+10,y+3);}
+    });
+  }
+  function refresh(){
+    draw();stepLbl.textContent="step "+(idx+1)+" / "+chain.length;
+    const node=chain[idx];
+    if(node.mode==="stable"){
+      panel.innerHTML=`<div class="now" style="color:var(--stable)">${node.s}</div><div class="mv">✓ stable — the chain ends here</div><div class="note">From U-238 down to lead-206: 8 alpha and 6 beta-minus decays, net Z 92→82, A 238→206.</div>`;
+    } else {
+      const mlabel=node.mode==="a"?`<span class="a">α decay</span>`:`<span class="b">β⁻ decay</span>`;
+      const arrow=node.mode==="a"?"Z−2, N−2":"Z+1, N−1";
+      panel.innerHTML=`<div class="now">${node.s}</div><div class="mv">${mlabel} · half-life ${node.t} · ${arrow} → ${chain[idx+1].s}</div>`+
+        (node.tag?`<div class="note" style="color:#ff7ad1">${node.tag} — the one volatile link; it can seep out of the ground into buildings.</div>`:`<div class="note">Z = ${node.Z}, N = ${node.N}, A = ${node.Z+node.N}.</div>`);
+    }
+    prev.disabled=idx<=0;next.disabled=idx>=chain.length-1;
+    prev.classList.toggle("on",idx>0);next.classList.toggle("on",idx<chain.length-1);
+  }
+  prev.onclick=()=>{if(idx>0){idx--;refresh();}};
+  next.onclick=()=>{if(idx<chain.length-1){idx++;refresh();}};
+  size();refresh();window.addEventListener("resize",()=>{size();refresh();});
+})();
+</script>
+</body>
+</html>

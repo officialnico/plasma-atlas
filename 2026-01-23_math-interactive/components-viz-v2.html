@@ -1,0 +1,389 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>components viz v2</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function ComponentsVisualization() {
+  const canvasRef = useRef(null);
+  const [vectorA, setVectorA] = useState({ x: 3, y: 4 });
+  const [unitDir, setUnitDir] = useState({ x: 0.94, y: 0.34 }); // direction of unit vector
+  const [dragging, setDragging] = useState(null);
+
+  const scale = 50;
+  const originX = 250;
+  const originY = 280;
+
+  // Normalize unit vector (always keep it length 1)
+  const unitMag = Math.sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
+  const unitVec = { x: unitDir.x / unitMag, y: unitDir.y / unitMag };
+  
+  // Magnitude of A
+  const magA = Math.sqrt(vectorA.x * vectorA.x + vectorA.y * vectorA.y);
+  
+  // Angle of A
+  const angleA = Math.atan2(vectorA.y, vectorA.x);
+  
+  // Angle of unit vector
+  const angleU = Math.atan2(unitVec.y, unitVec.x);
+  
+  // Angle between A and unit vector
+  const theta = angleA - angleU;
+  const thetaDegrees = Math.abs(theta * 180 / Math.PI);
+  
+  // Component of A in direction of û = A · û = |A| cos θ
+  const component = vectorA.x * unitVec.x + vectorA.y * unitVec.y;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let i = -6; i <= 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(originX + i * scale, 0);
+      ctx.lineTo(originX + i * scale, height);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, originY + i * scale);
+      ctx.lineTo(width, originY + i * scale);
+      ctx.stroke();
+    }
+
+    // Draw axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, originY);
+    ctx.lineTo(width, originY);
+    ctx.moveTo(originX, 0);
+    ctx.lineTo(originX, height);
+    ctx.stroke();
+
+    // Helper function to draw arrow
+    const drawArrow = (fromX, fromY, toX, toY, color, lineWidth = 3) => {
+      const headLen = 10;
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const angle = Math.atan2(dy, dx);
+      const length = Math.sqrt(dx*dx + dy*dy);
+      
+      if (length < 5) return;
+      
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+      
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    // Canvas coordinates for A
+    const ax = originX + vectorA.x * scale;
+    const ay = originY - vectorA.y * scale;
+    
+    // Unit vector endpoint (drawn at 1.5 units for visibility)
+    const unitDisplayLength = 1.5;
+    const ux = originX + unitVec.x * scale * unitDisplayLength;
+    const uy = originY - unitVec.y * scale * unitDisplayLength;
+    
+    // Projection point (component * unit vector direction)
+    const projX = originX + component * unitVec.x * scale;
+    const projY = originY - component * unitVec.y * scale;
+
+    // Draw the extended line for û direction (dashed)
+    ctx.strokeStyle = 'rgba(46, 204, 113, 0.2)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    const extendFactor = 6;
+    ctx.moveTo(originX - unitVec.x * scale * extendFactor, originY + unitVec.y * scale * extendFactor);
+    ctx.lineTo(originX + unitVec.x * scale * extendFactor, originY - unitVec.y * scale * extendFactor);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw the right triangle
+    ctx.fillStyle = 'rgba(241, 196, 15, 0.15)';
+    ctx.beginPath();
+    ctx.moveTo(originX, originY);
+    ctx.lineTo(projX, projY);
+    ctx.lineTo(ax, ay);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.strokeStyle = 'rgba(241, 196, 15, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(originX, originY);
+    ctx.lineTo(projX, projY);
+    ctx.lineTo(ax, ay);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Draw the perpendicular drop (dashed line from A to projection)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(projX, projY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Right angle marker at projection point
+    if (Math.abs(component) > 0.3 && magA > 0.5) {
+      const markerSize = 12;
+      const perpX = -unitVec.y;
+      const perpY = unitVec.x;
+      const alongX = component > 0 ? -unitVec.x : unitVec.x;
+      const alongY = component > 0 ? unitVec.y : -unitVec.y;
+      
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(projX + perpX * markerSize, projY - perpY * markerSize);
+      ctx.lineTo(projX + perpX * markerSize + alongX * markerSize, projY - perpY * markerSize + alongY * markerSize);
+      ctx.lineTo(projX + alongX * markerSize, projY + alongY * markerSize);
+      ctx.stroke();
+    }
+
+    // Draw angle arc
+    if (magA > 0.3) {
+      const arcRadius = 35;
+      ctx.strokeStyle = '#9b59b6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const startAngle = -angleU;
+      const endAngle = -angleA;
+      if (Math.abs(endAngle - startAngle) > 0.05) {
+        ctx.arc(originX, originY, arcRadius, Math.min(startAngle, endAngle), Math.max(startAngle, endAngle));
+        ctx.stroke();
+      }
+      
+      // θ label
+      const midAngle = (startAngle + endAngle) / 2;
+      const labelRadius = arcRadius + 15;
+      ctx.fillStyle = '#9b59b6';
+      ctx.font = 'bold 18px Arial';
+      ctx.fillText('θ', originX + labelRadius * Math.cos(midAngle) - 5, originY + labelRadius * Math.sin(midAngle) + 5);
+    }
+
+    // Draw the component (projection) - thick yellow line
+    ctx.strokeStyle = '#f1c40f';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(originX, originY);
+    ctx.lineTo(projX, projY);
+    ctx.stroke();
+    
+    // Component label
+    if (Math.abs(component) > 0.5) {
+      const compLabelX = originX + (component/2) * unitVec.x * scale;
+      const compLabelY = originY - (component/2) * unitVec.y * scale;
+      ctx.fillStyle = '#f1c40f';
+      ctx.font = 'bold 14px Arial';
+      const labelOffsetX = -unitVec.y * 25;
+      const labelOffsetY = -unitVec.x * 25;
+      ctx.fillText('|A|cos θ', compLabelX + labelOffsetX - 20, compLabelY + labelOffsetY);
+    }
+
+    // Draw unit vector û (green)
+    drawArrow(originX, originY, ux, uy, '#2ecc71', 4);
+    
+    // Draw vector A (red)
+    drawArrow(originX, originY, ax, ay, '#e74c3c', 4);
+
+    // Draggable point for A
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(ax, ay, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draggable point for û
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.arc(ux, uy, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Labels
+    ctx.font = 'bold 22px Arial';
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillText('A', ax + 15, ay - 10);
+    
+    ctx.fillStyle = '#2ecc71';
+    ctx.fillText('û', ux + 15, uy - 10);
+
+  }, [vectorA, unitVec, magA, component, angleU, angleA]);
+
+  const handleMouseDown = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const ax = originX + vectorA.x * scale;
+    const ay = originY - vectorA.y * scale;
+    
+    const unitDisplayLength = 1.5;
+    const ux = originX + unitVec.x * scale * unitDisplayLength;
+    const uy = originY - unitVec.y * scale * unitDisplayLength;
+
+    const distA = Math.sqrt((x - ax) ** 2 + (y - ay) ** 2);
+    const distU = Math.sqrt((x - ux) ** 2 + (y - uy) ** 2);
+
+    if (distA < 25) setDragging('A');
+    else if (distU < 25) setDragging('U');
+  };
+
+  const handleMouseMove = (e) => {
+    if (!dragging) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    if (dragging === 'A') {
+      const vx = Math.round((x - originX) / scale * 2) / 2;
+      const vy = Math.round((originY - y) / scale * 2) / 2;
+      const clamp = (val) => Math.max(-4.5, Math.min(4.5, val));
+      setVectorA({ x: clamp(vx), y: clamp(vy) });
+    } else if (dragging === 'U') {
+      // For unit vector, just set direction (it will be normalized)
+      const vx = (x - originX) / scale;
+      const vy = (originY - y) / scale;
+      if (Math.sqrt(vx*vx + vy*vy) > 0.1) {
+        setUnitDir({ x: vx, y: vy });
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDragging(null);
+  };
+
+  const signColor = component >= 0 ? 'text-yellow-400' : 'text-orange-400';
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-2xl font-bold mb-2 text-center">Components and Projection</h1>
+      <p className="text-center text-gray-400 mb-4">The component of A in direction û = A · û = |A| cos θ</p>
+      
+      <div className="flex flex-col lg:flex-row gap-6 max-w-5xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={500}
+            height={450}
+            className="border border-gray-600 rounded-lg cursor-grab active:cursor-grabbing w-full"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+          <p className="text-gray-400 text-sm mt-2 text-center">
+            Drag <span className="text-red-400">A</span> or <span className="text-green-400">û</span> to see how the component changes
+          </p>
+        </div>
+
+        <div className="lg:w-80 space-y-4">
+          
+          {/* Main result */}
+          <div className="bg-yellow-900/40 border-2 border-yellow-600 p-4 rounded-lg">
+            <h2 className="text-sm text-yellow-400 mb-1">Component of A in direction û</h2>
+            <div className={`text-4xl font-bold font-mono ${signColor}`}>
+              {component.toFixed(2)}
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              {component >= 0 
+                ? "Positive: A has some part pointing in û's direction" 
+                : "Negative: A points somewhat opposite to û"}
+            </p>
+          </div>
+
+          {/* The key equation */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-3">Two ways to compute it:</h2>
+            <div className="space-y-3 font-mono text-sm">
+              <div className="bg-gray-700/50 p-2 rounded">
+                <p className="text-gray-400">A · û (dot product)</p>
+                <p>= ({vectorA.x})({unitVec.x.toFixed(2)}) + ({vectorA.y})({unitVec.y.toFixed(2)})</p>
+                <p className={`font-bold ${signColor}`}>= {component.toFixed(2)}</p>
+              </div>
+              <div className="text-center text-gray-500">— or —</div>
+              <div className="bg-gray-700/50 p-2 rounded">
+                <p className="text-gray-400">|A| cos θ</p>
+                <p>= {magA.toFixed(2)} × cos({thetaDegrees.toFixed(1)}°)</p>
+                <p className={`font-bold ${signColor}`}>= {(magA * Math.cos(theta)).toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Vector info */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="font-semibold mb-2">Vectors</h2>
+            <div className="space-y-1 font-mono text-sm">
+              <p><span className="text-red-400 font-bold">A</span> = ⟨{vectorA.x}, {vectorA.y}⟩ <span className="text-gray-500">|A| = {magA.toFixed(2)}</span></p>
+              <p><span className="text-green-400 font-bold">û</span> = ⟨{unitVec.x.toFixed(2)}, {unitVec.y.toFixed(2)}⟩ <span className="text-gray-500">|û| = 1</span></p>
+              <p className="text-purple-400">θ = {thetaDegrees.toFixed(1)}°</p>
+            </div>
+          </div>
+
+          {/* Try these */}
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Try:</h3>
+            <ul className="space-y-1 text-gray-300">
+              <li>• Point û the same direction as A → max component</li>
+              <li>• Make û perpendicular to A → component = 0</li>
+              <li>• Point û opposite to A → negative component</li>
+            </ul>
+          </div>
+
+          {/* Insight */}
+          <div className="bg-blue-900/30 border border-blue-700 p-4 rounded-lg text-sm">
+            <p className="font-semibold mb-2">The key insight:</p>
+            <p className="text-gray-300">
+              Since |û| = 1, the dot product <span className="text-yellow-400">A · û</span> directly gives the component — it's just "how much of A is in that direction."
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ComponentsVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

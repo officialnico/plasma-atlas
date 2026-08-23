@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curvature κ — Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#04070d;--s1:#0b1222;--s2:#111c32;--bdr:#17253f;
+  --tx:#dfe8f5;--dim:#5a7094;--mut:#2f4468;
+  --cyan:#1fd6e8;--green:#3ee886;--amber:#f5c042;--red:#ef6461;
+  --pink:#e87be8;--purple:#9b7ff0;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:900px;margin:0 auto;padding:28px 16px 80px;}
+
+/* Hero */
+.hero{text-align:center;padding:36px 16px 28px;position:relative;}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(239,100,97,0.04),transparent 65%);pointer-events:none;}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--red);margin-bottom:14px;}
+.hero h1{font-size:clamp(28px,6vw,48px);font-weight:800;letter-spacing:-1.5px;line-height:1.05;margin-bottom:12px;}
+.hero h1 .kappa{color:var(--red);font-style:italic;}
+.hero p{color:var(--dim);font-size:15px;font-weight:300;max-width:520px;margin:0 auto;line-height:1.6;}
+
+/* Tabs */
+.tabs{display:flex;gap:3px;background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:3px;margin-bottom:28px;}
+.tab{flex:1;padding:11px 6px;border:none;background:transparent;color:var(--dim);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;transition:all .25s;text-align:center;}
+.tab:hover{color:var(--tx);}
+.tab.on{background:rgba(239,100,97,0.1);color:var(--red);}
+.tc{display:none;}.tc.on{display:block;}
+
+/* Section */
+.sec{margin-bottom:40px;}
+.stag{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--mut);margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+.stag::after{content:'';flex:1;height:1px;background:var(--bdr);}
+
+/* Callout */
+.call{background:var(--s1);border:1px solid var(--bdr);border-left:3px solid var(--red);border-radius:0 13px 13px 0;padding:22px 24px;margin-bottom:24px;}
+.call p{font-size:16px;font-weight:400;line-height:1.7;}
+.hl{font-weight:700;}.hr{color:var(--red);}.hg{color:var(--green);}.hc{color:var(--cyan);}.ha{color:var(--amber);}.hp{color:var(--pink);}
+
+/* Cards */
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:28px;}
+@media(max-width:600px){.cgrid{grid-template-columns:1fr;}}
+.card{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;padding:22px;position:relative;overflow:hidden;transition:all .25s;}
+.card:hover{border-color:var(--dim);transform:translateY(-1px);}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.card.good::before{background:linear-gradient(90deg,var(--green),transparent);}
+.card.bad::before{background:linear-gradient(90deg,var(--red),transparent);}
+.card.info::before{background:linear-gradient(90deg,var(--cyan),transparent);}
+.card.warn::before{background:linear-gradient(90deg,var(--amber),transparent);}
+.card .cicon{font-size:22px;margin-bottom:8px;}
+.card h3{font-size:15px;font-weight:700;margin-bottom:5px;}
+.card.good h3{color:var(--green);}.card.bad h3{color:var(--red);}
+.card.info h3{color:var(--cyan);}.card.warn h3{color:var(--amber);}
+.card p{font-size:12.5px;color:var(--dim);font-weight:300;line-height:1.65;}
+.card.wide{grid-column:1/-1;}
+
+/* Canvas */
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:16px;overflow:hidden;margin-bottom:20px;}
+.vbar{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--bdr);}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--mut);}
+.vbadge{font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 9px;border-radius:16px;letter-spacing:1px;}
+.vbadge.anim{background:rgba(239,100,97,0.1);color:var(--red);}
+.vbadge.inter{background:rgba(31,214,232,0.1);color:var(--cyan);}
+canvas{display:block;width:100%;}
+.vfoot{padding:10px 18px;border-top:1px solid var(--bdr);display:flex;flex-wrap:wrap;gap:14px;font-size:11px;color:var(--dim);}
+.vleg{display:flex;align-items:center;gap:5px;}
+.vdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* Controls */
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.cg{flex:1;min-width:150px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);margin-bottom:5px;}
+.cg-r{display:flex;align-items:center;gap:8px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:36px;text-align:right;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bdr);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--red);cursor:pointer;box-shadow:0 0 8px rgba(239,100,97,.35);}
+.btn{background:rgba(239,100,97,.08);border:1px solid rgba(239,100,97,.2);color:var(--red);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:8px 14px;border-radius:7px;cursor:pointer;white-space:nowrap;}
+.btn:hover{background:rgba(239,100,97,.15);}
+
+/* Formula */
+.formula{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;padding:24px;margin-bottom:24px;text-align:center;}
+.formula .fx{font-family:'JetBrains Mono',monospace;font-size:clamp(16px,3vw,22px);line-height:1.8;}
+.formula .fn{font-size:12px;color:var(--dim);font-weight:300;margin-top:8px;}
+
+/* Comparison stripe */
+.compare{display:grid;grid-template-columns:1fr auto 1fr;gap:0;margin-bottom:28px;align-items:stretch;}
+.compare .side{background:var(--s1);border:1px solid var(--bdr);padding:20px;text-align:center;}
+.compare .side:first-child{border-radius:14px 0 0 14px;}
+.compare .side:last-child{border-radius:0 14px 14px 0;}
+.compare .vs{display:flex;align-items:center;padding:0 8px;color:var(--mut);font-weight:700;font-size:12px;background:var(--s1);border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr);}
+.compare .side h4{font-size:13px;font-weight:700;margin-bottom:4px;}
+.compare .side p{font-size:11px;color:var(--dim);font-weight:300;line-height:1.5;}
+.compare .side .dim-tag{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:8px;}
+
+/* Pipeline */
+.pipe{display:flex;align-items:stretch;gap:0;margin-bottom:24px;overflow-x:auto;}
+.pnode{flex:1;min-width:100px;background:var(--s1);border:1px solid var(--bdr);padding:16px 12px;text-align:center;}
+.pnode:first-child{border-radius:12px 0 0 12px;}
+.pnode:last-child{border-radius:0 12px 12px 0;}
+.pnode.active{border-color:var(--red);background:rgba(239,100,97,0.05);}
+.pnode .pn{font-weight:700;font-size:13px;margin-bottom:3px;}
+.pnode.active .pn{color:var(--red);}
+.pnode .pd{font-size:10px;color:var(--dim);font-weight:300;}
+.parr{display:flex;align-items:center;color:var(--mut);font-size:16px;background:var(--s1);border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr);padding:0 2px;}
+.pstat{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;}
+.pstat.y{background:var(--green);}.pstat.n{background:var(--red);}.pstat.c{background:var(--amber);}
+</style>
+</head>
+<body>
+<div class="w">
+
+  <div class="hero">
+    <div class="eyebrow">CHEASE → GENE · Geometry Quantities</div>
+    <h1>Magnetic <span class="kappa">Curvature</span></h1>
+    <p>How the magnetic field lines bend in space — and why the direction they bend either stabilizes or destroys your plasma.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="basics">The Idea</button>
+    <button class="tab" data-t="physics">Good vs Bad</button>
+    <button class="tab" data-t="data">2D Not 1D</button>
+    <button class="tab" data-t="gene">Why GENE Cares</button>
+    <button class="tab" data-t="pipe">Pipeline</button>
+  </div>
+
+  <!-- ========== TAB: BASICS ========== -->
+  <div class="tc on" id="t-basics">
+    <div class="sec">
+      <div class="stag">01 · What is curvature?</div>
+      <div class="call">
+        <p>A field line in a tokamak isn't straight — it curves. <span class="hl hr">Curvature κ</span> measures <span class="hl">how much the field line bends at each point</span>, and which direction it bends toward. That's it — it's the "bendiness" of the field line.</p>
+      </div>
+
+      <div class="cgrid">
+        <div class="card info">
+          <div class="cicon">🛣️</div>
+          <h3>Think of a road</h3>
+          <p>Driving on a straight highway: zero curvature. Going around a tight bend: high curvature. The tighter the bend, the bigger κ. Same idea for field lines.</p>
+        </div>
+        <div class="card info">
+          <div class="cicon">📐</div>
+          <h3>It has a direction</h3>
+          <p>Curvature isn't just a number — it's a vector. It points toward the center of the curve. A field line bending outward has κ pointing outward. This direction is what matters for stability.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">02 · Interactive — see the curvature</div>
+
+      <div class="viz">
+        <div class="vbar">
+          <span class="vbar-t">POLOIDAL CROSS-SECTION · CURVATURE VECTORS</span>
+          <span class="vbadge anim">ANIMATED</span>
+        </div>
+        <canvas id="cMain" style="height:460px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg"><div class="vdot" style="background:var(--green);box-shadow:0 0 5px rgba(62,232,134,.4)"></div> Good curvature (inward)</div>
+          <div class="vleg"><div class="vdot" style="background:var(--red);box-shadow:0 0 5px rgba(239,100,97,.4)"></div> Bad curvature (outward)</div>
+          <div class="vleg"><div class="vdot" style="background:var(--cyan);opacity:.4"></div> Flux surface</div>
+          <div class="vleg" style="color:var(--mut)">Arrows = κ direction & magnitude</div>
+        </div>
+      </div>
+
+      <div class="ctrls">
+        <div class="cg">
+          <div class="cg-l">Surface ρ</div>
+          <div class="cg-r"><input type="range" id="sRho" min="0.15" max="0.9" step="0.05" value="0.6"><span class="cg-v" id="vRho" style="color:var(--red)">0.60</span></div>
+        </div>
+        <div class="cg">
+          <div class="cg-l">Elongation κ_e</div>
+          <div class="cg-r"><input type="range" id="sElong" min="1" max="2" step="0.05" value="1.4"><span class="cg-v" id="vElong" style="color:var(--amber)">1.40</span></div>
+        </div>
+        <div class="cg">
+          <div class="cg-l">Triangularity δ</div>
+          <div class="cg-r"><input type="range" id="sTri" min="-0.3" max="0.6" step="0.05" value="0.2"><span class="cg-v" id="vTri" style="color:var(--cyan)">0.20</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">03 · The key difference from shear</div>
+      <div class="call" style="border-left-color:var(--cyan);">
+        <p>Shear (ŝ) was just a number per flux surface — same everywhere on that surface. Curvature <span class="hl hr">changes as you go around</span> the surface. On the outboard side it bends one way, on the inboard side it bends the other way. That's why it's a <span class="hl hc">2D quantity</span>: it depends on both which surface (ρ) AND where on that surface (θ).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TAB: GOOD VS BAD ========== -->
+  <div class="tc" id="t-physics">
+    <div class="sec">
+      <div class="stag">Good curvature vs bad curvature</div>
+
+      <div class="call">
+        <p>Not all bending is equal. The <span class="hl">direction</span> the field line curves relative to the pressure gradient determines whether curvature <span class="hl hg">stabilizes</span> or <span class="hl hr">destabilizes</span> the plasma.</p>
+      </div>
+
+      <div class="cgrid">
+        <div class="card bad">
+          <div class="cicon">💥</div>
+          <h3>Bad Curvature (outboard side)</h3>
+          <p>On the outboard (low-field) side, the field line curves away from the plasma center. The curvature vector and the pressure gradient point in the same direction. This is like balancing a ball on top of a hill — any perturbation grows. This drives turbulence.</p>
+        </div>
+        <div class="card good">
+          <div class="cicon">🛡️</div>
+          <h3>Good Curvature (inboard side)</h3>
+          <p>On the inboard (high-field) side, the field line curves toward the center. Curvature opposes the pressure gradient. Like a ball in a valley — perturbations get pushed back. This is stabilizing.</p>
+        </div>
+      </div>
+
+      <div class="viz">
+        <div class="vbar">
+          <span class="vbar-t">BALL ANALOGY</span>
+          <span class="vbadge inter">ANIMATED</span>
+        </div>
+        <canvas id="cBall" style="height:260px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg"><div class="vdot" style="background:var(--red)"></div> Bad: ball on hilltop (unstable)</div>
+          <div class="vleg"><div class="vdot" style="background:var(--green)"></div> Good: ball in valley (stable)</div>
+        </div>
+      </div>
+
+      <div class="cgrid">
+        <div class="card warn wide">
+          <h3>Why the outboard side matters most</h3>
+          <p>In a tokamak, a field line spends time on both sides as it spirals around. But it spends <b>more time on the outboard side</b> (because the path is longer there — bigger radius). So the bad curvature region gets more "weight." This is why tokamak turbulence is mostly driven from the outboard midplane — it's called <b>ballooning</b>, because perturbations "balloon out" on the low-field side like a bulge in a weak spot.</p>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="stag">Shaping fights bad curvature</div>
+        <div class="cgrid">
+          <div class="card info">
+            <h3>Elongation</h3>
+            <p>Stretching the plasma vertically reduces the curvature on the outboard midplane — the field line bends less sharply there. Less bad curvature = less turbulence drive.</p>
+          </div>
+          <div class="card info">
+            <h3>Triangularity</h3>
+            <p>Positive triangularity (D-shape pointing outward) helps stability. Negative triangularity (D pointing inward) can be even better — it moves the bad curvature region to where the pressure gradient is weaker. Try the sliders on the first tab!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TAB: 2D NOT 1D ========== -->
+  <div class="tc" id="t-data">
+    <div class="sec">
+      <div class="stag">Why curvature needs two indices</div>
+
+      <div class="compare">
+        <div class="side">
+          <div class="dim-tag" style="background:rgba(31,214,232,0.1);color:var(--cyan);">1D</div>
+          <h4 style="color:var(--cyan)">Shear ŝ</h4>
+          <p>Same value everywhere on a given surface.<br><br><code style="color:var(--cyan);font-size:11px;">ŝ[surface]</code><br>Shape: <b>(N_surfaces,)</b></p>
+        </div>
+        <div class="vs">vs</div>
+        <div class="side">
+          <div class="dim-tag" style="background:rgba(239,100,97,0.1);color:var(--red);">2D</div>
+          <h4 style="color:var(--red)">Curvature κ</h4>
+          <p>Changes as you go around the surface.<br><br><code style="color:var(--red);font-size:11px;">κ[surface, poloidal_angle]</code><br>Shape: <b>(N_surfaces, N_theta)</b></p>
+        </div>
+      </div>
+
+      <div class="call">
+        <p>This makes intuitive sense: on the outboard side, the field line curves outward (bad). On the inboard side, it curves inward (good). Top and bottom are somewhere in between. So κ <span class="hl">must</span> vary with poloidal angle — there's no way to describe it with just one number per surface.</p>
+      </div>
+
+      <div class="viz">
+        <div class="vbar">
+          <span class="vbar-t">κ AS A FUNCTION OF POLOIDAL ANGLE θ</span>
+          <span class="vbadge inter">INTERACTIVE</span>
+        </div>
+        <canvas id="cProfile" style="height:300px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg"><div class="vdot" style="background:var(--red)"></div> κ > 0 = bad (outboard)</div>
+          <div class="vleg"><div class="vdot" style="background:var(--green)"></div> κ < 0 = good (inboard)</div>
+          <div class="vleg" style="color:var(--mut)">Hover to see values</div>
+        </div>
+      </div>
+
+      <div class="cgrid">
+        <div class="card info wide">
+          <h3>What the data looks like</h3>
+          <p>If you have 200 flux surfaces and 128 poloidal points per surface, curvature is a <b>200 × 128 array</b>. Compare to shear which is just a <b>200-element array</b>. This is why curvature is more expensive to compute and store — and why CHEASE needs to do a proper equilibrium solve to get it right, rather than just differentiating a 1D profile.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TAB: WHY GENE CARES ========== -->
+  <div class="tc" id="t-gene">
+    <div class="sec">
+      <div class="stag">What GENE does with curvature</div>
+
+      <div class="call">
+        <p>Remember: GENE simulates a thin flux tube following a field line. As that tube follows the line around the torus, the curvature changes. GENE needs to know <span class="hl hr">κ at every point along the tube</span> because it directly enters the equations that drive turbulence.</p>
+      </div>
+
+      <div class="cgrid">
+        <div class="card bad">
+          <div class="cicon">🌊</div>
+          <h3>Curvature drives interchange modes</h3>
+          <p>Bad curvature + pressure gradient = energy source for turbulence. The term in GENE's equations is literally κ · ∇p. Bigger bad curvature → stronger turbulence drive → more heat escaping the plasma.</p>
+        </div>
+        <div class="card info">
+          <div class="cicon">🔧</div>
+          <h3>It enters the drift velocities</h3>
+          <p>Charged particles in a curved magnetic field drift sideways (curvature drift). The drift speed depends on κ. GENE needs this drift to correctly evolve the particle distribution — wrong κ means wrong drifts means wrong transport.</p>
+        </div>
+        <div class="card warn">
+          <div class="cicon">📊</div>
+          <h3>It varies along the field line</h3>
+          <p>Unlike shear (one number for the whole tube), curvature changes as GENE steps along the tube from outboard to top to inboard to bottom and back. So GENE stores κ as an array indexed by the parallel coordinate z — one value per grid point along the field line.</p>
+        </div>
+        <div class="card good">
+          <div class="cicon">⚖️</div>
+          <h3>Good regions partially cancel bad</h3>
+          <p>A turbulent eddy extending along the field line samples both good and bad curvature regions. The competition between them determines whether the mode actually grows. That's why the full poloidal profile of κ matters — not just the outboard value.</p>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="stag">Plain English version</div>
+        <div class="call" style="border-left-color:var(--green);">
+          <p>GENE's flux tube follows a field line. At the outboard midplane the field bends outward — that's like a hill for the plasma, and perturbations roll downhill (grow). At the inboard side the field bends inward — that's a valley, perturbations get pushed back (shrink). GENE needs the exact curvature profile along the entire field line to know how much "hill" vs "valley" the turbulence sees. Get it wrong and your turbulence prediction is off.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TAB: PIPELINE ========== -->
+  <div class="tc" id="t-pipe">
+    <div class="sec">
+      <div class="stag">Data flow</div>
+      <div class="pipe">
+        <div class="pnode"><div class="pn">EQDSK</div><div class="pd"><span class="pstat n"></span>κ not stored</div></div>
+        <div class="parr">→</div>
+        <div class="pnode active"><div class="pn">CHEASE</div><div class="pd"><span class="pstat c"></span>Computes κ(ρ,θ)</div></div>
+        <div class="parr">→</div>
+        <div class="pnode"><div class="pn">GENE geom</div><div class="pd"><span class="pstat y"></span>κ(z) along line</div></div>
+        <div class="parr">→</div>
+        <div class="pnode"><div class="pn">GENE sim</div><div class="pd"><span class="pstat y"></span>Every timestep</div></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">How CHEASE computes it</div>
+      <div class="cgrid">
+        <div class="card info wide">
+          <h3>From equilibrium to curvature</h3>
+          <p>CHEASE solves the Grad-Shafranov equation to get the full 2D magnetic field B(R,Z). Then curvature is computed as <b>κ = (b̂ · ∇)b̂</b> — that is, how the unit vector along the field line changes as you move along it. This requires second derivatives of the magnetic flux ψ, which is why CHEASE uses high-order Hermite finite elements — crude numerics would give noisy garbage for κ.</p>
+        </div>
+        <div class="card warn">
+          <div class="cicon">⚠️</div>
+          <h3>Sensitive to equilibrium quality</h3>
+          <p>Because κ involves second derivatives, it's much more sensitive to equilibrium errors than q or shear (which only need first derivatives). A slightly noisy EQDSK → slightly wrong ψ(R,Z) → wildly wrong κ. This is the main reason CHEASE re-solves the equilibrium rather than just reading EQDSK directly.</p>
+        </div>
+        <div class="card info">
+          <div class="cicon">📝</div>
+          <h3>Written as κ(z) for GENE</h3>
+          <p>CHEASE traces a field line on the chosen flux surface and evaluates κ at each point along it. The poloidal angle θ maps to a parallel coordinate z. The output is a 1D array κ(z) — one value per point along the field line. This is what GENE actually reads.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">Comparison to shear in the pipeline</div>
+      <div class="cgrid">
+        <div class="card wide" style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--bdr);">
+                <th style="text-align:left;padding:8px;color:var(--dim);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;">PROPERTY</th>
+                <th style="text-align:left;padding:8px;color:var(--cyan);">SHEAR ŝ</th>
+                <th style="text-align:left;padding:8px;color:var(--red);">CURVATURE κ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid rgba(23,37,63,0.5);"><td style="padding:8px;color:var(--dim);">Dimensionality</td><td style="padding:8px;">1D — ŝ(ρ)</td><td style="padding:8px;">2D — κ(ρ, θ)</td></tr>
+              <tr style="border-bottom:1px solid rgba(23,37,63,0.5);"><td style="padding:8px;color:var(--dim);">In GENE file</td><td style="padding:8px;">Single number</td><td style="padding:8px;">Array along z</td></tr>
+              <tr style="border-bottom:1px solid rgba(23,37,63,0.5);"><td style="padding:8px;color:var(--dim);">Derivatives needed</td><td style="padding:8px;">1st (dq/dρ)</td><td style="padding:8px;">2nd (∇²ψ)</td></tr>
+              <tr style="border-bottom:1px solid rgba(23,37,63,0.5);"><td style="padding:8px;color:var(--dim);">Noise sensitivity</td><td style="padding:8px;">Moderate</td><td style="padding:8px;">High</td></tr>
+              <tr><td style="padding:8px;color:var(--dim);">Physics role</td><td style="padding:8px;">Boundary cond., mode coupling</td><td style="padding:8px;">Turbulence drive, drifts</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tc').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  document.getElementById('t-'+t.dataset.t).classList.add('on');
+}));
+
+// ============ STATE ============
+let selRho=0.6, elong=1.4, tri=0.2;
+let time=0, hoverTheta=-1;
+
+// ============ MAIN VIZ — CURVATURE ARROWS ============
+const cM=document.getElementById('cMain');
+const ctxM=cM.getContext('2d');
+let mW,mH;
+
+function resizeMain(){
+  const r=cM.getBoundingClientRect();
+  const d=window.devicePixelRatio||1;
+  cM.width=r.width*d; cM.height=r.height*d;
+  ctxM.setTransform(d,0,0,d,0,0);
+  mW=r.width; mH=r.height;
+}
+
+// Flux surface shape with elongation and triangularity
+function surfacePoint(cx,cy,r,theta,e,d){
+  // Parameterization with triangularity
+  const R=r*Math.cos(theta+d*Math.sin(theta));
+  const Z=r*e*Math.sin(theta);
+  return {x:cx+R, y:cy-Z};
+}
+
+// Curvature model: roughly cos(theta) with shaping effects
+function curvatureAt(theta,rho,e,d){
+  // Good on inboard (θ=π), bad on outboard (θ=0)
+  // Elongation reduces outboard curvature
+  // Triangularity shifts things
+  const base=Math.cos(theta+d*Math.sin(theta));
+  const elongEffect=1/e; // higher elongation → less curvature
+  const rhoEffect=0.5+0.8*rho;
+  return base*elongEffect*rhoEffect;
+}
+
+function drawMain(){
+  ctxM.clearRect(0,0,mW,mH);
+  const cx=mW/2, cy=mH/2;
+  const maxR=Math.min(mW,mH)*0.36;
+
+  // Bg glow
+  const bg=ctxM.createRadialGradient(cx,cy,0,cx,cy,maxR*1.4);
+  bg.addColorStop(0,'rgba(239,100,97,0.02)');
+  bg.addColorStop(1,'transparent');
+  ctxM.fillStyle=bg;ctxM.fillRect(0,0,mW,mH);
+
+  // Ghost flux surfaces
+  for(let i=1;i<=7;i++){
+    const f=i/7, rr=maxR*f;
+    ctxM.beginPath();
+    for(let j=0;j<=64;j++){
+      const th=(j/64)*Math.PI*2;
+      const p=surfacePoint(cx,cy,rr,th,elong,tri);
+      j===0?ctxM.moveTo(p.x,p.y):ctxM.lineTo(p.x,p.y);
+    }
+    ctxM.closePath();
+    const isSelected=Math.abs(f-selRho)<0.08;
+    ctxM.strokeStyle=isSelected?'rgba(239,100,97,0.25)':`rgba(31,214,232,${0.03+0.012*f})`;
+    ctxM.lineWidth=isSelected?2:0.7;
+    ctxM.stroke();
+  }
+
+  // Curvature arrows on selected surface
+  const rr=maxR*selRho;
+  const nArrows=28;
+  for(let i=0;i<nArrows;i++){
+    const theta=(i/nArrows)*Math.PI*2;
+    const p=surfacePoint(cx,cy,rr,theta,elong,tri);
+
+    // Curvature value and direction
+    const kappa=curvatureAt(theta,selRho,elong,tri);
+    const absK=Math.abs(kappa);
+
+    // Normal direction (pointing outward from center)
+    const dx=p.x-cx, dy=p.y-cy;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const nx=dx/dist, ny=dy/dist;
+
+    // Arrow: positive κ (bad) points outward, negative (good) points inward
+    const arrowLen=absK*35;
+    const dir=kappa>0?1:-1;
+    const ax=p.x+nx*dir*arrowLen;
+    const ay=p.y+ny*dir*arrowLen;
+
+    // Color
+    const isBad=kappa>0;
+    const r_=isBad?239:62, g_=isBad?100:232, b_=isBad?97:134;
+    const alpha=0.3+absK*0.5;
+
+    // Arrow line
+    ctxM.beginPath();
+    ctxM.moveTo(p.x,p.y);
+    ctxM.lineTo(ax,ay);
+    ctxM.strokeStyle=`rgba(${r_},${g_},${b_},${alpha})`;
+    ctxM.lineWidth=2;
+    ctxM.stroke();
+
+    // Arrow head
+    const headSize=3+absK*3;
+    ctxM.beginPath();
+    ctxM.arc(ax,ay,headSize,0,Math.PI*2);
+    ctxM.fillStyle=`rgba(${r_},${g_},${b_},${alpha*0.7})`;
+    ctxM.fill();
+  }
+
+  // Labels
+  ctxM.font='700 11px "JetBrains Mono",monospace';
+  ctxM.textAlign='center'; ctxM.textBaseline='middle';
+
+  // Outboard label
+  const outP=surfacePoint(cx,cy,rr,0,elong,tri);
+  ctxM.fillStyle='rgba(239,100,97,0.7)';
+  ctxM.fillText('BAD κ',outP.x+45,outP.y-12);
+  ctxM.font='300 9px "DM Sans",sans-serif';
+  ctxM.fillText('drives turbulence',outP.x+45,outP.y+3);
+
+  // Inboard label
+  const inP=surfacePoint(cx,cy,rr,Math.PI,elong,tri);
+  ctxM.font='700 11px "JetBrains Mono",monospace';
+  ctxM.fillStyle='rgba(62,232,134,0.7)';
+  ctxM.fillText('GOOD κ',inP.x-45,inP.y-12);
+  ctxM.font='300 9px "DM Sans",sans-serif';
+  ctxM.fillText('stabilizes',inP.x-45,inP.y+3);
+
+  // Pressure gradient arrow (pointing inward)
+  ctxM.font='500 9px "JetBrains Mono",monospace';
+  ctxM.fillStyle='rgba(245,192,66,0.5)';
+  ctxM.fillText('∇p →',cx+rr*0.5+20,cy+mH*0.35);
+  ctxM.beginPath();
+  ctxM.moveTo(cx+rr*0.7,cy+mH*0.35);
+  ctxM.lineTo(cx+rr*0.3,cy+mH*0.35);
+  ctxM.strokeStyle='rgba(245,192,66,0.3)';
+  ctxM.lineWidth=1.5;
+  ctxM.stroke();
+  // arrowhead
+  ctxM.beginPath();
+  ctxM.moveTo(cx+rr*0.3,cy+mH*0.35);
+  ctxM.lineTo(cx+rr*0.3+6,cy+mH*0.35-3);
+  ctxM.lineTo(cx+rr*0.3+6,cy+mH*0.35+3);
+  ctxM.closePath();
+  ctxM.fillStyle='rgba(245,192,66,0.3)';
+  ctxM.fill();
+
+  ctxM.font='300 9px "DM Sans",sans-serif';
+  ctxM.fillStyle='rgba(245,192,66,0.35)';
+  ctxM.textAlign='center';
+  ctxM.fillText('(pressure gradient points inward)',cx,cy+mH*0.35+14);
+
+  // Center
+  ctxM.font='500 9px "JetBrains Mono",monospace';
+  ctxM.fillStyle='rgba(100,116,139,0.3)';
+  ctxM.textAlign='center';
+  ctxM.fillText('AXIS',cx,cy);
+}
+
+// ============ BALL ANALOGY ============
+const cB=document.getElementById('cBall');
+const ctxB=cB.getContext('2d');
+let bW,bH;
+
+function resizeBall(){
+  const r=cB.getBoundingClientRect();
+  const d=window.devicePixelRatio||1;
+  cB.width=r.width*d; cB.height=r.height*d;
+  ctxB.setTransform(d,0,0,d,0,0);
+  bW=r.width; bH=r.height;
+}
+
+function drawBall(){
+  ctxB.clearRect(0,0,bW,bH);
+  const midX=bW/2, cy=bH*0.65;
+
+  // Bad side (left) — hilltop
+  const badCx=midX*0.45;
+  ctxB.beginPath();
+  for(let x=-120;x<=120;x++){
+    const px=badCx+x;
+    const py=cy-50*Math.exp(-x*x/2500);
+    x===-120?ctxB.moveTo(px,py):ctxB.lineTo(px,py);
+  }
+  ctxB.strokeStyle='rgba(239,100,97,0.5)';
+  ctxB.lineWidth=2.5;
+  ctxB.stroke();
+
+  // Ball on hilltop (wobbling)
+  const wobble=Math.sin(time*3)*4;
+  const ballBadX=badCx+wobble;
+  const ballBadY=cy-50-8;
+  ctxB.beginPath();
+  ctxB.arc(ballBadX,ballBadY,8,0,Math.PI*2);
+  ctxB.fillStyle='var(--red)';
+  ctxB.fill();
+  ctxB.beginPath();
+  ctxB.arc(ballBadX,ballBadY,14,0,Math.PI*2);
+  const gr1=ctxB.createRadialGradient(ballBadX,ballBadY,0,ballBadX,ballBadY,14);
+  gr1.addColorStop(0,'rgba(239,100,97,0.3)');
+  gr1.addColorStop(1,'rgba(239,100,97,0)');
+  ctxB.fillStyle=gr1;
+  ctxB.fill();
+
+  // Arrows showing it wants to fall
+  ctxB.beginPath();ctxB.moveTo(ballBadX-18,ballBadY);ctxB.lineTo(ballBadX-30,ballBadY+10);
+  ctxB.strokeStyle='rgba(239,100,97,0.3)';ctxB.lineWidth=1.5;ctxB.stroke();
+  ctxB.beginPath();ctxB.moveTo(ballBadX+18,ballBadY);ctxB.lineTo(ballBadX+30,ballBadY+10);
+  ctxB.stroke();
+
+  // Label
+  ctxB.font='700 12px "DM Sans",sans-serif';
+  ctxB.fillStyle='var(--red)';
+  ctxB.textAlign='center';
+  ctxB.fillText('Bad curvature',badCx,cy+40);
+  ctxB.font='300 10px "DM Sans",sans-serif';
+  ctxB.fillStyle='var(--dim)';
+  ctxB.fillText('ball on hilltop — unstable',badCx,cy+56);
+
+  // Good side (right) — valley
+  const goodCx=midX*1.55;
+  ctxB.beginPath();
+  for(let x=-120;x<=120;x++){
+    const px=goodCx+x;
+    const py=cy+50*Math.exp(-x*x/2500)-50;
+    x===-120?ctxB.moveTo(px,py):ctxB.lineTo(px,py);
+  }
+  ctxB.strokeStyle='rgba(62,232,134,0.5)';
+  ctxB.lineWidth=2.5;
+  ctxB.stroke();
+
+  // Ball in valley (settled)
+  const wobble2=Math.sin(time*3)*1.5;
+  const ballGoodY=cy+0-8;
+  ctxB.beginPath();
+  ctxB.arc(goodCx+wobble2,ballGoodY,8,0,Math.PI*2);
+  ctxB.fillStyle='var(--green)';
+  ctxB.fill();
+  ctxB.beginPath();
+  ctxB.arc(goodCx+wobble2,ballGoodY,14,0,Math.PI*2);
+  const gr2=ctxB.createRadialGradient(goodCx+wobble2,ballGoodY,0,goodCx+wobble2,ballGoodY,14);
+  gr2.addColorStop(0,'rgba(62,232,134,0.3)');
+  gr2.addColorStop(1,'rgba(62,232,134,0)');
+  ctxB.fillStyle=gr2;
+  ctxB.fill();
+
+  // Arrows showing it gets pushed back
+  ctxB.beginPath();ctxB.moveTo(goodCx-30,ballGoodY-8);ctxB.lineTo(goodCx-18,ballGoodY);
+  ctxB.strokeStyle='rgba(62,232,134,0.3)';ctxB.lineWidth=1.5;ctxB.stroke();
+  ctxB.beginPath();ctxB.moveTo(goodCx+30,ballGoodY-8);ctxB.lineTo(goodCx+18,ballGoodY);
+  ctxB.stroke();
+
+  // Label
+  ctxB.font='700 12px "DM Sans",sans-serif';
+  ctxB.fillStyle='var(--green)';
+  ctxB.textAlign='center';
+  ctxB.fillText('Good curvature',goodCx,cy+40);
+  ctxB.font='300 10px "DM Sans",sans-serif';
+  ctxB.fillStyle='var(--dim)';
+  ctxB.fillText('ball in valley — stable',goodCx,cy+56);
+}
+
+// ============ PROFILE PLOT ============
+const cP=document.getElementById('cProfile');
+const ctxP=cP.getContext('2d');
+let pW,pH;
+
+function resizeProfile(){
+  const r=cP.getBoundingClientRect();
+  const d=window.devicePixelRatio||1;
+  cP.width=r.width*d; cP.height=r.height*d;
+  ctxP.setTransform(d,0,0,d,0,0);
+  pW=r.width; pH=r.height;
+}
+
+function drawProfile(){
+  ctxP.clearRect(0,0,pW,pH);
+  ctxP.fillStyle='#0b1222';
+  ctxP.fillRect(0,0,pW,pH);
+
+  const pad={l:50,r:24,t:28,b:42};
+  const w=pW-pad.l-pad.r, h=pH-pad.t-pad.b;
+
+  // Zero line
+  const zeroY=pad.t+h/2;
+  ctxP.strokeStyle='rgba(100,116,139,0.15)';
+  ctxP.lineWidth=1;
+  ctxP.setLineDash([6,4]);
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);ctxP.lineTo(pad.l+w,zeroY);ctxP.stroke();
+  ctxP.setLineDash([]);
+
+  // Shade bad region
+  ctxP.fillStyle='rgba(239,100,97,0.04)';
+  ctxP.fillRect(pad.l,pad.t,w,h/2);
+  // Shade good region
+  ctxP.fillStyle='rgba(62,232,134,0.04)';
+  ctxP.fillRect(pad.l,zeroY,w,h/2);
+
+  // Labels
+  ctxP.font='300 9px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(239,100,97,0.3)';
+  ctxP.textAlign='left';
+  ctxP.fillText('BAD (κ > 0)',pad.l+4,pad.t+14);
+  ctxP.fillStyle='rgba(62,232,134,0.3)';
+  ctxP.fillText('GOOD (κ < 0)',pad.l+4,pad.t+h-6);
+
+  // X axis
+  ctxP.font='9px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.25)';
+  ctxP.textAlign='center';
+  ctxP.textBaseline='top';
+  const thetaLabels=['0\noutboard','π/2\ntop','π\ninboard','3π/2\nbottom','2π\noutboard'];
+  for(let i=0;i<=4;i++){
+    const x=pad.l+(w/4)*i;
+    ctxP.strokeStyle='rgba(100,116,139,0.08)';
+    ctxP.lineWidth=0.5;
+    ctxP.beginPath();ctxP.moveTo(x,pad.t);ctxP.lineTo(x,pad.t+h);ctxP.stroke();
+    const lines=thetaLabels[i].split('\n');
+    ctxP.fillText(lines[0],x,pad.t+h+4);
+    if(lines[1]){ctxP.fillText(lines[1],x,pad.t+h+16);}
+  }
+  ctxP.font='10px "JetBrains Mono",monospace';
+  ctxP.fillText('poloidal angle θ →',pad.l+w/2,pad.t+h+30);
+
+  // Y axis
+  ctxP.textAlign='right';ctxP.textBaseline='middle';
+  ctxP.fillStyle='rgba(100,116,139,0.25)';
+  ctxP.fillText('0',pad.l-6,zeroY);
+  ctxP.fillText('+κ',pad.l-6,pad.t+10);
+  ctxP.fillText('−κ',pad.l-6,pad.t+h-10);
+
+  // Plot κ(θ) for selected surface
+  const maxK=1.2;
+  const N=200;
+  ctxP.beginPath();
+  for(let i=0;i<=N;i++){
+    const theta=(i/N)*Math.PI*2;
+    const kappa=curvatureAt(theta,selRho,elong,tri);
+    const px=pad.l+(i/N)*w;
+    const py=zeroY-(kappa/maxK)*(h/2)*0.85;
+    i===0?ctxP.moveTo(px,py):ctxP.lineTo(px,py);
+  }
+  ctxP.strokeStyle='rgba(239,100,97,0.7)';
+  ctxP.lineWidth=2.5;
+  ctxP.stroke();
+
+  // Fill areas
+  // Bad fill (above zero)
+  ctxP.beginPath();
+  ctxP.moveTo(pad.l,zeroY);
+  for(let i=0;i<=N;i++){
+    const theta=(i/N)*Math.PI*2;
+    const kappa=curvatureAt(theta,selRho,elong,tri);
+    const px=pad.l+(i/N)*w;
+    const py=zeroY-(Math.max(0,kappa)/maxK)*(h/2)*0.85;
+    ctxP.lineTo(px,py);
+  }
+  ctxP.lineTo(pad.l+w,zeroY);
+  ctxP.closePath();
+  ctxP.fillStyle='rgba(239,100,97,0.08)';
+  ctxP.fill();
+
+  // Good fill (below zero)
+  ctxP.beginPath();
+  ctxP.moveTo(pad.l,zeroY);
+  for(let i=0;i<=N;i++){
+    const theta=(i/N)*Math.PI*2;
+    const kappa=curvatureAt(theta,selRho,elong,tri);
+    const px=pad.l+(i/N)*w;
+    const py=zeroY-(Math.min(0,kappa)/maxK)*(h/2)*0.85;
+    ctxP.lineTo(px,py);
+  }
+  ctxP.lineTo(pad.l+w,zeroY);
+  ctxP.closePath();
+  ctxP.fillStyle='rgba(62,232,134,0.08)';
+  ctxP.fill();
+
+  // Hover
+  if(hoverTheta>=0){
+    const kappa=curvatureAt(hoverTheta,selRho,elong,tri);
+    const frac=hoverTheta/(2*Math.PI);
+    const hx=pad.l+frac*w;
+    const hy=zeroY-(kappa/maxK)*(h/2)*0.85;
+
+    ctxP.strokeStyle='rgba(255,255,255,0.1)';
+    ctxP.lineWidth=1;ctxP.setLineDash([3,3]);
+    ctxP.beginPath();ctxP.moveTo(hx,pad.t);ctxP.lineTo(hx,pad.t+h);ctxP.stroke();
+    ctxP.setLineDash([]);
+
+    // Dot
+    ctxP.beginPath();ctxP.arc(hx,hy,6,0,Math.PI*2);
+    ctxP.fillStyle=kappa>0?'var(--red)':'var(--green)';ctxP.fill();
+
+    // Tooltip
+    const tx=Math.min(hx+10,pW-120);
+    ctxP.fillStyle='rgba(4,7,13,0.9)';
+    ctxP.strokeStyle=kappa>0?'rgba(239,100,97,0.3)':'rgba(62,232,134,0.3)';
+    ctxP.lineWidth=1;
+    ctxP.beginPath();ctxP.roundRect(tx,pad.t+6,110,48,6);ctxP.fill();ctxP.stroke();
+    ctxP.font='600 10px "JetBrains Mono",monospace';
+    ctxP.textAlign='left';ctxP.textBaseline='top';
+    ctxP.fillStyle='var(--dim)';
+    ctxP.fillText(`θ = ${(hoverTheta*180/Math.PI).toFixed(0)}°`,tx+8,pad.t+14);
+    ctxP.fillStyle=kappa>0?'var(--red)':'var(--green)';
+    ctxP.fillText(`κ = ${kappa>0?'+':''}${kappa.toFixed(3)}`,tx+8,pad.t+30);
+  }
+}
+
+cP.addEventListener('mousemove',e=>{
+  const rect=cP.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const pad=50,pr=24;
+  const w=rect.width-pad-pr;
+  const frac=(mx-pad)/w;
+  hoverTheta=Math.max(0,Math.min(1,frac))*Math.PI*2;
+  drawProfile();
+});
+cP.addEventListener('mouseleave',()=>{hoverTheta=-1;drawProfile();});
+cP.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const rect=cP.getBoundingClientRect();
+  const mx=e.touches[0].clientX-rect.left;
+  const pad=50,pr=24;
+  const w=rect.width-pad-pr;
+  hoverTheta=Math.max(0,Math.min(1,(mx-pad)/w))*Math.PI*2;
+  drawProfile();
+},{passive:false});
+cP.addEventListener('touchend',()=>{hoverTheta=-1;drawProfile();});
+
+// ============ CONTROLS ============
+document.getElementById('sRho').addEventListener('input',e=>{
+  selRho=parseFloat(e.target.value);
+  document.getElementById('vRho').textContent=selRho.toFixed(2);
+  drawMain();drawProfile();
+});
+document.getElementById('sElong').addEventListener('input',e=>{
+  elong=parseFloat(e.target.value);
+  document.getElementById('vElong').textContent=elong.toFixed(2);
+  drawMain();drawProfile();
+});
+document.getElementById('sTri').addEventListener('input',e=>{
+  tri=parseFloat(e.target.value);
+  document.getElementById('vTri').textContent=tri.toFixed(2);
+  drawMain();drawProfile();
+});
+
+// ============ LOOP ============
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  time+=(ts-lastT)/1000;lastT=ts;
+  drawBall();
+  requestAnimationFrame(frame);
+}
+
+function init(){
+  resizeMain();resizeBall();resizeProfile();
+  drawMain();drawProfile();
+}
+window.addEventListener('resize',init);
+init();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

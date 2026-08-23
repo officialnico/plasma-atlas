@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ballooning · Peeling · ELMs — in 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06090f;--panel:#0c121c;--line:rgba(140,170,200,0.12);--line2:rgba(140,170,200,0.2);
+    --txt:#d2dde9;--mut:#7387a0;--dim:#46566a;
+    --H:#27e7d4;--Hglow:rgba(39,231,212,0.5);
+    --bad:#ff6450;--badglow:rgba(255,100,80,0.5);
+    --elm:#ff3d6e;--elmglow:rgba(255,61,110,0.55);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{font-family:"Bricolage Grotesque",sans-serif;color:var(--txt);line-height:1.6;overflow-x:hidden;
+    background:radial-gradient(900px 600px at 75% -6%,rgba(255,100,80,0.08),transparent 60%),
+      radial-gradient(700px 500px at 12% 4%,rgba(39,231,212,0.08),transparent 60%),var(--bg);}
+  .wrap{max-width:780px;margin:0 auto;padding:26px 16px 60px;}
+  .kicker{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.26em;text-transform:uppercase;
+    color:var(--mut);display:flex;align-items:center;gap:9px;}
+  .kicker::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--elm);box-shadow:0 0 10px var(--elmglow);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{font-size:clamp(28px,7.5vw,46px);line-height:1.03;font-weight:800;letter-spacing:-0.025em;margin:12px 0 10px;
+    background:linear-gradient(96deg,#fff 8%,var(--elm) 60%,#ff9a3c 115%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .lede{color:var(--mut);font-size:15px;max-width:56ch;}
+
+  .stage{position:relative;margin:20px 0 14px;border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 0%,#0e1622,#070b12);box-shadow:0 24px 60px -36px #000;}
+  #scene{display:block;width:100%;height:min(56vh,440px);touch-action:none;}
+  .hint{position:absolute;left:12px;bottom:10px;font-family:"JetBrains Mono",monospace;font-size:10px;
+    letter-spacing:.1em;color:var(--dim);pointer-events:none;}
+  .curvkey{position:absolute;right:12px;top:12px;font-family:"JetBrains Mono",monospace;font-size:10px;
+    text-align:right;line-height:1.7;pointer-events:none;}
+  .curvkey b{font-weight:700;}
+  .badc{color:var(--bad);} .goodc{color:var(--H);}
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--mut);letter-spacing:.1em;}
+
+  .lenses{display:flex;gap:8px;margin:6px 0 4px;}
+  .lens{flex:1;font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.06em;text-align:center;
+    background:#0c1320;border:1px solid var(--line2);color:var(--mut);padding:11px 6px;border-radius:11px;cursor:pointer;transition:.18s;}
+  .lens.active{color:#04140f;font-weight:700;background:linear-gradient(180deg,#fff,#bfe9e3);border-color:#fff;box-shadow:0 0 18px -6px var(--Hglow);}
+  .lens.active[data-l=elm]{background:linear-gradient(180deg,#fff,#ffc3cf);box-shadow:0 0 18px -6px var(--elmglow);}
+
+  .ctl{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;margin:10px 0 14px;}
+  .ctlrow{display:flex;align-items:center;gap:12px;}
+  .slabel{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:24px;background:transparent;cursor:pointer;}
+  input[type=range]::-webkit-slider-runnable-track{height:7px;border-radius:6px;background:#16202e;border:1px solid var(--line2);}
+  input[type=range]::-moz-range-track{height:7px;border-radius:6px;background:#16202e;border:1px solid var(--line2);}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:23px;height:23px;margin-top:-9px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--elm));border:2px solid #14060a;box-shadow:0 0 14px var(--elmglow);}
+  input[type=range]::-moz-range-thumb{width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--elm));border:2px solid #14060a;}
+  .fire{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;letter-spacing:.08em;color:#fff;
+    background:linear-gradient(180deg,#ff5277,#d31e48);border:none;padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 0 18px -6px var(--elmglow);}
+  .pedbar{flex:1;height:10px;border-radius:6px;background:#16202e;border:1px solid var(--line2);overflow:hidden;position:relative;}
+  .pedfill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--H),var(--bad));transition:width .05s linear;}
+  .pedlim{position:absolute;right:8%;top:-2px;bottom:-2px;width:2px;background:var(--elm);box-shadow:0 0 8px var(--elmglow);}
+
+  .explain{background:linear-gradient(180deg,#0d141f,#0a0f18);border:1px solid var(--line2);border-radius:14px;padding:16px 15px;}
+  .explain h3{margin:0 0 8px;font-size:18px;font-weight:800;letter-spacing:-0.01em;}
+  .explain p{margin:0 0 10px;font-size:14.5px;color:#b9c6d6;}
+  .explain p:last-child{margin-bottom:0;}
+  .tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;
+    padding:3px 8px;border-radius:6px;margin-bottom:10px;}
+  .tag.b{color:var(--bad);border:1px solid var(--bad);} .tag.p{color:#ffb74d;border:1px solid #ffb74d;}
+  .tag.e{color:var(--elm);border:1px solid var(--elm);}
+  b.k{color:#fff;}
+  footer{margin-top:26px;font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--dim);text-align:center;letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">3D · where the plasma edge breaks</div>
+  <h1>Ballooning, Peeling &amp; ELMs</h1>
+  <p class="lede">A tokamak is a donut. These three ideas are all about <em>where</em> on the donut the steep edge gives way, and <em>what shape</em> the failure takes. Spin it with your finger. Pick a lens below and grow the pedestal to watch it happen.</p>
+
+  <div class="stage">
+    <canvas id="scene"></canvas>
+    <div class="loading" id="loading">loading 3D engine…</div>
+    <div class="curvkey">
+      <span class="badc">▮ outer side</span> · <b class="badc">bad curvature</b><br>
+      <span class="goodc">▮ inner side</span> · <b class="goodc">good curvature</b>
+    </div>
+    <div class="hint">drag to rotate</div>
+  </div>
+
+  <div class="lenses">
+    <div class="lens active" data-l="balloon">BALLOONING</div>
+    <div class="lens" data-l="peel">PEELING</div>
+    <div class="lens" data-l="elm">ELM CYCLE</div>
+  </div>
+
+  <div class="ctl">
+    <div class="ctlrow" id="manualCtl">
+      <span class="slabel">pedestal pressure</span>
+      <input type="range" id="press" min="0" max="100" value="20">
+    </div>
+    <div class="ctlrow" id="elmCtl" style="display:none;">
+      <div class="pedbar"><div class="pedfill" id="pedfill"></div><div class="pedlim"></div></div>
+      <button class="fire" id="fireBtn">↯ FIRE ELM</button>
+    </div>
+  </div>
+
+  <div class="explain" id="explain"></div>
+
+  <footer>three.js · teaching model · structure exaggerated for clarity, not to scale</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+const EXPLAIN={
+  balloon:`<span class="tag b">PRESSURE-DRIVEN · OUTBOARD</span>
+    <h3>Ballooning: the outer side bulges</h3>
+    <p>In a donut the magnetic field is <b class="k">strong on the inner side</b> (facing the hole) and <b class="k">weak on the outer side</b>. The outer side has <b class="k">"bad curvature"</b> — the field curves the wrong way to hold pressure in. Picture balancing a ball: easy in a valley (inner, good), impossible on a hilltop (outer, bad).</p>
+    <p>So when the edge <b class="k">pressure</b> gets steep enough, the plasma can't hold and it bulges outward — but <em>only on the red outer belt</em>, in many small fingers. The blue inner side stays smooth. Drag the slider up and rotate: fingers grow on the red side only. <b class="k">That's ballooning.</b></p>`,
+  peel:`<span class="tag p">CURRENT-DRIVEN · GLOBAL</span>
+    <h3>Peeling: the skin lifts off</h3>
+    <p>A steep edge doesn't just store pressure — it drives an <b class="k">electric current</b> running all the way around the edge (the self-generated "bootstrap" current). Too much edge current makes the outermost magnetic layers want to <b class="k">kink into helical ripples and lift away</b> — like peeling a strip of skin off the whole surface.</p>
+    <p>Notice the difference from ballooning: peeling is more <b class="k">global and helical</b> — it wraps the entire donut in a few twisting bands rather than clustering on the outer belt. Grow the slider and watch the surface ripple and lift. <b class="k">That's peeling.</b></p>`,
+  elm:`<span class="tag e">BOTH AT ONCE → THE BURST</span>
+    <h3>ELM: the edge erupts</h3>
+    <p>The real edge does both together. As the pedestal builds, ballooning fingers and the peeling kink grow until — at the <b class="k">peeling–ballooning limit</b> (red mark on the bar) — the edge can't hold. It <b class="k">erupts</b>: ropes of hot plasma (<b class="k">filaments</b>) blast outward from the outer side, like a mini solar flare. The pedestal collapses, the burst flies out and dumps heat on the divertor (the orange ring flashes), then the edge rebuilds and it happens again.</p>
+    <p>That eruption <b class="k">is</b> an Edge-Localized Mode. It auto-cycles here — or hit <b class="k">FIRE ELM</b> to trigger one. Each burst flushes impurities out (good) but hammers the divertor (bad).</p>`
+};
+
+/* ---------- three.js scene ---------- */
+let renderer,scene,camera,pivot,torus,geo,basePos,uvArr,normBase,divRing,filaments=[],fieldLines=[];
+const SEGU=120, SEGV=34, R=2.5, rr=1.0;
+let lens='balloon', g=0.20, gTarget=0.20;
+let erupting=false, elmT=0, divFlash=0, autoPhase='build';
+const FLIFE=0.75, NF=18, SPREAD=2.2;
+
+function buildTorus(){
+  geo=new THREE.BufferGeometry();
+  const nv=(SEGU+1)*(SEGV+1);
+  basePos=new Float32Array(nv*3); normBase=new Float32Array(nv*3);
+  uvArr=new Float32Array(nv*2); const col=new Float32Array(nv*3);
+  const pos=new Float32Array(nv*3);
+  let k=0;
+  for(let iu=0;iu<=SEGU;iu++){
+    const u=iu/SEGU*Math.PI*2, cu=Math.cos(u), su=Math.sin(u);
+    for(let iv=0;iv<=SEGV;iv++){
+      const v=iv/SEGV*Math.PI*2, cv=Math.cos(v), sv=Math.sin(v);
+      const x=(R+rr*cv)*cu, y=(R+rr*cv)*su, z=rr*sv;
+      const nx=cv*cu, ny=cv*su, nz=sv;
+      const o=k*3;
+      basePos[o]=x;basePos[o+1]=y;basePos[o+2]=z;
+      pos[o]=x;pos[o+1]=y;pos[o+2]=z;
+      normBase[o]=nx;normBase[o+1]=ny;normBase[o+2]=nz;
+      uvArr[k*2]=u; uvArr[k*2+1]=v;
+      // color: outer (cv=+1) bad/red, inner (cv=-1) good/teal
+      const t=cv*0.5+0.5;
+      col[o]=lerp(0.16,1.0,t); col[o+1]=lerp(0.90,0.39,t); col[o+2]=lerp(0.83,0.31,t);
+      k++;
+    }
+  }
+  const idx=[];
+  for(let iu=0;iu<SEGU;iu++)for(let iv=0;iv<SEGV;iv++){
+    const a=iu*(SEGV+1)+iv, b=a+(SEGV+1), c=a+1, d=b+1;
+    idx.push(a,b,c, c,b,d);
+  }
+  geo.setIndex(idx);
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshStandardMaterial({vertexColors:true,metalness:0.25,roughness:0.45,
+    emissive:new THREE.Color(0x0a1a1f),emissiveIntensity:0.4,flatShading:false});
+  torus=new THREE.Mesh(geo,mat);
+  pivot.add(torus);
+}
+
+function buildFilaments(){
+  const fgeo=new THREE.CylinderGeometry(0.05,0.02,1.0,6);
+  for(let i=0;i<NF;i++){
+    const phi=i/NF*Math.PI*2, cphi=Math.cos(phi), sphi=Math.sin(phi);
+    const mat=new THREE.MeshBasicMaterial({color:0xff5a78,transparent:true,opacity:0,
+      blending:THREE.AdditiveBlending,depthWrite:false});
+    const m=new THREE.Mesh(fgeo,mat);
+    // align cylinder (+Y) to toroidal tangent
+    const tang=new THREE.Vector3(-sphi,cphi,0).normalize();
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),tang);
+    m.userData={phi,out:new THREE.Vector3(cphi,sphi,0)};
+    m.visible=false; pivot.add(m); filaments.push(m);
+  }
+}
+function buildDivRing(){
+  const dg=new THREE.TorusGeometry(R*0.78,0.07,10,80);
+  const dm=new THREE.MeshBasicMaterial({color:0xff9a3c,transparent:true,opacity:0.25});
+  divRing=new THREE.Mesh(dg,dm);
+  divRing.position.z=-2.4; pivot.add(divRing);
+}
+function buildFieldLines(){
+  for(let f=0;f<3;f++){
+    const pts=[]; const m0=2+f, off=f*1.3;
+    for(let i=0;i<=400;i++){const u=i/400*Math.PI*2*3; const v=m0*u+off;
+      const cv=Math.cos(v); pts.push(new THREE.Vector3((R+(rr+0.08)*cv)*Math.cos(u),(R+(rr+0.08)*cv)*Math.sin(u),(rr+0.08)*Math.sin(v)));}
+    const lg=new THREE.BufferGeometry().setFromPoints(pts);
+    const lm=new THREE.LineBasicMaterial({color:0x6fd9e0,transparent:true,opacity:0.12});
+    const line=new THREE.Line(lg,lm); pivot.add(line); fieldLines.push(line);
+  }
+}
+
+function deform(){
+  const pos=geo.attributes.position.array;
+  const ballW=(lens==='peel')?0.14:1.0;
+  const peelW=(lens==='balloon')?0.12:(lens==='peel'?1.0:0.8);
+  const nv=(SEGU+1)*(SEGV+1);
+  for(let i=0;i<nv;i++){
+    const u=uvArr[i*2], v=uvArr[i*2+1];
+    const cv=Math.cos(v), outer=Math.max(0,cv);
+    const ball=Math.pow(outer,1.7)*(0.5+0.5*Math.cos(14*u))*(0.55+0.45*Math.cos(2*v));
+    const peel=(0.30+0.70*outer)*(0.5+0.5*Math.cos(v-4*u));
+    const disp=rr*(0.34*g*ballW*ball + 0.30*g*peelW*peel);
+    const o=i*3;
+    pos[o]=basePos[o]+normBase[o]*disp;
+    pos[o+1]=basePos[o+1]+normBase[o+1]*disp;
+    pos[o+2]=basePos[o+2]+normBase[o+2]*disp;
+  }
+  geo.attributes.position.needsUpdate=true;
+  geo.computeVertexNormals();
+}
+
+/* eruption */
+function fireELM(){
+  if(erupting) return;
+  erupting=true; elmT=0; divFlash=1; autoPhase='erupt';
+  for(const m of filaments){m.visible=true; m.material.opacity=0;}
+}
+function updateFilaments(dt){
+  if(!erupting) return;
+  elmT+=dt;
+  const k=elmT/FLIFE;
+  for(const m of filaments){
+    const ease=1-Math.pow(1-Math.min(1,k),2);
+    const off=ease*SPREAD;
+    const out=m.userData.out;
+    const base=new THREE.Vector3(out.x*(R+rr*1.05),out.y*(R+rr*1.05),0);
+    m.position.set(base.x+out.x*off, base.y+out.y*off, Math.sin(k*4)*0.25);
+    m.scale.y=0.6+ease*1.8;
+    m.material.opacity=(k<0.15? k/0.15 : 1)*(1-Math.min(1,k));
+  }
+  if(k>=1){erupting=false; for(const m of filaments)m.visible=false;}
+}
+
+/* main loop */
+let dragX=null,dragY=null,rotZ=0.4,rotX=-0.85,auto=true,last=performance.now();
+function animate(now){
+  let dt=(now-last)/1000; last=now; dt=Math.min(dt,0.05);
+
+  if(lens==='elm'){
+    if(!erupting){
+      g+=dt*0.34;
+      if(g>=1){g=1; fireELM();}
+    }else{
+      // collapse pedestal quickly during erupt
+      g=lerp(g,0.22,Math.min(1,dt*7));
+    }
+  }else{
+    g+=(gTarget-g)*Math.min(1,dt*4);
+  }
+  divFlash*=Math.exp(-dt/0.25);
+
+  deform();
+  updateFilaments(dt);
+  if(divRing){divRing.material.opacity=0.18+0.7*divFlash; divRing.material.color.setRGB(1,0.6+0.3*divFlash,0.24);}
+  // pedestal bar
+  const pf=document.getElementById('pedfill'); if(pf) pf.style.width=(clamp(g,0,1)*100)+'%';
+
+  if(auto && dragX===null) rotZ+=dt*0.18;
+  pivot.rotation.z=rotZ; pivot.rotation.x=rotX;
+
+  renderer.render(scene,camera);
+  requestAnimationFrame(animate);
+}
+
+function resize(){
+  const cv=renderer.domElement, r=cv.getBoundingClientRect();
+  renderer.setSize(r.width,r.height,false);
+  camera.aspect=r.width/r.height; camera.updateProjectionMatrix();
+}
+
+function init(){
+  const canvas=document.getElementById('scene');
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(48,1,0.1,100); camera.position.set(0,0,9.2);
+  pivot=new THREE.Group(); scene.add(pivot);
+
+  scene.add(new THREE.AmbientLight(0x4a5666,0.7));
+  const l1=new THREE.PointLight(0xffd9a0,1.1,40); l1.position.set(8,4,8); scene.add(l1);
+  const l2=new THREE.PointLight(0x6ff0ff,0.9,40); l2.position.set(-8,-3,5); scene.add(l2);
+  const l3=new THREE.PointLight(0xff5a78,0.6,40); l3.position.set(0,0,-9); scene.add(l3);
+
+  buildTorus(); buildFieldLines(); buildFilaments(); buildDivRing();
+  resize(); window.addEventListener('resize',resize);
+  document.getElementById('loading').style.display='none';
+
+  // pointer drag rotate
+  canvas.addEventListener('pointerdown',e=>{dragX=e.clientX;dragY=e.clientY;canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointermove',e=>{if(dragX===null)return;
+    rotZ+=(e.clientX-dragX)*0.01; rotX=clamp(rotX-(e.clientY-dragY)*0.01,-1.45,-0.15);
+    dragX=e.clientX;dragY=e.clientY;});
+  const end=()=>{dragX=null;dragY=null;};
+  canvas.addEventListener('pointerup',end); canvas.addEventListener('pointercancel',end); canvas.addEventListener('pointerleave',end);
+
+  requestAnimationFrame(animate);
+}
+
+/* ---------- UI ---------- */
+function setLens(l){
+  lens=l;
+  document.querySelectorAll('.lens').forEach(b=>b.classList.toggle('active',b.dataset.l===l));
+  document.querySelector('.lens.active').setAttribute('data-l',l);
+  document.getElementById('explain').innerHTML=EXPLAIN[l];
+  const manual=document.getElementById('manualCtl'), elmc=document.getElementById('elmCtl');
+  if(l==='elm'){manual.style.display='none'; elmc.style.display='flex'; g=0.22; erupting=false; for(const m of filaments)m.visible=false;}
+  else{manual.style.display='flex'; elmc.style.display='none'; erupting=false; for(const m of filaments)m.visible=false;
+    const v=+document.getElementById('press').value; gTarget=v/100;}
+}
+document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click',()=>setLens(b.dataset.l)));
+document.getElementById('press').addEventListener('input',e=>{gTarget=+e.target.value/100;});
+document.getElementById('fireBtn').addEventListener('click',()=>{g=1;fireELM();});
+
+document.getElementById('explain').innerHTML=EXPLAIN.balloon;
+if(window.THREE) init(); else window.addEventListener('load',init);
+</script>
+</body>
+</html>

@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vector Calculus · Homework with Focus on Divergence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f1e8;
+  --bg-2: #ebe4d2;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --right: #5b8a3a;
+  --wrong: #c8482e;
+  --warn: #d4a017;
+  --highlight: #2e6f9c;
+  --positive: #c8482e;
+  --negative: #2e6f9c;
+  --neutral: #d4a017;
+  --paper-line: rgba(26, 20, 16, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(46, 111, 156, 0.06), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(212, 160, 23, 0.05), transparent 50%),
+    var(--bg);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 56px 32px 100px;
+  position: relative;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 28px;
+  margin-bottom: 48px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--highlight);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 60px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(38px, 6vw, 64px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  margin-bottom: 18px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--highlight);
+}
+
+.deck {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+.deck strong { color: var(--ink); font-weight: 400; }
+
+/* ---------- SCORE TRACKER ---------- */
+.score-bar {
+  position: sticky;
+  top: 0;
+  background: rgba(245, 241, 232, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  border-bottom: 1px solid var(--rule);
+  padding: 14px 32px;
+  margin: 0 -32px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.score-bar .score {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+.score-bar .score .right { color: var(--right); font-weight: 500; }
+.progress-bar {
+  flex: 1;
+  max-width: 240px;
+  height: 4px;
+  background: var(--rule-soft);
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar .fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: var(--right);
+  transition: width 0.5s ease;
+}
+
+/* ---------- PROBLEM CARD ---------- */
+.problem {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  margin-bottom: 32px;
+  position: relative;
+  box-shadow: 5px 5px 0 var(--rule);
+  overflow: hidden;
+}
+
+.problem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--paper-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: var(--bg-2);
+}
+.problem-header .num { color: var(--highlight); font-weight: 600; }
+.problem-header .difficulty { color: var(--ink-dim); }
+
+.problem-body {
+  padding: 28px 28px 24px;
+}
+
+.question {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  font-weight: 400;
+}
+.question em { font-style: italic; color: var(--highlight); }
+.question strong { font-weight: 500; }
+.question code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  background: rgba(46, 111, 156, 0.08);
+  padding: 1px 5px;
+  color: var(--highlight);
+  border-radius: 2px;
+}
+
+.context {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin-bottom: 20px;
+  font-style: italic;
+  padding-left: 16px;
+  border-left: 2px solid var(--rule-soft);
+}
+
+/* ---------- INPUT TYPES ---------- */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 18px;
+  border: 1.5px solid var(--rule-soft);
+  background: var(--paper);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14.5px;
+  line-height: 1.55;
+  gap: 14px;
+  text-align: left;
+  font-family: 'Fraunces', serif;
+  color: var(--ink);
+  border-radius: 2px;
+}
+.option:hover {
+  border-color: var(--rule);
+  background: var(--bg-2);
+}
+.option .letter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  width: 18px;
+  padding-top: 2px;
+}
+.option.selected {
+  border-color: var(--highlight);
+  background: rgba(46, 111, 156, 0.06);
+}
+.option.selected .letter { color: var(--highlight); }
+.option.correct {
+  border-color: var(--right);
+  background: rgba(91, 138, 58, 0.08);
+}
+.option.correct .letter { color: var(--right); }
+.option.incorrect {
+  border-color: var(--wrong);
+  background: rgba(200, 72, 46, 0.06);
+}
+.option.incorrect .letter { color: var(--wrong); }
+.option:disabled { cursor: default; }
+
+/* canvas-driven question type: click on point */
+.click-question {
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  margin-top: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.click-canvas {
+  width: 100%;
+  height: 280px;
+  display: block;
+  cursor: crosshair;
+}
+.click-instructions {
+  padding: 10px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  border-bottom: 1px dashed var(--rule-soft);
+  background: var(--bg-2);
+}
+
+/* sign question type: just three buttons */
+.sign-options {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.sign-option {
+  flex: 1;
+  min-width: 140px;
+  padding: 16px 18px;
+  border: 1.5px solid var(--rule-soft);
+  background: var(--paper);
+  cursor: pointer;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 16px;
+  text-align: center;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+.sign-option:hover {
+  border-color: var(--rule);
+  background: var(--bg-2);
+}
+.sign-option.selected {
+  border-color: var(--highlight);
+  background: rgba(46, 111, 156, 0.06);
+}
+.sign-option .icon {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 24px;
+  font-weight: 600;
+  font-style: normal;
+  margin-bottom: 4px;
+}
+.sign-option.positive .icon { color: var(--positive); }
+.sign-option.zero .icon { color: var(--neutral); }
+.sign-option.negative .icon { color: var(--negative); }
+.sign-option.correct {
+  border-color: var(--right);
+  background: rgba(91, 138, 58, 0.08);
+}
+.sign-option.incorrect {
+  border-color: var(--wrong);
+  background: rgba(200, 72, 46, 0.06);
+}
+
+/* ---------- BUTTONS ---------- */
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 600;
+  border-radius: 2px;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:hover { background: var(--highlight); border-color: var(--highlight); }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--paper);
+  color: var(--ink-dim);
+  border-color: var(--rule-soft);
+}
+.btn:disabled:hover { background: var(--paper); color: var(--ink-dim); }
+
+/* ---------- FEEDBACK ---------- */
+.feedback {
+  margin-top: 22px;
+  padding: 22px 26px;
+  border-left: 4px solid var(--right);
+  background: rgba(91, 138, 58, 0.06);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  display: none;
+}
+.feedback.show { display: block; animation: slideIn 0.3s ease; }
+.feedback.wrong { border-color: var(--wrong); background: rgba(200, 72, 46, 0.06); }
+.feedback strong { color: var(--ink); font-weight: 500; }
+.feedback em { color: var(--highlight); font-style: italic; }
+.feedback .verdict {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: var(--right);
+}
+.feedback.wrong .verdict { color: var(--wrong); }
+.feedback code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: rgba(26, 20, 16, 0.06);
+  padding: 1px 5px;
+  color: var(--ink);
+  border-radius: 2px;
+}
+.feedback h4 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 16px;
+  margin: 14px 0 8px;
+  color: var(--ink);
+}
+.feedback ul { margin: 8px 0 8px 20px; }
+.feedback li { margin-bottom: 6px; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- FINAL ---------- */
+.final-screen {
+  text-align: center;
+  padding: 60px 20px;
+  border-top: 2px solid var(--rule);
+  margin-top: 56px;
+  display: none;
+}
+.final-screen.show { display: block; }
+.final-screen h2 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(32px, 5vw, 48px);
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+.final-screen .grade {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 96px;
+  letter-spacing: -0.04em;
+  color: var(--right);
+  margin: 24px 0;
+  line-height: 1;
+}
+.final-screen p {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 50ch;
+  margin: 0 auto 18px;
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">homework set · vector calculus</div>
+    <h1>Test your <em>divergence</em> instincts.</h1>
+    <p class="deck">
+      Ten problems. Most of them are about <strong>divergence</strong> — the operation that takes a vector field
+      and asks "is this point a source, a sink, or just pass-through?" Some problems will show you
+      a vector field and ask you to <em>click on it</em> to indicate where divergence is positive,
+      negative, or zero. Others will quiz you on the concept itself.
+    </p>
+  </header>
+
+  <div class="score-bar">
+    <span>progress</span>
+    <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+    <span class="score"><span class="right" id="rightCount">0</span> / <span id="totalCount">10</span></span>
+  </div>
+
+  <div id="problems"></div>
+
+  <div class="final-screen" id="finalScreen">
+    <h2>You finished.</h2>
+    <div class="grade" id="finalGrade">—</div>
+    <p id="finalMessage">—</p>
+    <button class="btn primary" id="restartBtn">↻ start over</button>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ============ FIELD HELPERS ============
+function vfield(name, x, y, w, h) {
+  const cx = w / 2, cy = h / 2;
+  const dx = x - cx, dy = y - cy;
+  const r = Math.sqrt(dx * dx + dy * dy + 100);
+  if (name === 'outward') {
+    return { vx: dx / r * 60, vy: dy / r * 60 };
+  }
+  if (name === 'inward') {
+    return { vx: -dx / r * 60, vy: -dy / r * 60 };
+  }
+  if (name === 'uniform-right') {
+    return { vx: 40, vy: 0 };
+  }
+  if (name === 'uniform-down') {
+    return { vx: 0, vy: 40 };
+  }
+  if (name === 'swirl-cw') {
+    return { vx: dy / r * 50, vy: -dx / r * 50 };
+  }
+  if (name === 'swirl-ccw') {
+    return { vx: -dy / r * 50, vy: dx / r * 50 };
+  }
+  if (name === 'expanding-then-converging') {
+    // Source on left half, sink on right half
+    if (x < w / 2) {
+      const sx = w / 4, sy = cy;
+      const dxL = x - sx, dyL = y - sy;
+      const rL = Math.sqrt(dxL * dxL + dyL * dyL + 50);
+      return { vx: dxL / rL * 60, vy: dyL / rL * 60 };
+    } else {
+      const sx = 3 * w / 4, sy = cy;
+      const dxR = x - sx, dyR = y - sy;
+      const rR = Math.sqrt(dxR * dxR + dyR * dyR + 50);
+      return { vx: -dxR / rR * 60, vy: -dyR / rR * 60 };
+    }
+  }
+  if (name === 'two-sources') {
+    const s1x = w * 0.35, s1y = cy;
+    const s2x = w * 0.65, s2y = cy;
+    const dx1 = x - s1x, dy1 = y - s1y;
+    const dx2 = x - s2x, dy2 = y - s2y;
+    const r1 = Math.sqrt(dx1 * dx1 + dy1 * dy1 + 50);
+    const r2 = Math.sqrt(dx2 * dx2 + dy2 * dy2 + 50);
+    return { vx: dx1 / r1 * 40 + dx2 / r2 * 40, vy: dy1 / r1 * 40 + dy2 / r2 * 40 };
+  }
+  if (name === 'source-with-swirl') {
+    const sourceComponent = { vx: dx / r * 30, vy: dy / r * 30 };
+    const swirlComponent = { vx: -dy / r * 30, vy: dx / r * 30 };
+    return { vx: sourceComponent.vx + swirlComponent.vx, vy: sourceComponent.vy + swirlComponent.vy };
+  }
+  if (name === 'shear') {
+    // Wind that depends on y — flows right above middle, left below
+    return { vx: (cy - y) / cy * 40, vy: 0 };
+  }
+  if (name === 'compression') {
+    // Flow toward y=cy from above and below
+    return { vx: 0, vy: -(y - cy) / cy * 40 };
+  }
+  return { vx: 0, vy: 0 };
+}
+
+// Numerical divergence
+function divergence(name, x, y, w, h) {
+  const eps = 2;
+  const v_xp = vfield(name, x + eps, y, w, h);
+  const v_xm = vfield(name, x - eps, y, w, h);
+  const v_yp = vfield(name, x, y + eps, w, h);
+  const v_ym = vfield(name, x, y - eps, w, h);
+  return (v_xp.vx - v_xm.vx) / (2 * eps) + (v_yp.vy - v_ym.vy) / (2 * eps);
+}
+
+// Draw arrow helper
+function drawArrow(ctx, x1, y1, x2, y2, color, lw = 1.5) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  const headSize = 5;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headSize * Math.cos(ang - 0.4), y2 - headSize * Math.sin(ang - 0.4));
+  ctx.lineTo(x2 - headSize * Math.cos(ang + 0.4), y2 - headSize * Math.sin(ang + 0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawVectorField(canvas, fieldName, options = {}) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = rect.width, h = rect.height;
+
+  // Background
+  ctx.fillStyle = 'rgba(232, 224, 208, 0.5)';
+  ctx.fillRect(0, 0, w, h);
+
+  // Optional: divergence-color background (only shown if revealAnswer is true)
+  if (options.revealDivergence) {
+    const cellSize = 10;
+    let dAbsMax = 0;
+    for (let y = 0; y < h; y += cellSize) {
+      for (let x = 0; x < w; x += cellSize) {
+        const d = divergence(fieldName, x, y, w, h);
+        if (Math.abs(d) > dAbsMax) dAbsMax = Math.abs(d);
+      }
+    }
+    if (dAbsMax > 0) {
+      for (let y = 0; y < h; y += cellSize) {
+        for (let x = 0; x < w; x += cellSize) {
+          const d = divergence(fieldName, x + cellSize / 2, y + cellSize / 2, w, h);
+          const t = d / dAbsMax;
+          let color;
+          if (t > 0.05) color = `rgba(200, 72, 46, ${Math.min(0.5, t * 0.7)})`;
+          else if (t < -0.05) color = `rgba(46, 111, 156, ${Math.min(0.5, -t * 0.7)})`;
+          else color = `rgba(212, 160, 23, 0.06)`;
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, cellSize, cellSize);
+        }
+      }
+    }
+  }
+
+  // Vector arrows
+  const spacing = options.spacing || 32;
+  for (let y = spacing / 2; y < h; y += spacing) {
+    for (let x = spacing / 2; x < w; x += spacing) {
+      const v = vfield(fieldName, x, y, w, h);
+      const mag = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
+      if (mag < 0.5) continue;
+      const scale = Math.min(spacing * 0.45, mag * 0.3);
+      const dx = (v.vx / mag) * scale;
+      const dy = (v.vy / mag) * scale;
+      drawArrow(ctx, x - dx / 2, y - dy / 2, x + dx / 2, y + dy / 2, 'rgba(26, 20, 16, 0.7)', 1.2);
+    }
+  }
+
+  // Mark clicked points
+  if (options.clickedPoints) {
+    for (const p of options.clickedPoints) {
+      ctx.strokeStyle = '#1a1410';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = p.label === 'positive' ? '#c8482e' :
+                       p.label === 'negative' ? '#2e6f9c' :
+                       '#d4a017';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1a1410';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // Mark correct points if revealing
+  if (options.correctPoints) {
+    for (const p of options.correctPoints) {
+      ctx.strokeStyle = 'rgba(91, 138, 58, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(91, 138, 58, 0.95)';
+      ctx.font = "bold 10px 'JetBrains Mono', monospace";
+      ctx.textAlign = 'center';
+      ctx.fillText(p.expected, p.x, p.y - 22);
+    }
+  }
+}
+
+// ============ PROBLEMS ============
+const problems = [
+  {
+    id: 1,
+    type: 'mcq',
+    difficulty: 'warm-up · concepts',
+    context: 'Quick check on the basics.',
+    question: '<em>Divergence</em> takes a ___ field and outputs a ___ field.',
+    options: [
+      'scalar; vector',
+      'vector; vector',
+      'vector; scalar',
+      'scalar; scalar'
+    ],
+    correct: 2,
+    explain: `<strong>Right answer: C.</strong>
+      Divergence eats a vector field (an arrow at every point) and gives back a scalar field (a number at every point) — telling you "is this point a source/sink/neutral?"
+      <h4>Quick reference</h4>
+      <ul>
+        <li><strong>Gradient</strong>: scalar → vector (which way is uphill?)</li>
+        <li><strong>Divergence</strong>: vector → scalar (is this a source or sink?)</li>
+        <li><strong>Curl</strong>: vector → vector (is there rotation here?)</li>
+      </ul>`
+  },
+
+  {
+    id: 2,
+    type: 'sign',
+    difficulty: 'visual · uniform field',
+    context: 'You have a uniform wind blowing to the right with the same strength everywhere.',
+    question: 'What is the <em>divergence</em> at any point in this field?',
+    fieldName: 'uniform-right',
+    correct: 'zero',
+    explain: `<strong>Zero is correct.</strong>
+      A uniform field has the same arrow at every point. Whatever flows IN to a small region also flows OUT — nothing accumulates, nothing depletes.
+      <h4>Easy mental check</h4>
+      Imagine a tiny box anywhere in this field. Wind comes in the left side, leaves out the right side, at the same rate. Net outflow = 0. Divergence = 0.
+      <strong>Uniform fields always have zero divergence everywhere.</strong>`
+  },
+
+  {
+    id: 3,
+    type: 'sign',
+    difficulty: 'visual · radial field',
+    context: 'Vectors point outward in all directions, originating from the center.',
+    question: 'What is the divergence <em>at the center point</em>?',
+    fieldName: 'outward',
+    correct: 'positive',
+    explain: `<strong>Positive divergence is correct.</strong>
+      The center is a <em>source</em>: stuff is flowing OUT in all directions, with nothing flowing in.
+      <h4>This is the prototype source</h4>
+      Imagine a sprinkler at the center spraying water outward. The center is "creating" flow — that's positive divergence.
+      In electromagnetism, <em>this is what a positive charge looks like</em> — it's a source for the electric field, and ∇·E > 0 there.`
+  },
+
+  {
+    id: 4,
+    type: 'sign',
+    difficulty: 'visual · radial field',
+    context: 'Now the arrows point INWARD toward the center.',
+    question: 'What is the divergence at the center point?',
+    fieldName: 'inward',
+    correct: 'negative',
+    explain: `<strong>Negative divergence is correct.</strong>
+      The center is a <em>sink</em>: stuff flows IN from all directions and disappears.
+      <h4>The opposite of a source</h4>
+      Imagine a drain at the center sucking water in. Negative divergence.
+      <em>This is what a negative charge looks like in E-field terms</em> — it's a sink for the field, and ∇·E < 0 there.`
+  },
+
+  {
+    id: 5,
+    type: 'sign',
+    difficulty: 'tricky · swirl',
+    context: 'Vectors swirl around the center — pure rotation, no inward or outward motion.',
+    question: 'What is the divergence at the center?',
+    fieldName: 'swirl-cw',
+    correct: 'zero',
+    explain: `<strong>Zero is correct — and this one is tricky!</strong>
+      Even though there's a lot going on (vectors are rotating), the divergence is <em>zero everywhere</em>.
+      <h4>Why?</h4>
+      Imagine a tiny box anywhere in the swirl. Stuff flows in one side and out the opposite side — at equal rates. No net source, no net sink. Divergence = 0.
+      <h4>The lesson</h4>
+      <strong>Divergence and rotation are independent.</strong> A field can have lots of curl (rotation) and zero divergence at the same time. This is why the magnetic field has zero divergence — magnetic field lines circulate but never end.
+      Pure rotation has <em>nonzero curl</em> but <em>zero divergence</em>.`
+  },
+
+  {
+    id: 6,
+    type: 'click',
+    difficulty: 'click · find the source',
+    context: 'In the field below, there are <em>two sources</em> — places where vectors flow outward. Click on both of them.',
+    question: 'Click the <strong>two source points</strong>.',
+    fieldName: 'two-sources',
+    correctPoints: [
+      { x: 0.35, y: 0.5, type: 'positive' },
+      { x: 0.65, y: 0.5, type: 'positive' }
+    ],
+    nClicks: 2,
+    correctType: 'positive',
+    explain: `<strong>The two sources are at the centers of the radial outflow patterns.</strong>
+      Look for points where arrows are pointing AWAY in all directions. That's the visual signature of positive divergence.
+      <h4>If this were charges</h4>
+      Two positive charges sitting in space create exactly this kind of field. Each one is a source — ∇·E > 0 at each charge's location.
+      Everywhere else (between them, far from them) the divergence is roughly zero, because the field is just "passing through."`
+  },
+
+  {
+    id: 7,
+    type: 'click',
+    difficulty: 'click · source AND sink',
+    context: 'This field has one source AND one sink. Click on each one.',
+    question: 'Click the source <strong>and</strong> the sink (one of each).',
+    fieldName: 'expanding-then-converging',
+    correctPoints: [
+      { x: 0.25, y: 0.5, type: 'positive' },
+      { x: 0.75, y: 0.5, type: 'negative' }
+    ],
+    nClicks: 2,
+    explain: `<strong>The source is on the left (where arrows fan out), the sink is on the right (where arrows converge).</strong>
+      <h4>How to tell them apart</h4>
+      <ul>
+        <li><strong>Source:</strong> arrows point AWAY from the center → positive divergence</li>
+        <li><strong>Sink:</strong> arrows point TOWARD the center → negative divergence</li>
+      </ul>
+      <h4>If this were charges</h4>
+      A positive charge on the left, a negative charge on the right — exactly a dipole. The field flows from + to −, with one source point and one sink point.`
+  },
+
+  {
+    id: 8,
+    type: 'sign',
+    difficulty: 'visual · combo',
+    context: `This is a "swirling source" — a field that has BOTH outflow and rotation at the same time.`,
+    question: 'What is the divergence at the center?',
+    fieldName: 'source-with-swirl',
+    correct: 'positive',
+    explain: `<strong>Positive divergence is correct.</strong>
+      The field has two components added together: an outward-flowing part (positive divergence) AND a rotating part (zero divergence). The total divergence is just the sum.
+      <h4>The two operators are independent</h4>
+      You can have a field that is BOTH a source AND swirling (like water draining from a bathtub — it flows down AND rotates). The divergence cares only about "stuff flowing in or out," and the rotation contributes zero to that.
+      <em>Divergence and curl decouple — that's part of why ∇· and ∇× exist as separate operators.</em>`
+  },
+
+  {
+    id: 9,
+    type: 'mcq',
+    difficulty: 'concept · plasma application',
+    context: 'In Maxwell\'s equations, <code>∇·E = ρ/ε₀</code> (Gauss\'s law).',
+    question: 'In plain English, what does this equation say?',
+    options: [
+      'The electric field is uniform everywhere.',
+      'Charges create electric field — positive charges are sources of E, negative charges are sinks.',
+      'The electric field is always zero in vacuum.',
+      'The electric field rotates around charges.'
+    ],
+    correct: 1,
+    explain: `<strong>Right answer: B.</strong>
+      ∇·E = ρ/ε₀ literally says "the divergence of E at any point equals the local charge density (divided by a constant)."
+      <h4>Translating</h4>
+      <ul>
+        <li>Where ρ > 0 (positive charge) → ∇·E > 0 → field flows OUT → source</li>
+        <li>Where ρ < 0 (negative charge) → ∇·E < 0 → field flows IN → sink</li>
+        <li>Where ρ = 0 (empty space) → ∇·E = 0 → no source/sink → field passes through</li>
+      </ul>
+      <h4>The deep idea</h4>
+      Charges are <em>where the field begins or ends</em>. In empty space, field lines don't appear or disappear — they just go through. This is why field lines start at + charges and end at − charges.`
+  },
+
+  {
+    id: 10,
+    type: 'mcq',
+    difficulty: 'concept · synthesis',
+    context: 'Suppose you have a vector field where ∇·v = 0 everywhere (zero divergence everywhere).',
+    question: 'Which of the following statements MUST be true?',
+    options: [
+      'The field is zero everywhere.',
+      'The field is uniform.',
+      'There are no sources or sinks anywhere — flux is conserved through any closed surface.',
+      'The field has no rotation.'
+    ],
+    correct: 2,
+    explain: `<strong>Right answer: C.</strong>
+      Zero divergence everywhere means no part of space is a source or sink — whatever flows into any region also flows out. Total flux through any closed surface is zero.
+      <h4>Why not the others?</h4>
+      <ul>
+        <li><strong>(A)</strong> The field can be nonzero — uniform wind has zero divergence everywhere but isn't zero.</li>
+        <li><strong>(B)</strong> A swirl has zero divergence but isn't uniform.</li>
+        <li><strong>(D)</strong> Curl is independent of divergence. A pure swirl has zero divergence and lots of curl.</li>
+      </ul>
+      <h4>The famous example</h4>
+      The magnetic field B always has ∇·B = 0 (Maxwell's equation). This says <em>magnetic monopoles don't exist</em> — there's no place where magnetic field lines start or end. They always close on themselves.`
+  }
+];
+
+// ============ STATE ============
+let answers = new Array(problems.length).fill(null);
+let answered = new Array(problems.length).fill(false);
+let clickPointsState = {}; // problem id → array of clicked points
+
+// ============ RENDER ============
+function renderAll() {
+  const container = document.getElementById('problems');
+  container.innerHTML = '';
+  document.getElementById('totalCount').textContent = problems.length;
+
+  problems.forEach((prob, idx) => {
+    const card = document.createElement('div');
+    card.className = 'problem';
+    card.id = `problem-${idx}`;
+
+    let inputHTML = '';
+    if (prob.type === 'mcq') {
+      inputHTML = '<div class="options">';
+      prob.options.forEach((opt, i) => {
+        const letter = String.fromCharCode(65 + i);
+        inputHTML += `
+          <button class="option" data-idx="${idx}" data-opt="${i}">
+            <span class="letter">${letter}</span>
+            <span>${opt}</span>
+          </button>
+        `;
+      });
+      inputHTML += '</div>';
+    } else if (prob.type === 'sign') {
+      inputHTML = `
+        <div style="border: 1.5px solid var(--rule); border-radius: 2px; overflow: hidden; margin-top: 12px;">
+          <canvas class="click-canvas" data-idx="${idx}" data-field="${prob.fieldName}"></canvas>
+        </div>
+        <div class="sign-options" data-idx="${idx}">
+          <button class="sign-option positive" data-sign="positive">
+            <span class="icon">+</span>
+            <span>Positive divergence</span>
+          </button>
+          <button class="sign-option zero" data-sign="zero">
+            <span class="icon">0</span>
+            <span>Zero divergence</span>
+          </button>
+          <button class="sign-option negative" data-sign="negative">
+            <span class="icon">−</span>
+            <span>Negative divergence</span>
+          </button>
+        </div>
+      `;
+    } else if (prob.type === 'click') {
+      inputHTML = `
+        <div class="click-question">
+          <div class="click-instructions">click ${prob.nClicks} point${prob.nClicks > 1 ? 's' : ''} on the canvas below</div>
+          <canvas class="click-canvas" data-idx="${idx}" data-field="${prob.fieldName}"></canvas>
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="problem-header">
+        <span><span class="num">problem ${idx + 1}</span></span>
+        <span class="difficulty">${prob.difficulty}</span>
+      </div>
+      <div class="problem-body">
+        <div class="context">${prob.context}</div>
+        <div class="question">${prob.question}</div>
+        ${inputHTML}
+        <div class="actions">
+          <button class="btn primary" data-action="check" data-idx="${idx}">check answer</button>
+          <button class="btn" data-action="skip" data-idx="${idx}">show solution</button>
+        </div>
+        <div class="feedback" id="feedback-${idx}"></div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Wire up MCQ
+  document.querySelectorAll('.option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      const opt = parseInt(btn.dataset.opt);
+      if (answered[idx]) return;
+      document.querySelectorAll(`.option[data-idx="${idx}"]`).forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      answers[idx] = opt;
+    });
+  });
+
+  // Wire up sign options
+  document.querySelectorAll('.sign-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const parent = btn.closest('.sign-options');
+      const idx = parseInt(parent.dataset.idx);
+      if (answered[idx]) return;
+      parent.querySelectorAll('.sign-option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      answers[idx] = btn.dataset.sign;
+    });
+  });
+
+  // Render canvases for sign and click problems
+  document.querySelectorAll('.click-canvas').forEach(canvas => {
+    const idx = parseInt(canvas.dataset.idx);
+    const field = canvas.dataset.field;
+    drawVectorField(canvas, field);
+
+    // Click problems: handle clicks
+    const prob = problems[idx];
+    if (prob.type === 'click') {
+      clickPointsState[idx] = clickPointsState[idx] || [];
+      canvas.addEventListener('click', e => {
+        if (answered[idx]) return;
+        const r = canvas.getBoundingClientRect();
+        const x = e.clientX - r.left;
+        const y = e.clientY - r.top;
+        const pts = clickPointsState[idx] || [];
+        if (pts.length >= prob.nClicks) {
+          // Replace oldest
+          pts.shift();
+        }
+        pts.push({ x, y, label: 'positive' });
+        clickPointsState[idx] = pts;
+        answers[idx] = pts;
+        drawVectorField(canvas, field, { clickedPoints: pts });
+      });
+    }
+  });
+
+  // Action buttons
+  document.querySelectorAll('button[data-action="check"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      checkAnswer(parseInt(btn.dataset.idx));
+    });
+  });
+  document.querySelectorAll('button[data-action="skip"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      showSolution(parseInt(btn.dataset.idx));
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    document.querySelectorAll('.click-canvas').forEach(canvas => {
+      const idx = parseInt(canvas.dataset.idx);
+      const field = canvas.dataset.field;
+      drawVectorField(canvas, field, {
+        clickedPoints: clickPointsState[idx],
+        revealDivergence: answered[idx]
+      });
+    });
+  });
+}
+
+function checkAnswer(idx) {
+  const prob = problems[idx];
+  const userAns = answers[idx];
+  const feedback = document.getElementById(`feedback-${idx}`);
+  const card = document.getElementById(`problem-${idx}`);
+
+  // Validate
+  if (userAns === null || userAns === undefined) {
+    feedback.style.borderLeftColor = 'var(--warn)';
+    feedback.style.background = 'rgba(212, 160, 23, 0.06)';
+    feedback.classList.remove('wrong');
+    feedback.innerHTML = `<span class="verdict" style="color: var(--warn);">— make a selection</span>
+      Pick something or hit "show solution" if stuck.`;
+    feedback.style.display = 'block';
+    return;
+  }
+
+  if (prob.type === 'click' && (!Array.isArray(userAns) || userAns.length < prob.nClicks)) {
+    feedback.style.borderLeftColor = 'var(--warn)';
+    feedback.style.background = 'rgba(212, 160, 23, 0.06)';
+    feedback.classList.remove('wrong');
+    feedback.innerHTML = `<span class="verdict" style="color: var(--warn);">— need ${prob.nClicks} clicks</span>
+      Click ${prob.nClicks} point${prob.nClicks > 1 ? 's' : ''} on the canvas.`;
+    feedback.style.display = 'block';
+    return;
+  }
+
+  // Determine correctness
+  let isRight = false;
+  if (prob.type === 'mcq') {
+    isRight = userAns === prob.correct;
+  } else if (prob.type === 'sign') {
+    isRight = userAns === prob.correct;
+  } else if (prob.type === 'click') {
+    // Each click should be near one of the correctPoints
+    const canvas = card.querySelector('.click-canvas');
+    const r = canvas.getBoundingClientRect();
+    const w = r.width, h = r.height;
+    const tolerance = 50;
+    let allMatched = true;
+    const matchedCorrect = new Set();
+    for (const click of userAns) {
+      let found = false;
+      for (let i = 0; i < prob.correctPoints.length; i++) {
+        if (matchedCorrect.has(i)) continue;
+        const cp = prob.correctPoints[i];
+        const cpx = cp.x * w, cpy = cp.y * h;
+        if (Math.hypot(click.x - cpx, click.y - cpy) < tolerance) {
+          matchedCorrect.add(i);
+          found = true;
+          break;
+        }
+      }
+      if (!found) { allMatched = false; break; }
+    }
+    isRight = allMatched && matchedCorrect.size === prob.correctPoints.length;
+  }
+
+  answered[idx] = true;
+
+  // Disable inputs
+  card.querySelectorAll('.option').forEach(b => {
+    b.disabled = true;
+    if (prob.type === 'mcq') {
+      const optIdx = parseInt(b.dataset.opt);
+      if (optIdx === prob.correct) b.classList.add('correct');
+      if (optIdx === userAns && optIdx !== prob.correct) b.classList.add('incorrect');
+    }
+  });
+  card.querySelectorAll('.sign-option').forEach(b => {
+    b.disabled = true;
+    if (prob.type === 'sign') {
+      if (b.dataset.sign === prob.correct) b.classList.add('correct');
+      if (b.dataset.sign === userAns && userAns !== prob.correct) b.classList.add('incorrect');
+    }
+  });
+  card.querySelectorAll('button[data-action]').forEach(b => b.disabled = true);
+
+  // Re-render canvas with revealed divergence
+  card.querySelectorAll('.click-canvas').forEach(canvas => {
+    const field = canvas.dataset.field;
+    const pts = clickPointsState[idx] || [];
+    const cR = canvas.getBoundingClientRect();
+    let correctPts = null;
+    if (prob.type === 'click') {
+      correctPts = prob.correctPoints.map(p => ({
+        x: p.x * cR.width,
+        y: p.y * cR.height,
+        expected: p.type === 'positive' ? 'SOURCE' : 'SINK'
+      }));
+    }
+    drawVectorField(canvas, field, {
+      clickedPoints: pts,
+      revealDivergence: true,
+      correctPoints: correctPts
+    });
+  });
+
+  // Feedback
+  feedback.style.borderLeftColor = isRight ? 'var(--right)' : 'var(--wrong)';
+  feedback.style.background = isRight ? 'rgba(91, 138, 58, 0.06)' : 'rgba(200, 72, 46, 0.06)';
+  feedback.classList.toggle('wrong', !isRight);
+  let verdict = isRight ? '<span class="verdict">✓ correct</span>' : '<span class="verdict">✗ not quite</span>';
+  feedback.innerHTML = verdict + prob.explain;
+  feedback.classList.add('show');
+  feedback.style.display = 'block';
+
+  updateProgress();
+  checkAllDone();
+}
+
+function showSolution(idx) {
+  const prob = problems[idx];
+  const feedback = document.getElementById(`feedback-${idx}`);
+  const card = document.getElementById(`problem-${idx}`);
+
+  answered[idx] = true;
+
+  card.querySelectorAll('.option').forEach(b => {
+    b.disabled = true;
+    if (prob.type === 'mcq') {
+      const optIdx = parseInt(b.dataset.opt);
+      if (optIdx === prob.correct) b.classList.add('correct');
+    }
+  });
+  card.querySelectorAll('.sign-option').forEach(b => {
+    b.disabled = true;
+    if (prob.type === 'sign' && b.dataset.sign === prob.correct) b.classList.add('correct');
+  });
+  card.querySelectorAll('button[data-action]').forEach(b => b.disabled = true);
+
+  // Re-render canvas with revealed divergence
+  card.querySelectorAll('.click-canvas').forEach(canvas => {
+    const field = canvas.dataset.field;
+    const pts = clickPointsState[idx] || [];
+    const cR = canvas.getBoundingClientRect();
+    let correctPts = null;
+    if (prob.type === 'click') {
+      correctPts = prob.correctPoints.map(p => ({
+        x: p.x * cR.width,
+        y: p.y * cR.height,
+        expected: p.type === 'positive' ? 'SOURCE' : 'SINK'
+      }));
+    }
+    drawVectorField(canvas, field, {
+      clickedPoints: pts,
+      revealDivergence: true,
+      correctPoints: correctPts
+    });
+  });
+
+  feedback.style.borderLeftColor = 'var(--warn)';
+  feedback.style.background = 'rgba(212, 160, 23, 0.06)';
+  feedback.classList.remove('wrong');
+  feedback.innerHTML = `<span class="verdict" style="color: var(--warn);">— solution shown</span>` + prob.explain;
+  feedback.classList.add('show');
+  feedback.style.display = 'block';
+
+  updateProgress();
+  checkAllDone();
+}
+
+function updateProgress() {
+  let right = 0;
+  problems.forEach((prob, idx) => {
+    if (!answered[idx]) return;
+    const userAns = answers[idx];
+    if (userAns === null || userAns === undefined) return;
+    if (prob.type === 'mcq' && userAns === prob.correct) right++;
+    else if (prob.type === 'sign' && userAns === prob.correct) right++;
+    else if (prob.type === 'click' && Array.isArray(userAns) && userAns.length === prob.nClicks) {
+      // re-check
+      const card = document.getElementById(`problem-${idx}`);
+      const canvas = card.querySelector('.click-canvas');
+      if (!canvas) return;
+      const r = canvas.getBoundingClientRect();
+      const tolerance = 50;
+      let allMatched = true;
+      const matched = new Set();
+      for (const click of userAns) {
+        let found = false;
+        for (let i = 0; i < prob.correctPoints.length; i++) {
+          if (matched.has(i)) continue;
+          const cp = prob.correctPoints[i];
+          if (Math.hypot(click.x - cp.x * r.width, click.y - cp.y * r.height) < tolerance) {
+            matched.add(i);
+            found = true;
+            break;
+          }
+        }
+        if (!found) { allMatched = false; break; }
+      }
+      if (allMatched && matched.size === prob.correctPoints.length) right++;
+    }
+  });
+  document.getElementById('rightCount').textContent = right;
+  const pct = (answered.filter(Boolean).length / problems.length) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function checkAllDone() {
+  if (answered.every(Boolean)) {
+    setTimeout(() => {
+      let right = 0;
+      problems.forEach((prob, idx) => {
+        const userAns = answers[idx];
+        if (userAns === null || userAns === undefined) return;
+        if (prob.type === 'mcq' && userAns === prob.correct) right++;
+        else if (prob.type === 'sign' && userAns === prob.correct) right++;
+        else if (prob.type === 'click' && Array.isArray(userAns) && userAns.length === prob.nClicks) {
+          const card = document.getElementById(`problem-${idx}`);
+          const canvas = card.querySelector('.click-canvas');
+          if (!canvas) return;
+          const r = canvas.getBoundingClientRect();
+          const tolerance = 50;
+          let allMatched = true;
+          const matched = new Set();
+          for (const click of userAns) {
+            let found = false;
+            for (let i = 0; i < prob.correctPoints.length; i++) {
+              if (matched.has(i)) continue;
+              const cp = prob.correctPoints[i];
+              if (Math.hypot(click.x - cp.x * r.width, click.y - cp.y * r.height) < tolerance) {
+                matched.add(i);
+                found = true;
+                break;
+              }
+            }
+            if (!found) { allMatched = false; break; }
+          }
+          if (allMatched && matched.size === prob.correctPoints.length) right++;
+        }
+      });
+      const total = problems.length;
+      const pct = right / total;
+
+      const finalScreen = document.getElementById('finalScreen');
+      finalScreen.classList.add('show');
+
+      const grade = document.getElementById('finalGrade');
+      grade.textContent = `${right}/${total}`;
+      if (pct < 0.5) grade.style.color = 'var(--wrong)';
+      else if (pct < 0.75) grade.style.color = 'var(--warn)';
+      else grade.style.color = 'var(--right)';
+
+      const msg = document.getElementById('finalMessage');
+      if (pct === 1) msg.textContent = "Perfect. You've got divergence cold.";
+      else if (pct >= 0.7) msg.textContent = "Strong understanding. The trickiest ones are the swirl/source combinations.";
+      else if (pct >= 0.5) msg.textContent = "Solid foundation. Re-read the explanations on the ones you missed — patterns will click.";
+      else msg.textContent = "Lots to chew on. The visual problems take repetition to internalize. Try them again.";
+    }, 600);
+  }
+}
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  answers = new Array(problems.length).fill(null);
+  answered = new Array(problems.length).fill(false);
+  clickPointsState = {};
+  document.getElementById('finalScreen').classList.remove('show');
+  renderAll();
+  updateProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+renderAll();
+updateProgress();
+</script>
+
+</body>
+</html>

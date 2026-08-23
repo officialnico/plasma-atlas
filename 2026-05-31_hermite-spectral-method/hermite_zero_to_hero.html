@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermite, Zero to Hero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..700&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a12;
+  --bg2:#0e0e1a;
+  --ink:#e7e6f0;
+  --ink-soft:#a8a6c0;
+  --ink-faint:#6b6a86;
+  --cyan:#48e3ff;
+  --mag:#ff52a0;
+  --gold:#ffc24d;
+  --violet:#9d7bff;
+  --line:rgba(157,123,255,0.14);
+  --line2:rgba(157,123,255,0.28);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(1200px 700px at 80% -5%,rgba(72,227,255,0.06),transparent 60%),
+    radial-gradient(900px 600px at 10% 20%,rgba(255,82,160,0.05),transparent 60%),
+    var(--bg);
+  color:var(--ink);
+  font-family:'Newsreader',serif;
+  font-size:19px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+.grain{position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.035;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+/* progress rail */
+.rail{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--mag),var(--gold));
+  width:0%;z-index:100;box-shadow:0 0 12px rgba(72,227,255,.6)}
+
+section{max-width:920px;margin:0 auto;padding:9vh 28px;position:relative}
+.hero{min-height:96vh;display:flex;flex-direction:column;justify-content:center;padding-top:6vh}
+
+.kicker{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.4em;text-transform:uppercase;
+  color:var(--cyan);margin-bottom:20px;opacity:.85}
+h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(44px,8vw,104px);line-height:.96;letter-spacing:-.02em;
+  margin-bottom:24px}
+h1 em{font-style:italic;color:var(--gold);font-weight:500}
+.lede{font-size:clamp(20px,2.4vw,27px);color:var(--ink-soft);max-width:680px;font-weight:300}
+.lede b{color:var(--ink);font-weight:500}
+
+h2{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(30px,4.6vw,52px);line-height:1.04;letter-spacing:-.015em;
+  margin:0 0 6px}
+.secnum{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.34em;color:var(--mag);
+  text-transform:uppercase;margin-bottom:18px;display:block}
+p{margin:18px 0;max-width:680px}
+p .hl{color:var(--cyan);font-style:italic}
+p .hm{color:var(--mag);font-weight:500;font-style:normal}
+p .hg{color:var(--gold);font-weight:500;font-style:normal}
+strong{color:var(--ink);font-weight:600}
+.mono{font-family:'Spline Sans Mono',monospace;font-size:.84em;background:rgba(157,123,255,.1);
+  padding:.1em .45em;border-radius:4px;color:var(--violet)}
+
+.fig{margin:38px 0;border:1px solid var(--line);border-radius:12px;background:
+   linear-gradient(180deg,rgba(20,20,34,.6),rgba(12,12,22,.6));
+  overflow:hidden;backdrop-filter:blur(4px)}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--line);
+  font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint)}
+.fig canvas{display:block;width:100%}
+.ctrls{padding:14px 16px;display:flex;gap:22px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line)}
+.ctrl{display:flex;flex-direction:column;gap:6px;min-width:120px}
+.ctrl label{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+.ctrl .lv{font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--ink-soft)}
+.ctrl .lv b{color:var(--cyan)}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;border-radius:3px;background:var(--line2);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--cyan);cursor:pointer;box-shadow:0 0 10px rgba(72,227,255,.7)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--cyan);cursor:pointer}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.1em;padding:7px 12px;border-radius:20px;
+  border:1px solid var(--line2);background:transparent;color:var(--ink-faint);cursor:pointer;transition:.16s}
+.chip.on{color:var(--bg);font-weight:600}
+.chip[data-c="0"].on{background:var(--cyan);box-shadow:0 0 12px rgba(72,227,255,.5)}
+.chip[data-c="1"].on{background:var(--mag);box-shadow:0 0 12px rgba(255,82,160,.5)}
+.chip[data-c="2"].on{background:var(--gold);box-shadow:0 0 12px rgba(255,194,77,.5)}
+.chip[data-c="3"].on{background:var(--violet);box-shadow:0 0 12px rgba(157,123,255,.5)}
+.chip[data-c="4"].on{background:#6fe0a0;box-shadow:0 0 12px rgba(111,224,160,.5)}
+
+.callout{border-left:3px solid var(--gold);padding:6px 0 6px 22px;margin:34px 0;font-style:italic;
+  color:var(--ink-soft);font-size:21px}
+.callout b{color:var(--gold);font-style:normal}
+
+.big{font-family:'Fraunces',serif;font-size:clamp(26px,4vw,40px);line-height:1.12;font-weight:500;margin:30px 0;
+  color:var(--ink)}
+.big .c{color:var(--cyan)} .big .m{color:var(--mag)} .big .g{color:var(--gold)}
+
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line2),transparent);margin:2vh 0}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+
+.tag{display:inline-block;font-family:'Spline Sans Mono',monospace;font-size:10.5px;letter-spacing:.12em;
+  padding:3px 8px;border-radius:5px;margin-right:6px}
+footer{max-width:920px;margin:0 auto;padding:10vh 28px 16vh;color:var(--ink-faint);font-size:15px}
+footer .mono{color:var(--ink-faint)}
+.recap{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:34px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:18px;background:rgba(16,16,28,.5)}
+.card .n{font-family:'Spline Sans Mono',monospace;color:var(--mag);font-size:12px;letter-spacing:.2em}
+.card h4{font-family:'Fraunces',serif;font-size:20px;font-weight:600;margin:8px 0 6px}
+.card p{font-size:15px;margin:0;color:var(--ink-soft)}
+@media(max-width:640px){body{font-size:17px}section{padding:7vh 20px}}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="rail" id="rail"></div>
+
+<!-- ════════════════════ HERO ════════════════════ -->
+<section class="hero">
+  <span class="kicker">A field guide to velocity space</span>
+  <h1>Why on earth<br>are we using<br><em>Hermite?</em></h1>
+  <p class="lede">You know <b>Fourier</b>: chop a wiggly signal into sine waves. Hermite is the same trick — pointed at a different problem. By the end of this you'll know exactly <b>why a plasma code reaches for it</b>, what its coefficients secretly <i>are</i>, and where it bites.</p>
+  <div class="fig" data-anim="hero" style="margin-top:46px">
+    <div class="bar"><span>Building a bell curve out of Hermite pieces</span><span id="heroLbl">assembling…</span></div>
+    <canvas height="300"></canvas>
+  </div>
+  <p style="color:var(--ink-faint);font-size:14px;font-family:'Spline Sans Mono',monospace;letter-spacing:.1em">↓ scroll · everything below is a live simulation</p>
+</section>
+
+<!-- ════════════════════ 1 · THE PROBLEM ════════════════════ -->
+<section>
+  <span class="secnum reveal">01 — the wrong tool</span>
+  <h2 class="reveal">Velocity isn't periodic.</h2>
+  <p class="reveal">Here's the thing about a plasma. At every point in space there's a spread of particle <em class="hl">velocities</em> — some slow, some fast, most near average. Plot how many particles have each velocity and you get a <strong>bell curve</strong>. It rises in the middle and dies away to nothing at the edges. It does <hm>not</hm> repeat.</p>
+  <p class="reveal">Fourier's sine waves are built for things that <em class="hl">repeat forever</em> — periodic signals. Try to describe a lonely bell-shaped bump with sines and you fight the tool the whole way: the waves wrap around, they ring past the edges, they never quite settle to zero. Watch how badly it goes.</p>
+  <div class="fig reveal" data-anim="fourierfail">
+    <div class="bar"><span>Sine waves vs. one bell curve</span><span>more modes →</span></div>
+    <canvas height="280"></canvas>
+    <div class="ctrls">
+      <div class="ctrl" style="flex:1">
+        <label>Number of sine waves</label>
+        <input type="range" min="1" max="20" value="3" data-k="ff_n">
+        <span class="lv"><b id="ff_nv">3</b> sines fighting a bump that isn't periodic</span>
+      </div>
+    </div>
+  </div>
+  <p class="reveal">Even with twenty sines you get wiggles in the tails that shouldn't be there. The basis and the shape disagree about the world. We need building blocks that are <hg>already bell-shaped</hg> — that die away at the edges on their own.</p>
+</section>
+
+<!-- ════════════════════ 2 · MEET THE SHAPES ════════════════════ -->
+<section>
+  <span class="secnum reveal">02 — the building blocks</span>
+  <h2 class="reveal">Meet the Hermite shapes.</h2>
+  <p class="reveal">A Hermite building block is just <strong>a polynomial times a Gaussian</strong> — a bell curve multiplied by <span class="mono">1</span>, then <span class="mono">v</span>, then <span class="mono">v²−1</span>, and so on. The Gaussian makes every one of them die away at the edges automatically. The polynomial gives each a different number of wiggles.</p>
+  <p class="reveal">The <span style="color:var(--cyan)">0th</span> is a plain bell. The <span style="color:var(--mag)">1st</span> is a bell tilted into a wiggle. Each one up adds exactly one more bump. Toggle them on and off:</p>
+  <div class="fig reveal" data-anim="shapes">
+    <div class="bar"><span>The first five Hermite functions φₙ(v)</span><span>tap to toggle</span></div>
+    <canvas height="300"></canvas>
+    <div class="ctrls">
+      <div class="chips" id="shapeChips">
+        <button class="chip on" data-c="0">φ₀ · const</button>
+        <button class="chip on" data-c="1">φ₁ · v</button>
+        <button class="chip on" data-c="2">φ₂ · v²−1</button>
+        <button class="chip" data-c="3">φ₃ · v³−3v</button>
+        <button class="chip" data-c="4">φ₄ · v⁴…</button>
+      </div>
+    </div>
+  </div>
+  <p class="reveal">These are the sines-and-cosines of velocity space. Any reasonable bell-ish distribution can be built by mixing them — and because they're born bell-shaped, the fit is honest right out to the tails.</p>
+</section>
+
+<!-- ════════════════════ 3 · THE PUNCHLINE ════════════════════ -->
+<section>
+  <span class="secnum reveal">03 — the punchline</span>
+  <h2 class="reveal">The coefficients <em>are</em> physics.</h2>
+  <p class="reveal">This is the part that makes everyone fall in love with the basis. When you write a distribution as a mix of Hermite shapes, <strong>the amount of each shape is a physical quantity you already know</strong>. They aren't abstract numbers. They're the things a fluid model tracks.</p>
+  <div class="fig reveal" data-anim="moments">
+    <div class="bar"><span>Drag a coefficient — watch the gas respond</span><span id="momLbl"></span></div>
+    <canvas height="300"></canvas>
+    <div class="ctrls">
+      <div class="ctrl"><label style="color:var(--cyan)">c₁ — bulk flow</label>
+        <input type="range" min="-1.2" max="1.2" step="0.01" value="0" data-k="m1">
+        <span class="lv">drift the whole gas <b id="m1v">0.0</b></span></div>
+      <div class="ctrl"><label style="color:var(--mag)">c₂ — temperature</label>
+        <input type="range" min="-0.55" max="0.9" step="0.01" value="0" data-k="m2">
+        <span class="lv">heat it / cool it <b id="m2v">0.0</b></span></div>
+      <div class="ctrl"><label style="color:var(--gold)">c₃ — heat flux</label>
+        <input type="range" min="-0.5" max="0.5" step="0.01" value="0" data-k="m3">
+        <span class="lv">skew the spread <b id="m3v">0.0</b></span></div>
+    </div>
+  </div>
+  <p class="reveal">Slide <span style="color:var(--cyan)">c₁</span> and the whole bell <em class="hl">drifts</em> — that's <strong>bulk velocity</strong>, the wind in the gas. Slide <span style="color:var(--mag)">c₂</span> and it <em class="hl">fattens or pinches</em> — that's <strong>temperature</strong>. Slide <span style="color:var(--gold)">c₃</span> and it goes <em class="hl">lopsided</em> — that's <strong>heat flux</strong>, energy leaking one direction.</p>
+  <div class="callout reveal"><b>This is the whole game.</b> The low coefficients are density, flow, temperature, heat flux — the quantities of fluid physics. The high ones store the fine kinetic detail a fluid model throws away. The basis sits exactly on the seam between fluid and kinetic.</div>
+</section>
+
+<!-- ════════════════════ 4 · ORTHOGONALITY ════════════════════ -->
+<section>
+  <span class="secnum reveal">04 — why it's clean</span>
+  <h2 class="reveal">Nobody steps on anyone.</h2>
+  <p class="reveal">Why can each coefficient mean one clean thing? Because the shapes are <strong>orthogonal</strong> — the same property that lets Fourier modes not interfere. Multiply any two <em>different</em> Hermite shapes together, add up the result, and you get exactly <hg>zero</hg>. Multiply one by itself and you get a clean positive number.</p>
+  <p class="reveal">That means reading off "how much of shape 3 is in this gas?" doesn't get contaminated by shapes 2 or 4. Each measurement is independent. Hover the grid — bright means overlap, dark means none:</p>
+  <div class="fig reveal" data-anim="ortho">
+    <div class="bar"><span>Overlap between shape m and shape n</span><span>diagonal = self, rest = 0</span></div>
+    <canvas height="300"></canvas>
+  </div>
+  <p class="reveal">A perfect dark grid with a glowing diagonal. Every shape is blind to every other. That orthogonality is what turns "fit this curve" from a tangled simultaneous-equation mess into <strong>one independent number per shape</strong>.</p>
+</section>
+
+<!-- ════════════════════ 5 · THE CHAIN ════════════════════ -->
+<section>
+  <span class="secnum reveal">05 — how they talk</span>
+  <h2 class="reveal">The ladder, and the one move.</h2>
+  <p class="reveal">Plasma physics keeps doing one operation over and over: <strong>multiply the distribution by velocity</strong> <span class="mono">v</span> — because particles at velocity v stream through space at speed v. Here's the magic. Multiply a Hermite shape by <span class="mono">v</span> and you don't get a mess. You get <hg>exactly its two neighbors</hg>: the one below and the one above.</p>
+  <div class="big reveal"><span class="c">v</span> × shape&nbsp;n &nbsp;=&nbsp; (a bit of <span class="m">n−1</span>) &nbsp;+&nbsp; (a bit of <span class="g">n+1</span>)</div>
+  <p class="reveal">So the shapes form a <strong>ladder</strong>. Energy poked into the bottom rung climbs up, one rung at a time, neighbor to neighbor. No shape reaches across to a distant one. Watch a pulse injected at the bottom climb:</p>
+  <div class="fig reveal" data-anim="chain">
+    <div class="bar"><span>v · (shape n) couples only to n±1</span><span id="chainLbl">climbing ↑</span></div>
+    <canvas height="320"></canvas>
+    <div class="ctrls">
+      <button class="chip on" id="chainPulse" style="color:var(--bg);background:var(--cyan)">⟳ inject pulse at n=0</button>
+    </div>
+  </div>
+  <p class="reveal">This is why the basis is <em class="hl">cheap on a computer</em>. The core operation only ever touches neighbors — a tidy, local, regular update a GPU devours. No giant transform, no global reshuffling. Just "pass it up the ladder."</p>
+</section>
+
+<!-- ════════════════════ 6 · THE DIAL ════════════════════ -->
+<section>
+  <span class="secnum reveal">06 — the killer feature</span>
+  <h2 class="reveal">One dial: fluid ↔ kinetic.</h2>
+  <p class="reveal">Here's the payoff that no velocity-grid can match. <strong>How many rungs of the ladder you keep is a knob.</strong> Keep just a few and you've got a smooth, cheap, fluid-like gas. Keep many and you resolve every sharp kinetic feature exactly. Same code, one slider, the entire spectrum from fast-and-rough to slow-and-exact.</p>
+  <div class="fig reveal" data-anim="dial">
+    <div class="bar"><span>Rebuilding a spiky distribution with N rungs</span><span id="dialLbl"></span></div>
+    <canvas height="300"></canvas>
+    <div class="ctrls">
+      <div class="ctrl" style="flex:1">
+        <label>Rungs kept (N)</label>
+        <input type="range" min="1" max="40" value="4" data-k="dial_n">
+        <span class="lv"><b id="dial_nv">4</b> Hermite modes — <span id="dial_word">fluid · cheap · smooth</span></span>
+      </div>
+    </div>
+  </div>
+  <p class="reveal">At <span style="color:var(--cyan)">N=4</span> you've basically got a fluid model — it catches the gist and runs in a blink. Crank toward <span style="color:var(--gold)">N=40</span> and the sharp real shape snaps into focus. <strong>You pay only for the fidelity you need</strong>, and you dial it per-problem. A velocity grid forces you to pay for the finest detail everywhere, always.</p>
+  <div class="callout reveal">This single dial is the reason a code like <b>GX</b> — and the proposed code — can be fast. Most plasma turbulence barely strays from a bell curve, so a handful of rungs nails it. The grid-based codes haul around hundreds of velocity points to express the same thing.</div>
+</section>
+
+<!-- ════════════════════ 7 · CLOSURE ════════════════════ -->
+<section>
+  <span class="secnum reveal">07 — the one catch</span>
+  <h2 class="reveal">A ladder has to end somewhere.</h2>
+  <p class="reveal">In a real plasma the ladder is <em class="hl">infinite</em> — energy climbs forever into finer and finer velocity detail and never returns. That one-way escape is a famous effect with a name: <strong>Landau damping</strong>, a wave dying with zero friction by handing its energy to particles surfing at its speed.</p>
+  <p class="reveal">But your computer's ladder <hm>stops</hm> at the top rung. Do nothing and energy hits the ceiling and <em class="hm">bounces back down</em> — fake, unphysical, ruins everything. So you add a <strong>closure</strong>: a rule at the top that says "energy that climbs here leaves and doesn't come back," faking the missing infinite ladder.</p>
+  <div class="big reveal">drain at the top → <span class="c">the wave dies correctly</span><br>wall at the top → <span class="m">the wave bounces back, wrong</span></div>
+  <p class="reveal">Get that closure slightly wrong and the whole thing blows up — which, for what it's worth, is exactly the bug I spent four tries on before building this. A flipped sign, a missing drain. The cheapest part of the physics is the easiest to get quietly, plausibly wrong. <em>(You may have already watched this live on the green oscilloscope.)</em></p>
+</section>
+
+<!-- ════════════════════ 8 · LAGUERRE + PAYOFF ════════════════════ -->
+<section>
+  <span class="secnum reveal">08 — hero level</span>
+  <h2 class="reveal">And Laguerre is the same idea, twice.</h2>
+  <p class="reveal">Velocity in a magnetic field has <strong>two</strong> directions that matter: along the field line, and around it (the spiraling gyration). Hermite handles the along-the-line direction. <span class="mono">Laguerre</span> — a sister family of polynomials — handles the spiral. Same trick, same orthogonality, same neighbor-ladder, just shaped for the round direction instead of the straight one.</p>
+  <p class="reveal">Stack them together — <span style="color:var(--cyan)">Hermite</span> for parallel velocity, <span style="color:var(--mag)">Laguerre</span> for the gyration — and you've spanned the whole velocity space with two ladders of physically-meaningful, orthogonal, neighbor-coupled, dial-able coefficients.</p>
+  <div class="fig reveal" data-anim="laguerre">
+    <div class="bar"><span>Hermite × Laguerre — the full velocity grid of modes</span><span>spinning live</span></div>
+    <canvas height="340"></canvas>
+  </div>
+  <div class="big reveal">That's the engine. <span class="c">Born bell-shaped</span>, so it fits a plasma honestly. <span class="m">Coefficients are physics</span>, so a fluid model is just the low rungs. <span class="g">One dial</span> from cheap to exact. <span style="color:var(--violet)">Neighbor-only coupling</span>, so a GPU flies.</div>
+  <p class="reveal">That is the entire reason a modern gyrokinetic code reaches for Hermite–Laguerre instead of a velocity grid — and why the new code design bets its whole speed story on it. The open question that design can't dodge isn't <em>whether</em> the basis works — you just watched it work — it's whether it stays this <hg>cheap</hg> in the twisted 3D geometry of a stellarator. That's the part nobody's proven yet. Everything you scrolled through is the part that's solid ground.</p>
+</section>
+
+<footer>
+  <div class="divider"></div>
+  <div class="recap">
+    <div class="card"><div class="n">01</div><h4>Bell-shaped basis</h4><p>Polynomial × Gaussian. Dies at the edges on its own, unlike sines.</p></div>
+    <div class="card"><div class="n">03</div><h4>Coefficients = physics</h4><p>Density, flow, temperature, heat flux. The low rungs are a fluid model.</p></div>
+    <div class="card"><div class="n">05</div><h4>The neighbor ladder</h4><p>Multiply by v → couple to n±1 only. Local, cheap, GPU-friendly.</p></div>
+    <div class="card"><div class="n">06</div><h4>The fluid↔kinetic dial</h4><p>Keep few rungs = fast & rough. Keep many = slow & exact. Your call.</p></div>
+    <div class="card"><div class="n">07</div><h4>The closure catch</h4><p>Fake the infinite ladder's top, or the wave bounces back wrong.</p></div>
+    <div class="card"><div class="n">08</div><h4>Laguerre = the 2nd axis</h4><p>Same idea for the gyration direction. Two ladders span velocity space.</p></div>
+  </div>
+  <p class="mono" style="font-size:12px;letter-spacing:.1em;margin-top:30px">every animation above is a real computation — Hermite recurrences, orthogonality integrals, and the streaming operator — running live in your browser. no canned video.</p>
+</footer>
+
+<script>
+/* ───────── Hermite (probabilists') via recurrence ─────────
+   He0=1, He1=v, He_{n+1}=v·He_n − n·He_{n-1}                          */
+function He(n,v){let h0=1,h1=v;if(n===0)return 1;if(n===1)return v;
+  for(let k=1;k<n;k++){const h2=v*h1-k*h0;h0=h1;h1=h2;}return h1;}
+function factorial(n){let f=1;for(let k=2;k<=n;k++)f*=k;return f;}
+// normalized Hermite *function* φn(v)=He_n(v)·e^{−v²/4}/norm  (visual, weight e^{−v²/2})
+function phi(n,v){return He(n,v)*Math.exp(-v*v/4)/Math.sqrt(factorial(n)*Math.sqrt(2*Math.PI));}
+
+const TAU=Math.PI*2;
+const C={cyan:'#48e3ff',mag:'#ff52a0',gold:'#ffc24d',violet:'#9d7bff',green:'#6fe0a0',
+         ink:'#e7e6f0',faint:'#6b6a86',line:'rgba(157,123,255,0.14)'};
+
+/* DPR-correct canvas sizing */
+function sizeCanvas(cv){const d=window.devicePixelRatio||1;const w=cv.clientWidth,h=cv.clientHeight;
+  cv.width=w*d;cv.height=h*d;return {w,h,d};}
+
+/* state bag for slider/chip values */
+const S={ff_n:3,m1:0,m2:0,m3:0,dial_n:4,shapes:{0:1,1:1,2:1,3:0,4:0},chainKick:0};
+
+/* ════ HERO: assemble a bell from pieces ════ */
+function animHero(cv,ctx,T){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const cx=w/2,base=h-40,vmax=4.2,sx=w/(2*vmax),sy=70;
+  // grid
+  ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  const piece=(Math.floor(T/1.1)%5);
+  const coefs=[1,0.0,0.45,0.0,0.18];
+  // draw individual pieces fading
+  for(let n=0;n<5;n++){
+    const active=n<=piece;if(!active)continue;
+    const col=[C.cyan,C.mag,C.gold,C.violet,C.green][n];
+    const a=Math.min(1,(T-n*1.1)/0.5);
+    ctx.strokeStyle=col;ctx.globalAlpha=0.30*a;ctx.lineWidth=1.4;ctx.beginPath();
+    for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const y=base-coefs[n]*phi(n,v)*sy*2.4;
+      i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+    ctx.stroke();
+  }
+  // the running sum
+  ctx.globalAlpha=1;ctx.strokeStyle=C.ink;ctx.lineWidth=2.6;ctx.shadowColor=C.cyan;ctx.shadowBlur=14;
+  ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;let s=0;
+    for(let n=0;n<=piece;n++)s+=coefs[n]*phi(n,v);
+    const y=base-s*sy*2.4;i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+  ctx.stroke();ctx.shadowBlur=0;ctx.restore();
+  document.getElementById('heroLbl').textContent= piece>=4?'a bell, from pieces ✓':`+ shape ${piece}`;
+}
+
+/* ════ 1 · FOURIER FAIL ════ */
+function animFourierFail(cv,ctx,T){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const cx=w/2,mid=h/2,L=6,sx=w/(2*L),sy=70;
+  ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+  // target: a gaussian bump (non-periodic)
+  ctx.strokeStyle='rgba(255,194,77,0.5)';ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();
+  const g=x=>Math.exp(-x*x*1.4);
+  for(let i=0;i<=400;i++){const x=-L+2*L*i/400;const y=mid-g(x)*sy*1.8;i===0?ctx.moveTo(cx+x*sx,y):ctx.lineTo(cx+x*sx,y);}
+  ctx.stroke();ctx.setLineDash([]);
+  // fourier partial sum of that bump on period 2L (it will ring + wrap)
+  const N=S.ff_n,P=2*L;
+  // fourier cosine coefficients of gaussian on [-L,L] (numerically)
+  function coef(k){let s=0,M=400;for(let i=0;i<M;i++){const x=-L+P*i/M;s+=g(x)*Math.cos(TAU*k*x/P);}return 2*s/M;}
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=2.4;ctx.shadowColor=C.cyan;ctx.shadowBlur=10;ctx.beginPath();
+  for(let i=0;i<=500;i++){const x=-L+2*L*i/500;let s=coef(0)/2;
+    for(let k=1;k<=N;k++)s+=coef(k)*Math.cos(TAU*k*x/P);
+    const y=mid-s*sy*1.8;i===0?ctx.moveTo(cx+x*sx,y):ctx.lineTo(cx+x*sx,y);}
+  ctx.stroke();ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,194,77,0.7)';ctx.font="11px 'Spline Sans Mono'";ctx.fillText('target bump',14,24);
+  ctx.fillStyle=C.cyan;ctx.fillText(N+' sine waves',14,40);
+  ctx.restore();
+}
+
+/* ════ 2 · SHAPES ════ */
+function animShapes(cv,ctx){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const cx=w/2,mid=h/2,vmax=4.5,sx=w/(2*vmax),sy=80;
+  ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+  const cols=[C.cyan,C.mag,C.gold,C.violet,C.green];
+  for(let n=0;n<5;n++){if(!S.shapes[n])continue;
+    ctx.strokeStyle=cols[n];ctx.lineWidth=2.2;ctx.shadowColor=cols[n];ctx.shadowBlur=8;ctx.beginPath();
+    for(let i=0;i<=400;i++){const v=-vmax+2*vmax*i/400;const y=mid-phi(n,v)*sy*2.0;
+      i===0?ctx.moveTo(cx+v*sx,y):ctx.lineTo(cx+v*sx,y);}
+    ctx.stroke();}
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+/* ════ 3 · MOMENTS ════ */
+function animMoments(cv,ctx){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const cx=w/2,base=h-34,vmax=4.5,sx=w/(2*vmax),sy=120;
+  ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  // reference maxwellian
+  ctx.strokeStyle='rgba(167,166,192,0.3)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;const f=Math.exp(-v*v/2);
+    i===0?ctx.moveTo(cx+v*sx,base-f*sy):ctx.lineTo(cx+v*sx,base-f*sy);}
+  ctx.stroke();ctx.setLineDash([]);
+  // deformed: f = e^{-v²/2}(1 + c1 He1 + c2 He2 + c3 He3)
+  const c1=S.m1,c2=S.m2,c3=S.m3;
+  const grad=ctx.createLinearGradient(0,0,w,0);grad.addColorStop(0,C.mag);grad.addColorStop(.5,C.cyan);grad.addColorStop(1,C.gold);
+  ctx.strokeStyle=grad;ctx.lineWidth=3;ctx.shadowColor=C.cyan;ctx.shadowBlur=12;ctx.beginPath();
+  for(let i=0;i<=400;i++){const v=-vmax+2*vmax*i/400;
+    let f=Math.exp(-v*v/2)*(1 + c1*He(1,v) + c2*He(2,v) + c3*He(3,v));
+    f=Math.max(0,f);
+    i===0?ctx.moveTo(cx+v*sx,base-f*sy):ctx.lineTo(cx+v*sx,base-f*sy);}
+  ctx.stroke();ctx.shadowBlur=0;
+  // fill
+  ctx.globalAlpha=0.12;ctx.fillStyle=C.cyan;ctx.lineTo(w,base);ctx.lineTo(0,base);ctx.closePath();ctx.fill();
+  ctx.restore();
+  let lbl=[];if(Math.abs(c1)>.05)lbl.push('drifting');if(c2>.05)lbl.push('hotter');if(c2<-.05)lbl.push('colder');if(Math.abs(c3)>.05)lbl.push('skewed');
+  document.getElementById('momLbl').textContent=lbl.join(' · ')||'maxwellian';
+}
+
+/* ════ 4 · ORTHOGONALITY grid ════ */
+function animOrtho(cv,ctx,T){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const M=6,pad=30,cell=(Math.min(w,h)-2*pad)/M,ox=(w-M*cell)/2,oy=(h-M*cell)/2;
+  // overlap integral ∫ φm φn dv  ~ δmn  (compute numerically, small grid)
+  function ovl(m,n){let s=0,K=160,L=8;for(let i=0;i<K;i++){const v=-L+2*L*i/K;s+=phi(m,v)*phi(n,v);}return s*2*L/K;}
+  for(let m=0;m<M;m++)for(let n=0;n<M;n++){
+    const val=Math.abs(ovl(m,n));const lit=Math.min(1,val*1.1);
+    const x=ox+n*cell,y=oy+m*cell;
+    const pulse=m===n?0.5+0.5*Math.sin(T*2-m*0.6):0;
+    ctx.fillStyle=`rgba(72,227,255,${0.06+lit*(0.85+pulse*0.15)})`;
+    if(m===n){ctx.shadowColor=C.cyan;ctx.shadowBlur=12;}else ctx.shadowBlur=0;
+    ctx.fillRect(x+2,y+2,cell-4,cell-4);
+    ctx.shadowBlur=0;
+    ctx.fillStyle=lit>0.5?'#04121a':'rgba(167,166,192,0.45)';ctx.font="11px 'Spline Sans Mono'";ctx.textAlign='center';
+    ctx.fillText(val.toFixed(1),x+cell/2,y+cell/2+4);
+  }
+  ctx.fillStyle=C.faint;ctx.font="10px 'Spline Sans Mono'";ctx.textAlign='left';
+  ctx.fillText('m →',ox,oy-10);ctx.save();ctx.translate(ox-12,oy);ctx.rotate(-Math.PI/2);ctx.fillText('n →',-40,0);ctx.restore();
+  ctx.restore();
+}
+
+/* ════ 5 · CHAIN (real streaming sim) ════ */
+const chain={N:16,re:null,im:null,t:0,K:0.5};
+function chainInit(){chain.re=new Float64Array(chain.N);chain.im=new Float64Array(chain.N);chain.re[0]=1;chain.t=0;}
+chainInit();
+function chainStep(){
+  const N=chain.N,K=chain.K,re=chain.re,im=chain.im;
+  const dr=new Float64Array(N),di=new Float64Array(N);
+  for(let n=0;n<N;n++){
+    if(n-1>=0){const c=K*Math.sqrt(n);dr[n]+=c*im[n-1];di[n]+=-c*re[n-1];}
+    if(n+1<N){const c=K*Math.sqrt(n+1);dr[n]+=c*im[n+1];di[n]+=-c*re[n+1];}
+  }
+  dr[1]+=im[0]/K;di[1]+=-re[0]/K;
+  const g=K*Math.sqrt(N);dr[N-1]+=-g*re[N-1];di[N-1]+=-g*im[N-1];
+  const dt=0.02;for(let n=0;n<N;n++){re[n]+=dt*dr[n];im[n]+=dt*di[n];}
+  chain.t+=0.02;
+}
+function animChain(cv,ctx){
+  for(let s=0;s<3;s++)chainStep();
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const N=chain.N,padT=24,padB=20,cx=w/2;const rowH=(h-padT-padB)/N;
+  let mx=1e-9;for(let n=0;n<N;n++)mx=Math.max(mx,Math.hypot(chain.re[n],chain.im[n]));
+  ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(cx,padT);ctx.lineTo(cx,h-padB);ctx.stroke();
+  for(let n=0;n<N;n++){
+    const amp=Math.hypot(chain.re[n],chain.im[n]),frac=amp/mx;
+    const y=(h-padB)-(n+0.5)*rowH;const bw=Math.pow(frac,0.65)*(w/2-44);
+    const col=n===N-1?'255,194,77':'72,227,255';
+    ctx.fillStyle=`rgba(${col},${0.2+0.7*frac})`;
+    ctx.shadowColor=`rgba(${col},${frac})`;ctx.shadowBlur=14*frac;
+    ctx.fillRect(cx-bw,y-rowH*0.3,bw*2,rowH*0.6);ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(167,166,192,0.4)';ctx.font="9px 'Spline Sans Mono'";ctx.textAlign='left';
+    ctx.fillText('n='+n,8,y+3);
+  }
+  // drain arrow at top
+  ctx.strokeStyle='rgba(255,194,77,0.7)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(cx,padT);ctx.lineTo(cx,8);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,194,77,0.8)';ctx.beginPath();ctx.moveTo(cx,4);ctx.lineTo(cx-5,14);ctx.lineTo(cx+5,14);ctx.fill();
+  ctx.restore();
+  const E=Math.hypot(chain.re[0],chain.im[0])/chain.K;
+  document.getElementById('chainLbl').textContent= E<0.05?'wave damped ✓':'climbing ↑';
+}
+
+/* ════ 6 · DIAL ════ */
+function animDial(cv,ctx){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const cx=w/2,base=h-30,vmax=5,sx=w/(2*vmax),sy=90;
+  ctx.strokeStyle=C.line;ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  // target: a spiky double-bump distribution (hard to capture with few modes)
+  const tgt=v=>Math.exp(-(v-1.2)*(v-1.2)*2.2)+0.7*Math.exp(-(v+1.5)*(v+1.5)*3.5);
+  ctx.strokeStyle='rgba(255,194,77,0.5)';ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();
+  for(let i=0;i<=300;i++){const v=-vmax+2*vmax*i/300;i===0?ctx.moveTo(cx+v*sx,base-tgt(v)*sy):ctx.lineTo(cx+v*sx,base-tgt(v)*sy);}
+  ctx.stroke();ctx.setLineDash([]);
+  // project target onto N hermite functions, reconstruct
+  const N=S.dial_n,L=8,K=300;
+  const cf=[];for(let n=0;n<N;n++){let s=0;for(let i=0;i<K;i++){const v=-L+2*L*i/K;s+=tgt(v)*phi(n,v);}cf.push(s*2*L/K);}
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=2.8;ctx.shadowColor=C.cyan;ctx.shadowBlur=12;ctx.beginPath();
+  for(let i=0;i<=400;i++){const v=-vmax+2*vmax*i/400;let s=0;for(let n=0;n<N;n++)s+=cf[n]*phi(n,v);
+    i===0?ctx.moveTo(cx+v*sx,base-s*sy):ctx.lineTo(cx+v*sx,base-s*sy);}
+  ctx.stroke();ctx.shadowBlur=0;ctx.restore();
+}
+
+/* ════ 8 · LAGUERRE 2D mode grid ════ */
+function animLaguerre(cv,ctx,T){
+  const {w,h,d}=cv._dim;ctx.clearRect(0,0,w*d,h*d);ctx.save();ctx.scale(d,d);
+  const cx=w/2,cy=h/2;const NH=6,NL=5;const gap=42;
+  const ang=T*0.25;
+  // pseudo-3D grid of glowing nodes: x=hermite index, y=laguerre index
+  for(let l=0;l<NL;l++)for(let m=0;m<NH;m++){
+    const gx=(m-(NH-1)/2)*gap, gy=(l-(NL-1)/2)*gap;
+    // simple rotation about y for depth
+    const x=gx*Math.cos(ang), z=gx*Math.sin(ang);
+    const scale=1/(1+ z*0.0016);
+    const px=cx+x*scale, py=cy+gy*scale - 6;
+    const r=(3+2.4*Math.sin(T*1.5 - m*0.5 - l*0.4))*scale;
+    const hue=m/NH, col=hue<0.5?C.cyan:C.mag;
+    const a=0.35+0.5*scale;
+    ctx.fillStyle=col;ctx.globalAlpha=a;ctx.shadowColor=col;ctx.shadowBlur=12*scale;
+    ctx.beginPath();ctx.arc(px,py,Math.max(1.4,r),0,TAU);ctx.fill();
+  }
+  ctx.globalAlpha=1;ctx.shadowBlur=0;
+  ctx.fillStyle=C.cyan;ctx.font="12px 'Spline Sans Mono'";ctx.textAlign='center';
+  ctx.fillText('← Hermite (parallel velocity) →',cx,h-14);
+  ctx.save();ctx.translate(20,cy);ctx.rotate(-Math.PI/2);ctx.fillStyle=C.mag;ctx.fillText('← Laguerre (gyration) →',0,0);ctx.restore();
+  ctx.restore();
+}
+
+/* ───────── animation registry + visibility gating ───────── */
+const animFns={hero:animHero,fourierfail:animFourierFail,shapes:animShapes,moments:animMoments,
+  ortho:animOrtho,chain:animChain,dial:animDial,laguerre:animLaguerre};
+const figs=[...document.querySelectorAll('[data-anim]')].map(fig=>{
+  const cv=fig.querySelector('canvas');const ctx=cv.getContext('2d');
+  return {fig,cv,ctx,name:fig.dataset.anim,vis:false};
+});
+function resizeAll(){figs.forEach(f=>{f.cv._dim=sizeCanvas(f.cv);});}
+window.addEventListener('resize',resizeAll);resizeAll();
+
+const io=new IntersectionObserver(es=>{es.forEach(e=>{
+  const f=figs.find(x=>x.fig===e.target);if(f)f.vis=e.isIntersecting;});},{threshold:0.08});
+figs.forEach(f=>io.observe(f.fig));
+
+let T0=performance.now();
+function loop(now){const T=(now-T0)/1000;
+  figs.forEach(f=>{if(f.vis&&animFns[f.name]){f.ctx.clearRect(0,0,f.cv.width,f.cv.height);animFns[f.name](f.cv,f.ctx,T);}});
+  requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+
+/* ───────── controls ───────── */
+document.querySelectorAll('input[type=range][data-k]').forEach(inp=>{
+  inp.addEventListener('input',()=>{const k=inp.dataset.k;S[k]=parseFloat(inp.value);
+    const map={ff_n:'ff_nv',m1:'m1v',m2:'m2v',m3:'m3v',dial_n:'dial_nv'};
+    if(map[k]){const el=document.getElementById(map[k]);
+      el.textContent=(k==='ff_n'||k==='dial_n')?inp.value:parseFloat(inp.value).toFixed(1);}
+    if(k==='dial_n'){const n=+inp.value;const word=n<6?'fluid · cheap · smooth':n<16?'in between':'kinetic · exact · detailed';
+      document.getElementById('dial_word').textContent=word;
+      document.getElementById('dialLbl').textContent=n+' modes';}
+  });
+});
+document.querySelectorAll('#shapeChips .chip').forEach(ch=>{
+  ch.addEventListener('click',()=>{const c=+ch.dataset.c;S.shapes[c]=S.shapes[c]?0:1;ch.classList.toggle('on');});
+});
+document.getElementById('chainPulse').addEventListener('click',chainInit);
+document.getElementById('dialLbl').textContent='4 modes';
+
+/* ───────── reveal-on-scroll + progress rail ───────── */
+const revIO=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');});},{threshold:0.12});
+document.querySelectorAll('.reveal').forEach(el=>revIO.observe(el));
+const rail=document.getElementById('rail');
+addEventListener('scroll',()=>{const sc=scrollY/(document.body.scrollHeight-innerHeight);rail.style.width=(sc*100)+'%';});
+</script>
+</body>
+</html>

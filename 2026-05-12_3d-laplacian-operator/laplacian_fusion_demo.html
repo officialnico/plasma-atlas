@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>∇² — The Laplacian, Waves, and Fusion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root {
+    --bg: #07080c;
+    --panel: rgba(14, 16, 24, 0.78);
+    --border: rgba(255, 220, 140, 0.18);
+    --ink: #f3ecd8;
+    --muted: #8a8675;
+    --accent: #ffb347;
+    --hot: #ff5a3c;
+    --cold: #3aa0ff;
+    --plasma: #ff2d75;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Georgia', 'Times New Roman', serif;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background:
+      radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+
+  /* --- Top title bar --- */
+  .titlebar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    padding: 18px 28px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(7,8,12,0.85), transparent);
+  }
+
+  .title-block { pointer-events: auto; }
+  .title-block h1 {
+    font-family: 'Georgia', serif;
+    font-weight: 400;
+    font-size: 28px;
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+  .title-block h1 .nabla {
+    color: var(--accent);
+    font-style: italic;
+    font-size: 36px;
+    margin-right: 4px;
+  }
+  .title-block .sub {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .top-right {
+    pointer-events: auto;
+    text-align: right;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    line-height: 1.6;
+  }
+  .top-right b { color: var(--ink); font-weight: normal; }
+
+  /* --- Left panel: explanation --- */
+  .panel-left {
+    position: fixed;
+    top: 90px;
+    left: 20px;
+    width: 340px;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    padding: 20px 22px;
+    z-index: 5;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  .panel-left::-webkit-scrollbar { width: 6px; }
+  .panel-left::-webkit-scrollbar-track { background: transparent; }
+  .panel-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .panel-left h2 {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: normal;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .panel-left h3 {
+    font-size: 14px;
+    margin: 18px 0 6px;
+    font-weight: normal;
+    font-style: italic;
+    color: var(--accent);
+  }
+  .panel-left p { margin-bottom: 10px; color: #d8d0bc; }
+  .panel-left .eq {
+    background: rgba(255, 179, 71, 0.08);
+    border-left: 2px solid var(--accent);
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-family: 'Cambria Math', 'Georgia', serif;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .panel-left .tag {
+    display: inline-block;
+    font-size: 10px;
+    background: rgba(255,90,60,0.15);
+    color: var(--hot);
+    padding: 2px 6px;
+    margin-right: 4px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: 1px solid rgba(255,90,60,0.3);
+  }
+
+  /* --- Right panel: controls --- */
+  .panel-right {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    width: 300px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    padding: 18px 20px;
+    z-index: 5;
+    font-size: 12px;
+  }
+
+  .panel-right h2 {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: normal;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+
+  .control-group {
+    margin-bottom: 14px;
+  }
+  .control-group label {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 10px;
+  }
+  .control-group label .val {
+    color: var(--accent);
+    font-family: 'Courier New', monospace;
+  }
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--accent);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  .mode-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .mode-buttons button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 6px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-buttons button:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+  .mode-buttons button.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  .action-btn {
+    width: 100%;
+    background: rgba(255,90,60,0.1);
+    border: 1px solid var(--hot);
+    color: var(--hot);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+  }
+  .action-btn:hover {
+    background: var(--hot);
+    color: var(--bg);
+  }
+
+  /* --- Bottom HUD: keybindings --- */
+  .hud {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    padding: 10px 18px;
+    display: flex;
+    gap: 18px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .hud .key {
+    display: inline-block;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    margin-right: 5px;
+    color: var(--ink);
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  /* --- Info readout --- */
+  .readout {
+    position: fixed;
+    bottom: 16px;
+    right: 20px;
+    z-index: 5;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    padding: 10px 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    min-width: 180px;
+  }
+  .readout .label { color: var(--muted); }
+  .readout .value { color: var(--accent); }
+  .readout .hot { color: var(--hot); }
+
+  /* mobile fallback */
+  @media (max-width: 900px) {
+    .panel-left, .panel-right {
+      position: relative;
+      width: calc(100% - 40px);
+      max-height: none;
+      margin: 10px auto;
+    }
+    .panel-left { top: 85px; }
+    .panel-right { top: 85px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+
+<div class="titlebar">
+  <div class="title-block">
+    <h1><span class="nabla">∇²</span>The Laplacian</h1>
+    <div class="sub">Curvature · Diffusion · Confinement</div>
+  </div>
+  <div class="top-right">
+    interactive field<br>
+    <b>v1.0</b> · waves & fusion
+  </div>
+</div>
+
+<div class="panel-left">
+  <h2>What is ∇²?</h2>
+  <p>The Laplacian is a single scalar that asks one question at every point in a field:</p>
+  <p style="font-style: italic; color: var(--ink);">"Is this point higher or lower than the average of the points right next to it?"</p>
+
+  <div class="eq">∇²φ = ∂²φ/∂x² + ∂²φ/∂y² + ∂²φ/∂z²</div>
+
+  <p>It is the sum of second derivatives — a measure of how much a value at a point differs from the local average around it.</p>
+
+  <p><b style="color:var(--hot)">Positive ∇²</b> → the point sits in a dip, neighbors are higher, stuff flows <i>in</i>.<br>
+  <b style="color:var(--cold)">Negative ∇²</b> → the point is a peak, neighbors are lower, stuff flows <i>out</i>.<br>
+  <b style="color:var(--muted)">Zero ∇²</b> → perfectly balanced with neighborhood.</p>
+
+  <h3>The wave equation</h3>
+  <div class="eq">∂²u/∂t² = c² ∇²u</div>
+  <p>This is what the surface in front of you is solving. Every point's acceleration is proportional to its Laplacian. Peaks pull themselves down, troughs push themselves up — that's a wave.</p>
+
+  <h3>Why fusion cares</h3>
+  <p><span class="tag">plasma</span> A fusion reactor holds a 100-million-degree plasma. Three equations rule it, and ∇² appears in all three:</p>
+
+  <div class="eq">∂n/∂t = D ∇²n − losses<br><span style="color:var(--muted);font-size:11px">particle density diffusion</span></div>
+
+  <div class="eq">∂T/∂t = χ ∇²T + heating<br><span style="color:var(--muted);font-size:11px">heat transport</span></div>
+
+  <div class="eq">∇²A = −μ₀ J<br><span style="color:var(--muted);font-size:11px">magnetic confinement (Poisson)</span></div>
+
+  <p>The <b>sign and magnitude of ∇²</b> tells engineers whether heat is leaking out of the core faster than fusion creates it. If ∇²T is too negative at the edge, the plasma cools and dies. If the magnetic ∇²A doesn't shape the field correctly, the plasma escapes and the reaction stops.</p>
+
+  <p style="color: var(--accent); font-style: italic;">A tokamak is, in one sentence, a machine built to make the Laplacian of pressure point inward everywhere at once.</p>
+
+  <h3>What you're seeing</h3>
+  <p>The colored surface is a 2D field <i>u(x,y,t)</i>. Height = value, color = Laplacian: <span style="color:var(--hot)">red where ∇²u &gt; 0</span>, <span style="color:var(--cold)">blue where ∇²u &lt; 0</span>. Watch how the red and blue patches drive the motion.</p>
+</div>
+
+<div class="panel-right">
+  <h2>Field Controls</h2>
+
+  <div class="control-group">
+    <label>Mode</label>
+    <div class="mode-buttons">
+      <button class="mode-btn active" data-mode="wave">Wave eq.</button>
+      <button class="mode-btn" data-mode="heat">Heat diff.</button>
+      <button class="mode-btn" data-mode="plasma">Plasma</button>
+      <button class="mode-btn" data-mode="frozen">Frozen</button>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label>Wave speed c² <span class="val" id="speedVal">0.30</span></label>
+    <input type="range" id="speed" min="0.05" max="1.0" step="0.01" value="0.30">
+  </div>
+
+  <div class="control-group">
+    <label>Damping <span class="val" id="dampVal">0.005</span></label>
+    <input type="range" id="damp" min="0" max="0.05" step="0.001" value="0.005">
+  </div>
+
+  <div class="control-group">
+    <label>Show Laplacian color <span class="val" id="colorVal">1.0</span></label>
+    <input type="range" id="colormix" min="0" max="1" step="0.01" value="1.0">
+  </div>
+
+  <div class="control-group">
+    <label>Confinement (∇²A) <span class="val" id="confVal">0.0</span></label>
+    <input type="range" id="conf" min="0" max="1" step="0.01" value="0.0">
+  </div>
+
+  <button class="action-btn" id="dropBtn">⊕ Inject Energy (Space)</button>
+  <button class="action-btn" id="resetBtn" style="background:rgba(58,160,255,0.08);border-color:var(--cold);color:var(--cold);">⟲ Reset Field (R)</button>
+</div>
+
+<div class="hud">
+  <div><span class="key">W A S D</span>move</div>
+  <div><span class="key">Q E</span>up/down</div>
+  <div><span class="key">drag</span>look</div>
+  <div><span class="key">Space</span>drop wave</div>
+  <div><span class="key">click</span>poke field</div>
+</div>
+
+<div class="readout">
+  <div><span class="label">mode:</span> <span class="value" id="rMode">wave</span></div>
+  <div><span class="label">max |∇²u|:</span> <span class="value hot" id="rLap">0.00</span></div>
+  <div><span class="label">energy:</span> <span class="value" id="rEnergy">0.00</span></div>
+  <div><span class="label">pos:</span> <span class="value" id="rPos">0,0,0</span></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ============================================================
+// SETUP
+// ============================================================
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x07080c, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x07080c, 0.03);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
+camera.position.set(0, 18, 28);
+camera.lookAt(0, 0, 0);
+
+// lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const dirL = new THREE.DirectionalLight(0xffd9a0, 0.8);
+dirL.position.set(20, 30, 10);
+scene.add(dirL);
+const rimL = new THREE.PointLight(0xff5a3c, 0.6, 80);
+rimL.position.set(-15, 5, -10);
+scene.add(rimL);
+const rimL2 = new THREE.PointLight(0x3aa0ff, 0.4, 80);
+rimL2.position.set(15, 5, 15);
+scene.add(rimL2);
+
+// stars / particles in background
+const starGeo = new THREE.BufferGeometry();
+const starCount = 400;
+const starPos = new Float32Array(starCount * 3);
+for (let i=0; i<starCount; i++) {
+  starPos[i*3]   = (Math.random()-0.5) * 200;
+  starPos[i*3+1] = (Math.random()-0.5) * 80 + 20;
+  starPos[i*3+2] = (Math.random()-0.5) * 200;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+  color: 0xffe0a0, size: 0.15, transparent: true, opacity: 0.6, sizeAttenuation: true
+}));
+scene.add(stars);
+
+// ground grid
+const grid = new THREE.GridHelper(80, 40, 0x332a18, 0x1a1610);
+grid.position.y = -6;
+scene.add(grid);
+
+// ============================================================
+// FIELD: 2D grid u(x,y,t) with finite-difference Laplacian
+// ============================================================
+const N = 96;        // grid resolution
+const SIZE = 30;     // world size
+const u = new Float32Array(N*N);     // current
+const uPrev = new Float32Array(N*N); // previous timestep (for wave eq)
+const lap = new Float32Array(N*N);   // laplacian buffer
+
+function idx(i,j) { return i*N + j; }
+
+// Build the mesh
+const planeGeo = new THREE.PlaneGeometry(SIZE, SIZE, N-1, N-1);
+planeGeo.rotateX(-Math.PI/2);
+// add color attribute
+const colors = new Float32Array(N*N*3);
+planeGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+const planeMat = new THREE.MeshPhongMaterial({
+  vertexColors: true,
+  side: THREE.DoubleSide,
+  shininess: 60,
+  specular: 0x442211,
+  flatShading: false,
+  transparent: true,
+  opacity: 0.95
+});
+const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+scene.add(planeMesh);
+
+// wireframe overlay
+const wireGeo = new THREE.WireframeGeometry(planeGeo);
+const wireMat = new THREE.LineBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.08 });
+const wire = new THREE.LineSegments(wireGeo, wireMat);
+scene.add(wire);
+
+// containment ring (visual for plasma mode)
+const ringGeo = new THREE.TorusGeometry(SIZE*0.48, 0.15, 16, 100);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xff2d75, transparent: true, opacity: 0.0 });
+const ring = new THREE.Mesh(ringGeo, ringMat);
+ring.rotation.x = Math.PI/2;
+scene.add(ring);
+
+// ============================================================
+// PHYSICS
+// ============================================================
+let mode = 'wave';     // wave | heat | plasma | frozen
+let c2 = 0.30;
+let damping = 0.005;
+let colorMix = 1.0;
+let confinement = 0.0;
+
+// initial state: nice ripple
+function seedField() {
+  for (let i=0; i<N; i++) {
+    for (let j=0; j<N; j++) {
+      const x = (i - N/2) / N * 2;
+      const y = (j - N/2) / N * 2;
+      const r = Math.sqrt(x*x + y*y);
+      u[idx(i,j)] = Math.exp(-r*r*8) * 2.5;
+      uPrev[idx(i,j)] = u[idx(i,j)];
+    }
+  }
+}
+seedField();
+
+function computeLaplacian() {
+  // 5-point stencil; dx=1 in grid units
+  let maxAbs = 0;
+  for (let i=1; i<N-1; i++) {
+    for (let j=1; j<N-1; j++) {
+      const k = idx(i,j);
+      const L = u[idx(i+1,j)] + u[idx(i-1,j)] + u[idx(i,j+1)] + u[idx(i,j-1)] - 4*u[k];
+      lap[k] = L;
+      const a = Math.abs(L);
+      if (a > maxAbs) maxAbs = a;
+    }
+  }
+  // boundary: zero Laplacian
+  for (let i=0; i<N; i++) { lap[idx(i,0)]=0; lap[idx(i,N-1)]=0; lap[idx(0,i)]=0; lap[idx(N-1,i)]=0; }
+  return maxAbs;
+}
+
+function step() {
+  if (mode === 'frozen') return computeLaplacian();
+
+  computeLaplacian();
+
+  if (mode === 'wave') {
+    // wave eq: u_new = 2u - u_prev + c2 * lap - damping
+    for (let i=1; i<N-1; i++) {
+      for (let j=1; j<N-1; j++) {
+        const k = idx(i,j);
+        const v = 2*u[k] - uPrev[k] + c2 * lap[k];
+        const damped = v - damping * (v - u[k]);
+        uPrev[k] = u[k];
+        u[k] = damped;
+      }
+    }
+    // edges decay (open boundary-ish)
+    for (let i=0; i<N; i++) {
+      u[idx(i,0)] *= 0.85; u[idx(i,N-1)] *= 0.85;
+      u[idx(0,i)] *= 0.85; u[idx(N-1,i)] *= 0.85;
+      uPrev[idx(i,0)] *= 0.85; uPrev[idx(i,N-1)] *= 0.85;
+      uPrev[idx(0,i)] *= 0.85; uPrev[idx(N-1,i)] *= 0.85;
+    }
+  }
+  else if (mode === 'heat') {
+    // heat eq: u_new = u + alpha * lap
+    const alpha = c2 * 0.4;
+    for (let i=1; i<N-1; i++) {
+      for (let j=1; j<N-1; j++) {
+        const k = idx(i,j);
+        u[k] += alpha * lap[k];
+      }
+    }
+  }
+  else if (mode === 'plasma') {
+    // wave eq + radial confinement (like a magnetic mirror pinching center)
+    for (let i=1; i<N-1; i++) {
+      for (let j=1; j<N-1; j++) {
+        const k = idx(i,j);
+        const x = (i - N/2) / (N/2);
+        const y = (j - N/2) / (N/2);
+        const r = Math.sqrt(x*x + y*y);
+        // Force that pushes field amplitude toward r=0 (confines "plasma")
+        const confForce = confinement * 0.04 * r * r;
+        const v = 2*u[k] - uPrev[k] + c2 * lap[k];
+        const damped = v - damping * (v - u[k]) - confForce * u[k];
+        uPrev[k] = u[k];
+        u[k] = damped;
+      }
+    }
+  }
+
+  return computeLaplacian();
+}
+
+// ============================================================
+// RENDER FIELD -> GEOMETRY
+// ============================================================
+const posAttr = planeGeo.attributes.position;
+const colorAttr = planeGeo.attributes.color;
+
+function updateMesh() {
+  const colHot  = new THREE.Color(0xff5a3c);
+  const colCold = new THREE.Color(0x3aa0ff);
+  const colMid  = new THREE.Color(0xffb347);
+  const tmpA = new THREE.Color();
+  const tmpB = new THREE.Color();
+
+  let energy = 0;
+
+  for (let i=0; i<N; i++) {
+    for (let j=0; j<N; j++) {
+      const k = idx(i,j);
+      const vIdx = k;
+      posAttr.setY(vIdx, u[k] * 2.0);
+
+      energy += u[k]*u[k];
+
+      // color by laplacian sign
+      const L = lap[k] * 4.0;
+      const t = Math.max(-1, Math.min(1, L));
+      let c;
+      if (t > 0) {
+        // dip (∇² > 0) → hot red
+        c = tmpA.copy(colMid).lerp(colHot, t);
+      } else {
+        // peak (∇² < 0) → cold blue
+        c = tmpA.copy(colMid).lerp(colCold, -t);
+      }
+      // mix with neutral based on user slider
+      tmpB.setRGB(0.85, 0.78, 0.55);
+      c.lerp(tmpB, 1 - colorMix);
+
+      colorAttr.setXYZ(vIdx, c.r, c.g, c.b);
+    }
+  }
+  posAttr.needsUpdate = true;
+  colorAttr.needsUpdate = true;
+  planeGeo.computeVertexNormals();
+
+  // update wireframe
+  wire.geometry.dispose();
+  wire.geometry = new THREE.WireframeGeometry(planeGeo);
+
+  return energy / (N*N);
+}
+
+// ============================================================
+// INTERACTION: poke the field
+// ============================================================
+function injectAt(worldX, worldZ, amp = 3.0, radius = 0.15) {
+  // map world to grid
+  const gx = (worldX / SIZE + 0.5) * N;
+  const gz = (worldZ / SIZE + 0.5) * N;
+  if (gx < 0 || gx >= N || gz < 0 || gz >= N) return;
+  const r2 = (radius * N) * (radius * N);
+  for (let i=0; i<N; i++) {
+    for (let j=0; j<N; j++) {
+      const dx = i - gz;
+      const dy = j - gx;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < r2 * 4) {
+        const v = amp * Math.exp(-d2 / r2);
+        u[idx(i,j)] += v;
+        if (mode === 'wave' || mode === 'plasma') uPrev[idx(i,j)] += v * 0.5;
+      }
+    }
+  }
+}
+
+function dropRandom() {
+  const x = (Math.random()-0.5) * SIZE * 0.7;
+  const z = (Math.random()-0.5) * SIZE * 0.7;
+  injectAt(x, z, 3.5, 0.1);
+}
+
+// raycast click to inject
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+canvas.addEventListener('mousedown', (e) => {
+  if (isDragging) return;
+  // start tracking; differentiate from drag at mouseup
+  pressStart = { x: e.clientX, y: e.clientY, t: performance.now() };
+});
+let pressStart = null;
+canvas.addEventListener('mouseup', (e) => {
+  if (!pressStart) return;
+  const dx = e.clientX - pressStart.x;
+  const dy = e.clientY - pressStart.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const dt = performance.now() - pressStart.t;
+  pressStart = null;
+  if (dist < 5 && dt < 400) {
+    // it was a click, not a drag
+    ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+    ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    ray.setFromCamera(ndc, camera);
+    const hits = ray.intersectObject(planeMesh);
+    if (hits.length > 0) {
+      const p = hits[0].point;
+      injectAt(p.x, p.z, 4.0, 0.12);
+    }
+  }
+});
+
+// ============================================================
+// FREE-FLY CAMERA (WASD + mouse drag)
+// ============================================================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') { e.preventDefault(); dropRandom(); }
+  if (e.code === 'KeyR')  { seedField(); }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+let yaw = 0;       // around Y
+let pitch = -0.35; // around X
+let isDragging = false;
+let lastMouse = {x:0, y:0};
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    lastMouse.x = e.clientX; lastMouse.y = e.clientY;
+  }
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (pressStart) {
+    const dx = e.clientX - pressStart.x;
+    const dy = e.clientY - pressStart.y;
+    if (Math.sqrt(dx*dx+dy*dy) > 5) {
+      isDragging = true;
+    }
+  }
+  if (isDragging) {
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    yaw   -= dx * 0.003;
+    pitch -= dy * 0.003;
+    pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
+    lastMouse.x = e.clientX; lastMouse.y = e.clientY;
+  }
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+
+// initialize camera orientation
+camera.rotation.order = 'YXZ';
+
+function updateCamera(dt) {
+  const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? 30 : 14;
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right   = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+  if (keys['KeyW']) camera.position.addScaledVector(forward, speed*dt);
+  if (keys['KeyS']) camera.position.addScaledVector(forward, -speed*dt);
+  if (keys['KeyA']) camera.position.addScaledVector(right, -speed*dt);
+  if (keys['KeyD']) camera.position.addScaledVector(right, speed*dt);
+  if (keys['KeyQ']) camera.position.y -= speed*dt;
+  if (keys['KeyE']) camera.position.y += speed*dt;
+
+  camera.rotation.set(pitch, yaw, 0);
+}
+
+// ============================================================
+// UI WIRING
+// ============================================================
+document.querySelectorAll('.mode-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    mode = b.dataset.mode;
+    document.getElementById('rMode').textContent = mode;
+    ring.material.opacity = (mode === 'plasma') ? 0.5 : 0.0;
+    // reset prev-buffer when switching mode types
+    for (let i=0; i<u.length; i++) uPrev[i] = u[i];
+  });
+});
+
+const $ = id => document.getElementById(id);
+$('speed').addEventListener('input', e => { c2 = +e.target.value; $('speedVal').textContent = c2.toFixed(2); });
+$('damp').addEventListener('input',  e => { damping = +e.target.value; $('dampVal').textContent = damping.toFixed(3); });
+$('colormix').addEventListener('input', e => { colorMix = +e.target.value; $('colorVal').textContent = colorMix.toFixed(2); });
+$('conf').addEventListener('input', e => {
+  confinement = +e.target.value; $('confVal').textContent = confinement.toFixed(2);
+  ring.material.opacity = (mode === 'plasma') ? 0.3 + confinement * 0.5 : 0.0;
+});
+$('dropBtn').addEventListener('click', dropRandom);
+$('resetBtn').addEventListener('click', () => seedField());
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+let last = performance.now();
+const rLap = $('rLap'), rEnergy = $('rEnergy'), rPos = $('rPos');
+
+function animate(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  updateCamera(dt);
+  const maxLap = step();
+  const energy = updateMesh();
+
+  // ring pulse for plasma mode
+  if (mode === 'plasma') {
+    ring.scale.setScalar(1 + Math.sin(now*0.003) * 0.02);
+  }
+
+  // animate stars subtly
+  stars.rotation.y += 0.0002;
+
+  // readouts
+  rLap.textContent = (maxLap || 0).toFixed(3);
+  rEnergy.textContent = energy.toFixed(3);
+  rPos.textContent = `${camera.position.x.toFixed(1)},${camera.position.y.toFixed(1)},${camera.position.z.toFixed(1)}`;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+</script>
+</body>
+</html>

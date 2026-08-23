@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Expanding Universe — A Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --void:#05060a;
+    --void2:#0b0e1a;
+    --ink:#e8e6f0;
+    --dim:#8b8aa3;
+    --faint:#4a4a63;
+    --radiation:#ff5e7a;   /* hot early era */
+    --matter:#5b8cff;      /* matter era */
+    --darkE:#b388ff;       /* dark energy era */
+    --line:#1c1f33;
+    --glow:#9a7dff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(ellipse at 20% -10%, #14122b 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 10%, #0d1a2e 0%, transparent 50%),
+      var(--void);
+    color:var(--ink);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    line-height:1.55;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+  /* ---------- HERO ---------- */
+  header{padding:90px 0 50px;position:relative}
+  .eyebrow{
+    font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.32em;
+    text-transform:uppercase;color:var(--glow);opacity:.85;margin-bottom:24px;
+  }
+  h1{
+    font-family:'Fraunces',serif;font-weight:300;font-size:clamp(40px,7vw,82px);
+    line-height:.98;letter-spacing:-.02em;margin-bottom:22px;
+  }
+  h1 em{font-style:italic;font-weight:500;
+    background:linear-gradient(100deg,var(--radiation),var(--darkE) 60%,var(--matter));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .lede{font-size:19px;color:var(--dim);max-width:620px}
+  .lede b{color:var(--ink);font-weight:500}
+
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  .sec-label{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  h2{font-family:'Fraunces',serif;font-weight:400;font-size:clamp(24px,3.4vw,34px);
+    letter-spacing:-.01em;margin-bottom:14px}
+  p.body{color:var(--dim);max-width:640px;margin-bottom:8px;font-size:16px}
+  p.body b{color:var(--ink);font-weight:500}
+
+  /* ---------- TIMELINE VISUALIZER ---------- */
+  .stage{
+    position:relative;border:1px solid var(--line);border-radius:14px;
+    background:linear-gradient(180deg,rgba(255,255,255,.015),rgba(0,0,0,.2));
+    padding:22px;margin-top:24px;overflow:hidden;
+  }
+  canvas{display:block;width:100%;border-radius:8px}
+
+  .controls{display:flex;align-items:center;gap:18px;margin-top:18px;flex-wrap:wrap}
+  .btn{
+    font-family:'Space Grotesk';font-size:14px;font-weight:500;color:var(--ink);
+    background:rgba(154,125,255,.12);border:1px solid rgba(154,125,255,.4);
+    padding:9px 18px;border-radius:999px;cursor:pointer;transition:.2s;
+  }
+  .btn:hover{background:rgba(154,125,255,.24)}
+  .btn:focus-visible{outline:2px solid var(--glow);outline-offset:2px}
+  .slider-row{flex:1;min-width:240px;display:flex;align-items:center;gap:12px}
+  input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;
+    background:linear-gradient(90deg,var(--radiation),var(--matter) 45%,var(--darkE));cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:#fff;border:3px solid var(--glow);box-shadow:0 0 12px var(--glow);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;
+    border:3px solid var(--glow);box-shadow:0 0 12px var(--glow);cursor:pointer}
+
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    margin-top:20px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .cell{background:var(--void2);padding:14px 16px}
+  .cell .k{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .cell .v{font-family:'Fraunces',serif;font-size:23px;font-weight:500}
+  .cell .v small{font-size:13px;color:var(--dim);font-family:'Space Grotesk'}
+  .era-tag{display:inline-block;padding:3px 11px;border-radius:999px;font-size:13px;font-weight:600;
+    font-family:'Space Grotesk'}
+
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;font-size:13px;color:var(--dim)}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .dot{width:10px;height:10px;border-radius:50%}
+
+  /* field viz */
+  .twin{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+  @media(max-width:720px){.twin{grid-template-columns:1fr}}
+  .twin figure{border:1px solid var(--line);border-radius:12px;padding:16px;background:rgba(0,0,0,.18)}
+  figcaption{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:12px;text-align:center}
+
+  footer{padding:50px 0 80px;border-top:1px solid var(--line);color:var(--faint);font-size:14px}
+  .mono{font-family:'Space Mono',monospace}
+  .hl{color:var(--darkE)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">13.8 billion years · one timeline</div>
+    <h1>Everything is<br><em>moving away</em><br>from everything.</h1>
+    <p class="lede">Scrub through the whole history of cosmic expansion — from the blazing radiation era, through the matter era where galaxies formed, into the <b>accelerating dark-energy era</b> we live in now. Watch the rate change, watch galaxies cross the horizon, and see why every observer sits at the centre.</p>
+  </header>
+
+  <!-- ============ MAIN TIMELINE ============ -->
+  <section>
+    <div class="sec-label">Visualizer 01 — Expansion through the ages</div>
+    <h2>The scale factor, a(t)</h2>
+    <p class="body">Every distance in the universe scales with one number, <b>a(t)</b>. Drag the slider to move through time. The grid stretches, galaxies recede, and the panel below reads out the expansion rate and which ingredient is winning.</p>
+
+    <div class="stage">
+      <canvas id="grid" height="360"></canvas>
+      <div class="controls">
+        <button class="btn" id="play">▶ Play history</button>
+        <div class="slider-row">
+          <span class="mono" style="font-size:12px;color:var(--faint)">BIG BANG</span>
+          <input type="range" id="time" min="0" max="1000" value="420">
+          <span class="mono" style="font-size:12px;color:var(--faint)">FAR FUTURE</span>
+        </div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--radiation)"></span>Radiation era</span>
+        <span><span class="dot" style="background:var(--matter)"></span>Matter era (decelerating)</span>
+        <span><span class="dot" style="background:var(--darkE)"></span>Dark-energy era (accelerating)</span>
+        <span><span class="dot" style="background:#ff3b3b;box-shadow:0 0 8px #ff3b3b"></span>Hubble radius (v = c)</span>
+      </div>
+
+      <div class="readout">
+        <div class="cell"><div class="k">Cosmic age</div><div class="v" id="age">—</div></div>
+        <div class="cell"><div class="k">Scale factor a</div><div class="v" id="scale">—</div></div>
+        <div class="cell"><div class="k">Expansion rate H</div><div class="v" id="hrate">—</div></div>
+        <div class="cell"><div class="k">Trend</div><div class="v" id="trend">—</div></div>
+        <div class="cell"><div class="k">Dominant ingredient</div><div class="v"><span class="era-tag" id="era">—</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RATE CURVE ============ -->
+  <section>
+    <div class="sec-label">Visualizer 02 — The shape of the history</div>
+    <h2>Decelerate, then accelerate</h2>
+    <p class="body">Plotting the expansion rate across all of cosmic time reveals a clean three-act structure. Gravity braked the early universe; then, about <b>5 billion years ago</b>, dark energy overtook matter and the brake became an accelerator. The dot tracks your position from the slider above.</p>
+    <div class="stage">
+      <canvas id="curve" height="300"></canvas>
+    </div>
+  </section>
+
+  <!-- ============ VECTOR FIELD ============ -->
+  <section>
+    <div class="sec-label">Visualizer 03 — Why there is no centre</div>
+    <h2>v = H · r, from anywhere</h2>
+    <p class="body">The expansion law is the one pattern that looks identical from every point. The left panel centres on <b>us</b>; the right re-centres on a <b>distant galaxy</b>. Same field, same rule — each observer sees everything fleeing them, and neither is the true middle. Arrows beyond the red ring recede faster than light.</p>
+    <div class="twin">
+      <figure><figcaption>Centred on us</figcaption><canvas id="fieldA" height="300"></canvas></figure>
+      <figure><figcaption>Centred on a distant galaxy — identical law</figcaption><canvas id="fieldB" height="300"></canvas></figure>
+    </div>
+  </section>
+
+  <footer>
+    <p>A teaching toy, not a simulation engine. The curves are schematic — qualitatively faithful to ΛCDM (radiation → matter → dark-energy eras, deceleration giving way to acceleration ~5 Gyr ago), with timings and rates stylised for clarity rather than fit to data. <span class="hl">H₀ ≈ 70 km/s/Mpc</span>; the deeper "why it accelerates" remains the largest open question in physics.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const DPR = Math.min(window.devicePixelRatio||1, 2);
+  function fit(c){const r=c.getBoundingClientRect();c.width=r.width*DPR;c.height=c.height*DPR;
+    const x=c.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);return x;}
+
+  // ---------- shared time model ----------
+  // slider 0..1000 -> normalized cosmic "progress" p in 0..1
+  // map p to age (Gyr) on a stretched scale so early eras are visible
+  function pToAge(p){
+    // early eras compressed in real time; use a curve so slider feels even
+    return Math.pow(p,2.4)*40; // 0 .. 40 Gyr (into future)
+  }
+  // scale factor a as function of age (schematic ΛCDM-ish)
+  function ageToA(t){
+    // piecewise-ish smooth: radiation+matter decel then DE accel
+    // normalize so a=1 at ~13.8 Gyr
+    const tt=Math.max(t,0.0005);
+    // matter-like growth t^(2/3) early, exponential-ish late
+    const matter=Math.pow(tt/13.8,0.66);
+    const de=Math.exp((tt-13.8)*0.055);
+    // blend: before 13.8 mostly matter, after mostly DE
+    const w=1/(1+Math.exp(-(tt-9)*0.6));
+    return matter*(1-w)+ (Math.pow(13.8/13.8,0.66)*de)*w*0.0 + matter*w*de* (w) + matter*(1-w)*0;
+  }
+  // cleaner closed form for a(t)
+  function scaleA(t){
+    const tt=Math.max(t,0.001);
+    const base=Math.pow(tt/13.8,0.66);          // decelerating matter growth
+    const accel=Math.exp(Math.max(tt-13.8,0)*0.05); // DE kicks in after now
+    return base*accel;
+  }
+  // H(t) = (da/dt)/a  -- numeric
+  function Hof(t){const d=0.05;const a1=scaleA(t-d),a2=scaleA(t+d);
+    return ((a2-a1)/(2*d))/scaleA(t);}
+  // acceleration sign
+  function accelOf(t){const d=0.1;const raw=scaleA(t+d)-2*scaleA(t)+scaleA(t-d);
+    // normalize by scale so the sign is meaningful across eras
+    return raw/scaleA(t);}
+
+  function era(t){
+    if(t<0.05)  return {name:'Radiation', col:getCSS('--radiation')};
+    if(t<9.0)   return {name:'Matter',    col:getCSS('--matter')};
+    return {name:'Dark energy', col:getCSS('--darkE')};
+  }
+  function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+  // ================= GRID CANVAS =================
+  const gc=document.getElementById('grid'); let gx=fit(gc);
+  // fixed comoving galaxies
+  const gals=[]; for(let i=0;i<46;i++){gals.push({x:(Math.random()*2-1),y:(Math.random()*2-1),
+    s:Math.random()*1.2+0.5, h:Math.random()});}
+  function drawGrid(p){
+    const t=pToAge(p), a=scaleA(t);
+    const w=gc.getBoundingClientRect().width, h=360;
+    gx.clearRect(0,0,w,h);
+    const cx=w/2, cy=h/2;
+    // normalize so 'now' fills nicely
+    const aNow=scaleA(13.8);
+    const k=(a/aNow); // relative stretch
+    const view=Math.min(Math.max(k,0.18),3.2);
+    const spread=Math.min(w,h)*0.46/view;
+
+    // grid lines
+    gx.lineWidth=1;
+    const N=8;
+    gx.strokeStyle='rgba(120,120,170,'+(0.10+0.05/view)+')';
+    for(let i=-N;i<=N;i++){
+      const gp=(i/N)*spread*view;
+      gx.beginPath();gx.moveTo(cx+gp,0);gx.lineTo(cx+gp,h);gx.stroke();
+      gx.beginPath();gx.moveTo(0,cy+gp);gx.lineTo(w,cy+gp);gx.stroke();
+    }
+    // Hubble radius ring (v=c): radius where H*r = c -> r=c/H, scale to view
+    const H=Hof(t);
+    const hubR=Math.min(1/Math.max(H,0.001)*spread*view*0.16, Math.max(w,h));
+    gx.strokeStyle='rgba(255,59,59,.55)';gx.lineWidth=1.5;gx.setLineDash([5,5]);
+    gx.beginPath();gx.arc(cx,cy,Math.min(hubR,Math.max(w,h)),0,7);gx.stroke();gx.setLineDash([]);
+
+    // galaxies
+    const er=era(t);
+    for(const g of gals){
+      const px=cx+g.x*spread*view, py=cy+g.y*spread*view;
+      if(px<-20||px>w+20||py<-20||py>h+20)continue;
+      const dist=Math.hypot(px-cx,py-cy);
+      const beyond=dist>hubR;
+      gx.globalAlpha=beyond?0.32:0.95;
+      gx.fillStyle=beyond?'#ff6b6b':er.col;
+      gx.beginPath();gx.arc(px,py,g.s*(1.3+0.5/view),0,7);gx.fill();
+      // little recession streak
+      if(dist>4){
+        gx.globalAlpha=0.25;gx.strokeStyle=er.col;gx.lineWidth=1;
+        gx.beginPath();gx.moveTo(px,py);
+        gx.lineTo(px+(px-cx)*0.06*H*3,py+(py-cy)*0.06*H*3);gx.stroke();
+      }
+    }
+    gx.globalAlpha=1;
+    // observer
+    gx.fillStyle='#fff';gx.beginPath();gx.arc(cx,cy,4.5,0,7);gx.fill();
+    gx.shadowColor=getCSS('--glow');gx.shadowBlur=14;
+    gx.beginPath();gx.arc(cx,cy,4.5,0,7);gx.fill();gx.shadowBlur=0;
+
+    updateReadout(t,a,H);
+  }
+
+  function updateReadout(t,a,H){
+    const aNow=scaleA(13.8);
+    document.getElementById('age').innerHTML = t<13.8
+      ? t.toFixed(t<1?2:1)+' <small>Gyr</small>'
+      : t.toFixed(1)+' <small>Gyr</small>';
+    document.getElementById('scale').innerHTML=(a/aNow).toFixed(2)+' <small>× today</small>';
+    document.getElementById('hrate').innerHTML=(H*70/Hof(13.8)).toFixed(0)+' <small>km/s/Mpc</small>';
+    const ac=accelOf(t);
+    const tr=document.getElementById('trend');
+    if(ac>0.00004){tr.textContent='Accelerating ↑';tr.style.color=getCSS('--darkE');}
+    else if(ac<-0.00004){tr.textContent='Decelerating ↓';tr.style.color=getCSS('--matter');}
+    else{tr.textContent='~ Coasting';tr.style.color=getCSS('--dim');}
+    const er=era(t);const tag=document.getElementById('era');
+    tag.textContent=er.name;tag.style.background=er.col+'28';tag.style.color=er.col;
+    drawCurve(t);
+  }
+
+  // ================= RATE CURVE =================
+  const cc=document.getElementById('curve');let cx2=fit(cc);
+  function drawCurve(tNow){
+    const w=cc.getBoundingClientRect().width,h=300;cx2.clearRect(0,0,w,h);
+    const padL=44,padR=20,padT=18,padB=30;
+    const x0=padL,x1=w-padR,y0=h-padB,y1=padT;
+    // axes
+    cx2.strokeStyle=getCSS('--line');cx2.lineWidth=1;
+    cx2.beginPath();cx2.moveTo(x0,y1);cx2.lineTo(x0,y0);cx2.lineTo(x1,y0);cx2.stroke();
+    cx2.fillStyle=getCSS('--faint');cx2.font='10px "Space Mono"';
+    cx2.fillText('expansion rate H  (log)',x0+6,y1+10);
+    cx2.fillText('cosmic time (log) →',x1-104,y0+20);
+
+    const Tmin=0.0005, Tmax=40;
+    // log mapping for time
+    function tx(t){const lt=Math.log10(Math.max(t,Tmin)), a=Math.log10(Tmin), b=Math.log10(Tmax);
+      return x0+((lt-a)/(b-a))*(x1-x0);}
+    // log mapping for H (H spans many orders)
+    const Hmin=Hof(Tmax), Hmax=Hof(Tmin);
+    function hy(H){const lh=Math.log10(Math.max(H,Hmin)), a=Math.log10(Hmin), b=Math.log10(Hmax);
+      return y0-((lh-a)/(b-a))*(y0-y1)*0.94;}
+
+    // era shading (by age boundaries)
+    const eras=[[Tmin,0.05,getCSS('--radiation')],[0.05,9,getCSS('--matter')],[9,Tmax,getCSS('--darkE')]];
+    for(const[a,b,c] of eras){cx2.fillStyle=c+'12';cx2.fillRect(tx(a),y1,tx(b)-tx(a),y0-y1);}
+
+    // turning point (~age 9, decel->accel)
+    cx2.strokeStyle='rgba(179,136,255,.5)';cx2.setLineDash([4,4]);
+    cx2.beginPath();cx2.moveTo(tx(9),y1);cx2.lineTo(tx(9),y0);cx2.stroke();cx2.setLineDash([]);
+    cx2.fillStyle=getCSS('--darkE');cx2.font='9px "Space Mono"';
+    cx2.fillText('decel → accel',tx(9)+4,y1+24);
+
+    // era labels
+    cx2.font='9px "Space Mono"';
+    cx2.fillStyle=getCSS('--radiation');cx2.fillText('RAD',tx(0.004),y0-6);
+    cx2.fillStyle=getCSS('--matter');cx2.fillText('MATTER',tx(0.5),y0-6);
+    cx2.fillStyle=getCSS('--darkE');cx2.fillText('DARK ENERGY',tx(16),y0-6);
+
+    // H curve
+    cx2.beginPath();let first=true;
+    for(let i=0;i<=300;i++){
+      const lt=Math.log10(Tmin)+(i/300)*(Math.log10(Tmax)-Math.log10(Tmin));
+      const t=Math.pow(10,lt);const X=tx(t),Y=hy(Hof(t));
+      first?(cx2.moveTo(X,Y),first=false):cx2.lineTo(X,Y);
+    }
+    cx2.strokeStyle=getCSS('--ink');cx2.lineWidth=2;cx2.stroke();
+
+    // 'now'
+    cx2.strokeStyle='rgba(255,255,255,.25)';cx2.setLineDash([2,3]);
+    cx2.beginPath();cx2.moveTo(tx(13.8),y1);cx2.lineTo(tx(13.8),y0);cx2.stroke();cx2.setLineDash([]);
+    cx2.fillStyle=getCSS('--dim');cx2.fillText('now',tx(13.8)-8,y1+34);
+
+    // position dot
+    const Ht=Hof(Math.max(tNow,Tmin));
+    cx2.fillStyle=era(tNow).col;cx2.shadowColor=era(tNow).col;cx2.shadowBlur=12;
+    cx2.beginPath();cx2.arc(tx(Math.min(Math.max(tNow,Tmin),Tmax)),hy(Ht),5,0,7);cx2.fill();cx2.shadowBlur=0;
+  }
+
+  // ================= VECTOR FIELDS =================
+  function drawField(canvas,center){
+    const ctx=canvas.__x;const w=canvas.getBoundingClientRect().width,h=300;
+    ctx.clearRect(0,0,w,h);
+    const n=11,m=2.6;
+    const cx=w*center.cx, cy=h*center.cy;
+    const hubble=Math.min(w,h)*0.30;
+    // hubble ring
+    ctx.strokeStyle='rgba(255,59,59,.5)';ctx.setLineDash([5,5]);ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.arc(cx,cy,hubble,0,7);ctx.stroke();ctx.setLineDash([]);
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const X=(i/(n-1))*w, Y=(j/(n-1))*h;
+      const dx=X-cx, dy=Y-cy, d=Math.hypot(dx,dy);
+      if(d<6)continue;
+      const scale=0.16; // v = H r
+      const ex=X+dx*scale, ey=Y+dy*scale;
+      const beyond=d>hubble;
+      const col=beyond?'#ff6b6b':center.col;
+      ctx.globalAlpha=beyond?0.6:0.5+Math.min(d/ (w),0.5);
+      ctx.strokeStyle=col;ctx.lineWidth=1.4;
+      ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(ex,ey);ctx.stroke();
+      // arrowhead
+      const ang=Math.atan2(ey-Y,ex-X),hl=4;
+      ctx.beginPath();ctx.moveTo(ex,ey);
+      ctx.lineTo(ex-hl*Math.cos(ang-0.4),ey-hl*Math.sin(ang-0.4));
+      ctx.moveTo(ex,ey);ctx.lineTo(ex-hl*Math.cos(ang+0.4),ey-hl*Math.sin(ang+0.4));
+      ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    // center marker
+    ctx.fillStyle='#fff';ctx.shadowColor=center.col;ctx.shadowBlur=14;
+    ctx.beginPath();ctx.arc(cx,cy,5,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=center.col;ctx.font='600 12px "Space Grotesk"';
+    ctx.fillText(center.label,cx+9,cy-9);
+  }
+  const fA=document.getElementById('fieldA');fA.__x=fit(fA);
+  const fB=document.getElementById('fieldB');fB.__x=fit(fB);
+  function drawFields(){
+    drawField(fA,{cx:.5,cy:.5,col:getCSS('--matter'),label:'us'});
+    drawField(fB,{cx:.32,cy:.42,col:getCSS('--darkE'),label:'them'});
+  }
+
+  // ================= WIRING =================
+  const slider=document.getElementById('time');
+  const playBtn=document.getElementById('play');
+  let playing=false,raf=null;
+  function render(){drawGrid(slider.value/1000);}
+  slider.addEventListener('input',()=>{if(playing)stop();render();});
+  function step(){
+    let v=+slider.value;v+=1.4;
+    if(v>=1000){v=1000;stop();}
+    slider.value=v;render();
+    if(playing)raf=requestAnimationFrame(step);
+  }
+  function start(){playing=true;playBtn.textContent='❚❚ Pause';
+    if(+slider.value>=1000)slider.value=0;raf=requestAnimationFrame(step);}
+  function stop(){playing=false;playBtn.textContent='▶ Play history';cancelAnimationFrame(raf);}
+  playBtn.addEventListener('click',()=>{playing?stop():start();});
+
+  // ambient drift on the fields (subtle pulse of stretch)
+  let ft=0;
+  function ambient(){ft+=0.01;drawFields();requestAnimationFrame(ambient);}
+
+  // reduced motion
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function resizeAll(){gx=fit(gc);cx2=fit(cc);fA.__x=fit(fA);fB.__x=fit(fB);render();drawFields();}
+  window.addEventListener('resize',()=>{clearTimeout(window.__rt);window.__rt=setTimeout(resizeAll,150);});
+
+  // init
+  render();drawFields();
+  if(!reduce){/* fields are static; grid plays on demand */}
+})();
+</script>
+</body>
+</html>

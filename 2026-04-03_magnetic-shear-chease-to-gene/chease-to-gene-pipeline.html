@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHEASE → GENE: What Actually Gets Computed</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070d;--s1:#0b1222;--bdr:#17253f;--tx:#dfe8f5;
+  --dim:#5a7094;--mut:#2f4468;--cyan:#1fd6e8;--green:#3ee886;
+  --amber:#f5c042;--red:#ef6461;--purple:#9b7ff0;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:920px;margin:0 auto;padding:24px 14px 80px;}
+
+.head{text-align:center;margin-bottom:24px;}
+.head h1{font-size:clamp(20px,4.5vw,32px);font-weight:800;letter-spacing:-0.5px;margin-bottom:6px;}
+.head h1 span{color:var(--amber);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:580px;margin:0 auto;line-height:1.5;}
+
+/* Step indicators */
+.steps-nav{display:flex;gap:4px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px;}
+.step-btn{flex:none;padding:10px 16px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--dim);cursor:pointer;transition:all .25s;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+.step-btn:hover{color:var(--tx);border-color:var(--dim);}
+.step-btn.on{background:rgba(245,192,66,0.08);border-color:rgba(245,192,66,0.3);color:var(--amber);}
+.step-num{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bdr);color:var(--dim);}
+.step-btn.on .step-num{background:rgba(245,192,66,0.2);color:var(--amber);}
+
+.panel{display:none;}.panel.on{display:block;}
+
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:16px;overflow:hidden;margin-bottom:16px;}
+.vbar{padding:12px 16px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--mut);}
+.vbadge{font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 9px;border-radius:16px;letter-spacing:1px;}
+canvas{display:block;width:100%;}
+
+.expl{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;margin-bottom:16px;}
+.expl h3{font-size:14px;font-weight:700;margin-bottom:6px;}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:6px;}
+.expl b{color:var(--tx);font-weight:600;}
+.ha{color:var(--amber);font-weight:600;}.hr{color:var(--red);font-weight:600;}
+.hg{color:var(--green);font-weight:600;}.hc{color:var(--cyan);font-weight:600;}
+.hp{color:var(--purple);font-weight:600;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.cg{flex:1;min-width:130px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bdr);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 8px rgba(245,192,66,.3);}
+
+/* Code style output */
+.code-out{background:#080c14;border:1px solid var(--bdr);border-radius:12px;overflow:hidden;margin-bottom:16px;}
+.code-head{padding:10px 16px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;}
+.code-fn{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);}
+.code-tag{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--mut);letter-spacing:1px;}
+.code-body{padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.8;color:var(--dim);overflow-x:auto;}
+.code-body .cm{color:#2f4468;}.code-body .kw{color:var(--purple);}
+.code-body .vn{color:var(--cyan);}.code-body .nm{color:var(--amber);}
+.code-body .fn{color:var(--red);}.code-body .st{color:var(--green);}
+
+/* Arrow between steps */
+.flow-arrow{text-align:center;color:var(--mut);font-size:20px;margin:8px 0;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="head">
+    <h1>What CHEASE <span>Actually Computes</span></h1>
+    <p>The real pipeline: 2D cross-section solve → pick a surface → trace the field line → hand GENE 1D arrays. Step by step.</p>
+  </div>
+
+  <div class="steps-nav">
+    <button class="step-btn on" data-s="0"><span class="step-num">1</span> 2D Equilibrium</button>
+    <button class="step-btn" data-s="1"><span class="step-num">2</span> Pick a Surface</button>
+    <button class="step-btn" data-s="2"><span class="step-num">3</span> Trace the Line</button>
+    <button class="step-btn" data-s="3"><span class="step-num">4</span> GENE's Output</button>
+  </div>
+
+  <!-- ============ STEP 1: 2D EQUILIBRIUM ============ -->
+  <div class="panel on" id="p0">
+    <div class="viz">
+      <div class="vbar">
+        <span class="vbar-t">CHEASE'S WORLD — THE 2D CROSS-SECTION</span>
+        <span class="vbadge" style="background:rgba(245,192,66,0.1);color:var(--amber);">ψ(R,Z)</span>
+      </div>
+      <canvas id="c0" style="height:460px;"></canvas>
+    </div>
+    <div class="expl">
+      <h3 style="color:var(--amber)">Step 1: Solve Grad-Shafranov on the cross-section</h3>
+      <p>CHEASE works entirely in this 2D plane (R, Z). It solves the <b>Grad-Shafranov equation</b> to find ψ(R,Z) — the magnetic flux at every point. The colored contours are lines of constant ψ — those are your flux surfaces. The heatmap shows the ψ values on CHEASE's computational grid.</p>
+      <p>This is the <b>only simulation CHEASE runs</b>. Because the tokamak is symmetric going around toroidally, this one slice contains all the information. There's no 3D computation anywhere.</p>
+    </div>
+  </div>
+
+  <!-- ============ STEP 2: PICK A SURFACE ============ -->
+  <div class="panel" id="p1">
+    <div class="ctrls">
+      <div class="cg">
+        <div class="cg-l">Select Surface ρ</div>
+        <div class="cg-r"><input type="range" id="sRho" min="0.15" max="0.9" step="0.05" value="0.6"><span class="cg-v" id="vRho" style="color:var(--amber)">0.60</span></div>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="vbar">
+        <span class="vbar-t">PICK A FLUX SURFACE FOR GENE</span>
+        <span class="vbadge" style="background:rgba(239,100,97,0.1);color:var(--red);">ρ = <span id="rhoBadge">0.60</span></span>
+      </div>
+      <canvas id="c1" style="height:460px;"></canvas>
+    </div>
+    <div class="expl">
+      <h3 style="color:var(--red)">Step 2: Pick which surface GENE wants</h3>
+      <p>GENE says "I want to simulate turbulence at <b class="hr">ρ = 0.6</b>." CHEASE finds that contour in its ψ grid. Everything from here on happens on this one highlighted surface — CHEASE extracts all the geometry information GENE needs from this single curve.</p>
+      <p>Drag the slider to pick a different surface. Notice how the shape changes — more elongated and triangular toward the edge, more circular toward the core.</p>
+    </div>
+  </div>
+
+  <!-- ============ STEP 3: TRACE THE LINE ============ -->
+  <div class="panel" id="p2">
+    <div class="viz">
+      <div class="vbar">
+        <span class="vbar-t">TRACE AROUND THE SURFACE — SAMPLE GEOMETRY</span>
+        <span class="vbadge" style="background:rgba(31,214,232,0.1);color:var(--cyan);">ANIMATED</span>
+      </div>
+      <canvas id="c2" style="height:460px;"></canvas>
+    </div>
+    <div class="expl">
+      <h3 style="color:var(--cyan)">Step 3: Walk around the surface, measure everything</h3>
+      <p>CHEASE traces around the selected surface from <b>θ = −π to +π</b> (outboard → top → inboard → bottom → back to outboard). At each grid point along the way, it computes:</p>
+      <p>• <b class="hr">Curvature κ</b> — how much the field line bends, and which way<br>
+      • <b class="hp">Metric coefficients</b> g<sup>xx</sup>, g<sup>xy</sup>, g<sup>yy</sup> — how distances work in field-aligned coordinates<br>
+      • <b class="hg">Jacobian</b> — how big the grid cell is in real space<br>
+      • <b class="ha">|B|</b> — magnetic field strength along the line</p>
+      <p>Each of these becomes a <b>1D array</b> indexed by position along the field line. The dot traces the path and the panel below shows what's being measured in real time.</p>
+    </div>
+  </div>
+
+  <!-- ============ STEP 4: GENE OUTPUT ============ -->
+  <div class="panel" id="p3">
+    <div class="viz">
+      <div class="vbar">
+        <span class="vbar-t">WHAT GENE ACTUALLY RECEIVES — 1D ARRAYS ALONG z</span>
+        <span class="vbadge" style="background:rgba(62,232,134,0.1);color:var(--green);">GENE INPUT</span>
+      </div>
+      <canvas id="c3" style="height:520px;"></canvas>
+    </div>
+
+    <div class="code-out">
+      <div class="code-head">
+        <span class="code-fn">gene_geometry_file.dat</span>
+        <span class="code-tag">WHAT GENE READS</span>
+      </div>
+      <div class="code-body"><pre><span class="cm"># Parameters (single numbers)</span>
+<span class="vn">q0</span>     = <span class="nm">2.50</span>    <span class="cm"># safety factor at this surface</span>
+<span class="vn">shat</span>   = <span class="nm">1.85</span>    <span class="cm"># magnetic shear at this surface</span>
+
+<span class="cm"># Arrays along the field line (1D, indexed by z)</span>
+<span class="cm"># z goes from −π (outboard) → 0 (inboard) → +π (outboard)</span>
+<span class="vn">z</span>      = [<span class="nm">-3.14</span>, <span class="nm">-2.95</span>, <span class="nm">-2.76</span>, ... , <span class="nm">+3.14</span>]  <span class="cm"># N points</span>
+<span class="vn">kappa</span>  = [<span class="nm">+0.71</span>, <span class="nm">+0.68</span>, <span class="nm">+0.59</span>, ... , <span class="nm">+0.71</span>]  <span class="cm"># curvature</span>
+<span class="vn">Bfield</span> = [<span class="nm"> 0.82</span>, <span class="nm"> 0.84</span>, <span class="nm"> 0.89</span>, ... , <span class="nm"> 0.82</span>]  <span class="cm"># |B|</span>
+<span class="vn">gxx</span>    = [<span class="nm"> 1.00</span>, <span class="nm"> 1.03</span>, <span class="nm"> 1.12</span>, ... , <span class="nm"> 1.00</span>]  <span class="cm"># metric</span>
+<span class="vn">gxy</span>    = [<span class="nm"> 0.00</span>, <span class="nm"> 0.15</span>, <span class="nm"> 0.31</span>, ... , <span class="nm"> 0.00</span>]  <span class="cm"># metric</span>
+<span class="vn">gyy</span>    = [<span class="nm"> 1.00</span>, <span class="nm"> 0.98</span>, <span class="nm"> 0.93</span>, ... , <span class="nm"> 1.00</span>]  <span class="cm"># metric</span>
+<span class="vn">jacobian</span>= [<span class="nm"> 1.22</span>, <span class="nm"> 1.18</span>, <span class="nm"> 1.05</span>, ... , <span class="nm"> 1.22</span>]  <span class="cm"># Jacobian</span></pre>
+      </div>
+    </div>
+
+    <div class="expl">
+      <h3 style="color:var(--green)">Step 4: This is it — what GENE gets</h3>
+      <p>Two single numbers (<b class="ha">q</b> and <b class="hc">ŝ</b>) plus a handful of <b>1D arrays</b> along the field line coordinate z. That's the entire geometry file. No 2D grids, no 3D torus — just curves.</p>
+      <p>GENE reads this once at startup and uses it for the entire simulation. The curvature array tells it where turbulence is driven (outboard, κ > 0) and where it's stabilized (inboard, κ < 0). The metric arrays tell it how to translate its field-aligned coordinates into real distances. The Jacobian tells it how much real-space volume each grid cell represents.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let selRho=0.6, time=0, traceTheta=0;
+const elong=1.4, tri=0.2;
+const qVal=2.5, shatVal=1.85;
+
+function kappa(theta){ return Math.cos(theta+tri*Math.sin(theta))/elong; }
+function bField(theta){ return 1-0.15*Math.cos(theta); } // stronger inboard
+function surfPt(theta,rFrac,maxR){
+  const r=maxR*rFrac;
+  return {x:r*Math.cos(theta+tri*Math.sin(theta)), y:r*elong*Math.sin(theta)};
+}
+function kappaColor(k){
+  const t=(k+1)/2;
+  let r,g,b;
+  if(t<0.5){const f=t/0.5;r=62*(1-f)+20*f|0;g=232*(1-f)+40*f|0;b=134*(1-f)+30*f|0;}
+  else{const f=(t-0.5)/0.5;r=20*(1-f)+239*f|0;g=40*(1-f)+80*f|0;b=30*(1-f)+70*f|0;}
+  return{r,g,b};
+}
+
+// ============ CANVASES ============
+const canvases=[document.getElementById('c0'),document.getElementById('c1'),document.getElementById('c2'),document.getElementById('c3')];
+const ctxs=canvases.map(c=>c.getContext('2d'));
+const dims=[{},{},{},{}];
+
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  canvases.forEach((c,i)=>{
+    const r=c.getBoundingClientRect();
+    c.width=r.width*dpr;c.height=r.height*dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+    dims[i]={w:r.width,h:r.height};
+  });
+}
+
+// ============ SHARED: Draw cross-section base ============
+function drawBase(ctx,W,H,opts={}){
+  const cx=W/2, cy=H/2, maxR=Math.min(W,H)*0.36;
+
+  // ψ grid dots (if showGrid)
+  if(opts.showGrid){
+    const gridN=18;
+    for(let i=0;i<gridN;i++){
+      for(let j=0;j<gridN;j++){
+        const gx=cx-maxR*1.1+(i/(gridN-1))*maxR*2.2;
+        const gy=cy-maxR*elong*1.1+(j/(gridN-1))*maxR*elong*2.2;
+        // Check if inside last surface
+        const dx=gx-cx, dy=gy-cy;
+        const rNorm=Math.sqrt((dx/(maxR*1.05))**2+(dy/(maxR*elong*1.05))**2);
+        if(rNorm<1){
+          // Color by ψ value (distance from axis)
+          const psi=rNorm;
+          const intensity=Math.floor(30+psi*40);
+          ctx.beginPath();ctx.arc(gx,gy,2,0,Math.PI*2);
+          ctx.fillStyle=`rgba(${intensity},${intensity+20},${intensity+60},0.4)`;
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // Flux surfaces
+  for(let si=1;si<=7;si++){
+    const f=si/7;
+    const isSelected=opts.highlight && Math.abs(f-selRho)<0.08;
+    ctx.beginPath();
+    for(let j=0;j<=64;j++){
+      const th=(j/64)*Math.PI*2;
+      const sp=surfPt(th,f,maxR);
+      j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);
+    }
+    ctx.closePath();
+    if(isSelected){
+      ctx.strokeStyle='rgba(239,100,97,0.6)';ctx.lineWidth=2.5;
+    } else {
+      ctx.strokeStyle=`rgba(31,214,232,${0.04+0.015*f})`;ctx.lineWidth=0.7;
+    }
+    ctx.stroke();
+
+    // ψ labels
+    if(opts.showPsi && si%2===0){
+      const lp=surfPt(-0.3,f,maxR);
+      ctx.font='300 8px "JetBrains Mono",monospace';
+      ctx.fillStyle='rgba(100,116,139,0.25)';
+      ctx.textAlign='left';
+      ctx.fillText(`ψ=${f.toFixed(1)}`,cx+lp.x+4,cy-lp.y);
+    }
+  }
+
+  // Axes
+  if(opts.showAxes){
+    ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;
+    ctx.setLineDash([4,6]);
+    ctx.beginPath();ctx.moveTo(cx-maxR*1.3,cy);ctx.lineTo(cx+maxR*1.3,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,cy-maxR*elong*1.2);ctx.lineTo(cx,cy+maxR*elong*1.2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font='300 9px "JetBrains Mono",monospace';
+    ctx.fillStyle='rgba(100,116,139,0.2)';
+    ctx.textAlign='center';
+    ctx.fillText('R →',cx+maxR*1.2,cy+14);
+    ctx.textAlign='left';
+    ctx.fillText('Z ↑',cx+6,cy-maxR*elong*1.1);
+  }
+
+  ctx.font='500 8px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(100,116,139,0.25)';
+  ctx.textAlign='center';
+  ctx.fillText('AXIS',cx,cy);
+
+  return{cx,cy,maxR};
+}
+
+// ============ STEP 0: 2D EQUILIBRIUM ============
+function draw0(){
+  const ctx=ctxs[0],W=dims[0].w,H=dims[0].h;
+  ctx.clearRect(0,0,W,H);
+
+  // ψ heatmap background
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.36;
+  const imgSize=200;
+  for(let i=0;i<imgSize;i++){
+    for(let j=0;j<imgSize;j++){
+      const gx=(i/imgSize-0.5)*maxR*2.6;
+      const gy=(j/imgSize-0.5)*maxR*elong*2.6;
+      const rN=Math.sqrt((gx/(maxR*1.05))**2+(gy/(maxR*elong*1.05))**2);
+      if(rN<1){
+        const psi=rN;
+        const r_=Math.floor(8+psi*25);
+        const g_=Math.floor(14+psi*30);
+        const b_=Math.floor(30+psi*50);
+        ctx.fillStyle=`rgb(${r_},${g_},${b_})`;
+        const px=cx+gx-maxR*2.6/imgSize/2;
+        const py=cy-gy-maxR*elong*2.6/imgSize/2;
+        const s=Math.max(W,H)*2.6/(imgSize);
+        ctx.fillRect(px,py,s+1,s+1);
+      }
+    }
+  }
+
+  drawBase(ctx,W,H,{showGrid:true,showPsi:true,showAxes:true});
+
+  // Grid overlay label
+  ctx.font='600 11px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(245,192,66,0.5)';
+  ctx.textAlign='left';
+  ctx.fillText('CHEASE grid: ψ(R,Z)',14,22);
+  ctx.font='300 10px "DM Sans",sans-serif';
+  ctx.fillStyle='rgba(100,116,139,0.4)';
+  ctx.fillText('Dots = computational grid points',14,38);
+  ctx.fillText('Contours = flux surfaces (constant ψ)',14,52);
+}
+
+// ============ STEP 1: PICK SURFACE ============
+function draw1(){
+  const ctx=ctxs[1],W=dims[1].w,H=dims[1].h;
+  ctx.clearRect(0,0,W,H);
+  const{cx,cy,maxR}=drawBase(ctx,W,H,{highlight:true,showAxes:true});
+
+  // Highlight selected surface with thick glow
+  const rr=maxR*selRho;
+  ctx.beginPath();
+  for(let j=0;j<=64;j++){
+    const th=(j/64)*Math.PI*2;
+    const sp=surfPt(th,selRho,maxR);
+    j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);
+  }
+  ctx.closePath();
+  ctx.strokeStyle='rgba(239,100,97,0.15)';ctx.lineWidth=12;ctx.stroke();
+  ctx.strokeStyle='rgba(239,100,97,0.7)';ctx.lineWidth=2.5;ctx.stroke();
+
+  // Arrow pointing to it
+  const labelPt=surfPt(-0.8,selRho,maxR);
+  ctx.font='700 12px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(239,100,97,0.7)';
+  ctx.textAlign='left';
+  ctx.fillText(`ρ = ${selRho.toFixed(2)}`,cx+labelPt.x+16,cy-labelPt.y);
+  ctx.font='300 10px "DM Sans",sans-serif';
+  ctx.fillStyle='rgba(239,100,97,0.4)';
+  ctx.fillText('← this surface',cx+labelPt.x+16,cy-labelPt.y+16);
+
+  // q and shat for this surface
+  ctx.font='500 10px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(245,192,66,0.5)';
+  ctx.textAlign='left';
+  const qHere=(1+2.5*selRho*selRho+1.5*selRho**3).toFixed(2);
+  ctx.fillText(`q = ${qHere}`,14,22);
+  ctx.fillText(`ŝ = ${(selRho*2.5).toFixed(2)}`,14,38);
+}
+
+// ============ STEP 2: TRACE ============
+function draw2(){
+  const ctx=ctxs[2],W=dims[2].w,H=dims[2].h;
+  ctx.clearRect(0,0,W,H);
+  const{cx,cy,maxR}=drawBase(ctx,W,H,{highlight:true});
+
+  // Selected surface with curvature coloring
+  const nSegs=60;
+  for(let i=0;i<nSegs;i++){
+    const th0=(i/nSegs)*Math.PI*2;
+    const th1=((i+1)/nSegs)*Math.PI*2;
+    const thM=(th0+th1)/2;
+    const sp0=surfPt(th0,selRho,maxR);
+    const sp1=surfPt(th1,selRho,maxR);
+    const k=kappa(thM);
+    const col=kappaColor(k);
+
+    ctx.beginPath();
+    ctx.moveTo(cx+sp0.x,cy-sp0.y);
+    ctx.lineTo(cx+sp1.x,cy-sp1.y);
+    ctx.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;
+    ctx.lineWidth=4;ctx.stroke();
+  }
+
+  // Sampling dots (grid points along the line)
+  const nSamples=24;
+  for(let i=0;i<nSamples;i++){
+    const th=(i/nSamples)*Math.PI*2;
+    const sp=surfPt(th,selRho,maxR);
+    const k=kappa(th);
+    const col=kappaColor(k);
+    // Only show dots that have been "traced" so far
+    if(th<=traceTheta || traceTheta>=Math.PI*2){
+      ctx.beginPath();ctx.arc(cx+sp.x,cy-sp.y,3,0,Math.PI*2);
+      ctx.fillStyle=`rgb(${col.r},${col.g},${col.b})`;ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;ctx.stroke();
+    }
+  }
+
+  // Moving trace head
+  const wrapTheta=traceTheta%(Math.PI*2);
+  const spHead=surfPt(wrapTheta,selRho,maxR);
+  const kHead=kappa(wrapTheta);
+  const colHead=kappaColor(kHead);
+  const hx=cx+spHead.x,hy=cy-spHead.y;
+
+  ctx.beginPath();ctx.arc(hx,hy,16,0,Math.PI*2);
+  const gr=ctx.createRadialGradient(hx,hy,0,hx,hy,16);
+  gr.addColorStop(0,`rgba(${colHead.r},${colHead.g},${colHead.b},0.5)`);
+  gr.addColorStop(1,`rgba(${colHead.r},${colHead.g},${colHead.b},0)`);
+  ctx.fillStyle=gr;ctx.fill();
+  ctx.beginPath();ctx.arc(hx,hy,5,0,Math.PI*2);
+  ctx.fillStyle=`rgb(${colHead.r},${colHead.g},${colHead.b})`;ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // Direction label
+  ctx.font='300 9px "DM Sans",sans-serif';
+  ctx.fillStyle='rgba(31,214,232,0.4)';
+  ctx.textAlign='center';
+  ctx.fillText('tracing θ = −π → +π around the surface',W/2,H-12);
+
+  // Current value readout
+  ctx.font='600 10px "JetBrains Mono",monospace';
+  ctx.fillStyle=`rgb(${colHead.r},${colHead.g},${colHead.b})`;
+  ctx.textAlign='left';
+  ctx.fillText(`κ = ${kHead>0?'+':''}${kHead.toFixed(3)}`,14,22);
+  ctx.fillStyle='rgba(245,192,66,0.5)';
+  ctx.fillText(`|B| = ${bField(wrapTheta).toFixed(3)}`,14,38);
+  ctx.fillStyle='rgba(155,127,240,0.5)';
+  ctx.fillText(`θ = ${(wrapTheta*180/Math.PI).toFixed(0)}°`,14,54);
+}
+
+// ============ STEP 3: GENE OUTPUT ============
+function draw3(){
+  const ctx=ctxs[3],W=dims[3].w,H=dims[3].h;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0b1222';ctx.fillRect(0,0,W,H);
+
+  const pad={l:48,r:20,t:16,b:16};
+  const w=W-pad.l-pad.r;
+  // 4 stacked plots
+  const plotGap=8;
+  const nPlots=4;
+  const plotH=((H-pad.t-pad.b)-(nPlots-1)*plotGap)/nPlots;
+
+  const plots=[
+    {name:'κ (curvature)',fn:theta=>kappa(theta),color:[239,100,97],range:[-0.8,0.8],isCurv:true},
+    {name:'|B| (field strength)',fn:theta=>bField(theta),color:[245,192,66],range:[0.7,1.2],isCurv:false},
+    {name:'g^xx (metric)',fn:theta=>1+0.3*Math.cos(theta),color:[155,127,240],range:[0.5,1.5],isCurv:false},
+    {name:'Jacobian',fn:theta=>1+0.3*Math.cos(theta)*elong,color:[62,232,134],range:[0.4,1.8],isCurv:false},
+  ];
+
+  const N=200;
+  const wrapTheta=traceTheta%(Math.PI*2);
+
+  plots.forEach((pl,pi)=>{
+    const py=pad.t+pi*(plotH+plotGap);
+    const zeroY=py+plotH/2;
+
+    // Background
+    ctx.fillStyle='rgba(4,7,13,0.5)';
+    ctx.fillRect(pad.l,py,w,plotH);
+    ctx.strokeStyle='rgba(23,37,63,0.6)';ctx.lineWidth=0.5;
+    ctx.strokeRect(pad.l,py,w,plotH);
+
+    // Zero/center line
+    ctx.strokeStyle='rgba(100,116,139,0.1)';
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(pad.l,zeroY);ctx.lineTo(pad.l+w,zeroY);ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Curvature: shade bad/good
+    if(pl.isCurv){
+      ctx.fillStyle='rgba(239,100,97,0.04)';ctx.fillRect(pad.l,py,w,plotH/2);
+      ctx.fillStyle='rgba(62,232,134,0.04)';ctx.fillRect(pad.l,zeroY,w,plotH/2);
+    }
+
+    // Label
+    ctx.font='600 10px "JetBrains Mono",monospace';
+    ctx.fillStyle=`rgba(${pl.color[0]},${pl.color[1]},${pl.color[2]},0.6)`;
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(pl.name,pad.l+4,py+3);
+
+    // Plot the curve
+    const [yMin,yMax]=pl.range;
+    function toY(v){ return py+plotH-(v-yMin)/(yMax-yMin)*plotH; }
+
+    // Color-coded segments for curvature, solid color for others
+    for(let i=0;i<N;i++){
+      const th0=(i/N)*Math.PI*2;
+      const th1=((i+1)/N)*Math.PI*2;
+      const v0=pl.fn(th0),v1=pl.fn(th1);
+      const px0=pad.l+(i/N)*w, px1=pad.l+((i+1)/N)*w;
+
+      let col;
+      if(pl.isCurv){
+        const kc=kappaColor((v0+v1)/2);
+        col=`rgb(${kc.r},${kc.g},${kc.b})`;
+      } else {
+        col=`rgba(${pl.color[0]},${pl.color[1]},${pl.color[2]},0.6)`;
+      }
+      ctx.beginPath();ctx.moveTo(px0,toY(v0));ctx.lineTo(px1,toY(v1));
+      ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+    }
+
+    // Moving dot
+    const vDot=pl.fn(wrapTheta);
+    const dotFrac=wrapTheta/(Math.PI*2);
+    const dxP=pad.l+dotFrac*w;
+    const dyP=toY(vDot);
+
+    ctx.beginPath();ctx.arc(dxP,dyP,4,0,Math.PI*2);
+    ctx.fillStyle=`rgb(${pl.color[0]},${pl.color[1]},${pl.color[2]})`;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1;ctx.stroke();
+
+    // X labels (only on last plot)
+    if(pi===nPlots-1){
+      ctx.font='7px "JetBrains Mono",monospace';
+      ctx.fillStyle='rgba(100,116,139,0.25)';
+      ctx.textAlign='center';ctx.textBaseline='top';
+      ['outboard','top','inboard','bottom','outboard'].forEach((lbl,li)=>{
+        ctx.fillText(lbl,pad.l+(w/4)*li,py+plotH+2);
+      });
+    }
+  });
+
+  // z coordinate label
+  ctx.font='9px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(100,116,139,0.3)';
+  ctx.textAlign='center';
+  ctx.fillText('z (parallel coordinate along field line) →',pad.l+w/2,H-4);
+}
+
+// ============ TABS ============
+let currentStep=0;
+document.querySelectorAll('.step-btn').forEach(b=>b.addEventListener('click',()=>{
+  currentStep=parseInt(b.dataset.s);
+  document.querySelectorAll('.step-btn').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  document.getElementById('p'+currentStep).classList.add('on');
+}));
+
+document.getElementById('sRho').addEventListener('input',e=>{
+  selRho=parseFloat(e.target.value);
+  document.getElementById('vRho').textContent=selRho.toFixed(2);
+  document.getElementById('rhoBadge').textContent=selRho.toFixed(2);
+});
+
+// ============ LOOP ============
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  const dt=(ts-lastT)/1000;lastT=ts;
+  time+=dt;
+  traceTheta+=dt*1.5;
+
+  if(currentStep===0) draw0();
+  else if(currentStep===1) draw1();
+  else if(currentStep===2) draw2();
+  else if(currentStep===3) draw3();
+
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize',()=>{resize();draw0();draw1();});
+resize();
+draw0();draw1();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

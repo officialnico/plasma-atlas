@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B-field and Metrics</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:20px 14px 60px;}
+.w{max-width:860px;margin:0 auto;}
+h1{font-size:28px;font-weight:800;text-align:center;margin-bottom:6px;}
+h1 span{color:#5b9bf5;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:24px;line-height:1.5;}
+h2{font-size:18px;font-weight:700;margin:32px 0 12px;padding-top:16px;border-top:1px solid #17253f;}
+h2 span{opacity:0.4;font-size:12px;margin-left:6px;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:12px;padding:16px;margin-bottom:14px;}
+.box p{font-size:13px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}
+.box p .r{color:#ef6461;font-weight:600;}
+.box p .g{color:#3ee886;font-weight:600;}
+.box p .b{color:#5b9bf5;font-weight:600;}
+.box p .p{color:#9b7ff0;font-weight:600;}
+.box p .a{color:#f5c042;font-weight:600;}
+canvas{display:block;width:100%;background:#0b1222;border:1px solid #17253f;border-radius:12px;margin-bottom:14px;}
+.label{font-size:10px;color:#2f4468;font-family:monospace;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+@media(max-width:500px){.cards{grid-template-columns:1fr;}}
+.card{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px;}
+.card h3{font-size:13px;font-weight:700;margin-bottom:4px;}
+.card p{font-size:11px;color:#5a7094;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1><span>|B|</span> and the <span>Metrics</span></h1>
+<p class="sub">The last pieces of the geometry file. Field strength and coordinate conversion.</p>
+
+<!-- ===== |B| ===== -->
+<h2 style="color:#5b9bf5">|B| - Magnetic Field Strength <span>1D array along z</span></h2>
+
+<div class="box">
+<p><b class="b">|B|</b> = how strong the magnetic field is at each point along the field line. It's <b>stronger on the inboard side</b> (close to the torus hole, small R) and <b>weaker on the outboard side</b> (far from the hole, large R). This is the basic 1/R effect from the toroidal field coils.</p>
+</div>
+
+<div class="label">|B| along the field line</div>
+<canvas id="c1" height="300"></canvas>
+
+<div class="cards">
+<div class="card"><h3 style="color:#5b9bf5">Particle trapping</h3><p>Particles bouncing between strong-field and weak-field sides get trapped. They can't make it past the high-|B| inboard region. These trapped particles drive Trapped Electron Modes (TEM) - a major turbulence source. The |B| profile sets the trap depth.</p></div>
+<div class="card"><h3 style="color:#5b9bf5">Mirror force</h3><p>The |B| variation creates a force along the field line. Particles heading toward stronger field get pushed back. GENE needs |B|(z) to compute this correctly.</p></div>
+<div class="card"><h3 style="color:#f5c042">Grad-B drift</h3><p>The gradient of |B| causes particles to drift sideways. This combines with the curvature drift to drive turbulence on the outboard side.</p></div>
+<div class="card"><h3 style="color:#3ee886">Related to curvature</h3><p>Where |B| is weak (outboard), curvature is bad. Where |B| is strong (inboard), curvature is good. They're correlated but enter GENE's equations differently.</p></div>
+</div>
+
+<!-- ===== METRICS ===== -->
+<h2 style="color:#9b7ff0">g^xx, g^xy, g^yy - Metric Coefficients <span>1D arrays along z</span></h2>
+
+<div class="box">
+<p>GENE works in a <b class="p">field-aligned coordinate system</b> (x, y, z) that is curved and stretched. One unit of x doesn't mean the same real distance everywhere. The metrics are the <b>conversion factors</b> - they tell GENE how to turn coordinate distances into real physical distances at each point along the tube.</p>
+<p style="margin-top:8px;">Think of a Mercator map: Greenland looks huge but it's actually small. The metrics are like a table saying "at this position, 1cm on the map = X km in reality."</p>
+</div>
+
+<div class="cards">
+<div class="card"><h3 style="color:#a78bfa">g^xx - radial stretching</h3><p>How much real radial distance per unit of GENE's x coordinate. Changes because flux surfaces are closer together on the outboard side. Scales the effective radial wavenumber k_x.</p></div>
+<div class="card"><h3 style="color:#a78bfa">g^yy - binormal stretching</h3><p>Same for the y direction (perpendicular to both field line and radial). Scales the binormal wavenumber k_y. Grows along z because of shear.</p></div>
+</div>
+
+<div class="box">
+<p><b class="p">g^xy - the cross term</b> - This is where <b>shear physically shows up in the geometry</b>. Because neighboring field lines twist at different rates, the x and y directions aren't perpendicular everywhere. g^xy starts at zero at the outboard midplane and <b>grows linearly with z</b>. This is the geometric version of the twist-and-shift. It makes eddies "feel" like they're at shorter wavelengths away from the midplane, which is how shear stabilizes turbulence.</p>
+</div>
+
+<div class="label">All three metrics along the field line</div>
+<canvas id="c2" height="320"></canvas>
+
+<div class="box">
+<p><b>The key equation:</b> k_perp² = g^xx·k_x² + 2·g^xy·k_x·k_y + g^yy·k_y². This is the effective perpendicular wavenumber at each z-point. Every spatial derivative GENE computes uses these metrics. Wrong metrics = wrong mode structure = wrong turbulence.</p>
+</div>
+
+<!-- ===== ALL TOGETHER ===== -->
+<h2 style="color:#f5c042">The Complete Geometry File <span>everything GENE gets</span></h2>
+
+<div class="box">
+<p>Two single numbers: <b class="a">q = 2.50</b> and <b style="color:#1fd6e8">s-hat = 1.85</b>. Plus six 1D arrays along z (~128 points each). That's it. This is everything GENE knows about the magnetic field shape.</p>
+</div>
+
+<div class="label">all six arrays - hover to inspect</div>
+<canvas id="c3" height="600"></canvas>
+
+<div class="box">
+<p><b class="r">curvature</b> - radial bending. Positive outboard drives turbulence.<br>
+<b class="b">|B|</b> - field strength. Controls particle trapping.<br>
+<b class="p">g^xx, g^xy, g^yy</b> - coordinate conversion. Set effective wavenumber.<br>
+<b class="g">Jacobian</b> - grid cell volume in real space.</p>
+<p style="margin-top:8px;">Two numbers. Six arrays. One surface. That's the whole geometry.</p>
+</div>
+
+</div>
+
+<script>
+const elong=1.4,tri=0.2,shat=1.85;
+
+function kappa(th){return Math.cos(th+tri*Math.sin(th))*0.6/elong;}
+function bMag(th){return 1/(1+0.3*Math.cos(th));}
+function gxx(th){return 1+0.3*Math.cos(th);}
+function gxy(th){return shat*th;}
+function gyy(th){return 1+shat*shat*th*th+0.1*Math.cos(th);}
+function jacobian(th){return (1+0.3*Math.cos(th))*elong;}
+
+function kappaColor(k){
+  const t=Math.max(0,Math.min(1,(k+0.5)/1));
+  if(t<0.45)return{r:40,g:180,b:100};
+  if(t>0.55)return{r:230,g:90,b:85};
+  return{r:40,g:50,b:60};
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  c.width=r.width*dpr;
+  c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{c,ctx,w:r.width,h:r.height};
+}
+
+function drawPlot(ctx,W,H,fns,colors,range,opts){
+  const pad={l:42,r:12,t:opts.t||10,b:opts.b||24};
+  const w=W-pad.l-pad.r,h=H-pad.t-pad.b;
+  const[yMin,yMax]=range;
+  const toY=v=>pad.t+h-(v-yMin)/(yMax-yMin)*h;
+  const N=200;
+
+  // Zero line
+  if(yMin<0&&yMax>0){
+    const zy=toY(0);
+    ctx.strokeStyle='rgba(100,116,139,0.1)';ctx.lineWidth=0.5;
+    ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+w,zy);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // Y ticks
+  ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let i=0;i<=3;i++){const v=yMin+(yMax-yMin)*(i/3);ctx.fillText(v.toFixed(1),pad.l-4,toY(v));}
+
+  // X labels
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(w/4)*i,pad.t+h+4));
+
+  // Lines
+  fns.forEach((fn,fi)=>{
+    const col=colors[fi];
+    for(let i=0;i<N;i++){
+      const f0=i/N,f1=(i+1)/N;
+      const th0=(f0-0.5)*2*Math.PI,th1=(f1-0.5)*2*Math.PI;
+      ctx.beginPath();ctx.moveTo(pad.l+f0*w,toY(fn(th0)));ctx.lineTo(pad.l+f1*w,toY(fn(th1)));
+      ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+    }
+  });
+
+  // Labels
+  if(opts.labels){
+    opts.labels.forEach((lbl,i)=>{
+      const fn=fns[i],v=fn(Math.PI*0.8);
+      ctx.font='bold 10px monospace';ctx.fillStyle=colors[i];ctx.textAlign='right';
+      ctx.fillText(lbl,pad.l+w,toY(v)-4-0);
+    });
+  }
+}
+
+function draw(){
+  // |B| plot
+  try{
+    const{ctx,w,h}=setupCanvas('c1');
+    ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+    // Cross-section mini on left
+    const cx=w*0.22,cy=h/2,maxR=Math.min(w*0.35,h)*0.4;
+    for(let i=1;i<=5;i++){
+      const f=i/5;ctx.beginPath();
+      for(let j=0;j<=48;j++){const th=(j/48)*Math.PI*2;const r=maxR*f;const px=cx+r*Math.cos(th+tri*Math.sin(th));const py=cy-r*elong*Math.sin(th);j===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}
+      ctx.closePath();
+      // Color by |B|: brighter on left (inboard)
+      const nS=48;
+      for(let j=0;j<nS;j++){
+        const th0=(j/nS)*Math.PI*2,th1=((j+1)/nS)*Math.PI*2;
+        const r=maxR*f;
+        const x0=cx+r*Math.cos(th0+tri*Math.sin(th0)),y0=cy-r*elong*Math.sin(th0);
+        const x1=cx+r*Math.cos(th1+tri*Math.sin(th1)),y1=cy-r*elong*Math.sin(th1);
+        const b=bMag((th0+th1)/2);const bright=Math.floor((b-0.7)/0.7*200);
+        ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);
+        ctx.strokeStyle=`rgb(${30+bright*0.2|0},${50+bright*0.4|0},${100+bright|0})`;
+        ctx.lineWidth=f>0.55&&f<0.65?3:1.5;ctx.stroke();
+      }
+    }
+    ctx.font='bold 9px monospace';ctx.fillStyle='rgba(91,155,245,0.6)';ctx.textAlign='center';
+    ctx.fillText('STRONG',cx-maxR-20,cy);
+    ctx.fillStyle='rgba(91,155,245,0.25)';
+    ctx.fillText('WEAK',cx+maxR+20,cy);
+
+    // |B| profile on right
+    const px={l:w*0.45,r:12,t:20,b:24};
+    const pw=w-px.l-px.r,ph=h-px.t-px.b;
+    const toY=v=>px.t+ph-(v-0.7)/0.7*ph;
+    ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='right';ctx.textBaseline='middle';
+    [0.7,1.0,1.4].forEach(v=>ctx.fillText(v.toFixed(1),px.l-4,toY(v)));
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,px.l+(pw/4)*i,px.t+ph+4));
+
+    // Curve
+    for(let i=0;i<200;i++){
+      const f0=i/200,f1=(i+1)/200;
+      const th0=(f0-0.5)*2*Math.PI,th1=(f1-0.5)*2*Math.PI;
+      ctx.beginPath();ctx.moveTo(px.l+f0*pw,toY(bMag(th0)));ctx.lineTo(px.l+f1*pw,toY(bMag(th1)));
+      ctx.strokeStyle='#5b9bf5';ctx.lineWidth=2.5;ctx.stroke();
+    }
+    // Fill
+    ctx.beginPath();ctx.moveTo(px.l,toY(0.7));
+    for(let i=0;i<=200;i++){const f=i/200;const th=(f-0.5)*2*Math.PI;ctx.lineTo(px.l+f*pw,toY(bMag(th)));}
+    ctx.lineTo(px.l+pw,toY(0.7));ctx.closePath();ctx.fillStyle='rgba(91,155,245,0.06)';ctx.fill();
+
+    ctx.font='bold 10px monospace';ctx.fillStyle='rgba(91,155,245,0.5)';ctx.textAlign='left';
+    ctx.fillText('|B|(z)',px.l+4,px.t+4);
+  }catch(e){console.log('c1 error',e);}
+
+  // Metrics plot
+  try{
+    const{ctx,w,h}=setupCanvas('c2');
+    ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+    drawPlot(ctx,w,h,[gxx,gxy,gyy],['#a78bfa','#c4a8ff','#7c5fcf'],[-5,10],{labels:['g^xx','g^xy','g^yy'],t:14,b:26});
+  }catch(e){console.log('c2 error',e);}
+
+  // All-together plot
+  try{
+    const{ctx,w,h}=setupCanvas('c3');
+    ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+    const plots=[
+      {fn:kappa,color:'#ef6461',range:[-0.5,0.5],label:'curvature'},
+      {fn:bMag,color:'#5b9bf5',range:[0.7,1.4],label:'|B|'},
+      {fn:gxx,color:'#a78bfa',range:[0.5,1.5],label:'g^xx'},
+      {fn:gxy,color:'#c4a8ff',range:[-6,6],label:'g^xy'},
+      {fn:gyy,color:'#7c5fcf',range:[-1,12],label:'g^yy'},
+      {fn:jacobian,color:'#3ee886',range:[0.8,2.2],label:'Jacobian'},
+    ];
+
+    const gap=4,pH=(h-20-(plots.length-1)*gap)/plots.length;
+
+    plots.forEach((pl,pi)=>{
+      const py=10+pi*(pH+gap);
+      const pad={l:60,r:12};
+      const pw=w-pad.l-pad.r;
+      const[yMin,yMax]=pl.range;
+      const toY=v=>py+pH-(v-yMin)/(yMax-yMin)*pH;
+
+      // Background
+      ctx.fillStyle='rgba(11,18,34,0.8)';ctx.fillRect(pad.l-2,py,pw+4,pH);
+      ctx.strokeStyle='rgba(23,37,63,0.5)';ctx.lineWidth=0.5;ctx.strokeRect(pad.l-2,py,pw+4,pH);
+
+      // Zero line
+      if(yMin<0&&yMax>0){
+        const zy=toY(0);ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;ctx.setLineDash([3,3]);
+        ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+pw,zy);ctx.stroke();ctx.setLineDash([]);
+      }
+
+      // Line
+      for(let i=0;i<200;i++){
+        const f0=i/200,f1=(i+1)/200;
+        const th0=(f0-0.5)*2*Math.PI,th1=(f1-0.5)*2*Math.PI;
+        ctx.beginPath();ctx.moveTo(pad.l+f0*pw,toY(pl.fn(th0)));ctx.lineTo(pad.l+f1*pw,toY(pl.fn(th1)));
+        ctx.strokeStyle=pl.color;ctx.lineWidth=1.8;ctx.stroke();
+      }
+
+      // Label
+      ctx.font='bold 10px monospace';ctx.fillStyle=pl.color;ctx.textAlign='right';ctx.textBaseline='middle';
+      ctx.fillText(pl.label,pad.l-6,py+pH/2);
+
+      // X labels on last
+      if(pi===plots.length-1){
+        ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='center';ctx.textBaseline='top';
+        ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(pw/4)*i,py+pH+2));
+      }
+    });
+  }catch(e){console.log('c3 error',e);}
+}
+
+window.addEventListener('load',function(){setTimeout(draw,100);});
+window.addEventListener('resize',function(){setTimeout(draw,100);});
+</script>
+</body>
+</html>

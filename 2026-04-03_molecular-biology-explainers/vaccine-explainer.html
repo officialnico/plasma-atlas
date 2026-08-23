@@ -1,0 +1,792 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vaccine explainer</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const STEPS = [
+  {
+    id: "dna-basics",
+    title: "What DNA Actually Is",
+    icon: "🧬",
+    color: "#22c55e",
+    content: {
+      main: `Think of DNA as source code. Every cell in Rosie's body contains the same massive codebase — about 2.4 billion characters long, written in a 4-letter alphabet: A, T, C, G.
+
+This "code" is split into ~20,000 files called GENES. Each gene contains instructions to build one specific PROTEIN. Proteins are the actual machines that do everything in the body — they're like the compiled executables that the DNA source code produces.
+
+The process works like a build pipeline:`,
+      diagram: "dna-to-protein",
+      details: `DNA doesn't run directly (like source code doesn't run without compiling). Instead, when a cell needs a protein, it:
+
+1. Opens the relevant gene (a section of the DNA)
+2. Makes a temporary copy called mRNA (messenger RNA) — think of this as a build artifact
+3. Sends that mRNA to a ribosome (the compiler/runtime)
+4. The ribosome reads the mRNA and assembles the protein
+
+The mRNA is temporary — it gets destroyed after use. It never changes the original DNA. This is important later.`
+    }
+  },
+  {
+    id: "mutation",
+    title: "What a Mutation Is",
+    icon: "🐛",
+    color: "#ef4444",
+    content: {
+      main: `A mutation is literally a bug in the source code. When cells copy themselves, sometimes they make typos — an A gets changed to a T, a section gets deleted, or extra characters get inserted.
+
+Most mutations are harmless (like a comment typo). But sometimes a mutation hits a critical gene — say, one that controls cell growth — and the compiled protein comes out wrong.`,
+      diagram: "mutation",
+      details: `In Rosie's case, mutations hit a gene called c-KIT. Normally, c-KIT produces a protein that sits on the cell surface and helps regulate when the cell should grow and divide. Think of it as a traffic light — it tells the cell "grow" or "stop growing."
+
+The mutation broke the traffic light so it's stuck on green permanently. The cell keeps dividing uncontrollably. That's cancer.
+
+But here's the key insight: the broken protein LOOKS DIFFERENT from the normal one. The mutation changed the source code, so the compiled output (the protein) has a different shape. The broken protein sticks out on the surface of every tumor cell like a weird antenna that healthy cells don't have.`
+    }
+  },
+  {
+    id: "sequencing",
+    title: "The Diff: Sequencing Both Genomes",
+    icon: "🔍",
+    color: "#3b82f6",
+    content: {
+      main: `Conyngham paid $3,000 to have two things sequenced:
+
+1. DNA from Rosie's healthy blood cells (the "main" branch)
+2. DNA from Rosie's tumor cells (the "buggy" branch)
+
+The sequencing machine reads both, producing ~320 GB of raw data. Then software aligns them and runs what is essentially a diff.`,
+      diagram: "diff",
+      details: `The output is a VCF file — a list of every position where the tumor code differs from the healthy code. Think of it as:
+
+git diff main..tumor-branch
+
+Each line says: "At position 28,018,505 on chromosome 13, healthy DNA has an A, but tumor DNA has a T."
+
+Rosie's tumor had thousands of mutations, but most were passenger mutations (harmless noise). The challenge was finding the DRIVER mutations — the ones actually causing the cancer. This is where AI helped Conyngham sift through the list and identify which mutations were in critical genes like c-KIT.`
+    }
+  },
+  {
+    id: "neoantigen",
+    title: "Finding the Target: Neoantigens",
+    icon: "🎯",
+    color: "#f59e0b",
+    content: {
+      main: `Every cell in Rosie's body constantly displays fragments of its internal proteins on its surface. Think of it like each process advertising its loaded modules in a system registry. The immune system constantly scans these surface fragments looking for anything abnormal.
+
+Normal cells display normal protein fragments → immune system ignores them.
+
+Tumor cells display MUTANT protein fragments → these are called NEOANTIGENS (literally "new antigens" — markers the body has never seen before).`,
+      diagram: "neoantigen",
+      details: `Here's the problem: Rosie's immune system SHOULD have caught these and killed the tumor cells. But cancer is sneaky — it uses several tricks to hide:
+
+• It can downregulate the "display" mechanism so fewer neoantigens show on the surface
+• It can send chemical signals that tell nearby immune cells to stand down
+• It can create a microenvironment that suppresses immune response
+
+So the neoantigens ARE there, but the immune system either can't see them well enough or has been told to ignore them. The vaccine's job is to force the immune system to wake up and pay attention to these specific targets.
+
+Using AI, Conyngham analyzed the mutations to predict which ones would produce the most visible, distinctive neoantigens — the ones most likely to provoke a strong immune response. Not all mutations make good targets. You want ones that produce protein fragments that:
+1. Actually get displayed on the cell surface
+2. Look very different from any normal protein
+3. The immune system's T-cells can physically grab onto`
+    }
+  },
+  {
+    id: "vaccine-design",
+    title: "Writing the Vaccine: mRNA as Code Injection",
+    icon: "💉",
+    color: "#a855f7",
+    content: {
+      main: `Now here's where it all comes together. Remember the build pipeline:
+
+DNA → mRNA → Protein
+
+An mRNA vaccine SKIPS the DNA entirely. You directly write the mRNA instructions — the build artifact — that tell any cell to produce a specific protein fragment. You are literally writing synthetic code that will execute inside living cells.`,
+      diagram: "vaccine-design",
+      details: `Here's exactly what was designed:
+
+1. From the VCF diff, they identified the best neoantigen targets — say, 10-20 mutant protein fragments unique to Rosie's tumor.
+
+2. For each target, they wrote the mRNA sequence that encodes that protein fragment. mRNA uses a slightly different alphabet than DNA (A, U, C, G instead of A, T, C, G), and every 3 letters (called a CODON) maps to one amino acid in the protein. It's literally a lookup table:
+   AUG → Methionine (start signal)
+   UUU → Phenylalanine
+   GCA → Alanine
+   UAA → Stop signal
+
+3. They strung multiple neoantigen-encoding sequences together into ONE long mRNA strand, separated by linker sequences. Think of it as a single source file with multiple function definitions.
+
+4. They added regulatory sequences at the start and end (like a header and footer) that tell the cell's ribosome: "this is valid mRNA, start reading here, stop there."
+
+This is the step where Conyngham used Grok (an AI) to design the final construct — the exact sequence of A, U, C, G letters that would encode all the chosen neoantigens.
+
+The UNSW RNA Institute then physically manufactured this mRNA strand in a lab using enzymes that assemble RNA from a DNA template. It's a well-established biochemistry process — you provide the sequence, the enzymes build it.`
+    }
+  },
+  {
+    id: "delivery",
+    title: "Packaging: Lipid Nanoparticles",
+    icon: "📦",
+    color: "#06b6d4",
+    content: {
+      main: `Raw mRNA is incredibly fragile. If you just injected it, enzymes in the body would shred it in minutes. It also can't get inside cells on its own — cell membranes are designed to keep foreign stuff out.
+
+Solution: wrap the mRNA in tiny fat bubbles called LIPID NANOPARTICLES (LNPs). This is the same delivery tech used in the Pfizer and Moderna COVID vaccines.`,
+      diagram: "lnp",
+      details: `An LNP is about 100 nanometers across — roughly 1/1000th the width of a human hair. It's made of four types of fat molecules arranged in a sphere:
+
+• Ionizable lipids — positively charged at low pH, which helps them bond to the negatively charged mRNA during manufacturing. At body pH they're neutral, reducing toxicity.
+• Structural lipids — form the shell of the bubble
+• Cholesterol — stabilizes the structure
+• PEG-lipids — coat the outside to prevent the immune system from eating the particle before it reaches cells
+
+When an LNP reaches a cell, the cell naturally absorbs it (cells eat fat particles all the time — it's called endocytosis). Once inside, the acidic environment of the endosome triggers the ionizable lipids to disrupt the membrane, releasing the mRNA into the cell's cytoplasm.
+
+Now the mRNA is inside a living cell, ready to execute.`
+    }
+  },
+  {
+    id: "execution",
+    title: "Execution: The Cell Builds Neoantigens",
+    icon: "⚙️",
+    color: "#10b981",
+    content: {
+      main: `Once the mRNA is inside a cell (usually a muscle cell near the injection site, or an immune cell), the cell's own ribosome reads it and builds the protein fragments — the neoantigens from Rosie's tumor.
+
+This is exactly like the cell's normal protein-building process. The cell doesn't know or care that this mRNA came from a syringe rather than its own DNA. It just executes the instructions.`,
+      diagram: "execution",
+      details: `The cell then does something crucial: it takes these freshly built neoantigen fragments and DISPLAYS them on its surface using a molecule called MHC (Major Histocompatibility Complex). Think of MHC as a display shelf on the outside of the cell.
+
+This is the same mechanism every cell uses to show the immune system what it's currently building. Normally it displays fragments of normal proteins. But now it's displaying fragments of tumor-specific mutant proteins — the same weird markers that Rosie's tumor cells have.
+
+The mRNA itself degrades within hours to days. The cell stops producing neoantigens. No permanent changes are made to any DNA. It's like running a script that auto-deletes after execution.
+
+But the immune system has now SEEN the targets.`
+    }
+  },
+  {
+    id: "immune",
+    title: "The Kill: Immune System Activation",
+    icon: "⚔️",
+    color: "#ef4444",
+    content: {
+      main: `Here's where the immune system becomes a search-and-destroy program. There are two key players:
+
+DENDRITIC CELLS — think of these as the security team that processes intelligence. They pick up the displayed neoantigens and carry them to lymph nodes, where they present them to...
+
+T-CELLS — the actual assassins. Specifically, CD8+ cytotoxic T-cells. Each T-cell has a unique receptor (like a lock) that fits one specific protein fragment shape (the key).`,
+      diagram: "immune",
+      details: `When a dendritic cell shows a neoantigen to thousands of T-cells in a lymph node, the T-cells whose receptor happens to match that neoantigen shape get ACTIVATED. They start rapidly cloning themselves — one matching T-cell becomes millions.
+
+These activated T-cells then flood into the bloodstream and scan every cell in the body. When they encounter a cell displaying the matching neoantigen on its surface — which is ONLY the tumor cells — they kill it.
+
+The killing mechanism is direct: the T-cell docks onto the tumor cell, injects enzymes called perforin and granzyme that punch holes in the cell membrane and trigger programmed cell death (apoptosis). The tumor cell self-destructs.
+
+Crucially, the immune system also creates MEMORY T-cells — long-lived versions that patrol the body for months or years. If any new tumor cells pop up with the same mutations, the memory T-cells recognize and destroy them immediately. This is why vaccines can have lasting effects.
+
+This is why Rosie's tennis-ball-sized tumor shrank by 75%. Millions of T-cells specifically trained to recognize her tumor's neoantigens swarmed the tumor and systematically killed the cells carrying those markers.
+
+And this is also why one tumor DIDN'T respond — it likely had different driver mutations producing different neoantigens that weren't included in the first vaccine. The T-cells trained by the vaccine didn't recognize those cells. That's why they're now sequencing that tumor to design a second vaccine with different targets.`
+    }
+  }
+];
+
+function DNAPipeline() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "16px 0", flexWrap: "wrap" }}>
+      {[
+        { label: "DNA", sub: "source code", color: "#22c55e", mono: "ATCGATCG..." },
+        { label: "→ mRNA", sub: "build artifact", color: "#a855f7", mono: "AUCGAUCG..." },
+        { label: "→ Protein", sub: "executable", color: "#f59e0b", mono: "Met-Arg-Lys..." },
+      ].map((item, i) => (
+        <div key={i} style={{
+          background: item.color + "11", border: `1px solid ${item.color}33`,
+          borderRadius: 10, padding: "10px 14px", flex: "1 1 140px", minWidth: 140
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: item.color }}>{item.label}</div>
+          <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{item.sub}</div>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: item.color + "99",
+            marginTop: 6, background: item.color + "08", padding: "4px 8px", borderRadius: 6
+          }}>{item.mono}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MutationDiagram() {
+  const healthy = "ATCGATCGTTACGATCGATCG";
+  const tumor =   "ATCGATCGTTTCGATCGATCG";
+  const colors = { A: "#22c55e", T: "#ef4444", C: "#3b82f6", G: "#fbbf24" };
+  const diffIdx = 10; // position where mutation occurs
+
+  return (
+    <div style={{ padding: "16px 0" }}>
+      {[{ label: "Healthy (main branch)", seq: healthy, tag: "Normal c-KIT gene" },
+        { label: "Tumor (buggy branch)", seq: tumor, tag: "Mutated c-KIT gene" }].map((row, ri) => (
+        <div key={ri} style={{ marginBottom: ri === 0 ? 8 : 0 }}>
+          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4, fontWeight: 600 }}>{row.label}</div>
+          <div style={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+            {row.seq.split("").map((ch, ci) => {
+              const isMut = ci === diffIdx && ri === 1;
+              return (
+                <div key={ci} style={{
+                  width: 22, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700,
+                  color: isMut ? "#fff" : colors[ch],
+                  background: isMut ? "#ef4444" : colors[ch] + "11",
+                  borderRadius: 4, border: isMut ? "2px solid #fca5a5" : `1px solid ${colors[ch]}22`,
+                  position: "relative"
+                }}>
+                  {ch}
+                  {isMut && <div style={{
+                    position: "absolute", top: -20, fontSize: 8, color: "#ef4444",
+                    fontWeight: 700, whiteSpace: "nowrap", background: "#1a0505", padding: "1px 6px",
+                    borderRadius: 4, border: "1px solid #ef444444"
+                  }}>BUG!</div>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>{row.tag}</div>
+        </div>
+      ))}
+      <div style={{
+        marginTop: 12, fontSize: 11, color: "#94a3b8", lineHeight: 1.6,
+        padding: "8px 12px", background: "rgba(239,68,68,0.06)", borderRadius: 8,
+        borderLeft: "3px solid #ef444444"
+      }}>
+        Position 11: <strong style={{ color: "#22c55e" }}>A</strong> → <strong style={{ color: "#ef4444" }}>T</strong> — This single character change causes the protein to fold into a different shape. The "traffic light" protein gets stuck in the ON position.
+      </div>
+    </div>
+  );
+}
+
+function DiffDiagram() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, background: "#0a0e18",
+        borderRadius: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)"
+      }}>
+        <div style={{ padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.05)", color: "#64748b", fontSize: 10 }}>
+          $ git diff healthy..tumor | head -20
+        </div>
+        {[
+          { text: "  chr13:28018500  ...ATCGA-TCGT...", color: "#64748b" },
+          { text: "  chr13:28018505  ...ATCGA-TCGT...", color: "#64748b" },
+          { text: "- chr13:28018505       A              (healthy)", color: "#22c55e" },
+          { text: "+ chr13:28018505       T              (tumor)", color: "#ef4444" },
+          { text: "  chr13:28018540  ...GCTAG-CTAG...", color: "#64748b" },
+          { text: "- chr13:28018548  GCT                 (healthy)", color: "#22c55e" },
+          { text: "+ chr13:28018548  G                   (tumor: CT deleted)", color: "#ef4444" },
+          { text: "  ...", color: "#334155" },
+          { text: "  [2,847 more variants]", color: "#475569" },
+        ].map((line, i) => (
+          <div key={i} style={{
+            padding: "3px 12px", color: line.color,
+            background: line.text.startsWith("-") ? "rgba(34,197,94,0.06)" : line.text.startsWith("+") ? "rgba(239,68,68,0.06)" : "transparent"
+          }}>
+            {line.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NeoantigenDiagram() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        {[
+          {
+            label: "Normal Cell", color: "#22c55e",
+            surface: ["Normal-A", "Normal-B", "Normal-C"],
+            desc: "Displays normal protein fragments on surface",
+            verdict: "✓ Immune system ignores"
+          },
+          {
+            label: "Tumor Cell", color: "#ef4444",
+            surface: ["Normal-A", "MUTANT-X", "Normal-C"],
+            desc: "Displays MUTANT protein fragments too",
+            verdict: "⚠ Should be caught, but cancer hides"
+          }
+        ].map((cell, ci) => (
+          <div key={ci} style={{
+            flex: "1 1 200px", background: cell.color + "08",
+            border: `1px solid ${cell.color}22`, borderRadius: 12, padding: 14
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: cell.color, marginBottom: 8 }}>{cell.label}</div>
+            {/* Cell body */}
+            <div style={{
+              background: cell.color + "11", borderRadius: 20, padding: "16px 12px",
+              border: `2px solid ${cell.color}33`, position: "relative"
+            }}>
+              <div style={{ fontSize: 9, color: "#475569", textAlign: "center", marginBottom: 8 }}>surface proteins ↓</div>
+              <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                {cell.surface.map((s, si) => {
+                  const isMutant = s.startsWith("MUTANT");
+                  return (
+                    <div key={si} style={{
+                      padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      background: isMutant ? "#ef444433" : "rgba(255,255,255,0.06)",
+                      color: isMutant ? "#fca5a5" : "#94a3b8",
+                      border: isMutant ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.1)",
+                      animation: isMutant ? "pulse 2s infinite" : "none"
+                    }}>{s}</div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>{cell.desc}</div>
+            <div style={{
+              fontSize: 10, fontWeight: 700, marginTop: 6,
+              color: ci === 0 ? "#22c55e" : "#f59e0b"
+            }}>{cell.verdict}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VaccineDesignDiagram() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {[
+          { step: "1", label: "Pick neoantigen targets from VCF", color: "#ef4444",
+            detail: "AI analyzes mutations → selects 10-20 that make the best targets" },
+          { step: "2", label: "Reverse-engineer the mRNA sequence", color: "#a855f7",
+            detail: "Codon table: AUG=Start, UUU=Phe, GCA=Ala... write the code that builds each neoantigen" },
+          { step: "3", label: "Concatenate into one mRNA strand", color: "#06b6d4",
+            detail: "[Header]—[Neoantigen1]—[Linker]—[Neoantigen2]—[Linker]—...—[Neoantigen15]—[Footer]" },
+          { step: "4", label: "Lab synthesizes the physical mRNA", color: "#10b981",
+            detail: "Enzymes assemble the strand from a DNA template — established biochem, not magic" },
+        ].map((item, i) => (
+          <div key={i} style={{
+            display: "flex", gap: 12, alignItems: "flex-start",
+            padding: "10px 12px", borderRadius: 10,
+            background: item.color + "08", borderLeft: `3px solid ${item.color}55`
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: "50%", background: item.color + "22",
+              color: item.color, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700, flexShrink: 0
+            }}>{item.step}</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{item.detail}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{
+        marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+        background: "#0a0e18", borderRadius: 8, padding: 12, color: "#a855f7",
+        border: "1px solid #a855f722", overflowX: "auto", whiteSpace: "pre"
+      }}>
+{`// The final mRNA construct (simplified)
+5'cap—UTR—[AUG-UUU-GCA-CUG...neoantigen_1]
+          —[linker]
+          —[AUG-GAC-AAU-UCG...neoantigen_2]
+          —[linker]
+          —[...10 more neoantigens...]
+          —STOP—UTR—polyA_tail`}
+      </div>
+    </div>
+  );
+}
+
+function LNPDiagram() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{
+        position: "relative", width: "100%", maxWidth: 300, height: 200, margin: "0 auto"
+      }}>
+        {/* Outer shell */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          background: "radial-gradient(ellipse at 40% 35%, #06b6d433 0%, #06b6d411 50%, transparent 70%)",
+          border: "2px solid #06b6d444"
+        }} />
+        {/* PEG coating label */}
+        <div style={{
+          position: "absolute", top: 4, right: 20, fontSize: 9, color: "#06b6d4",
+          background: "#06b6d411", padding: "2px 8px", borderRadius: 4
+        }}>PEG coating (stealth)</div>
+        {/* Lipid bilayer label */}
+        <div style={{
+          position: "absolute", top: 30, left: 10, fontSize: 9, color: "#f59e0b",
+          background: "#f59e0b11", padding: "2px 8px", borderRadius: 4
+        }}>Lipid shell</div>
+        {/* mRNA inside */}
+        <div style={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          color: "#a855f7", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+          textAlign: "center", fontWeight: 700
+        }}>
+          <div style={{ fontSize: 24, marginBottom: 4 }}>〰️</div>
+          mRNA strand
+          <div style={{ fontSize: 9, color: "#a855f799", marginTop: 2 }}>
+            (encoding neoantigens)
+          </div>
+        </div>
+        {/* Size label */}
+        <div style={{
+          position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)",
+          fontSize: 9, color: "#475569", whiteSpace: "nowrap"
+        }}>~100nm across (1/1000th of a hair)</div>
+      </div>
+      <div style={{
+        marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center"
+      }}>
+        {[
+          { label: "Ionizable lipids", desc: "Grab mRNA during manufacturing, release it inside cells", color: "#a855f7" },
+          { label: "Structural lipids", desc: "Form the sphere shell", color: "#3b82f6" },
+          { label: "Cholesterol", desc: "Stabilize the structure", color: "#f59e0b" },
+          { label: "PEG-lipids", desc: "Stealth coating — hide from premature immune attack", color: "#06b6d4" },
+        ].map((item, i) => (
+          <div key={i} style={{
+            fontSize: 10, padding: "6px 10px", borderRadius: 6,
+            background: item.color + "11", border: `1px solid ${item.color}22`,
+            color: item.color, flex: "1 1 140px"
+          }}>
+            <strong>{item.label}</strong>
+            <div style={{ color: "#94a3b8", marginTop: 2, fontSize: 9 }}>{item.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExecutionDiagram() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {[
+          { icon: "💉", label: "Inject LNP into muscle", detail: "Fat bubbles enter nearby cells via endocytosis (cells naturally eat fat particles)", color: "#06b6d4" },
+          { icon: "📦", label: "LNP releases mRNA inside cell", detail: "Acidic environment inside the cell pops open the fat bubble", color: "#a855f7" },
+          { icon: "⚙️", label: "Ribosome reads the mRNA", detail: "Cell's own protein-building machinery executes the instructions — it doesn't know or care where the mRNA came from", color: "#f59e0b" },
+          { icon: "🏗️", label: "Cell builds neoantigen fragments", detail: "The mutant protein fragments from Rosie's tumor are now being produced inside healthy cells", color: "#10b981" },
+          { icon: "🪟", label: "Cell displays fragments on surface via MHC", detail: "MHC molecules carry the freshly built neoantigens to the cell surface — like putting up a wanted poster", color: "#22c55e" },
+          { icon: "🗑️", label: "mRNA degrades in hours", detail: "The instructions self-destruct. No permanent changes. No DNA modified. Just a temporary broadcast.", color: "#64748b" },
+        ].map((item, i) => (
+          <div key={i} style={{
+            display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 12px",
+            borderRadius: 10, background: item.color + "06", borderLeft: `3px solid ${item.color}44`
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{item.detail}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ImmuneDiagram() {
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{
+        background: "#0a0e18", borderRadius: 12, padding: 16,
+        border: "1px solid rgba(255,255,255,0.06)"
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Phase 1 */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Phase 1: Intelligence Gathering</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ background: "#f59e0b11", border: "1px solid #f59e0b33", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+                <span style={{ color: "#f59e0b", fontWeight: 700 }}>Dendritic Cell</span>
+                <div style={{ color: "#94a3b8", fontSize: 10 }}>picks up neoantigen → carries to lymph node</div>
+              </div>
+              <span style={{ color: "#334155" }}>→</span>
+              <div style={{ background: "#f59e0b11", border: "1px solid #f59e0b33", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+                <span style={{ color: "#f59e0b", fontWeight: 700 }}>Lymph Node</span>
+                <div style={{ color: "#94a3b8", fontSize: 10 }}>presents neoantigen to millions of T-cells</div>
+              </div>
+            </div>
+          </div>
+          {/* Phase 2 */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#a855f7", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Phase 2: Army Cloning</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ background: "#a855f711", border: "1px solid #a855f733", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+                <span style={{ color: "#a855f7", fontWeight: 700 }}>1 matching T-cell found</span>
+                <div style={{ color: "#94a3b8", fontSize: 10 }}>receptor fits the neoantigen shape</div>
+              </div>
+              <span style={{ color: "#334155" }}>→</span>
+              <div style={{ background: "#a855f722", border: "1px solid #a855f755", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+                <span style={{ color: "#a855f7", fontWeight: 700 }}>Millions of clones</span>
+                <div style={{ color: "#94a3b8", fontSize: 10 }}>rapid division — building an army</div>
+              </div>
+            </div>
+          </div>
+          {/* Phase 3 */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Phase 3: Search and Destroy</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ background: "#ef444411", border: "1px solid #ef444433", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+                <span style={{ color: "#ef4444", fontWeight: 700 }}>T-cells flood bloodstream</span>
+                <div style={{ color: "#94a3b8", fontSize: 10 }}>scanning every cell's surface proteins</div>
+              </div>
+              <span style={{ color: "#334155" }}>→</span>
+              <div style={{ background: "#ef444422", border: "1px solid #ef444455", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+                <span style={{ color: "#fca5a5", fontWeight: 700 }}>Tumor cell matched → KILL</span>
+                <div style={{ color: "#94a3b8", fontSize: 10 }}>inject perforin + granzyme → cell self-destructs</div>
+              </div>
+            </div>
+          </div>
+          {/* Phase 4 */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Phase 4: Long-term Memory</div>
+            <div style={{ background: "#22c55e11", border: "1px solid #22c55e33", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
+              <span style={{ color: "#22c55e", fontWeight: 700 }}>Memory T-cells persist for months/years</span>
+              <div style={{ color: "#94a3b8", fontSize: 10 }}>if any new cells with the same mutations appear → instant response, no second vaccine needed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Why one tumor didn't respond */}
+      <div style={{
+        marginTop: 12, padding: "10px 14px", borderRadius: 10,
+        background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)"
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>Why one tumor didn't shrink</div>
+        <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+          That tumor likely had different driver mutations → different surface proteins → the T-cells trained by this vaccine didn't recognize it. It's like the vaccine gave the immune system mugshots of suspects A, B, and C, but that tumor's cells look like suspect D. Solution: sequence that tumor, design vaccine #2 targeting suspect D.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const DIAGRAMS = {
+  "dna-to-protein": DNAPipeline,
+  "mutation": MutationDiagram,
+  "diff": DiffDiagram,
+  "neoantigen": NeoantigenDiagram,
+  "vaccine-design": VaccineDesignDiagram,
+  "lnp": LNPDiagram,
+  "execution": ExecutionDiagram,
+  "immune": ImmuneDiagram,
+};
+
+function VaccineExplainer() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const step = STEPS[activeStep];
+  const DiagramComponent = DIAGRAMS[step.content.diagram];
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: "#0a0e1a",
+      fontFamily: "'Inter', 'Helvetica Neue', sans-serif", color: "#e2e8f0"
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 6 }}>
+            From DNA to tumor destruction
+          </div>
+          <h1 style={{
+            fontSize: 20, fontWeight: 800, margin: 0, lineHeight: 1.2,
+            color: "#f1f5f9"
+          }}>
+            How Rosie's mRNA Cancer Vaccine Works
+          </h1>
+          <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
+            A step-by-step technical walkthrough — no biology jargon assumed
+          </p>
+        </div>
+
+        {/* Step Navigation */}
+        <div style={{
+          display: "flex", gap: 4, overflowX: "auto", padding: "4px 0 16px",
+          WebkitOverflowScrolling: "touch"
+        }}>
+          {STEPS.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={() => { setActiveStep(i); setShowDetails(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+                background: activeStep === i ? s.color + "1a" : "rgba(255,255,255,0.03)",
+                outline: activeStep === i ? `1px solid ${s.color}44` : "none",
+                flexShrink: 0, transition: "all 0.2s"
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{s.icon}</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, color: activeStep === i ? s.color : "#475569",
+                  textTransform: "uppercase", letterSpacing: "0.05em"
+                }}>
+                  Step {i + 1}
+                </div>
+                <div style={{
+                  fontSize: 10, color: activeStep === i ? "#cbd5e1" : "#334155",
+                  whiteSpace: "nowrap", fontWeight: 500
+                }}>
+                  {s.title}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Progress */}
+        <div style={{
+          display: "flex", gap: 3, marginBottom: 20
+        }}>
+          {STEPS.map((s, i) => (
+            <div key={i} style={{
+              flex: 1, height: 3, borderRadius: 2,
+              background: i <= activeStep ? s.color : "rgba(255,255,255,0.06)",
+              transition: "background 0.3s"
+            }} />
+          ))}
+        </div>
+
+        {/* Content Card */}
+        <div style={{
+          background: "rgba(255,255,255,0.02)", borderRadius: 16,
+          border: `1px solid ${step.color}22`, overflow: "hidden"
+        }}>
+          {/* Title bar */}
+          <div style={{
+            padding: "14px 18px", borderBottom: `1px solid ${step.color}15`,
+            display: "flex", alignItems: "center", gap: 10
+          }}>
+            <span style={{ fontSize: 24 }}>{step.icon}</span>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: step.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Step {activeStep + 1} of {STEPS.length}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>{step.title}</div>
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div style={{ padding: "16px 18px" }}>
+            <div style={{
+              fontSize: 13, color: "#cbd5e1", lineHeight: 1.75,
+              whiteSpace: "pre-wrap"
+            }}>
+              {step.content.main}
+            </div>
+
+            {/* Diagram */}
+            {DiagramComponent && <DiagramComponent />}
+
+            {/* Expandable details */}
+            {step.content.details && (
+              <>
+                <button
+                  onClick={() => setShowDetails(!showDetails)}
+                  style={{
+                    width: "100%", padding: "10px 14px", borderRadius: 10,
+                    border: `1px solid ${step.color}22`, background: step.color + "08",
+                    color: step.color, cursor: "pointer", fontSize: 12, fontWeight: 600,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginTop: 12
+                  }}
+                >
+                  <span>{showDetails ? "Hide" : "Show"} deeper explanation</span>
+                  <span style={{ transform: showDetails ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
+                </button>
+
+                {showDetails && (
+                  <div style={{
+                    marginTop: 10, padding: "14px 16px", borderRadius: 10,
+                    background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)",
+                    fontSize: 12, color: "#94a3b8", lineHeight: 1.75, whiteSpace: "pre-wrap"
+                  }}>
+                    {step.content.details}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Navigation */}
+          <div style={{
+            padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.04)",
+            display: "flex", justifyContent: "space-between"
+          }}>
+            <button
+              onClick={() => { setActiveStep(Math.max(0, activeStep - 1)); setShowDetails(false); }}
+              disabled={activeStep === 0}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "none",
+                background: activeStep === 0 ? "transparent" : "rgba(255,255,255,0.05)",
+                color: activeStep === 0 ? "#1e293b" : "#94a3b8",
+                cursor: activeStep === 0 ? "default" : "pointer", fontSize: 12, fontWeight: 600
+              }}
+            >
+              ← Previous
+            </button>
+            <button
+              onClick={() => { setActiveStep(Math.min(STEPS.length - 1, activeStep + 1)); setShowDetails(false); }}
+              disabled={activeStep === STEPS.length - 1}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "none",
+                background: activeStep === STEPS.length - 1 ? "transparent" : step.color + "22",
+                color: activeStep === STEPS.length - 1 ? "#1e293b" : step.color,
+                cursor: activeStep === STEPS.length - 1 ? "default" : "pointer", fontSize: 12, fontWeight: 700
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+
+        {/* Overall summary at end */}
+        {activeStep === STEPS.length - 1 && (
+          <div style={{
+            marginTop: 20, padding: "16px 18px", borderRadius: 12,
+            background: "linear-gradient(135deg, #22c55e08, #3b82f608, #a855f708)",
+            border: "1px solid rgba(255,255,255,0.08)"
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+              The full pipeline in one sentence
+            </div>
+            <div style={{ fontSize: 13, color: "#e2e8f0", lineHeight: 1.7 }}>
+              Sequence tumor DNA → diff against healthy DNA → find mutations → predict which make visible surface markers → write synthetic mRNA encoding those markers → wrap in fat bubbles → inject → cells build the markers → immune system learns them → T-cells hunt and kill every tumor cell displaying those markers.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(VaccineExplainer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

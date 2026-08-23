@@ -1,0 +1,286 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dot product simple</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function DotProductVisualization() {
+  const canvasRef = useRef(null);
+  const [vectorA, setVectorA] = useState({ x: 3, y: 4 });
+  const [vectorB, setVectorB] = useState({ x: 5, y: 1 });
+  const [dragging, setDragging] = useState(null);
+
+  const scale = 40;
+  const originX = 250;
+  const originY = 250;
+
+  // Calculate dot product algebraically
+  const dotProduct = vectorA.x * vectorB.x + vectorA.y * vectorB.y;
+  
+  // Calculate magnitudes
+  const magA = Math.sqrt(vectorA.x * vectorA.x + vectorA.y * vectorA.y);
+  const magB = Math.sqrt(vectorB.x * vectorB.x + vectorB.y * vectorB.y);
+  
+  // Calculate angle
+  const cosTheta = magA > 0 && magB > 0 ? dotProduct / (magA * magB) : 0;
+  const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)));
+  const thetaDegrees = (theta * 180 / Math.PI);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    for (let i = -6; i <= 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(originX + i * scale, 0);
+      ctx.lineTo(originX + i * scale, height);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, originY + i * scale);
+      ctx.lineTo(width, originY + i * scale);
+      ctx.stroke();
+    }
+
+    // Draw axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, originY);
+    ctx.lineTo(width, originY);
+    ctx.moveTo(originX, 0);
+    ctx.lineTo(originX, height);
+    ctx.stroke();
+
+    // Helper function to draw arrow
+    const drawArrow = (fromX, fromY, toX, toY, color, lineWidth = 3) => {
+      const headLen = 12;
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const angle = Math.atan2(dy, dx);
+      
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+      
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    // Convert to canvas coordinates
+    const ax = originX + vectorA.x * scale;
+    const ay = originY - vectorA.y * scale;
+    const bx = originX + vectorB.x * scale;
+    const by = originY - vectorB.y * scale;
+
+    // Draw angle arc
+    if (magA > 0.1 && magB > 0.1) {
+      const arcRadius = 50;
+      const angleA = Math.atan2(-vectorA.y, vectorA.x);
+      const angleB = Math.atan2(-vectorB.y, vectorB.x);
+      
+      // Fill the angle wedge
+      ctx.fillStyle = dotProduct > 0 ? 'rgba(46, 204, 113, 0.2)' : dotProduct < 0 ? 'rgba(231, 76, 60, 0.2)' : 'rgba(255, 255, 255, 0.2)';
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.arc(originX, originY, arcRadius, Math.min(angleA, angleB), Math.max(angleA, angleB));
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw arc outline
+      ctx.strokeStyle = '#9b59b6';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(originX, originY, arcRadius, Math.min(angleA, angleB), Math.max(angleA, angleB));
+      ctx.stroke();
+      
+      // Label angle
+      const midAngle = (angleA + angleB) / 2;
+      const labelRadius = arcRadius + 20;
+      ctx.fillStyle = '#9b59b6';
+      ctx.font = 'bold 20px Arial';
+      ctx.fillText('θ', originX + labelRadius * Math.cos(midAngle) - 8, originY + labelRadius * Math.sin(midAngle) + 6);
+    }
+
+    // Draw vector B (green)
+    drawArrow(originX, originY, bx, by, '#2ecc71', 4);
+    
+    // Draw vector A (red/orange)
+    drawArrow(originX, originY, ax, ay, '#e74c3c', 4);
+
+    // Draw draggable points
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(ax, ay, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.arc(bx, by, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Labels
+    ctx.font = 'bold 22px Arial';
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillText('A', ax + 15, ay - 10);
+    ctx.fillStyle = '#2ecc71';
+    ctx.fillText('B', bx + 15, by - 10);
+
+  }, [vectorA, vectorB, dotProduct, magA, magB]);
+
+  const handleMouseDown = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const ax = originX + vectorA.x * scale;
+    const ay = originY - vectorA.y * scale;
+    const bx = originX + vectorB.x * scale;
+    const by = originY - vectorB.y * scale;
+
+    const distA = Math.sqrt((x - ax) ** 2 + (y - ay) ** 2);
+    const distB = Math.sqrt((x - bx) ** 2 + (y - by) ** 2);
+
+    if (distA < 25) setDragging('A');
+    else if (distB < 25) setDragging('B');
+  };
+
+  const handleMouseMove = (e) => {
+    if (!dragging) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const vx = Math.round((x - originX) / scale * 2) / 2;
+    const vy = Math.round((originY - y) / scale * 2) / 2;
+
+    const clamp = (val) => Math.max(-5.5, Math.min(5.5, val));
+
+    if (dragging === 'A') {
+      setVectorA({ x: clamp(vx), y: clamp(vy) });
+    } else if (dragging === 'B') {
+      setVectorB({ x: clamp(vx), y: clamp(vy) });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDragging(null);
+  };
+
+  const signColor = dotProduct > 0 ? 'text-green-400' : dotProduct < 0 ? 'text-red-400' : 'text-yellow-400';
+  const signBg = dotProduct > 0 ? 'bg-green-900/40 border-green-600' : dotProduct < 0 ? 'bg-red-900/40 border-red-600' : 'bg-yellow-900/40 border-yellow-600';
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-2xl font-bold mb-2 text-center">Dot Product</h1>
+      <p className="text-center text-gray-400 mb-4">How much does A point in the same direction as B?</p>
+      
+      <div className="flex flex-col lg:flex-row gap-6 max-w-5xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={500}
+            height={500}
+            className="border border-gray-600 rounded-lg cursor-grab active:cursor-grabbing w-full"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+          <p className="text-gray-400 text-sm mt-2 text-center">Drag the dots to move the vectors</p>
+        </div>
+
+        <div className="lg:w-80 space-y-4">
+          
+          {/* Main Result */}
+          <div className={`p-5 rounded-lg border-2 ${signBg}`}>
+            <h2 className="text-lg font-semibold mb-2">A · B =</h2>
+            <p className={`text-5xl font-bold font-mono ${signColor}`}>{dotProduct.toFixed(1)}</p>
+            <p className={`text-lg mt-3 ${signColor}`}>
+              {dotProduct > 0.1 && "✓ Same general direction"}
+              {dotProduct < -0.1 && "✗ Opposite directions"}
+              {Math.abs(dotProduct) <= 0.1 && "⊥ Perpendicular"}
+            </p>
+          </div>
+
+          {/* Angle */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold mb-2">Angle Between</h2>
+            <p className="text-3xl font-mono text-purple-400">{thetaDegrees.toFixed(1)}°</p>
+            <p className="text-gray-400 text-sm mt-1">
+              {thetaDegrees < 90 && "Acute → dot product positive"}
+              {thetaDegrees > 90 && "Obtuse → dot product negative"}
+              {Math.abs(thetaDegrees - 90) < 1 && "Right angle → dot product ≈ 0"}
+            </p>
+          </div>
+
+          {/* Vectors */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold mb-3">Vectors</h2>
+            <div className="space-y-2 font-mono text-lg">
+              <p><span className="text-red-400 font-bold">A</span> = ⟨{vectorA.x}, {vectorA.y}⟩</p>
+              <p><span className="text-green-400 font-bold">B</span> = ⟨{vectorB.x}, {vectorB.y}⟩</p>
+            </div>
+          </div>
+
+          {/* Calculation */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold mb-3">The Math</h2>
+            <div className="font-mono text-sm space-y-2">
+              <p className="text-gray-400">A · B = a₁b₁ + a₂b₂</p>
+              <p className="text-white">= ({vectorA.x})({vectorB.x}) + ({vectorA.y})({vectorB.y})</p>
+              <p className="text-white">= {(vectorA.x * vectorB.x).toFixed(1)} + {(vectorA.y * vectorB.y).toFixed(1)}</p>
+              <p className={`font-bold text-lg ${signColor}`}>= {dotProduct.toFixed(1)}</p>
+            </div>
+          </div>
+
+          {/* Quick Guide */}
+          <div className="bg-gray-800 p-4 rounded-lg text-sm">
+            <h3 className="font-semibold mb-2">Try it:</h3>
+            <ul className="space-y-1 text-gray-300">
+              <li>• Point both the same way → big positive</li>
+              <li>• Point opposite → negative</li>
+              <li>• Make a 90° angle → zero</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(DotProductVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

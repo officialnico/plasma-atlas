@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particle Radiation — What's Actually Flying At You</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f; --ink:#eef0fb; --muted:#8a90b4; --line:rgba(255,255,255,.09);
+    --neutron:#39c2ff; --proton:#ff5d73; --electron:#7be08a; --photon:#c98bff;
+    --up:#ffd166; --down:#7c8bff; --muon:#ff7ad1; --gluon:#9aa0c8; --hot:#ff4d6d; --safe:#5fe0a0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1100px 700px at 85% -10%, rgba(57,194,255,.16), transparent 60%),
+      radial-gradient(900px 600px at -10% 25%, rgba(255,93,115,.10), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.6;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:70px 0 38px}
+  .kicker{color:var(--neutron);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:24px;background:rgba(57,194,255,.06)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.3rem,8vw,4.2rem);line-height:.99;letter-spacing:-.02em;margin-bottom:20px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--proton),var(--up),var(--electron),var(--neutron));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.16rem;color:#c7cbe6;max-width:56ch}.lede b{color:var(--ink);font-weight:700}
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.6rem,5.5vw,2.3rem);letter-spacing:-.01em;line-height:1.06;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.82rem;color:var(--neutron);display:block;margin-bottom:13px;font-weight:700;letter-spacing:.2em}
+  .sub{color:var(--muted);margin-bottom:24px;max-width:60ch}
+  p+p{margin-top:14px}.body{color:#c7cbe6}.body b{color:var(--ink)}
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(124,139,255,.08),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 4px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;letter-spacing:.04em;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.18s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle:disabled{opacity:.35;cursor:default}
+  button.toggle.on{background:var(--neutron);color:#04121c;border-color:var(--neutron);font-weight:700}
+  .readout{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--muted)}
+
+  /* radiation vs radioactive */
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media(max-width:560px){.vs{grid-template-columns:1fr}}
+  .vs .col{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(255,255,255,.03)}
+  .vs .col h3{font-family:"Fraunces",serif;font-size:1.25rem;margin-bottom:4px}
+  .vs .col .k{font-family:"Space Mono",monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--neutron);margin-bottom:10px}
+  .vs .col p{font-size:.9rem;color:var(--muted)}.vs .col p b{color:var(--ink)}
+  .callout{margin-top:18px;border-left:3px solid var(--neutron);background:rgba(57,194,255,.06);padding:14px 18px;border-radius:0 12px 12px 0}
+  .callout b{color:var(--neutron)}
+  .callout.warn{border-color:var(--hot);background:rgba(255,77,109,.06)}.callout.warn b{color:var(--hot)}
+
+  /* zoom panel */
+  .zpanel{margin-top:14px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:18px;min-height:118px}
+  .zpanel .scale{font-family:"Space Mono",monospace;font-size:.72rem;color:var(--up);letter-spacing:.05em}
+  .zpanel h4{font-family:"Fraunces",serif;font-size:1.4rem;font-weight:600;margin:4px 0 6px}
+  .zpanel p{font-size:.95rem;color:#c7cbe6}
+  .zbar{display:flex;gap:4px;margin-top:14px}
+  .zbar .seg{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1);transition:.3s}
+  .zbar .seg.on{background:var(--neutron)}
+
+  /* catalog */
+  .cat{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(max-width:560px){.cat{grid-template-columns:1fr}}
+  .ccard{border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden;background:rgba(255,255,255,.02)}
+  .ccard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+  .ccard h4{font-family:"Fraunces",serif;font-size:1.18rem;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .badge{font-family:"Space Mono",monospace;font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:100px;font-weight:700}
+  .badge.comp{background:rgba(255,122,209,.16);color:var(--muon);border:1px solid rgba(255,122,209,.3)}
+  .badge.elem{background:rgba(95,224,160,.16);color:var(--safe);border:1px solid rgba(95,224,160,.3)}
+  .ccard .row{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:.72rem;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .ccard .row span:first-child{color:var(--muted)}.ccard .row span:last-child{color:var(--ink);text-align:right}
+  .ccard .prov{margin-top:10px;font-size:.8rem;color:#c7cbe6}.ccard .prov b{color:var(--c)}
+  .quarkdot{display:inline-block;width:15px;height:15px;border-radius:50%;text-align:center;line-height:15px;font-size:.6rem;font-weight:700;font-family:"Space Mono",monospace;color:#04121c;margin:0 1px;vertical-align:middle}
+
+  footer{padding:48px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce;font-family:"Space Mono",monospace}
+  .cap{font-family:"Space Mono",monospace;font-size:.74rem;color:var(--muted);margin-top:12px;min-height:1.4em;transition:.2s}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Deep dive · companion to “the particle zoo”</span>
+  <h1>The other branch: <em>what's actually flying at you.</em></h1>
+  <p class="lede">Light is a wave. But the particle side of radiation is <b>real, physical matter</b> moving fast — and almost every question about it (Is it made of quarks? Has it been proven? Why is a flying proton "radiation"?) has a concrete, visualizable answer. Let's open up the particles.</p>
+</header>
+
+<!-- 1 RADIATION vs RADIOACTIVE -->
+<section>
+  <h2><span class="num">A / FIRST, A WORD FIX</span>"Radiation" isn't "radioactive"</h2>
+  <p class="sub body">Your instinct that a flying proton being "radioactive" feels off is correct — it isn't. These are two different ideas people blur together:</p>
+  <div class="vs">
+    <div class="col" style="--c:var(--hot)"><div class="k">a property of a source</div><h3>Radioactive</h3><p>An <b>unstable nucleus</b> that will, on its own, fall apart and spit something out. Uranium is radioactive. It describes the <b>thing that decays.</b></p></div>
+    <div class="col" style="--c:var(--neutron)"><div class="k">stuff in flight</div><h3>Radiation</h3><p>The <b>energy or particles travelling</b> through space — whatever got spat out, plus anything else moving fast and carrying energy. It describes the <b>stuff in motion.</b></p></div>
+  </div>
+  <div class="callout body"><b>So the flying proton?</b> It's <b>radiation</b> — a fast, charged particle that rips electrons off atoms as it passes (ionizing). But it is <b>not radioactive</b>: a lone proton is stable and isn't decaying into anything. It became radiation because something <i>accelerated</i> it — the Sun, a supernova, a hospital's proton-therapy machine — not because it's unstable. Being radiation is about <b>motion and energy</b>, not about being broken.</p></div>
+</section>
+
+<!-- 2 ZOOM -->
+<section>
+  <h2><span class="num">B / HOW DEEP IS MATTER</span>Are they made of quarks? Let's go down.</h2>
+  <p class="sub body">"What <i>is</i> an alpha particle, really?" is a question about how far down matter goes. Descend one layer at a time — watch the scale bar plummet — and see exactly where the quarks appear, and where the ladder stops.</p>
+  <div class="stage"><canvas id="zoomCanvas"></canvas></div>
+  <div class="controls" style="justify-content:space-between">
+    <button class="toggle" id="zUp">↑ zoom out</button>
+    <span class="readout" id="zLevel">layer 1 / 5</span>
+    <button class="toggle on" id="zDown">zoom in ↓</button>
+  </div>
+  <div class="zbar" id="zbar"></div>
+  <div class="zpanel">
+    <div class="scale" id="zScale"></div>
+    <h4 id="zTitle"></h4>
+    <p id="zDesc"></p>
+  </div>
+</section>
+
+<!-- 3 ALPHA -->
+<section>
+  <h2><span class="num">C / EXHIBIT ONE</span>The alpha particle, dissected</h2>
+  <p class="sub body">An alpha (α) is simply a <b>helium nucleus</b> torn loose: two protons + two neutrons, clamped together. Each of those four nucleons is itself a bag of <b>three quarks</b> glued by the strong force. So an alpha is, all the way down, <b>twelve quarks</b> — six "up," six "down" — plus the gluons binding them. Here it is with the lid off.</p>
+  <div class="stage"><canvas id="alphaCanvas"></canvas></div>
+  <p class="cap">Charge check: proton (+1) + proton (+1) + neutron (0) + neutron (0) = <b style="color:var(--proton)">+2</b>, exactly the alpha's measured charge.</p>
+  <div class="callout body"><b>The quark arithmetic</b> — an up quark carries +⅔, a down quark −⅓. A proton is up+up+down = +⅔+⅔−⅓ = <b>+1</b>. A neutron is up+down+down = +⅔−⅓−⅓ = <b>0</b>. The charges you measure on whole particles fall straight out of the fractional quark charges underneath — one of the cleanest pieces of evidence that quarks are really there.</div>
+</section>
+
+<!-- 4 BETA DECAY -->
+<section>
+  <h2><span class="num">D / EXHIBIT TWO</span>Beta decay — where the electron is born</h2>
+  <p class="sub body">A beta particle is just a fast <b>electron</b> — and unlike the alpha, the electron is <b>elementary</b>: no quarks, no parts, a true point as far as we can measure. But here's the twist that surprises everyone: that electron was <b>not</b> hiding inside the nucleus. It's <b>created on the spot</b>. Watch a neutron do it.</p>
+  <div class="stage"><canvas id="betaCanvas"></canvas></div>
+  <p class="cap" id="betaCap"></p>
+  <div class="callout body"><b>What you just saw</b> — the weak force flipped one <b>down</b> quark into an <b>up</b> quark (turning the neutron into a proton), and the leftover energy materialized as a brand-new electron plus a near-invisible antineutrino. The electron didn't escape; it was <b>conjured from energy</b> at the instant of decay. And note: a <b>free neutron does this all by itself in about 15 minutes</b> — meaning the neutron, alone, is genuinely radioactive.</div>
+</section>
+
+<!-- 5 CATALOG -->
+<section>
+  <h2><span class="num">E / THE RECORD</span>Made of what — and has it been proven?</h2>
+  <p class="sub body">Composite or elementary, what's inside, and — most usefully — <b>how we know</b>. None of this is conjecture; each was nailed down by experiment, with a name and a date.</p>
+  <div class="cat">
+    <div class="ccard" style="--c:var(--proton)">
+      <h4>Alpha α <span class="badge comp">composite</span></h4>
+      <div class="row"><span>made of</span><span>2 protons + 2 neutrons</span></div>
+      <div class="row"><span>quarks inside</span><span>6 up · 6 down</span></div>
+      <div class="row"><span>charge</span><span>+2</span></div>
+      <div class="prov"><b>Proven:</b> Rutherford & Royds, 1909 — trapped alphas in a tube and saw helium's exact spectral fingerprint appear.</div>
+    </div>
+    <div class="ccard" style="--c:var(--electron)">
+      <h4>Beta β <span class="badge elem">elementary</span></h4>
+      <div class="row"><span>is</span><span>a single electron</span></div>
+      <div class="row"><span>quarks inside</span><span>none — a lepton</span></div>
+      <div class="row"><span>charge</span><span>−1</span></div>
+      <div class="prov"><b>Proven:</b> electron by J.J. Thomson, 1897; betas shown to be electrons soon after by their identical charge-to-mass ratio.</div>
+    </div>
+    <div class="ccard" style="--c:var(--up)">
+      <h4>Proton p <span class="badge comp">composite</span></h4>
+      <div class="row"><span>quarks</span><span><span class="quarkdot" style="background:var(--up)">u</span><span class="quarkdot" style="background:var(--up)">u</span><span class="quarkdot" style="background:var(--down);color:#fff">d</span></span></div>
+      <div class="row"><span>charge</span><span>+1</span></div>
+      <div class="row"><span>stable?</span><span>yes (never seen to decay)</span></div>
+      <div class="prov"><b>Proven:</b> quark substructure revealed at SLAC, 1968–69 — electrons fired into protons bounced off three hard points inside.</div>
+    </div>
+    <div class="ccard" style="--c:var(--neutron)">
+      <h4>Neutron n <span class="badge comp">composite</span></h4>
+      <div class="row"><span>quarks</span><span><span class="quarkdot" style="background:var(--up)">u</span><span class="quarkdot" style="background:var(--down);color:#fff">d</span><span class="quarkdot" style="background:var(--down);color:#fff">d</span></span></div>
+      <div class="row"><span>charge</span><span>0</span></div>
+      <div class="row"><span>stable?</span><span>no — ~15 min when free</span></div>
+      <div class="prov"><b>Proven:</b> James Chadwick, 1932 — found a neutral particle as heavy as the proton that no electric field could deflect.</div>
+    </div>
+  </div>
+  <div class="callout body"><b>"But we've never <i>seen</i> a quark."</b> True — the strong force won't let one travel alone (it's called confinement). We prove them the same way Rutherford found the nucleus: fire something hard inside and watch how it ricochets. Shoot high-energy electrons into a proton and they scatter off <b>three</b> distinct point-like lumps. That, plus the fractional charges adding up perfectly, plus a thousand other tests of the Standard Model, is why quarks are considered as real as atoms.</div>
+</section>
+
+<!-- 6 COSMIC RAYS -->
+<section>
+  <h2><span class="num">F / THE BIG ONE</span>Cosmic "rays" — the great misnomer</h2>
+  <p class="sub body">You smelled something off, and you're right: the name is a historical accident. When they were found in 1912 nobody knew what they were, so they got filed under "rays" alongside light. They are <b>not</b> electromagnetic. They're <b>matter</b> — about <b>90% bare protons</b>, ~9% alpha particles, the rest heavier nuclei and electrons — screaming in from the Sun, supernovae, and unknown corners of the cosmos.</p>
+  <div class="callout body"><b>How do we know they're particles and not light?</b> The very test from the family tree: <b>they bend in Earth's magnetic field.</b> More cosmic rays arrive near the magnetic poles than the equator (the "latitude effect"). Light would sail straight through a magnet untouched — so anything a magnet steers <i>must</i> be charged matter. Case closed.</div>
+  <p class="body" style="margin-top:18px">When one slams into the top of the atmosphere, it shatters air molecules and triggers an <b>air shower</b> — a branching cascade of secondary particles raining down. Most of what reaches the ground (and passes through your body right now) is muons, born kilometers up. Watch one come in:</p>
+  <div class="stage"><canvas id="showerCanvas"></canvas></div>
+  <p class="cap">A single primary becomes millions of secondaries. The muons (pink) survive all the way to the ground.</p>
+  <div class="callout warn body"><b>The "Oh-My-God" particle</b> — in 1991 a detector in Utah clocked a single subatomic particle carrying ~3×10²⁰ electron-volts: the kinetic energy of a fast-pitched baseball, packed into one proton. We still don't fully know what could accelerate a thing that small to that energy. Particle radiation at its most extreme — and as un-electromagnetic as it gets.</div>
+</section>
+
+<footer>
+  <p class="mono">PARTICLE RADIATION · A DEEP DIVE</p>
+  <p style="margin-top:8px">The throughline: a particle is "radiation" because it's moving with energy, not because it's broken. Some (alpha, proton, neutron) are little quark assemblies; one (the beta electron) is elementary and gets born mid-decay. And the thing called a cosmic "ray" is the least ray-like of all — a fleck of matter thrown across the universe, which we caught red-handed by watching a magnet bend its path.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function dot(ctx,x,y,r,col,glow){ctx.fillStyle=col;if(glow){ctx.shadowColor=col;ctx.shadowBlur=glow;}ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowBlur=0;}
+
+/* ===== B. ZOOM INTO MATTER ===== */
+(function(){
+  const c=document.getElementById("zoomCanvas");let S,t=0,level=1;
+  function size(){S=setup(c,Math.min(300,Math.max(240,c.clientWidth*0.6)));}size();
+  const levels=[
+    {scale:"scale ≈ 1 m  ·  everyday matter",title:"Ordinary matter",desc:"A speck of anything — skin, metal, air. Zoom in and it dissolves into a swarm of atoms, around ten billion of them across a single millimetre."},
+    {scale:"scale ≈ 10⁻¹⁰ m  ·  one atom",title:"An atom",desc:"A dense central nucleus wrapped in a fuzzy cloud of electrons. It's almost entirely empty space — if the atom were a stadium, the nucleus would be a pea at the centre."},
+    {scale:"scale ≈ 10⁻¹⁴ m  ·  the nucleus",title:"The nucleus",desc:"A tight cluster of protons (red) and neutrons (blue). This is what an alpha particle is a chip off of — and what fires out in alpha and beta decay."},
+    {scale:"scale ≈ 10⁻¹⁵ m  ·  one nucleon",title:"Inside a proton",desc:"Crack open a single proton and you find three quarks — two up, one down — in a roiling field of gluons, the strong-force 'springs' that bind them and refuse to let any quark leave alone."},
+    {scale:"scale < 10⁻¹⁸ m  ·  the floor (so far)",title:"A quark · an electron",desc:"Here the ladder stops. Quarks and electrons show no measurable size and no internal parts — they appear to be truly elementary, the current bottom of physics."},
+  ];
+  const zbar=document.getElementById("zbar");levels.forEach(()=>{const s=document.createElement("div");s.className="seg";zbar.appendChild(s);});
+  const zUp=document.getElementById("zUp"),zDown=document.getElementById("zDown"),zLevel=document.getElementById("zLevel");
+  function refresh(){
+    const L=levels[level-1];
+    document.getElementById("zScale").textContent=L.scale;
+    document.getElementById("zTitle").textContent=L.title;
+    document.getElementById("zDesc").textContent=L.desc;
+    zLevel.textContent="layer "+level+" / 5";
+    [...zbar.children].forEach((s,i)=>s.classList.toggle("on",i<level));
+    zUp.disabled=level<=1;zDown.disabled=level>=5;
+    zUp.classList.toggle("on",level>1);zDown.classList.toggle("on",level<5);
+  }
+  zUp.onclick=()=>{if(level>1){level--;refresh();}};
+  zDown.onclick=()=>{if(level<5){level++;refresh();}};
+  refresh();
+  function draw(){
+    const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const cx=w/2,cy=h/2;
+    if(level===1){ // matter -> atoms blob
+      for(let i=0;i<60;i++){const a=i*0.7+t*0.002,rr=20+(i%6)*16;
+        const x=cx+Math.cos(a)*(rr+Math.sin(t*0.02+i)*4), y=cy+Math.sin(a*1.1)*(rr*0.7+Math.cos(t*0.02+i)*4);
+        dot(ctx,x,y,3,"rgba(124,139,255,.75)");}
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("a swarm of atoms",cx,h-16);
+    } else if(level===2){ // atom
+      ctx.strokeStyle="rgba(255,255,255,.13)";ctx.lineWidth=1;
+      for(let o=0;o<3;o++){ctx.save();ctx.translate(cx,cy);ctx.rotate(o*1.1);ctx.beginPath();ctx.ellipse(0,0,70+o*8,30+o*6,0,0,7);ctx.stroke();
+        const a=t*0.04+o*2;dot(ctx,Math.cos(a)*(70+o*8),Math.sin(a)*(30+o*6),5,"#39c2ff",10);ctx.restore();}
+      dot(ctx,cx,cy,11,"#ff9d5c",18);
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("tiny nucleus + electron cloud",cx,h-16);
+    } else if(level===3){ // nucleus cluster
+      const N=12;for(let i=0;i<N;i++){const a=i*(Math.PI*2/N)+t*0.01,ring=(i%2?34:16);
+        const x=cx+Math.cos(a)*ring+Math.sin(t*0.03+i)*2, y=cy+Math.sin(a)*ring+Math.cos(t*0.03+i)*2;
+        dot(ctx,x,y,11,i%2?"#ff5d73":"#39c2ff",6);}
+      ctx.fillStyle="rgba(255,255,255,.85)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+      ctx.fillText("●",0,0);
+      ctx.fillStyle="#ff5d73";ctx.fillText("● protons",cx-52,h-16);ctx.fillStyle="#39c2ff";ctx.fillText("neutrons ●",cx+58,h-16);
+    } else if(level===4){ // proton -> 3 quarks + gluons
+      const q=[{a:-Math.PI/2,l:"u",c:"#ffd166"},{a:Math.PI/6,l:"u",c:"#ffd166"},{a:5*Math.PI/6,l:"d",c:"#7c8bff"}];
+      const R=46;ctx.strokeStyle="rgba(255,255,255,.12)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,R+22,0,7);ctx.stroke();
+      // gluon springs
+      ctx.strokeStyle="rgba(154,160,200,.5)";ctx.lineWidth=2;
+      for(let i=0;i<3;i++){const j=(i+1)%3;const x1=cx+Math.cos(q[i].a)*R,y1=cy+Math.sin(q[i].a)*R,x2=cx+Math.cos(q[j].a)*R,y2=cy+Math.sin(q[j].a)*R;
+        ctx.beginPath();const seg=10;for(let s=0;s<=seg;s++){const f=s/seg;const x=x1+(x2-x1)*f, y=y1+(y2-y1)*f;const off=Math.sin(f*Math.PI*4+t*0.1)*4;const nx=-(y2-y1),ny=(x2-x1);const len=Math.hypot(nx,ny);ctx.lineTo(x+nx/len*off,y+ny/len*off);}ctx.stroke();}
+      q.forEach(Q=>{const x=cx+Math.cos(Q.a)*R+Math.sin(t*0.05)*2,y=cy+Math.sin(Q.a)*R+Math.cos(t*0.05)*2;
+        dot(ctx,x,y,15,Q.c,12);ctx.fillStyle="#04121c";ctx.font='bold 13px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(Q.l,x,y);});
+      ctx.textBaseline="alphabetic";ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='11px "Space Mono"';ctx.fillText("3 quarks + gluon springs",cx,h-14);
+    } else { // elementary point
+      const pr=4+Math.sin(t*0.08)*1.5;
+      for(let i=4;i>0;i--){ctx.strokeStyle=`rgba(95,224,160,${0.05*i})`;ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,18*i+Math.sin(t*0.05)*3,0,7);ctx.stroke();}
+      dot(ctx,cx,cy,pr,"#5fe0a0",22);
+      ctx.fillStyle="rgba(238,240,251,.45)";ctx.font='11px "Space Mono"';ctx.textAlign="center";ctx.fillText("no parts found — a point",cx,h-14);
+    }
+    t++;requestAnimationFrame(draw);
+  }
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== C. ALPHA ANATOMY ===== */
+(function(){
+  const c=document.getElementById("alphaCanvas");let S,t=0;
+  function size(){S=setup(c,Math.min(260,Math.max(220,c.clientWidth*0.5)));}size();
+  // four nucleons in a tetra-ish cluster
+  function nucleon(ctx,x,y,type){ // type 'p' or 'n'
+    const base=type==='p'?"#ff5d73":"#39c2ff";
+    ctx.strokeStyle=base+"";ctx.globalAlpha=.25;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,30,0,7);ctx.stroke();ctx.globalAlpha=1;
+    const quarks=type==='p'?[["u","#ffd166"],["u","#ffd166"],["d","#7c8bff"]]:[["u","#ffd166"],["d","#7c8bff"],["d","#7c8bff"]];
+    quarks.forEach((q,i)=>{const a=-Math.PI/2+i*(Math.PI*2/3)+t*0.02;const qx=x+Math.cos(a)*13,qy=y+Math.sin(a)*13;
+      dot(ctx,qx,qy,9,q[1],6);ctx.fillStyle="#04121c";ctx.font='bold 10px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(q[0],qx,qy);});
+    ctx.textBaseline="alphabetic";
+    ctx.fillStyle=base;ctx.font='bold 11px "Space Mono"';ctx.textAlign="center";ctx.fillText(type==='p'?"p +1":"n  0",x,y+44);
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const cx=w/2,cy=h/2-6;const d=44+Math.sin(t*0.03)*3;
+    // binding glow
+    ctx.fillStyle="rgba(255,209,102,.05)";ctx.beginPath();ctx.arc(cx,cy,d+44,0,7);ctx.fill();
+    nucleon(ctx,cx-d,cy-d*0.7,'p');nucleon(ctx,cx+d,cy-d*0.7,'n');
+    nucleon(ctx,cx-d,cy+d*0.7,'n');nucleon(ctx,cx+d,cy+d*0.7,'p');
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== D. BETA DECAY ===== */
+(function(){
+  const c=document.getElementById("betaCanvas");let S,t=0;
+  function size(){S=setup(c,Math.min(280,Math.max(230,c.clientWidth*0.55)));}size();
+  const cap=document.getElementById("betaCap");
+  const CYCLE=360; // frames
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const cx=w*0.36,cy=h/2;const p=(t%CYCLE);
+    // phase thresholds
+    const flipping = p>90 && p<170;
+    const flipped = p>=130;
+    const emit = p>=150;
+    const ep = Math.max(0,(p-150)/120); // 0..1 emission progress
+    // caption
+    if(p<90) cap.innerHTML="A free neutron: quarks <b style='color:var(--up)'>u</b> <b style='color:var(--down)'>d</b> <b style='color:var(--down)'>d</b>, sitting at rest.";
+    else if(p<150) cap.innerHTML="The weak force flips one <b style='color:var(--down)'>down</b> quark toward <b style='color:var(--up)'>up</b> — emitting a W⁻ boson.";
+    else cap.innerHTML="Now a proton (<b style='color:var(--up)'>u</b> <b style='color:var(--up)'>u</b> <b style='color:var(--down)'>d</b>) — plus a freshly created <b style='color:var(--electron)'>electron</b> &amp; antineutrino.";
+    // nucleon ring
+    const isProton = flipped;
+    const base=isProton?"#ff5d73":"#39c2ff";
+    ctx.strokeStyle=base;ctx.globalAlpha=.3;ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,40,0,7);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=base;ctx.font='bold 12px "Space Mono"';ctx.textAlign="center";ctx.fillText(isProton?"proton":"neutron",cx,cy+62);
+    // quarks: positions
+    const qs=[{a:-Math.PI/2,l:"u",c:"#ffd166"},{a:Math.PI/6,l:flipped?"u":"d",c:flipped?"#ffd166":"#7c8bff"},{a:5*Math.PI/6,l:"d",c:"#7c8bff"}];
+    qs.forEach((q,i)=>{let x=cx+Math.cos(q.a)*18,y=cy+Math.sin(q.a)*18;
+      let col=q.c;if(i===1&&flipping&&!flipped){col=t%6<3?"#ffd166":"#7c8bff";} // shimmer during flip
+      dot(ctx,x,y,12,col,8);ctx.fillStyle="#04121c";ctx.font='bold 12px "Space Mono"';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(q.l,x,y);});
+    ctx.textBaseline="alphabetic";
+    // emissions: electron (green) up-right, antineutrino (faint) down-right, via a brief W- label
+    if(emit){
+      const ex=cx+40+ep*(w-cx-60), ey=cy-ep*(h*0.32);
+      dot(ctx,ex,ey,8,"#7be08a",14);ctx.fillStyle="#7be08a";ctx.font='bold 11px "Space Mono"';ctx.textAlign="left";ctx.fillText("e⁻ (β)",ex+12,ey-6);
+      const nx=cx+40+ep*(w-cx-50), ny=cy+ep*(h*0.30);
+      ctx.globalAlpha=.55;dot(ctx,nx,ny,5,"#9aa0c8",6);ctx.fillStyle="#9aa0c8";ctx.font='10px "Space Mono"';ctx.fillText("ν̄ (antineutrino)",nx+10,ny+4);ctx.globalAlpha=1;
+    } else if(flipping){
+      // W- boson budding off
+      const wp=(p-90)/60;const wx=cx+40+wp*30,wy=cy-wp*16;
+      ctx.globalAlpha=.8;dot(ctx,wx,wy,7,"#ff7ad1",10);ctx.fillStyle="#ff7ad1";ctx.font='bold 10px "Space Mono"';ctx.textAlign="left";ctx.fillText("W⁻",wx+10,wy);ctx.globalAlpha=1;
+    }
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== F. COSMIC RAY AIR SHOWER ===== */
+(function(){
+  const c=document.getElementById("showerCanvas");let S;
+  function size(){S=setup(c,Math.min(360,Math.max(280,c.clientWidth*0.7)));}size();
+  let tracks=[],groundHits=[],frame=0;
+  const types={
+    prim:{c:"#ffffff",r:3.5},
+    pion:{c:"#5fe0d6",r:2.6},
+    muon:{c:"#ff7ad1",r:2.4},
+    elec:{c:"#7be08a",r:2},
+    phot:{c:"#c98bff",r:2},
+  };
+  function spawnPrimary(){const {w}=S;tracks=[{x:w*0.5+(Math.random()-.5)*40,y:-6,vx:(Math.random()-.5)*0.6,vy:3.4,type:"prim",gen:0,split:false}];groundHits=[];}
+  function childType(gen){const r=Math.random();if(gen<2)return r<0.7?"pion":"phot";if(r<0.4)return "muon";if(r<0.7)return "elec";return "phot";}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const atmoY=h*0.16, groundY=h-22;
+    // atmosphere & ground
+    ctx.strokeStyle="rgba(57,194,255,.25)";ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(0,atmoY);ctx.lineTo(w,atmoY);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(57,194,255,.5)";ctx.font='10px "Space Mono"';ctx.textAlign="left";ctx.fillText("top of atmosphere",8,atmoY-6);
+    ctx.fillStyle="rgba(255,255,255,.08)";ctx.fillRect(0,groundY,w,h-groundY);
+    ctx.fillStyle="rgba(238,240,251,.45)";ctx.fillText("ground",8,groundY+15);
+    // update tracks
+    const next=[];
+    tracks.forEach(tr=>{
+      tr.x+=tr.vx;tr.y+=tr.vy;
+      // split when crossing atmosphere or stochastically
+      if(!tr.split && ((tr.type==="prim"&&tr.y>=atmoY) || (tr.type==="pion"&&tr.gen<5&&Math.random()<0.03))){
+        tr.split=true;
+        const n=tr.type==="prim"?4:(2+(Math.random()<0.5?1:0));
+        for(let i=0;i<n;i++){const ct=childType(tr.gen);
+          next.push({x:tr.x,y:tr.y,vx:(Math.random()-.5)*2.2,vy:2.6+Math.random()*1.2,type:ct,gen:tr.gen+1,split:false});}
+        if(tr.type==="prim")return; // primary consumed
+      }
+      // draw
+      const T=types[tr.type];dot(ctx,tr.x,tr.y,T.r,T.c, tr.type==="muon"?6:0);
+      if(tr.y<groundY+2 && tr.x>-10 && tr.x<w+10 && next.length<160){
+        if(!(tr.type==="prim"&&tr.split)) next.push(tr);
+      } else if(tr.y>=groundY && tr.type==="muon"){groundHits.push({x:tr.x});}
+    });
+    tracks=next;
+    // ground hit markers
+    groundHits.slice(-40).forEach(g=>{dot(ctx,g.x,groundY,2.5,"#ff7ad1",6);});
+    // legend
+    ctx.textAlign="right";ctx.font='9px "Space Mono"';
+    ctx.fillStyle="#ffffff";ctx.fillText("● primary",w-8,atmoY-6);
+    ctx.fillStyle="#5fe0d6";ctx.fillText("● pion",w-8,atmoY+8);
+    ctx.fillStyle="#ff7ad1";ctx.fillText("● muon",w-8,atmoY+20);
+    ctx.fillStyle="#c98bff";ctx.fillText("● photon",w-8,atmoY+32);
+    ctx.fillStyle="#7be08a";ctx.fillText("● electron",w-8,atmoY+44);
+    frame++;
+    if(tracks.length===0 || frame%260===0) spawnPrimary();
+    requestAnimationFrame(draw);
+  }
+  spawnPrimary();draw();
+  window.addEventListener("resize",()=>{size();spawnPrimary();});
+})();
+</script>
+</body>
+</html>

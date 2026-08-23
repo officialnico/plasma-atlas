@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Inside the fluctuations</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #e8e6e0; font-family: 'Fraunces', serif; }
+#c { position: fixed; inset: 0; cursor: grab; }
+#c:active { cursor: grabbing; }
+.panel {
+  position: fixed; background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+  padding: 12px 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;
+  z-index: 10;
+}
+#title { top: 14px; left: 14px; max-width: 320px; }
+#title h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; margin-bottom: 4px; color: #fff; }
+#title p { font-size: 10.5px; color: #b8b5ac; line-height: 1.5; }
+
+#hud { top: 14px; right: 14px; min-width: 200px; }
+.hud-row { display: flex; justify-content: space-between; padding: 1px 0; }
+.hud-row .k { color: #888; }
+.hud-row .v { color: #d4a04a; font-weight: 600; }
+
+#controls { bottom: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; max-width: 230px; }
+.toggle {
+  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18);
+  color: #e8e6e0; padding: 7px 12px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.toggle:hover { background: rgba(255,255,255,0.1); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+.toggle.primary { background: #cc5050; color: #fff; border-color: #cc5050; font-weight: 600; }
+.toggle.primary:hover { background: #dd6060; }
+.toggle.primary.on { background: #2a8a4a; color: #fff; border-color: #2a8a4a; }
+
+#help { bottom: 14px; right: 14px; max-width: 280px; }
+#help h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; color: #fff; margin-bottom: 4px; }
+#help .key { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.15); border-radius: 3px; color: #d4a04a; font-weight: 600; margin: 0 1px; }
+#help p { color: #b8b5ac; font-size: 10.5px; line-height: 1.55; }
+
+#crosshair {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 20px; height: 20px; pointer-events: none; z-index: 5;
+  display: none;
+}
+#crosshair::before, #crosshair::after {
+  content: ''; position: absolute; background: rgba(255,255,255,0.4);
+}
+#crosshair::before { left: 9px; top: 0; width: 2px; height: 20px; }
+#crosshair::after { top: 9px; left: 0; width: 20px; height: 2px; }
+.fly-mode #crosshair { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="crosshair"></div>
+
+<div id="title" class="panel">
+  <h1>Inside δT</h1>
+  <p>You're inside the flux tube. Red = hot fluctuation, blue = cold. Click the big button to start auto-flying along the field line. The colors will swirl past you.</p>
+</div>
+
+<div id="hud" class="panel">
+  <div class="hud-row"><span class="k">mode</span><span class="v" id="modeHud">orbit (outside)</span></div>
+  <div class="hud-row"><span class="k">speed</span><span class="v" id="speedHud">paused</span></div>
+  <div class="hud-row"><span class="k">field line θ</span><span class="v" id="thetaHud">—</span></div>
+</div>
+
+<div id="controls">
+  <button class="toggle primary" id="flyBtn">▶ START FLYTHROUGH</button>
+  <button class="toggle on" id="rotBtn">auto-rotate (outside)</button>
+  <button class="toggle on" id="ctxBtn">show donut + tube context</button>
+  <button class="toggle" id="thinBtn">thin tube (zoom in)</button>
+  <button class="toggle" id="bigBtn">huge eddies (looks dramatic)</button>
+</div>
+
+<div id="help" class="panel">
+  <h3>controls</h3>
+  <p><span class="key">drag</span> rotate · <span class="key">scroll</span> speed/zoom · <span class="key">space</span> pause/play flythrough · <span class="key">←</span> <span class="key">→</span> reverse/forward</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============ Scene ============
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+// no fog at start so we see the volume; we'll re-enable for fly mode
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.02, 200);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+// ============ Torus geometry ============
+const R0 = 6;
+const a  = 2.2;
+const Q  = 3;
+const KAPPA = 1.4;
+const DELTA = 0.25;
+
+function surfacePoint(r, theta, phi) {
+  const Rrel = r * a * Math.cos(theta + DELTA * Math.sin(theta));
+  const Zrel = r * a * KAPPA * Math.sin(theta);
+  const R = R0 + Rrel;
+  return new THREE.Vector3(R * Math.cos(phi), Zrel, R * Math.sin(phi));
+}
+
+// ============ Donut surface (light context) ============
+function buildDTorus(r, segPhi, segTheta) {
+  const positions = [];
+  const indices = [];
+  for (let i = 0; i <= segPhi; i++) {
+    const phi = (i / segPhi) * Math.PI * 2;
+    for (let j = 0; j <= segTheta; j++) {
+      const th = (j / segTheta) * Math.PI * 2;
+      const p = surfacePoint(r, th, phi);
+      positions.push(p.x, p.y, p.z);
+    }
+  }
+  for (let i = 0; i < segPhi; i++) {
+    for (let j = 0; j < segTheta; j++) {
+      const a1 = i * (segTheta + 1) + j;
+      const b1 = a1 + 1;
+      const c1 = (i + 1) * (segTheta + 1) + j;
+      const d1 = c1 + 1;
+      indices.push(a1, b1, d1);
+      indices.push(a1, d1, c1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+const donutWire = new THREE.LineSegments(
+  new THREE.WireframeGeometry(buildDTorus(1.0, 24, 12)),
+  new THREE.LineBasicMaterial({ color: 0x4a5868, transparent: true, opacity: 0.18 })
+);
+scene.add(donutWire);
+
+// ============ Field line ============
+const PHI0 = 0;
+const FIELD_THETA_MIN = -Math.PI * 1.8;  // multiple poloidal wraps for a longer flythrough
+const FIELD_THETA_MAX =  Math.PI * 1.8;
+
+function fieldLinePoint(theta) {
+  return surfacePoint(1.0, theta, PHI0 + Q * theta);
+}
+
+const flineSpinePts = [];
+for (let t = FIELD_THETA_MIN; t <= FIELD_THETA_MAX; t += 0.02) {
+  flineSpinePts.push(fieldLinePoint(t));
+}
+const fline = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(flineSpinePts),
+  new THREE.LineBasicMaterial({ color: 0xffd17a, transparent: true, opacity: 0.5 })
+);
+scene.add(fline);
+
+function fieldLineFrame(theta) {
+  const eps = 0.002;
+  const center = fieldLinePoint(theta);
+  const next = fieldLinePoint(theta + eps);
+  const tangent = next.clone().sub(center).normalize();
+  const eps_r = 0.01;
+  const phi_here = PHI0 + Q * theta;
+  const p_inner = surfacePoint(1.0 - eps_r, theta, phi_here);
+  const p_outer = surfacePoint(1.0 + eps_r, theta, phi_here);
+  const radial = p_outer.clone().sub(p_inner).normalize();
+  const radialProj = radial.clone().sub(tangent.clone().multiplyScalar(radial.dot(tangent))).normalize();
+  const binormal = new THREE.Vector3().crossVectors(tangent, radialProj).normalize();
+  return { center, tangent, radial: radialProj, binormal };
+}
+
+// ============ Tube parameters ============
+let DX = 0.6;  // radial half-width (bigger so we have room to fly inside)
+let DY = 0.9;  // binormal half-width
+
+// ============ Tube wireframe ============
+let tubeWire = null;
+function rebuildTube() {
+  if (tubeWire) {
+    scene.remove(tubeWire);
+    tubeWire.geometry.dispose();
+    tubeWire.material.dispose();
+  }
+  const N = 100;
+  const corners = [
+    { sx: -1, sy: -1 }, { sx: +1, sy: -1 },
+    { sx: +1, sy: +1 }, { sx: -1, sy: +1 }
+  ];
+  const edgePts = [];
+  let prevRing = null;
+  for (let i = 0; i <= N; i++) {
+    const t = FIELD_THETA_MIN + (i / N) * (FIELD_THETA_MAX - FIELD_THETA_MIN);
+    const f = fieldLineFrame(t);
+    const ring = corners.map(c =>
+      f.center.clone()
+        .add(f.radial.clone().multiplyScalar(c.sx * DX))
+        .add(f.binormal.clone().multiplyScalar(c.sy * DY))
+    );
+    if (prevRing) {
+      for (let c = 0; c < 4; c++) {
+        edgePts.push(prevRing[c], ring[c]);
+      }
+    }
+    prevRing = ring;
+  }
+  tubeWire = new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints(edgePts),
+    new THREE.LineBasicMaterial({ color: 0xd4a04a, transparent: true, opacity: 0.4 })
+  );
+  scene.add(tubeWire);
+}
+rebuildTube();
+
+// ============ The fluctuation field (the colored cloud) ============
+const NY = 16;
+const AMPS = new Array(NY).fill(0).map((_, k) => {
+  if (k === 0) return 0;
+  return Math.exp(-Math.pow((k - 4) / 3, 2)) * (0.5 + 0.8 * Math.sin(k * 1.7));
+});
+const PHASES = new Array(NY).fill(0).map((_, k) => k * 1.31 + 0.7);
+
+function deltaT_local(xL, yL, theta, sizeFactor) {
+  const ny = sizeFactor || 1; // higher = finer scale
+  const yNorm = (yL / DY) * Math.PI;
+  let v = 0;
+  for (let k = 1; k < NY; k++) {
+    v += AMPS[k] * Math.cos(k * yNorm * ny + PHASES[k] + theta * 0.3);
+  }
+  const xEnv = Math.exp(-Math.pow(xL / (DX * 0.8), 2));
+  const zEnv = 0.55 + 0.45 * Math.cos(theta * 0.5 + 1.0);
+  return xEnv * zEnv * v / 4;
+}
+
+let cloud = null;
+function buildCloud(opts) {
+  if (cloud) {
+    scene.remove(cloud);
+    cloud.geometry.dispose();
+    cloud.material.dispose();
+  }
+  const NXL = opts.NXL, NYL = opts.NYL, NZL = opts.NZL;
+  const sizeFactor = opts.sizeFactor || 1;
+  const positions = [];
+  const colors = [];
+  const sizes = [];
+  for (let i = 0; i < NXL; i++) {
+    for (let j = 0; j < NYL; j++) {
+      for (let k = 0; k < NZL; k++) {
+        const xL = -DX + (i + 0.5) * (2 * DX) / NXL;
+        const yL = -DY + (j + 0.5) * (2 * DY) / NYL;
+        const theta = FIELD_THETA_MIN + (k + 0.5) * (FIELD_THETA_MAX - FIELD_THETA_MIN) / NZL;
+        const v = deltaT_local(xL, yL, theta, sizeFactor);
+        const absV = Math.abs(v);
+        if (absV > 0.02) {
+          const f = fieldLineFrame(theta);
+          const p = f.center.clone()
+            .add(f.radial.clone().multiplyScalar(xL))
+            .add(f.binormal.clone().multiplyScalar(yL));
+          positions.push(p.x, p.y, p.z);
+          const t = Math.max(-1, Math.min(1, v * 4));
+          let r, g, b;
+          if (t >= 0) {
+            r = 255; g = 100 - 80 * t; b = 80 - 60 * t;
+          } else {
+            r = 80 + 60 * t; g = 150 + 50 * t; b = 255;
+          }
+          colors.push(r/255, g/255, b/255);
+          sizes.push(absV);
+        }
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: opts.pointSize, vertexColors: true,
+    transparent: true, opacity: 0.7,
+    sizeAttenuation: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  cloud = new THREE.Points(geo, mat);
+  scene.add(cloud);
+}
+
+// Default: dense fine-grained cloud
+let cloudConfig = { NXL: 16, NYL: 32, NZL: 280, pointSize: 0.18, sizeFactor: 1 };
+buildCloud(cloudConfig);
+
+// ============ Camera modes ============
+let mode = 'orbit'; // 'orbit' | 'fly'
+let orbitYaw = 0.6, orbitPitch = 0.45, orbitDist = 26;
+let autoRotate = true;
+
+let flyTheta = FIELD_THETA_MIN;
+let flySpeed = 0.6; // theta per second
+let flyPaused = true;
+let flyDir = 1; // +1 forward, -1 backward
+
+function setOrbit() {
+  camera.position.set(
+    orbitDist * Math.cos(orbitPitch) * Math.sin(orbitYaw),
+    orbitDist * Math.sin(orbitPitch),
+    orbitDist * Math.cos(orbitPitch) * Math.cos(orbitYaw)
+  );
+  camera.lookAt(0, 0, 0);
+  camera.up.set(0, 1, 0);
+}
+setOrbit();
+
+function setFly(dt) {
+  if (!flyPaused) {
+    flyTheta += flyDir * flySpeed * dt;
+    if (flyTheta > FIELD_THETA_MAX) flyTheta = FIELD_THETA_MIN;
+    if (flyTheta < FIELD_THETA_MIN) flyTheta = FIELD_THETA_MAX;
+  }
+  const f = fieldLineFrame(flyTheta);
+  // Position: at the field line center
+  camera.position.copy(f.center);
+  // Look forward along the tangent (in direction of flyDir)
+  const fwd = f.tangent.clone().multiplyScalar(flyDir);
+  const target = f.center.clone().add(fwd.multiplyScalar(2));
+  camera.up.copy(f.binormal);
+  camera.lookAt(target);
+}
+
+// ============ Interaction ============
+const cv = document.getElementById('c');
+let dragging = false, prevX = 0, prevY = 0;
+cv.addEventListener('mousedown', e => { dragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => dragging = false);
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - prevX, dy = e.clientY - prevY;
+  prevX = e.clientX; prevY = e.clientY;
+  if (mode === 'orbit') {
+    orbitYaw += dx * 0.005;
+    orbitPitch = Math.max(-1.4, Math.min(1.4, orbitPitch + dy * 0.005));
+  }
+});
+window.addEventListener('wheel', e => {
+  if (mode === 'orbit') {
+    orbitDist = Math.max(2, Math.min(80, orbitDist * (1 + e.deltaY * 0.001)));
+  } else {
+    // change fly speed
+    flySpeed = Math.max(0.05, Math.min(3, flySpeed * (1 - e.deltaY * 0.001)));
+  }
+});
+window.addEventListener('keydown', e => {
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (mode === 'fly') {
+      flyPaused = !flyPaused;
+    }
+  } else if (e.key === 'ArrowRight') {
+    flyDir = 1;
+  } else if (e.key === 'ArrowLeft') {
+    flyDir = -1;
+  } else if (e.key === 'Escape') {
+    setMode('orbit');
+  }
+});
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============ UI ============
+function setMode(m) {
+  mode = m;
+  if (m === 'fly') {
+    document.body.classList.add('fly-mode');
+    document.getElementById('modeHud').textContent = 'fly (inside!)';
+    document.getElementById('flyBtn').textContent = '⏹ EXIT FLYTHROUGH';
+    document.getElementById('flyBtn').classList.add('on');
+    flyPaused = false;
+    flyTheta = FIELD_THETA_MIN;
+    // hide donut wire and tube wire from inside view? Actually keep tube to show context
+    donutWire.visible = false;
+    fline.visible = false;
+    // dim the tube so it doesn't distract
+    if (tubeWire) tubeWire.material.opacity = 0.15;
+  } else {
+    document.body.classList.remove('fly-mode');
+    document.getElementById('modeHud').textContent = 'orbit (outside)';
+    document.getElementById('flyBtn').textContent = '▶ START FLYTHROUGH';
+    document.getElementById('flyBtn').classList.remove('on');
+    flyPaused = true;
+    donutWire.visible = ctxOn;
+    fline.visible = ctxOn;
+    if (tubeWire) tubeWire.material.opacity = ctxOn ? 0.4 : 0;
+  }
+}
+
+document.getElementById('flyBtn').addEventListener('click', () => {
+  setMode(mode === 'orbit' ? 'fly' : 'orbit');
+});
+document.getElementById('rotBtn').addEventListener('click', e => {
+  autoRotate = !autoRotate;
+  e.target.classList.toggle('on', autoRotate);
+});
+let ctxOn = true;
+document.getElementById('ctxBtn').addEventListener('click', e => {
+  ctxOn = !ctxOn;
+  donutWire.visible = ctxOn;
+  fline.visible = ctxOn;
+  if (tubeWire) tubeWire.material.opacity = ctxOn ? 0.4 : 0;
+  e.target.classList.toggle('on', ctxOn);
+});
+document.getElementById('thinBtn').addEventListener('click', e => {
+  const isOn = !e.target.classList.contains('on');
+  e.target.classList.toggle('on', isOn);
+  if (isOn) { DX = 0.3; DY = 0.45; }
+  else { DX = 0.6; DY = 0.9; }
+  rebuildTube();
+  buildCloud(cloudConfig);
+});
+document.getElementById('bigBtn').addEventListener('click', e => {
+  const isOn = !e.target.classList.contains('on');
+  e.target.classList.toggle('on', isOn);
+  if (isOn) {
+    cloudConfig = { NXL: 12, NYL: 18, NZL: 180, pointSize: 0.45, sizeFactor: 0.5 };
+  } else {
+    cloudConfig = { NXL: 16, NYL: 32, NZL: 280, pointSize: 0.18, sizeFactor: 1 };
+  }
+  buildCloud(cloudConfig);
+});
+
+// ============ Animate ============
+const clock = new THREE.Clock();
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (mode === 'orbit') {
+    if (autoRotate && !dragging) orbitYaw += dt * 0.13;
+    setOrbit();
+    document.getElementById('speedHud').textContent = 'paused';
+    document.getElementById('thetaHud').textContent = '—';
+  } else {
+    setFly(dt);
+    document.getElementById('speedHud').textContent = flyPaused ? 'paused' : (flySpeed.toFixed(2) + ' (' + (flyDir>0?'fwd':'rev') + ')');
+    document.getElementById('thetaHud').textContent = flyTheta.toFixed(2);
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>

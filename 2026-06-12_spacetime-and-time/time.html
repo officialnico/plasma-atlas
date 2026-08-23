@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time, from zero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070b16;
+    --bg2:#0d1424;
+    --bg3:#141d33;
+    --ink:#eaeefb;
+    --muted:#97a3c4;
+    --faint:#5c6a8c;
+    --line:rgba(255,255,255,0.09);
+    --light:#6ee7f0;        /* the photon — the hero color */
+    --light-2:#a8f3f8;
+    --warm:#fbbf24;         /* the moving / slowed clock */
+    --violet:#b794f6;       /* gravity */
+    --red:#f0728a;          /* redshift */
+    --shadow:0 20px 60px rgba(0,0,0,0.45);
+    --r:18px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 700px at 75% -5%, #11203f 0%, transparent 55%),
+      radial-gradient(900px 600px at 10% 12%, #16132e 0%, transparent 50%),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--light);color:#04121a}
+
+  .wrap{max-width:880px;margin:0 auto;padding:0 22px}
+
+  /* ---------- type ---------- */
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;letter-spacing:-0.02em;line-height:1.08;margin:0}
+  p{margin:0 0 1.05em}
+  .mono{font-family:'IBM Plex Mono',monospace}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;letter-spacing:0.28em;text-transform:uppercase;
+    color:var(--light);opacity:.85;margin-bottom:18px;display:block;
+  }
+
+  /* ---------- hero ---------- */
+  header{min-height:92vh;display:flex;flex-direction:column;justify-content:center;position:relative;padding:60px 0}
+  header h1{font-size:clamp(52px,12vw,116px);font-weight:700}
+  header h1 .glow{
+    color:var(--light);
+    text-shadow:0 0 34px rgba(110,231,240,.55),0 0 8px rgba(110,231,240,.4);
+  }
+  header .lede{font-size:clamp(18px,2.4vw,23px);color:var(--muted);max-width:620px;margin-top:26px}
+  .scrollcue{margin-top:54px;display:flex;align-items:center;gap:12px;color:var(--faint);font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.05em}
+  .scrollcue .dot{width:7px;height:7px;border-radius:50%;background:var(--light);box-shadow:0 0 12px var(--light);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.3)}}
+  #heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1;opacity:.55}
+
+  /* ---------- sections ---------- */
+  section{padding:78px 0;border-top:1px solid var(--line)}
+  .step-no{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--faint);letter-spacing:.2em;margin-bottom:14px}
+  section h2{font-size:clamp(30px,5.2vw,46px);margin-bottom:22px}
+  section h2 .accent{color:var(--light)}
+  .body{font-size:17.5px;color:#cdd5ec}
+  .body strong{color:var(--ink);font-weight:600}
+  .body .hl{color:var(--warm);font-weight:600}
+
+  /* ---------- figure / canvas cards ---------- */
+  .fig{
+    background:linear-gradient(180deg,var(--bg2),var(--bg));
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    padding:20px;
+    margin:30px 0;
+    box-shadow:var(--shadow);
+  }
+  .fig canvas{display:block;width:100%;border-radius:10px;background:radial-gradient(700px 300px at 50% 0%,#0c1730,#070b16)}
+  .fig-cap{font-size:13.5px;color:var(--muted);margin-top:14px;font-family:'IBM Plex Mono',monospace;line-height:1.5}
+
+  /* ---------- controls ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:18px 26px;align-items:center;margin-top:16px}
+  .ctrl{flex:1 1 240px;min-width:200px}
+  .ctrl label{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);margin-bottom:8px}
+  .ctrl label b{color:var(--light);font-weight:500}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:var(--bg3);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--light);box-shadow:0 0 14px rgba(110,231,240,.7);border:2px solid #04121a;cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--light);box-shadow:0 0 14px rgba(110,231,240,.7);border:2px solid #04121a;cursor:pointer}
+  input[type=range]:focus-visible::-webkit-slider-thumb{outline:3px solid var(--warm);outline-offset:2px}
+  .btn{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.04em;
+    background:var(--bg3);color:var(--ink);border:1px solid var(--line);
+    padding:9px 16px;border-radius:10px;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{border-color:var(--light);color:var(--light)}
+  .btn:focus-visible{outline:3px solid var(--warm);outline-offset:2px}
+
+  /* readout chips */
+  .readout{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+  .chip{flex:1 1 130px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .chip .k{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .chip .v{font-family:'IBM Plex Mono',monospace;font-size:25px;font-weight:600;margin-top:4px}
+  .chip.still .v{color:var(--light)}
+  .chip.moving .v{color:var(--warm)}
+  .chip.gamma .v{color:#fff}
+
+  /* ---------- math block ---------- */
+  .math{
+    background:var(--bg);border:1px solid var(--line);border-radius:14px;
+    padding:22px 24px;margin:22px 0;font-family:'IBM Plex Mono',monospace;
+    font-size:16px;color:#dbe2f6;overflow-x:auto;
+  }
+  .math .row{display:flex;align-items:center;gap:12px;padding:7px 0;flex-wrap:wrap}
+  .math .note{color:var(--faint);font-size:13px}
+  .math .step-led{color:var(--light);min-width:24px}
+  .frac{display:inline-flex;flex-direction:column;text-align:center;vertical-align:middle;margin:0 4px}
+  .frac .num{border-bottom:1.5px solid #6b7699;padding:0 8px 2px}
+  .frac .den{padding:3px 8px 0}
+  .rad{border-top:1.5px solid #dbe2f6;padding-top:1px;margin-left:1px}
+  .sqrt::before{content:"√";font-size:1.1em;margin-right:-2px}
+  sup{font-size:.72em}
+  .keyresult{color:var(--warm);font-size:19px}
+
+  /* lower / higher panels for gravity */
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+  .panel{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .panel h3{font-size:15px;margin-bottom:6px}
+  .panel.high h3{color:var(--light)}
+  .panel.low h3{color:var(--warm)}
+  .panel p{font-size:14px;color:var(--muted);margin:0}
+
+  /* gps payoff */
+  .payoff{background:linear-gradient(135deg,#0e1a33,#130f28);border:1px solid var(--line);border-radius:var(--r);padding:30px;margin-top:26px}
+  .payoff .big{font-family:'Space Grotesk';font-size:clamp(26px,4vw,38px);color:var(--violet);font-weight:600;margin-bottom:10px}
+
+  footer{padding:70px 0 90px;text-align:center;color:var(--faint);font-family:'IBM Plex Mono',monospace;font-size:13px;border-top:1px solid var(--line)}
+  footer .tldr{color:var(--muted);max-width:600px;margin:0 auto 26px;font-family:'Inter';font-size:16px;line-height:1.65;text-align:left}
+  footer .tldr b{color:var(--light)}
+
+  @media(max-width:560px){
+    .twocol{grid-template-columns:1fr}
+    .chip .v{font-size:21px}
+    section{padding:60px 0}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .scrollcue .dot{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <canvas id="heroCanvas"></canvas>
+  <span class="eyebrow">an interactive explainer</span>
+  <h1>Time isn't<br>a <span class="glow">universal</span><br>metronome.</h1>
+  <p class="lede">Your second and my second only match if we're moving the same way and sitting in the same gravity. Here's the whole idea, built up from one clock — with the real math, no faith required.</p>
+  <div class="scrollcue"><span class="dot"></span> scroll to begin · 6 steps</div>
+</header>
+
+<!-- STEP 1 -->
+<section class="wrap" id="s1">
+  <div class="step-no">01 / what is a clock</div>
+  <h2>A clock is just <span class="accent">a thing that repeats</span>.</h2>
+  <div class="body">
+    <p>Forget hands and digits for a second. Strip a clock down to its job: it does some identical thing over and over, and you <em>count</em>. A pendulum swinging. Your heart beating. An atom vibrating. Each repeat is one <strong>tick</strong>.</p>
+    <p>We're going to use a weird but honest clock: a pulse of <span style="color:var(--light)">light</span> bouncing straight up and down between two mirrors. One round trip = one tick. Watch it.</p>
+  </div>
+  <div class="fig">
+    <canvas id="c1" height="300"></canvas>
+    <div class="fig-cap">A light pulse bounces between two mirrors. Each full up-and-down = one tick. <span style="color:var(--light)" id="c1ticks">0</span> ticks so far.</div>
+  </div>
+  <div class="body">
+    <p>Boring so far — on purpose. We picked light for one reason, and it's the strangest fact in physics. Next.</p>
+  </div>
+</section>
+
+<!-- STEP 2 -->
+<section class="wrap" id="s2">
+  <div class="step-no">02 / the one weird rule</div>
+  <h2>Light always moves at <span class="accent">the same speed</span>.</h2>
+  <div class="body">
+    <p>Here's the rule everything hangs on, and it's been tested to death: <strong>no matter how fast you're moving, you measure light going at the same speed</strong> — about 300,000 km/s, called <span class="mono" style="color:var(--light)">c</span>.</p>
+    <p>That sounds harmless. It is not. Throw a ball forward from a moving train and someone on the ground sees it go <em>train speed + ball speed</em>. Shine a flashlight forward from that train, and the ground observer measures the light at <span class="hl">exactly c</span> — not c + train speed. The speeds refuse to add up.</p>
+    <p>Something has to give to make that work. Speed is distance ÷ time. If everyone agrees on the speed of light but they're moving differently... then they <strong>can't</strong> all be agreeing on distance and time. Hold that thought and look at what it does to our bouncing clock.</p>
+  </div>
+</section>
+
+<!-- STEP 3 — the big interactive -->
+<section class="wrap" id="s3">
+  <div class="step-no">03 / the payoff</div>
+  <h2>A <span class="accent">moving</span> light clock <span style="color:var(--warm)">ticks slow</span>.</h2>
+  <div class="body">
+    <p>Two identical clocks. The <span style="color:var(--light)">left one</span> sits still next to you. The <span style="color:var(--warm)">right one</span> flies past at speed <span class="mono">v</span>. Drag the slider and watch.</p>
+    <p>The catch: while the light in the moving clock travels up, the whole clock has <em>slid sideways</em>. So from your point of view the pulse can't go straight up — it has to travel a longer, slanted, zig-zag path to catch the mirror that moved. But light's speed is fixed at <span class="mono" style="color:var(--light)">c</span>. Longer path ÷ same speed = <span class="hl">more time per tick</span>. The moving clock falls behind.</p>
+  </div>
+  <div class="fig">
+    <canvas id="c3" height="340"></canvas>
+    <div class="controls">
+      <div class="ctrl">
+        <label>speed of moving clock <b id="vlabel">0.00 c</b></label>
+        <input type="range" id="vslider" min="0" max="99" value="0" aria-label="speed of the moving clock as a fraction of light speed">
+      </div>
+      <button class="btn" id="resetBtn">reset counts</button>
+    </div>
+    <div class="readout">
+      <div class="chip still"><div class="k">still clock</div><div class="v" id="stillTicks">0</div></div>
+      <div class="chip moving"><div class="k">moving clock</div><div class="v" id="movTicks">0</div></div>
+      <div class="chip gamma"><div class="k">time stretch γ</div><div class="v" id="gammaVal">1.00×</div></div>
+    </div>
+    <div class="fig-cap" style="margin-top:14px">Same lab-time passes for both. The slanted path is literally longer, so the moving clock counts fewer ticks. At 0.99c, one tick over there takes ~7× as long over here.</div>
+  </div>
+</section>
+
+<!-- STEP 4 — the math -->
+<section class="wrap" id="s4">
+  <div class="step-no">04 / the actual math</div>
+  <h2>It's just <span class="accent">Pythagoras</span>.</h2>
+  <div class="body">
+    <p>You've got calc 2 — this needs none of it, only a right triangle. Let the mirrors be a distance <span class="mono">L</span> apart. Drag the slider to set how fast the clock moves and watch the triangle that the light traces in <em>your</em> frame.</p>
+  </div>
+  <div class="fig">
+    <canvas id="c4" height="280"></canvas>
+    <div class="controls">
+      <div class="ctrl">
+        <label>v / c <b id="v4label">0.50</b></label>
+        <input type="range" id="v4slider" min="0" max="95" value="50" aria-label="speed as fraction of c for the triangle">
+      </div>
+    </div>
+    <div class="fig-cap">Light's path (the <span style="color:var(--light)">hypotenuse</span>) is longer than the straight-up height <span style="color:var(--warm)">L</span> by exactly the factor γ.</div>
+  </div>
+
+  <div class="math">
+    <div class="row"><span class="step-led">·</span><span class="note">In the clock's own frame, light just goes straight up a height L. One tick takes:</span></div>
+    <div class="row" style="padding-left:24px">t<sub>0</sub> = <span class="frac"><span class="num">L</span><span class="den">c</span></span></div>
+
+    <div class="row"><span class="step-led">·</span><span class="note">In your frame, during time t the clock slides sideways a distance v·t, so light travels the hypotenuse. Pythagoras:</span></div>
+    <div class="row" style="padding-left:24px">(c·t)<sup>2</sup> = L<sup>2</sup> + (v·t)<sup>2</sup></div>
+
+    <div class="row"><span class="step-led">·</span><span class="note">Gather the t's:</span></div>
+    <div class="row" style="padding-left:24px">c<sup>2</sup>t<sup>2</sup> − v<sup>2</sup>t<sup>2</sup> = L<sup>2</sup> &nbsp;→&nbsp; t<sup>2</sup>(c<sup>2</sup>−v<sup>2</sup>) = L<sup>2</sup></div>
+
+    <div class="row"><span class="step-led">·</span><span class="note">Solve for the moving-clock tick t, then divide top and bottom by c:</span></div>
+    <div class="row" style="padding-left:24px">
+      t = <span class="frac"><span class="num">L</span><span class="den"><span class="sqrt"><span class="rad">c<sup>2</sup>−v<sup>2</sup></span></span></span></span>
+      &nbsp;=&nbsp;
+      <span class="frac"><span class="num">L/c</span><span class="den"><span class="sqrt"><span class="rad">1 − v<sup>2</sup>/c<sup>2</sup></span></span></span></span>
+      &nbsp;=&nbsp; γ · t<sub>0</sub>
+    </div>
+
+    <div class="row" style="margin-top:8px;padding-left:24px">
+      <span class="keyresult">γ = <span class="frac"><span class="num">1</span><span class="den"><span class="sqrt"><span class="rad">1 − v<sup>2</sup>/c<sup>2</sup></span></span></span></span></span>
+    </div>
+  </div>
+
+  <div class="body">
+    <p>That <span class="mono" style="color:#fff">γ</span> (gamma) is the whole story of motion-based time dilation. At everyday speeds v is tiny next to c, so v²/c² ≈ 0 and γ ≈ 1 — clocks basically agree, which is why you never notice. But as <span class="mono">v</span> → <span class="mono">c</span>, the bottom shrinks toward zero and γ blows up. <strong>The moving clock's tick takes γ times longer.</strong> Nothing broke the clock. The geometry of "same speed of light for everyone" just forced time to stretch.</p>
+  </div>
+</section>
+
+<!-- STEP 5 — gravity -->
+<section class="wrap" id="s5">
+  <div class="step-no">05 / now gravity</div>
+  <h2>Gravity is <span class="accent">acceleration</span> in disguise.</h2>
+  <div class="body">
+    <p>That handled <em>motion</em>. Now your original question: why does <strong>gravity</strong> slow time? Einstein's move is sneaky and beautiful. He said: standing still in gravity is <span class="hl">physically indistinguishable</span> from accelerating in a rocket in empty space. Feet pressed to the floor either way — you can't tell which from inside a sealed room.</p>
+    <p>So let's solve the easy one (the rocket) and then just rename it "gravity." A rocket accelerates upward. A light pulse leaves the floor heading for the ceiling. By the time it arrives, the ceiling has <em>sped up</em> and is racing away from where the light started — so the ceiling catches the light <span style="color:var(--red)">stretched out, redshifted</span>, at a lower frequency.</p>
+  </div>
+  <div class="fig">
+    <canvas id="c5" height="320"></canvas>
+    <div class="controls">
+      <div class="ctrl">
+        <label>gravity / acceleration <b id="glabel">medium</b></label>
+        <input type="range" id="gslider" min="10" max="100" value="50" aria-label="strength of gravity or acceleration">
+      </div>
+    </div>
+    <div class="fig-cap">Wave leaves the <span style="color:var(--warm)">floor</span> tight, arrives at the <span style="color:var(--light)">ceiling</span> stretched. Frequency dropped → the ceiling sees the floor's clock running slow.</div>
+  </div>
+  <div class="body">
+    <p>Here's the punchline. A wave's frequency <em>is</em> a clock — so many crests per second. If the ceiling receives fewer crests per second than the floor sent, the ceiling concludes the floor's clock is ticking slow. Now swap the rocket for gravity (they're the same):</p>
+  </div>
+  <div class="twocol">
+    <div class="panel low"><h3>Lower in gravity</h3><p>Deeper in the well — sea level, the floor, near a heavy mass. Time runs <b>slower</b> here.</p></div>
+    <div class="panel high"><h3>Higher up</h3><p>Up a mountain, in orbit, far from mass. Time runs <b>faster</b> here, relative to below.</p></div>
+  </div>
+  <div class="body" style="margin-top:24px">
+    <p>And exactly like before: it's not that the atoms get tired or sluggish. <strong>Everything</strong> down there keeps perfect step — heartbeat, atoms, light, aging — all running on whatever the local rate of time happens to be. You only catch the difference when you compare a low clock to a high one.</p>
+  </div>
+</section>
+
+<!-- STEP 6 — payoff -->
+<section class="wrap" id="s6">
+  <div class="step-no">06 / it's real</div>
+  <h2>This runs in <span class="accent">your pocket</span>.</h2>
+  <div class="body">
+    <p>None of this is a thought experiment you have to take on trust. The clocks on GPS satellites sit higher in Earth's gravity and zip around fast, so both effects hit them. Engineers don't just hope it works — they <strong>pre-correct the satellite clocks every single day</strong> for it.</p>
+  </div>
+  <div class="payoff">
+    <div class="big">~38 microseconds / day</div>
+    <div class="body" style="margin:0">
+      <p style="margin:0">That's how much faster GPS clocks tick than ground clocks, once you add gravity's speed-up to motion's slow-down. Ignore it and your phone's "you are here" dot drifts off by <strong>about 10 km after one day</strong>. The blue dot stays accurate <em>because</em> someone did this exact calculation. Atomic clocks are now so precise they measure the difference over a height change of a single foot.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <div class="tldr">
+    <b>The whole thing in one breath:</b> a clock is anything that repeats. Light moves at one fixed speed for everyone. To keep that true, moving clocks and clocks deep in gravity must run slow — by the factor γ for motion, and by an analogous factor for gravity. Gravity doesn't drag on atoms; it bends the rate of time itself, and everything dutifully keeps step.
+  </div>
+  made to be poked at · drag the sliders again
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- hi-dpi canvas setup ----
+  function setup(canvas, cssH){
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const cssW = canvas.clientWidth || canvas.parentElement.clientWidth;
+    canvas.width = Math.round(cssW*dpr);
+    canvas.height = Math.round(cssH*dpr);
+    canvas.style.height = cssH+'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx,w:cssW,h:cssH,dpr};
+  }
+
+  const controllers = []; // {el, draw, dims, alive}
+  function register(canvas, cssH, init){
+    let dims = setup(canvas, cssH);
+    const state = init(dims);
+    const c = {canvas, cssH, draw:state.draw, alive:false, resize:()=>{
+      dims = setup(canvas, cssH);
+      if(state.onResize) state.onResize(dims);
+    }};
+    controllers.push(c);
+    // only animate when on screen
+    if('IntersectionObserver' in window){
+      new IntersectionObserver((en)=>{ en.forEach(e=> c.alive = e.isIntersecting); },{threshold:0.05})
+        .observe(canvas);
+    } else { c.alive = true; }
+    return c;
+  }
+
+  let last = performance.now();
+  function loop(now){
+    let dt = (now-last)/1000; last = now;
+    if(dt>0.05) dt=0.05; // clamp tab-switch jumps
+    for(const c of controllers){ if(c.alive) c.draw(dt, c.canvas.getContext('2d')); }
+    requestAnimationFrame(loop);
+  }
+
+  // glowing dot helper
+  function photon(ctx,x,y,r,col){
+    const g = ctx.createRadialGradient(x,y,0,x,y,r*4);
+    g.addColorStop(0,col); g.addColorStop(0.4,col); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r*4,0,7); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x,y,r*0.8,0,7); ctx.fill();
+  }
+  function mirror(ctx,x1,x2,y,col){
+    ctx.strokeStyle=col; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke();
+  }
+
+  const LIGHT='#6ee7f0', WARM='#fbbf24', RED='#f0728a', VIOLET='#b794f6';
+
+  /* ============ HERO — ambient drifting light streaks ============ */
+  (function(){
+    const cv = document.getElementById('heroCanvas');
+    function fit(){ const dpr=Math.min(devicePixelRatio||1,2);
+      cv.width=innerWidth*dpr; cv.height=cv.clientHeight*dpr;
+      const x=cv.getContext('2d'); x.setTransform(dpr,0,0,dpr,0,0); return x; }
+    let ctx=fit();
+    const N=reduce?0:34;
+    const stars=Array.from({length:N},()=>({x:Math.random(),y:Math.random(),s:Math.random()*1.6+0.3,v:Math.random()*0.012+0.003,a:Math.random()}));
+    function frame(){
+      const w=cv.clientWidth,h=cv.clientHeight;
+      ctx.clearRect(0,0,w,h);
+      for(const st of stars){
+        st.x-=st.v*0.6; if(st.x<-0.02)st.x=1.02;
+        const x=st.x*w,y=st.y*h;
+        ctx.globalAlpha=0.25+0.55*Math.abs(Math.sin(performance.now()*0.0006+st.a*6));
+        ctx.fillStyle=LIGHT;
+        ctx.beginPath(); ctx.arc(x,y,st.s,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      requestAnimationFrame(frame);
+    }
+    if(!reduce) frame();
+    addEventListener('resize',()=>{ctx=fit();});
+  })();
+
+  /* ============ STEP 1 — single stationary light clock ============ */
+  (function(){
+    const cv=document.getElementById('c1');
+    const tickEl=document.getElementById('c1ticks');
+    let ticks=0;
+    register(cv,300,(d)=>{
+      let y, dir, top, bot, x, speed, trail;
+      function lay(dd){ top=50; bot=dd.h-50; x=dd.w/2; speed=(bot-top)/0.9; y=bot; dir=-1; trail=[]; }
+      lay(d);
+      return {
+        onResize:lay,
+        draw:(dt,ctx)=>{
+          const w=cv.clientWidth,h=cv.clientHeight; top=50;bot=h-50;x=w/2;speed=(bot-top)/0.9;
+          ctx.clearRect(0,0,w,h);
+          y += dir*speed*dt;
+          if(y<=top){y=top;dir=1;} 
+          if(y>=bot){ y=bot; if(dir===1){ticks++; tickEl.textContent=ticks;} dir=-1; }
+          // also count when reaching top? define tick = arrival at bottom (round trip)
+          mirror(ctx,x-70,x+70,top,'#6b7699');
+          mirror(ctx,x-70,x+70,bot,'#6b7699');
+          // trail
+          trail.push(y); if(trail.length>14)trail.shift();
+          ctx.strokeStyle='rgba(110,231,240,0.25)'; ctx.lineWidth=2;
+          ctx.beginPath(); trail.forEach((ty,i)=>{i?ctx.lineTo(x,ty):ctx.moveTo(x,ty);}); ctx.stroke();
+          photon(ctx,x,y,3.2,LIGHT);
+          ctx.fillStyle='#6b7699';
+          ctx.font="12px 'IBM Plex Mono',monospace"; ctx.textAlign='center';
+          ctx.fillText('mirror',x,top-14); ctx.fillText('mirror',x,bot+24);
+        }
+      };
+    });
+  })();
+
+  /* ============ STEP 3 — still vs moving clock (PHYSICS-ACCURATE) ============ */
+  (function(){
+    const cv=document.getElementById('c3');
+    const vSlider=document.getElementById('vslider');
+    const vLabel=document.getElementById('vlabel');
+    const stillEl=document.getElementById('stillTicks');
+    const movEl=document.getElementById('movTicks');
+    const gEl=document.getElementById('gammaVal');
+    const resetBtn=document.getElementById('resetBtn');
+
+    let stillTicks=0, movTicks=0;
+    function vfrac(){ return Math.min(0.99, vSlider.value/100); }
+    function updLabel(){
+      const f=vfrac();
+      vLabel.textContent=f.toFixed(2)+' c';
+      const g=1/Math.sqrt(1-f*f);
+      gEl.textContent=g.toFixed(2)+'×';
+    }
+    vSlider.addEventListener('input',updLabel);
+    resetBtn.addEventListener('click',()=>{stillTicks=0;movTicks=0;stillEl.textContent=0;movEl.textContent=0;});
+    updLabel();
+
+    register(cv,340,(d)=>{
+      // c = photon speed in px/s (path-length speed, SAME for both)
+      const cSpeed=200;
+      let stillY, stillDir, mTop, mBot, stillX;
+      let movX, movY, movDir, movStartX, span;
+      function lay(){
+        const w=cv.clientWidth,h=cv.clientHeight;
+        mTop=55; mBot=h-55;
+        stillX=w*0.22;
+        movStartX=w*0.42; span=w-movStartX-70; if(span<120)span=120;
+        if(stillY===undefined){ stillY=mBot; stillDir=-1; movY=mBot; movDir=-1; movX=movStartX; }
+      }
+      lay();
+      const trailS=[], trailM=[];
+      return {
+        onResize:lay,
+        draw:(dt,ctx)=>{
+          const w=cv.clientWidth,h=cv.clientHeight;
+          mTop=55;mBot=h-55;stillX=w*0.22;movStartX=w*0.42;span=w-movStartX-70;if(span<120)span=120;
+          ctx.clearRect(0,0,w,h);
+          const L=mBot-mTop;
+          const v=vfrac()*cSpeed;            // sideways speed (px/s)
+          const vy=Math.sqrt(Math.max(0,cSpeed*cSpeed - v*v)); // vertical comp of light (px/s)
+
+          // --- STILL clock: vertical speed = full c ---
+          stillY += stillDir*cSpeed*dt;
+          if(stillY<=mTop){stillY=mTop;stillDir=1;}
+          if(stillY>=mBot){stillY=mBot; if(stillDir===1){stillTicks++;stillEl.textContent=stillTicks;} stillDir=-1;}
+
+          // --- MOVING clock: slides at v, light vertical speed = vy ---
+          movX += v*dt;
+          if(movX>movStartX+span){ movX=movStartX; trailM.length=0; }
+          movY += movDir*vy*dt;
+          if(movY<=mTop){movY=mTop;movDir=1;}
+          if(movY>=mBot){movY=mBot; if(movDir===1){movTicks++;movEl.textContent=movTicks;} movDir=-1;}
+
+          // draw still clock
+          drawClock(ctx,stillX,mTop,mBot,LIGHT);
+          trailS.push(stillY); if(trailS.length>16)trailS.shift();
+          ctx.strokeStyle='rgba(110,231,240,0.3)';ctx.lineWidth=2;ctx.beginPath();
+          trailS.forEach((ty,i)=>{i?ctx.lineTo(stillX,ty):ctx.moveTo(stillX,ty);});ctx.stroke();
+          photon(ctx,stillX,stillY,3,LIGHT);
+          label(ctx,stillX,'still');
+
+          // draw moving clock frame
+          drawClock(ctx,movX,mTop,mBot,WARM);
+          // lab-frame zigzag trail (the long diagonal!)
+          trailM.push([movX,movY]); if(trailM.length>22)trailM.shift();
+          ctx.strokeStyle='rgba(251,191,36,0.45)';ctx.lineWidth=2;ctx.beginPath();
+          trailM.forEach((p,i)=>{i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);});ctx.stroke();
+          photon(ctx,movX,movY,3,WARM);
+          label(ctx,movX,'moving →');
+
+          function drawClock(ctx,x,top,bot,col){
+            mirror(ctx,x-46,x+46,top,col); mirror(ctx,x-46,x+46,bot,col);
+            ctx.globalAlpha=0.5;
+            ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+            ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bot);ctx.stroke();
+            ctx.globalAlpha=1;
+          }
+          function label(ctx,x,t){
+            ctx.fillStyle='#8893b0';ctx.font="12px 'IBM Plex Mono',monospace";ctx.textAlign='center';
+            ctx.fillText(t,x,mTop-16);
+          }
+        }
+      };
+    });
+  })();
+
+  /* ============ STEP 4 — Pythagoras triangle ============ */
+  (function(){
+    const cv=document.getElementById('c4');
+    const sl=document.getElementById('v4slider');
+    const lab=document.getElementById('v4label');
+    function vf(){return sl.value/100;}
+    sl.addEventListener('input',()=>lab.textContent=vf().toFixed(2));
+    lab.textContent=vf().toFixed(2);
+
+    register(cv,280,(d)=>{
+      let t=0;
+      return { draw:(dt,ctx)=>{
+        const w=cv.clientWidth,h=cv.clientHeight;
+        ctx.clearRect(0,0,w,h);
+        const v=vf();
+        const L=h-90;                       // vertical leg (px)
+        const base = L * (v/Math.sqrt(1-v*v+1e-9))*0; // not used
+        // geometry: vertical = L, horizontal = v*T where light path = c*T, c=1 scale
+        // pick T so vertical leg shows L: vertical = sqrt(c^2-v^2)*T = L  -> with c=1: T=L/sqrt(1-v^2)
+        const T = L/Math.sqrt(1-v*v);
+        const horiz = v*T;                   // px
+        const hyp = Math.sqrt(L*L+horiz*horiz);
+        const x0=Math.max(40,(w-horiz)/2 - 0), y0=h-45, y1=y0-L;
+        const x1=x0+horiz;
+        // base line (where mirror slides)
+        ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(20,y0);ctx.lineTo(w-20,y0);ctx.stroke();
+        // vertical leg L (warm)
+        ctx.strokeStyle=WARM;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x0,y1);ctx.stroke();
+        // horizontal leg v*t
+        ctx.strokeStyle='#6b7699';ctx.lineWidth=2;ctx.setLineDash([5,5]);
+        ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.stroke();ctx.setLineDash([]);
+        // hypotenuse (light path)
+        ctx.strokeStyle=LIGHT;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+        // moving photon along hypotenuse
+        if(!reduce){ t+=dt*0.45; if(t>1)t-=1; }
+        const px=x0+(x1-x0)*t, py=y0+(y1-y0)*t;
+        photon(ctx,px,py,3,LIGHT);
+        // labels
+        ctx.font="13px 'IBM Plex Mono',monospace";
+        ctx.fillStyle=WARM;ctx.textAlign='right';ctx.fillText('L',x0-10,(y0+y1)/2);
+        ctx.fillStyle='#8893b0';ctx.textAlign='center';ctx.fillText('v·t',(x0+x1)/2,y0+20);
+        ctx.fillStyle=LIGHT;ctx.textAlign='left';
+        ctx.fillText('c·t  (light path)',(x0+x1)/2+6,(y0+y1)/2-8);
+        // gamma readout
+        const g=1/Math.sqrt(1-v*v);
+        ctx.fillStyle='#fff';ctx.textAlign='right';ctx.font="600 15px 'IBM Plex Mono',monospace";
+        ctx.fillText('γ = '+g.toFixed(2),w-16,26);
+        ctx.fillStyle='#8893b0';ctx.font="12px 'IBM Plex Mono',monospace";
+        ctx.fillText('path is '+g.toFixed(2)+'× longer than L',w-16,46);
+      }};
+    });
+  })();
+
+  /* ============ STEP 5 — rocket / redshift wave ============ */
+  (function(){
+    const cv=document.getElementById('c5');
+    const sl=document.getElementById('gslider');
+    const lab=document.getElementById('glabel');
+    function gf(){return sl.value/100;} // 0.1..1
+    function setLab(){const v=gf();lab.textContent=v<0.4?'weak':v<0.75?'medium':'strong';}
+    sl.addEventListener('input',setLab); setLab();
+
+    register(cv,320,(d)=>{
+      let phase=0;
+      return { draw:(dt,ctx)=>{
+        const w=cv.clientWidth,h=cv.clientHeight;
+        ctx.clearRect(0,0,w,h);
+        const g=gf();
+        const floorY=h-40, ceilY=40;
+        const cx=w*0.5;
+        // rocket body
+        ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1.5;
+        ctx.strokeRect(cx-120,ceilY,240,floorY-ceilY);
+        // floor & ceiling
+        mirror(ctx,cx-120,cx+120,floorY,WARM);
+        mirror(ctx,cx-120,cx+120,ceilY,LIGHT);
+        ctx.fillStyle='#8893b0';ctx.font="12px 'IBM Plex Mono',monospace";
+        ctx.textAlign='left';ctx.fillText('ceiling — receives (slow clock)',cx-118,ceilY-12);
+        ctx.fillText('floor — emits',cx-118,floorY+22);
+        // the wave: emitted with fixed freq at floor, stretched as it rises (redshift)
+        if(!reduce) phase += dt*2.2;
+        const amp=14;
+        // wave draw: integrate phase along the path, frequency falls with height
+        ctx.beginPath();
+        let acc=0; const steps=160;
+        for(let i=0;i<=steps;i++){
+          const p=i/steps;
+          const y=floorY+(ceilY-floorY)*p;
+          const stretch=1+g*2.2*p;            // wavelength multiplier with height
+          acc += (1/stretch)*0.42;            // phase advances slower as it stretches
+          const off=amp*Math.sin(acc*4 - phase*3);
+          const xx=cx+off;
+          i?ctx.lineTo(xx,y):ctx.moveTo(xx,y);
+        }
+        // color the stroke as a gradient floor(warm)->ceil(red/light)
+        const grad=ctx.createLinearGradient(0,floorY,0,ceilY);
+        grad.addColorStop(0,WARM); grad.addColorStop(1,RED);
+        ctx.strokeStyle=grad; ctx.stroke();
+        // freq readout
+        ctx.fillStyle=WARM;ctx.textAlign='right';ctx.font="600 13px 'IBM Plex Mono',monospace";
+        ctx.fillText('emitted: high freq',w-16,h-30);
+        ctx.fillStyle=RED;ctx.fillText('received: low freq ↓',w-16,h-12);
+      }};
+    });
+  })();
+
+  // resize handling for registered controllers
+  let rT;
+  addEventListener('resize',()=>{ clearTimeout(rT); rT=setTimeout(()=>{ controllers.forEach(c=>c.resize&&c.resize()); },150); });
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

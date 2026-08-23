@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marbles in a Hilly Landscape · Boltzmann Made Literal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f1e8;
+  --bg-2: #ebe4d2;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --marble: #c8482e;
+  --marble-glow: rgba(200, 72, 46, 0.5);
+  --land: #6b5d4c;
+  --land-fill: #8b7355;
+  --density: #2e6f9c;
+  --highlight: #d4a017;
+  --grass: #5b8a3a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at top, rgba(212, 160, 23, 0.08), transparent 50%),
+    var(--bg);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 28px 60px;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 24px;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--marble);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--marble);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 60px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(34px, 5vw, 52px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  margin-bottom: 14px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--marble);
+}
+
+.deck {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 64ch;
+  font-style: italic;
+}
+.deck strong { color: var(--ink); font-style: normal; font-weight: 400; }
+
+/* ---------- SCENE ---------- */
+.scene {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: 6px 6px 0 var(--rule);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+#sceneCanvas {
+  width: 100%;
+  height: 580px;
+  display: block;
+  background: linear-gradient(180deg,
+    rgba(212, 160, 23, 0.04) 0%,
+    rgba(245, 241, 232, 0) 40%,
+    rgba(245, 241, 232, 0) 100%);
+}
+
+/* ---------- CONTROLS ---------- */
+.controls {
+  background: var(--bg-2);
+  padding: 18px 24px;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 22px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.control-value {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--marble);
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--marble);
+  border: 2px solid var(--rule);
+  cursor: pointer;
+  transform: rotate(45deg);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--marble);
+  border: 2px solid var(--rule);
+  cursor: pointer;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  padding: 9px 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 600;
+  border-radius: 2px;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ---------- LANDSCAPE PRESETS ---------- */
+.landscape-pills {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  border-radius: 2px;
+  width: fit-content;
+}
+.lpill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink-soft);
+  border: none;
+  border-right: 1px solid var(--rule);
+  padding: 9px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.lpill:last-child { border-right: none; }
+.lpill:hover { background: var(--bg-2); color: var(--ink); }
+.lpill.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ---------- READOUTS ---------- */
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  margin-top: 24px;
+}
+.readout {
+  padding: 18px 22px;
+  border-right: 1px solid var(--rule);
+}
+.readout:last-child { border-right: none; }
+.readout-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+.readout-value {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.readout-value .unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-left: 4px;
+}
+.readout.shake .readout-value { color: var(--highlight); }
+.readout.density .readout-value { color: var(--density); }
+.readout.pileup .readout-value { color: var(--marble); }
+
+@media (max-width: 700px) {
+  .readouts { grid-template-columns: 1fr 1fr; }
+  .readout { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .readout:nth-child(2n) { border-right: none; }
+  .readout:nth-last-child(-n+2) { border-bottom: none; }
+}
+
+/* ---------- INSIGHT ---------- */
+.insight {
+  margin-top: 28px;
+  padding: 24px 28px;
+  border-left: 4px solid var(--marble);
+  background: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.insight strong { color: var(--ink); font-weight: 400; }
+.insight em { color: var(--marble); font-style: italic; }
+.insight .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--marble);
+  margin-bottom: 10px;
+  display: block;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">boltzmann · made literal</div>
+    <h1>Marbles in a <em>hilly landscape</em>.</h1>
+    <p class="deck">
+      Throw 200 marbles into a landscape with hills and valleys, then shake. Where do they end up?
+      <strong>Watch the histogram at the bottom build up</strong> — that's the density distribution.
+      Adjust the shaking (temperature) to see how cold landscapes give sharp pile-ups
+      and hot landscapes give flat distributions. <em>This is exactly what the Boltzmann formula describes.</em>
+    </p>
+  </header>
+
+  <div class="scene">
+    <canvas id="sceneCanvas"></canvas>
+
+    <div class="controls">
+      <div class="control" style="grid-column: 1 / -1;">
+        <div class="control-label">
+          <span>landscape</span>
+        </div>
+        <div class="landscape-pills" id="landscapePills">
+          <button class="lpill active" data-shape="single-well">single valley</button>
+          <button class="lpill" data-shape="double-well">two valleys</button>
+          <button class="lpill" data-shape="hill">single hill</button>
+          <button class="lpill" data-shape="washboard">washboard</button>
+          <button class="lpill" data-shape="ramp">tilted floor</button>
+          <button class="lpill" data-shape="canyon">canyon</button>
+        </div>
+      </div>
+
+      <div class="control">
+        <div class="control-label">
+          <span>shaking · temperature</span>
+        </div>
+        <div class="control-value"><span id="kbtVal">1.0</span></div>
+        <input type="range" id="kbtSlider" min="0.05" max="5" step="0.05" value="1">
+      </div>
+
+      <div class="control">
+        <div class="control-label">
+          <span>marbles</span>
+        </div>
+        <div class="control-value"><span id="nVal">200</span></div>
+        <input type="range" id="nSlider" min="50" max="500" step="10" value="200">
+      </div>
+
+      <div class="control">
+        <div class="control-label"><span>actions</span></div>
+        <div class="btn-row">
+          <button class="btn" id="resetBtn">↻ reset</button>
+          <button class="btn active" id="pauseBtn">⏸ pause</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="readouts">
+    <div class="readout shake">
+      <div class="readout-label">shaking energy · k<sub>B</sub>T</div>
+      <div class="readout-value" id="readoutKbt">1.0</div>
+    </div>
+    <div class="readout pileup">
+      <div class="readout-label">peak pile-up · n/n_avg</div>
+      <div class="readout-value" id="readoutPeak">—</div>
+    </div>
+    <div class="readout density">
+      <div class="readout-label">spread (std dev)</div>
+      <div class="readout-value" id="readoutSpread">—</div>
+    </div>
+    <div class="readout">
+      <div class="readout-label">match to theory</div>
+      <div class="readout-value" id="readoutMatch">—<span class="unit">%</span></div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <span class="label">— what to look for</span>
+    <strong>Drag the shaking slider all the way down</strong> and watch the marbles freeze into the lowest spot. That's
+    a cold system — particles huddle in the deepest valley. <strong>Drag it all the way up</strong> and watch them spread out almost
+    evenly — that's a hot system, where shaking dominates the landscape. The histogram at the bottom of the scene
+    shows the actual density distribution, with the theoretical Boltzmann prediction (red dashed line) overlaid.
+    Try the <em>two valleys</em> landscape to see how marbles split between them based on which is deeper —
+    that's exactly how electrons distribute themselves around different ions in a plasma.
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('sceneCanvas');
+const ctx = canvas.getContext('2d');
+let dim = { w: 0, h: 0 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  dim.w = rect.width;
+  dim.h = rect.height;
+  canvas.width = dim.w * dpr;
+  canvas.height = dim.h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', () => { resize(); init(); });
+
+// ============ STATE ============
+let marbles = [];
+let N = 200;
+let kBT = 1.0;
+let shape = 'single-well';
+let running = true;
+
+// Layout: top 2/3 is landscape, bottom 1/3 is histogram
+const LANDSCAPE_FRAC = 0.65;
+const HISTOGRAM_FRAC = 0.30;
+const GAP_FRAC = 0.05;
+
+function landscapeBounds() {
+  const top = 30;
+  const bottom = dim.h * LANDSCAPE_FRAC;
+  return { top, bottom };
+}
+function histogramBounds() {
+  const top = dim.h * (LANDSCAPE_FRAC + GAP_FRAC);
+  const bottom = dim.h - 24;
+  return { top, bottom };
+}
+
+// ============ LANDSCAPE FUNCTIONS ============
+// U(x) returns potential energy at position x (in scaled units 0 to 1)
+// Output is in same scaled units.
+function U(xNorm) {
+  // xNorm: 0 to 1 across canvas width
+  if (shape === 'single-well') {
+    // Parabolic well centered at 0.5
+    const dx = (xNorm - 0.5);
+    return 4 * dx * dx - 1; // U = 0 at edges, -1 at center
+  }
+  if (shape === 'double-well') {
+    // Two valleys at 0.3 and 0.7, with bump in middle
+    const a = xNorm - 0.3;
+    const b = xNorm - 0.7;
+    return Math.min(8 * a * a - 1, 6 * b * b - 0.7);
+  }
+  if (shape === 'hill') {
+    // Inverted parabola — hill in the middle
+    const dx = (xNorm - 0.5);
+    return -4 * dx * dx + 1;
+  }
+  if (shape === 'washboard') {
+    // Wavy
+    return 0.5 * Math.cos(xNorm * Math.PI * 6) + 0.2 * Math.cos(xNorm * Math.PI * 2.5);
+  }
+  if (shape === 'ramp') {
+    // Tilted: lowest on left, highest on right
+    return 2 * (xNorm - 0.5);
+  }
+  if (shape === 'canyon') {
+    // Wide flat bottom with steep walls
+    if (xNorm < 0.2) return 4 * Math.pow(0.2 - xNorm, 2) * 8 - 0.5;
+    if (xNorm > 0.8) return 4 * Math.pow(xNorm - 0.8, 2) * 8 - 0.5;
+    return -0.5;
+  }
+  return 0;
+}
+
+// dU/dx for force calculation
+function dUdx(xNorm) {
+  const eps = 0.001;
+  return (U(xNorm + eps) - U(xNorm - eps)) / (2 * eps);
+}
+
+// Map U value (in [-1, 1]) to a y-pixel in the landscape area
+function landscapeY(xNorm) {
+  const lb = landscapeBounds();
+  const u = U(xNorm);
+  // U range typically -1 to 1, map to y range
+  const yRange = lb.bottom - lb.top;
+  // Higher U = higher position (visually higher)
+  // Center U=0 at middle of landscape
+  return lb.top + yRange * 0.5 - u * yRange * 0.4;
+}
+
+// ============ MARBLE DYNAMICS ============
+function init() {
+  marbles = [];
+  for (let i = 0; i < N; i++) {
+    const xNorm = Math.random();
+    const y = landscapeY(xNorm) - 6;
+    marbles.push({
+      x: xNorm * dim.w,
+      y: y,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: 0
+    });
+  }
+}
+init();
+
+function step(dt) {
+  const lb = landscapeBounds();
+  for (const m of marbles) {
+    const xNorm = m.x / dim.w;
+
+    // Force from landscape gradient (rolling downhill)
+    const slope = dUdx(xNorm);
+    // Convert to acceleration: F = -dU/dx, scaled to pixel units
+    const yScale = (lb.bottom - lb.top) * 0.4 / dim.w;
+    const ax = -slope * yScale * 200;
+
+    m.vx += ax * dt;
+
+    // Friction
+    m.vx *= 0.97;
+
+    // Thermal kick: occasional random velocity boost
+    // Scaled by temperature kBT — bigger T means bigger kicks
+    if (Math.random() < 0.15) {
+      const u1 = Math.max(1e-6, Math.random());
+      const u2 = Math.random();
+      const kick = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      m.vx += kick * Math.sqrt(kBT) * 0.6;
+    }
+
+    m.x += m.vx;
+
+    // Wall reflection
+    if (m.x < 5) { m.x = 5; m.vx = Math.abs(m.vx); }
+    if (m.x > dim.w - 5) { m.x = dim.w - 5; m.vx = -Math.abs(m.vx); }
+
+    // Snap y to landscape surface
+    const targetY = landscapeY(m.x / dim.w) - 6;
+    m.y = m.y * 0.7 + targetY * 0.3;
+  }
+}
+
+// ============ DRAWING ============
+function drawLandscape() {
+  const lb = landscapeBounds();
+
+  // Sky / above-ground region
+  ctx.fillStyle = 'rgba(212, 160, 23, 0.03)';
+  ctx.fillRect(0, lb.top, dim.w, lb.bottom - lb.top);
+
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 6; i++) {
+    const y = lb.top + ((lb.bottom - lb.top) / 6) * i;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(dim.w, y);
+    ctx.stroke();
+  }
+
+  // Landscape filled
+  ctx.fillStyle = 'rgba(139, 115, 85, 0.18)';
+  ctx.beginPath();
+  ctx.moveTo(0, lb.bottom);
+  for (let i = 0; i <= 200; i++) {
+    const xNorm = i / 200;
+    const x = xNorm * dim.w;
+    const y = landscapeY(xNorm);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(dim.w, lb.bottom);
+  ctx.closePath();
+  ctx.fill();
+
+  // Hatching texture in the ground
+  ctx.strokeStyle = 'rgba(107, 93, 76, 0.25)';
+  ctx.lineWidth = 0.7;
+  for (let x = 0; x < dim.w; x += 7) {
+    const xNorm = x / dim.w;
+    const y = landscapeY(xNorm);
+    if (y < lb.bottom - 3) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 2);
+      ctx.lineTo(x - 4, y + 8);
+      ctx.stroke();
+    }
+  }
+
+  // Landscape line on top
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.85)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const xNorm = i / 200;
+    const x = xNorm * dim.w;
+    const y = landscapeY(xNorm);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Annotations: "U" axis label
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.4)';
+  ctx.font = "italic 11px 'Fraunces', serif";
+  ctx.textAlign = 'left';
+  ctx.fillText('U(x) — potential energy / "height of the landscape"', 12, lb.top - 12);
+}
+
+function drawMarbles() {
+  for (const m of marbles) {
+    // Glow
+    ctx.fillStyle = 'rgba(200, 72, 46, 0.25)';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core
+    ctx.fillStyle = '#c8482e';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight dot
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.beginPath();
+    ctx.arc(m.x - 1, m.y - 1, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawHistogram() {
+  const hb = histogramBounds();
+
+  // Background
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.04)';
+  ctx.fillRect(0, hb.top, dim.w, hb.bottom - hb.top);
+
+  // Bin marbles
+  const nBins = 40;
+  const binWidth = dim.w / nBins;
+  const counts = new Array(nBins).fill(0);
+  for (const m of marbles) {
+    const idx = Math.min(nBins - 1, Math.max(0, Math.floor(m.x / binWidth)));
+    counts[idx]++;
+  }
+  // Smooth slightly
+  const smoothed = counts.slice();
+  for (let i = 1; i < nBins - 1; i++) {
+    smoothed[i] = (counts[i - 1] * 0.25 + counts[i] * 0.5 + counts[i + 1] * 0.25);
+  }
+
+  const expectedAvg = N / nBins;
+
+  // Compute theoretical Boltzmann prediction
+  const theory = [];
+  let theoryTotal = 0;
+  for (let i = 0; i < nBins; i++) {
+    const xNorm = (i + 0.5) / nBins;
+    const u = U(xNorm);
+    const w = Math.exp(-u / kBT);
+    theory.push(w);
+    theoryTotal += w;
+  }
+  // Normalize theory to total marble count
+  const theoryScale = N / theoryTotal;
+  for (let i = 0; i < nBins; i++) theory[i] *= theoryScale;
+
+  // Find max for scaling
+  const yMax = Math.max(...smoothed, ...theory) * 1.2;
+
+  // Draw bars
+  for (let i = 0; i < nBins; i++) {
+    const x = i * binWidth;
+    const barH = (smoothed[i] / yMax) * (hb.bottom - hb.top);
+    const grad = ctx.createLinearGradient(0, hb.bottom - barH, 0, hb.bottom);
+    grad.addColorStop(0, 'rgba(46, 111, 156, 0.85)');
+    grad.addColorStop(1, 'rgba(46, 111, 156, 0.4)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + 1, hb.bottom - barH, binWidth - 2, barH);
+  }
+
+  // Draw theoretical curve
+  ctx.strokeStyle = 'rgba(200, 72, 46, 0.95)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  for (let i = 0; i < nBins; i++) {
+    const x = (i + 0.5) * binWidth;
+    const y = hb.bottom - (theory[i] / yMax) * (hb.bottom - hb.top);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Average reference line
+  const avgY = hb.bottom - (expectedAvg / yMax) * (hb.bottom - hb.top);
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, avgY);
+  ctx.lineTo(dim.w, avgY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labels
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.4)';
+  ctx.font = "italic 11px 'Fraunces', serif";
+  ctx.textAlign = 'left';
+  ctx.fillText('density distribution n(x) — where the marbles end up', 12, hb.top - 8);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(200, 72, 46, 0.85)';
+  ctx.fillText('theory: n ∝ exp(−U/kBT)', dim.w - 12, hb.top - 8);
+
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.5)';
+  ctx.textAlign = 'right';
+  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.fillText('avg', dim.w - 6, avgY - 3);
+
+  // Update readouts
+  const peak = Math.max(...smoothed);
+  document.getElementById('readoutPeak').textContent = (peak / expectedAvg).toFixed(2) + '×';
+
+  // Standard deviation of position (rough spread measure)
+  let mean = 0;
+  for (const m of marbles) mean += m.x / dim.w;
+  mean /= marbles.length;
+  let variance = 0;
+  for (const m of marbles) {
+    const d = m.x / dim.w - mean;
+    variance += d * d;
+  }
+  variance /= marbles.length;
+  const stdDev = Math.sqrt(variance);
+  document.getElementById('readoutSpread').textContent = stdDev.toFixed(3);
+
+  // Match to theory: cosine similarity between binned distribution and theory
+  let dotP = 0, magO = 0, magP = 0;
+  for (let i = 0; i < nBins; i++) {
+    dotP += smoothed[i] * theory[i];
+    magO += smoothed[i] * smoothed[i];
+    magP += theory[i] * theory[i];
+  }
+  const sim = magO > 0 && magP > 0 ? dotP / Math.sqrt(magO * magP) : 0;
+  const matchPct = Math.max(0, Math.min(100, sim * 100));
+  document.getElementById('readoutMatch').innerHTML = matchPct.toFixed(0) + '<span class="unit">%</span>';
+}
+
+// ============ MAIN LOOP ============
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (running) {
+    const subs = 3;
+    for (let i = 0; i < subs; i++) step(dt / subs * 60);
+  }
+
+  ctx.clearRect(0, 0, dim.w, dim.h);
+  drawLandscape();
+  drawMarbles();
+  drawHistogram();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ============ UI ============
+document.getElementById('kbtSlider').addEventListener('input', e => {
+  kBT = parseFloat(e.target.value);
+  document.getElementById('kbtVal').textContent = kBT.toFixed(2);
+  document.getElementById('readoutKbt').textContent = kBT.toFixed(2);
+});
+document.getElementById('nSlider').addEventListener('input', e => {
+  N = parseInt(e.target.value);
+  document.getElementById('nVal').textContent = N;
+  init();
+});
+document.getElementById('resetBtn').addEventListener('click', init);
+document.getElementById('pauseBtn').addEventListener('click', e => {
+  running = !running;
+  e.target.textContent = running ? '⏸ pause' : '▶ play';
+  e.target.classList.toggle('active', running);
+});
+document.querySelectorAll('.lpill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('.lpill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    shape = p.dataset.shape;
+    init();
+  });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jacobian usage</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function JacobianUsage() {
+  const [showJ, setShowJ] = useState(false);
+
+  const R0 = 1.18, a = 0.42, kappa = 1.7, delta = 0.35;
+  const asd = Math.asin(delta);
+  const nPts = 12;
+
+  function plasmaPoint(theta) {
+    const s = 0.6, r = s * a, rZ = s * a * kappa;
+    return { R: R0 + r * Math.cos(theta + asd * Math.sin(theta)), Z: rZ * Math.sin(theta) };
+  }
+
+  const labels = ["out", "out↑", "top↗", "top", "in↗", "in", "in", "in↙", "bot", "bot↙", "out↓", "out"];
+
+  const points = Array.from({ length: nPts }, (_, i) => {
+    const theta = (2 * Math.PI * i) / nPts;
+    const p = plasmaPoint(theta);
+    const isOutboard = p.R > R0;
+    const outboardness = (p.R - R0) / a;
+    const heatFlux = isOutboard
+      ? 2.5 + outboardness * 5.0 + Math.sin(theta * 2) * 0.3
+      : 0.3 + Math.abs(outboardness) * 0.4;
+    const jacobian = p.R / R0;
+    return {
+      i, theta, R: p.R, Z: p.Z, isOutboard,
+      label: labels[i],
+      heatFlux: Math.round(heatFlux * 100) / 100,
+      jacobian: Math.round(jacobian * 1000) / 1000,
+      weighted: Math.round(heatFlux * (p.R / R0) * 100) / 100,
+    };
+  });
+
+  const maxRaw = Math.max(...points.map(p => p.heatFlux));
+  const maxWeighted = Math.max(...points.map(p => p.weighted));
+  const maxVal = showJ ? maxWeighted : maxRaw;
+
+  const sumWithout = points.reduce((s, p) => s + p.heatFlux, 0);
+  const sumWith = points.reduce((s, p) => s + p.weighted, 0);
+
+  const chartW = 360, chartH = 200;
+  const chartPad = { l: 35, r: 10, t: 20, b: 50 };
+  const barAreaW = chartW - chartPad.l - chartPad.r;
+  const barAreaH = chartH - chartPad.t - chartPad.b;
+  const barW = barAreaW / nPts - 3;
+  const barGap = 3;
+
+  const miniW = 130, miniH = 130;
+  const miniCx = miniW / 2, miniCy = miniH / 2;
+  const miniSc = 55;
+  const mToX = (R) => miniCx + (R - R0) * miniSc;
+  const mToY = (Z) => miniCy - Z * miniSc;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          WHY THE JACOBIAN MATTERS
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          COMPUTING TOTAL HEAT FLUX THROUGH A SURFACE
+        </p>
+
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+          <button onClick={() => setShowJ(false)}
+            style={{
+              flex: 1, padding: "12px", textAlign: "center",
+              background: !showJ ? "#1a1520" : "#12171f",
+              border: `1px solid ${!showJ ? "#ff6b6b" : "#1e2630"}`,
+              borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <div style={{ fontSize: 12, color: !showJ ? "#ff6b6b" : "#5c6a7a", fontWeight: 700 }}>Without J (wrong)</div>
+            <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 2 }}>Every point counts equally</div>
+          </button>
+          <button onClick={() => setShowJ(true)}
+            style={{
+              flex: 1, padding: "12px", textAlign: "center",
+              background: showJ ? "#1a2a2a" : "#12171f",
+              border: `1px solid ${showJ ? "#4ecdc4" : "#1e2630"}`,
+              borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <div style={{ fontSize: 12, color: showJ ? "#4ecdc4" : "#5c6a7a", fontWeight: 700 }}>With J (correct)</div>
+            <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 2 }}>Outboard points weighted more</div>
+          </button>
+        </div>
+
+        <div style={{
+          background: "#0d1117", borderRadius: 6,
+          border: "1px solid #1e2630", padding: 8, marginBottom: 12,
+        }}>
+          <svg width={chartW} height={chartH} style={{ display: "block", maxWidth: "100%" }}>
+            <rect x={chartPad.l} y={chartPad.t} width={barAreaW} height={barAreaH} fill="#060a0e" stroke="#1e2630" />
+
+            <rect x={chartPad.l} y={chartPad.t} width={barAreaW * 2.5 / 12} height={barAreaH} fill="rgba(255,107,107,0.04)" />
+            <rect x={chartPad.l + barAreaW * 2.5 / 12} y={chartPad.t} width={barAreaW * 7 / 12} height={barAreaH} fill="rgba(78,205,196,0.03)" />
+            <rect x={chartPad.l + barAreaW * 9.5 / 12} y={chartPad.t} width={barAreaW * 2.5 / 12} height={barAreaH} fill="rgba(255,107,107,0.04)" />
+
+            <text x={chartPad.l + barAreaW * 1.2 / 12} y={chartPad.t + 12} textAnchor="middle" fill="#ff6b6b" fontSize={8} fontWeight={700}>OUTBOARD</text>
+            <text x={chartPad.l + barAreaW * 6 / 12} y={chartPad.t + 12} textAnchor="middle" fill="#4ecdc4" fontSize={8} fontWeight={700}>INBOARD</text>
+            <text x={chartPad.l + barAreaW * 10.8 / 12} y={chartPad.t + 12} textAnchor="middle" fill="#ff6b6b" fontSize={8} fontWeight={700}>OUTBOARD</text>
+
+            {[0, 2, 4, 6].map(v => {
+              const y = chartPad.t + barAreaH - (v / maxVal) * barAreaH;
+              if (y < chartPad.t) return null;
+              return (
+                <g key={v}>
+                  <line x1={chartPad.l} y1={y} x2={chartPad.l + barAreaW} y2={y} stroke="#1e2630" strokeWidth={0.5} />
+                  <text x={chartPad.l - 4} y={y + 3} textAnchor="end" fill="#3a4a5a" fontSize={7}>{v}</text>
+                </g>
+              );
+            })}
+
+            {points.map((p, i) => {
+              const val = showJ ? p.weighted : p.heatFlux;
+              const barH = Math.max(1, (val / maxVal) * barAreaH);
+              const x = chartPad.l + i * (barW + barGap) + barGap / 2;
+              const y = chartPad.t + barAreaH - barH;
+              const color = showJ ? "#4ecdc4" : (p.isOutboard ? "#ff6b6b" : "#8ab4f8");
+              return (
+                <g key={i}>
+                  <rect x={x} y={y} width={barW} height={barH} fill={color} opacity={0.7} rx={2} />
+                  <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={color} fontSize={8} fontWeight={700}>
+                    {val.toFixed(1)}
+                  </text>
+                  {showJ && (
+                    <text x={x + barW / 2} y={chartPad.t + barAreaH + 10} textAnchor="middle" fill="#c9b87c" fontSize={7}>
+                      ×{p.jacobian.toFixed(2)}
+                    </text>
+                  )}
+                  <text x={x + barW / 2} y={chartPad.t + barAreaH + (showJ ? 22 : 12)} textAnchor="middle" fill="#5c6a7a" fontSize={7}>
+                    {p.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            <text x={8} y={chartPad.t + barAreaH / 2} textAnchor="middle" fill="#5c6a7a" fontSize={9}
+              transform={`rotate(-90, 8, ${chartPad.t + barAreaH / 2})`}>
+              {showJ ? "Q × J" : "Q (heat flux)"}
+            </text>
+          </svg>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{
+            background: "#0d1117", borderRadius: 6,
+            border: "1px solid #1e2630", padding: 4, flexShrink: 0,
+          }}>
+            <div style={{ fontSize: 8, color: "#5c6a7a", textAlign: "center", marginBottom: 2 }}>Where each point is</div>
+            <svg width={miniW} height={miniH} style={{ display: "block" }}>
+              <rect x={0} y={0} width={miniW} height={miniH} fill="#060a0e" rx={4} />
+              {(() => {
+                const pts = [];
+                for (let t = 0; t <= 100; t++) {
+                  const theta = (2 * Math.PI * t) / 100;
+                  const p = plasmaPoint(theta);
+                  pts.push(`${t === 0 ? "M" : "L"} ${mToX(p.R)} ${mToY(p.Z)}`);
+                }
+                return <path d={pts.join(" ") + " Z"} fill="none" stroke="rgba(78,205,196,0.3)" strokeWidth={1} />;
+              })()}
+              {points.map((p, i) => {
+                const color = p.isOutboard ? "#ff6b6b" : "#4ecdc4";
+                return (
+                  <g key={i}>
+                    <circle cx={mToX(p.R)} cy={mToY(p.Z)} r={4} fill="#0d1117" stroke={color} strokeWidth={1.5} />
+                    <text x={mToX(p.R)} y={mToY(p.Z) + 3} textAnchor="middle" fill={color} fontSize={6} fontWeight={700}>{i}</text>
+                  </g>
+                );
+              })}
+              <text x={miniW - 5} y={miniCy + 3} textAnchor="end" fill="#ff6b6b" fontSize={7}>OUT</text>
+              <text x={8} y={miniCy + 3} fill="#4ecdc4" fontSize={7}>IN</text>
+            </svg>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{
+              padding: 12, borderRadius: 6,
+              background: showJ ? "rgba(78,205,196,0.05)" : "rgba(255,107,107,0.05)",
+              border: `1px solid ${showJ ? "rgba(78,205,196,0.2)" : "rgba(255,107,107,0.2)"}`,
+              marginBottom: 8,
+            }}>
+              <div style={{ fontSize: 10, color: showJ ? "#4ecdc4" : "#ff6b6b", fontWeight: 700, marginBottom: 4 }}>
+                {showJ ? "Correct total (Σ Q×J)" : "Wrong total (Σ Q)"}
+              </div>
+              <div style={{ fontSize: 24, color: "#e6ecf2", fontWeight: 700 }}>
+                {showJ ? sumWith.toFixed(1) : sumWithout.toFixed(1)}
+              </div>
+            </div>
+
+            <div style={{
+              padding: 10, background: "#12171f", borderRadius: 4,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 8, color: "#ff6b6b" }}>Without J</div>
+                  <div style={{ fontSize: 14, color: "#ff6b6b", fontWeight: 700 }}>{sumWithout.toFixed(1)}</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 8, color: "#4ecdc4" }}>With J</div>
+                  <div style={{ fontSize: 14, color: "#4ecdc4", fontWeight: 700 }}>{sumWith.toFixed(1)}</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 8, color: "#c9b87c" }}>Error</div>
+                  <div style={{ fontSize: 14, color: "#c9b87c", fontWeight: 700 }}>
+                    {((sumWith / sumWithout - 1) * 100).toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 9, color: "#5c6a7a", lineHeight: 1.6 }}>
+                {showJ
+                  ? "Outboard bars grew (high Q × big J). Inboard bars shrank (low Q × small J). The total properly reflects where heat actually escapes."
+                  : "Without J, the big outboard bars and tiny inboard bars count equally. The total underweights the outboard side where all the action is."}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          padding: 12, background: "rgba(201,184,124,0.05)",
+          borderRadius: 6, border: "1px solid rgba(201,184,124,0.15)",
+        }}>
+          <div style={{ fontSize: 11, color: "#c9b87c", lineHeight: 1.8 }}>
+            <span style={{ fontWeight: 700 }}>The Jacobian is a weight.</span> It says "this outboard cell represents {points[0].jacobian.toFixed(2)}× more physical space than the reference, so multiply its contribution by {points[0].jacobian.toFixed(2)}." Toggle between the two modes — watch the outboard bars grow and the inboard bars shrink. The {((sumWith / sumWithout - 1) * 100).toFixed(0)}% difference is what you get wrong without it.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(JacobianUsage));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

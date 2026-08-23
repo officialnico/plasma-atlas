@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bind it, and it gets lighter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --deep:#07141c;        /* deep water / background */
+    --deep2:#0b202b;       /* panel */
+    --water:#37c5d8;       /* water cyan */
+    --water-d:#1c7a8a;     /* darker water */
+    --energy:#ffc24b;      /* released binding energy / gold */
+    --energy-hot:#ffe2a0;
+    --ink:#eaf6f8;         /* text */
+    --muted:#7aa0ab;       /* muted */
+    --line:#16323e;        /* hairlines */
+    --rock:#9fb2bb;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #103040 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, #0c2733 0%, transparent 55%),
+      var(--deep);
+    color:var(--ink);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:clamp(20px,5vw,56px) clamp(18px,5vw,40px) 80px}
+  .mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+
+  /* ---------- header ---------- */
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:13px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--energy);display:inline-flex;gap:.6em;align-items:center;
+  }
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--energy);display:inline-block}
+  h1{
+    font-size:clamp(34px,7vw,68px);line-height:1.02;font-weight:700;
+    letter-spacing:-.02em;margin:.35em 0 .35em;
+  }
+  h1 .glow{color:var(--energy);text-shadow:0 0 36px rgba(255,194,75,.45)}
+  .lede{max-width:60ch;color:#c4dde3;font-size:clamp(16px,2.2vw,20px)}
+
+  /* ---------- the ledger ---------- */
+  .ledger{
+    margin:clamp(36px,6vw,56px) 0;
+    border:1px solid var(--line);border-radius:18px;
+    background:linear-gradient(180deg,rgba(255,255,255,.02),transparent);
+    padding:clamp(20px,4vw,34px);
+  }
+  .ledger h2{font-size:14px;text-transform:uppercase;letter-spacing:.18em;color:var(--muted);font-weight:600;margin-bottom:18px}
+  .mass-row{
+    display:grid;grid-template-columns:1fr auto;gap:6px 18px;align-items:baseline;
+    padding:9px 0;border-bottom:1px dashed var(--line);
+  }
+  .mass-row:last-child{border-bottom:0}
+  .mass-row .label{color:#cfe6eb;font-size:15px}
+  .mass-row .label small{color:var(--muted);font-size:12px;display:block;letter-spacing:.02em}
+  .mass-row .val{font-size:clamp(16px,2.6vw,21px);font-weight:500}
+  .mass-row.sum{border-top:1px solid var(--water-d);border-bottom:0;margin-top:6px;padding-top:14px}
+  .mass-row.sum .label{color:var(--ink)}
+  .mass-row.diff .val,.mass-row.diff .label{color:var(--energy)}
+  .mass-row.diff{background:rgba(255,194,75,.06);border-radius:10px;padding:14px 14px;margin-top:10px;border-bottom:0}
+  .u{color:var(--muted)}
+
+  /* ---------- stage ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:8px 0 22px}
+  button.drop{
+    font-family:"Space Grotesk";font-weight:600;font-size:16px;letter-spacing:.01em;
+    color:#06181f;background:var(--energy);border:0;border-radius:999px;
+    padding:13px 26px;cursor:pointer;transition:transform .12s ease,box-shadow .2s ease;
+    box-shadow:0 8px 30px rgba(255,194,75,.28);
+  }
+  button.drop:hover{transform:translateY(-2px)}
+  button.drop:active{transform:translateY(0)}
+  button.drop:disabled{opacity:.45;cursor:default;box-shadow:none;transform:none}
+  .toggle{display:inline-flex;align-items:center;gap:9px;color:var(--muted);font-size:14px;cursor:pointer;user-select:none}
+  .toggle input{appearance:none;width:40px;height:22px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;transition:background .2s}
+  .toggle input::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:.2s}
+  .toggle input:checked{background:var(--water-d)}
+  .toggle input:checked::after{left:20px;background:var(--water)}
+
+  .stage{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:720px){.stage{grid-template-columns:1fr}}
+  .panel{
+    position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    background:var(--deep2);min-height:340px;
+  }
+  .panel .cap{
+    position:absolute;top:0;left:0;right:0;z-index:5;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:13px 16px;font-family:"IBM Plex Mono",monospace;font-size:12px;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+    background:linear-gradient(180deg,rgba(7,20,28,.85),transparent);
+  }
+  .panel .cap b{color:var(--ink);font-weight:500}
+  .panel .readout{
+    position:absolute;bottom:0;left:0;right:0;z-index:5;
+    padding:14px 16px;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    color:#bcdbe2;background:linear-gradient(0deg,rgba(7,20,28,.92),transparent);
+    min-height:46px;transition:opacity .4s;
+  }
+  .readout .hot{color:var(--energy)}
+
+  /* nuclear panel pieces */
+  #nuke{position:relative;height:340px}
+  .nucleus{
+    position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);
+    width:120px;height:120px;
+  }
+  .nucleon{position:absolute;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 32% 30%,#bfe9f0,#2f9bb0 70%,#15616f);
+    box-shadow:inset 0 0 6px rgba(0,0,0,.35)}
+  .nucleon.p{background:radial-gradient(circle at 32% 30%,#ffd9d2,#e0746a 70%,#9c3f38)}
+  .neutron-free{
+    position:absolute;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 32% 30%,#bfe9f0,#2f9bb0 70%,#15616f);
+    box-shadow:0 0 14px rgba(55,197,216,.6);
+    left:-12%;top:24%;will-change:transform,opacity
+  }
+  .nlabel{
+    position:absolute;left:50%;top:54%;transform:translate(-50%,72px);
+    text-align:center;font-family:"IBM Plex Mono",monospace;
+    font-size:22px;font-weight:600;letter-spacing:.02em;
+  }
+  .nlabel small{display:block;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;margin-top:3px}
+
+  /* canvases */
+  canvas{display:block;width:100%;height:340px}
+
+  /* ---------- scale signature ---------- */
+  .scalewrap{margin:clamp(40px,7vw,64px) 0 0;text-align:center}
+  .scalewrap h2{font-size:14px;text-transform:uppercase;letter-spacing:.18em;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .scalewrap p{color:#bcdbe2;max-width:56ch;margin:0 auto 18px;font-size:15px}
+  .balance{width:min(560px,100%);margin:0 auto;display:block}
+  .beam,.pivot,.pan,.rope{transition:transform 1.1s cubic-bezier(.5,.05,.25,1)}
+  .pan-label{font-family:"IBM Plex Mono",monospace;font-size:12px;fill:var(--muted);letter-spacing:.1em}
+  .pan-label b{fill:var(--ink)}
+
+  /* ---------- prose ---------- */
+  .prose{margin-top:clamp(44px,7vw,72px);display:grid;gap:26px;max-width:74ch}
+  .prose .step{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start}
+  .prose .num{
+    font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--energy);
+    border:1px solid var(--line);border-radius:8px;padding:5px 9px;white-space:nowrap;margin-top:3px;
+  }
+  .prose h3{font-size:20px;font-weight:600;margin-bottom:4px}
+  .prose p{color:#c4dde3;font-size:16px}
+  .prose .seam{color:var(--muted);font-size:14px;border-left:2px solid var(--water-d);padding-left:14px;margin-top:8px}
+  .foot{margin-top:60px;color:var(--muted);font-size:13px;font-family:"IBM Plex Mono",monospace;border-top:1px solid var(--line);padding-top:20px}
+  .foot .hot{color:var(--energy)}
+  @media (prefers-reduced-motion: reduce){
+    .beam,.pivot,.pan,.rope,.neutron-free{transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="eyebrow">Mass &amp; energy &nbsp;·&nbsp; E = mc²</span>
+    <h1>Bind it, and it gets <span class="glow">lighter</span>.</h1>
+    <p class="lede">A uranium‑235 nucleus swallows a neutron and becomes uranium‑236 — yet U‑236 weighs <em>less</em> than the U‑235 and the neutron did apart. The missing mass didn't vanish. It left as energy. Watch it leave.</p>
+  </header>
+
+  <!-- THE LEDGER -->
+  <section class="ledger" aria-label="Mass accounting">
+    <h2>The accounting that shouldn't balance</h2>
+    <div class="mass-row">
+      <div class="label">Uranium‑235 nucleus <small>the target, sitting alone</small></div>
+      <div class="val mono">235.043 93 <span class="u">u</span></div>
+    </div>
+    <div class="mass-row">
+      <div class="label">+ one free neutron <small>drifting in from outside</small></div>
+      <div class="val mono">&nbsp;&nbsp;1.008 66 <span class="u">u</span></div>
+    </div>
+    <div class="mass-row sum">
+      <div class="label">What the parts weigh apart</div>
+      <div class="val mono">236.052 59 <span class="u">u</span></div>
+    </div>
+    <div class="mass-row">
+      <div class="label">Uranium‑236 nucleus <small>the same particles, now bound together</small></div>
+      <div class="val mono">236.045 57 <span class="u">u</span></div>
+    </div>
+    <div class="mass-row diff">
+      <div class="label">Mass that went missing <small>carried off as a burst of energy</small></div>
+      <div class="val mono">0.007 03 u&nbsp; ≈&nbsp; 6.5 MeV</div>
+    </div>
+  </section>
+
+  <!-- STAGE -->
+  <div class="controls">
+    <button class="drop" id="dropBtn">Drop the neutron &amp; the rock</button>
+    <label class="toggle"><input type="checkbox" id="slow"> Slow motion</label>
+  </div>
+
+  <div class="stage">
+    <!-- nuclear -->
+    <div class="panel">
+      <div class="cap"><span>The nucleus</span><b id="nukeState">U‑235 + n</b></div>
+      <div id="nuke">
+        <div class="neutron-free" id="freeN"></div>
+        <div class="nucleus" id="nucleus"></div>
+        <div class="nlabel" id="nlabel">²³⁵U<small>+ neutron</small></div>
+      </div>
+      <div class="readout" id="nukeRead">A loose neutron approaches. Apart, the parts carry their full mass.</div>
+    </div>
+
+    <!-- pool -->
+    <div class="panel">
+      <div class="cap"><span>The pool</span><b id="poolState">rock, held high</b></div>
+      <canvas id="pool"></canvas>
+      <div class="readout" id="poolRead">A rock waits above calm water — lifted high, holding extra energy.</div>
+    </div>
+  </div>
+
+  <!-- BALANCE SIGNATURE -->
+  <section class="scalewrap">
+    <h2>So which side is heavier?</h2>
+    <p>The separate ingredients always outweigh the thing they become once it's bound — because binding spills energy out, and energy has weight.</p>
+    <svg class="balance" id="scaleSvg" viewBox="0 0 560 260" role="img" aria-label="A balance tipping toward the separate parts">
+      <!-- stand -->
+      <rect x="272" y="70" width="16" height="150" rx="3" fill="#16323e"/>
+      <rect x="220" y="216" width="120" height="12" rx="6" fill="#16323e"/>
+      <circle cx="280" cy="64" r="10" fill="#37c5d8"/>
+      <!-- beam group rotates -->
+      <g id="beam" style="transform-origin:280px 64px">
+        <rect x="80" y="60" width="400" height="8" rx="4" fill="#2a4d59"/>
+        <!-- left ropes + pan -->
+        <line x1="100" y1="64" x2="100" y2="120" stroke="#2a4d59" stroke-width="2"/>
+        <g transform="translate(100,120)">
+          <path d="M-46 0 H46 L34 40 H-34 Z" fill="rgba(255,194,75,.10)" stroke="var(--energy)" stroke-width="1.5"/>
+          <text class="pan-label" x="0" y="-8" text-anchor="middle"><tspan>SEPARATE PARTS</tspan></text>
+          <text class="pan-label" x="0" y="26" text-anchor="middle"><tspan style="fill:var(--energy)" font-weight="600">236.0526 u</tspan></text>
+        </g>
+        <!-- right ropes + pan -->
+        <line x1="460" y1="64" x2="460" y2="120" stroke="#2a4d59" stroke-width="2"/>
+        <g transform="translate(460,120)">
+          <path d="M-46 0 H46 L34 40 H-34 Z" fill="rgba(55,197,216,.10)" stroke="var(--water)" stroke-width="1.5"/>
+          <text class="pan-label" x="0" y="-8" text-anchor="middle"><tspan>BOUND TOGETHER</tspan></text>
+          <text class="pan-label" x="0" y="26" text-anchor="middle"><tspan style="fill:var(--water)" font-weight="600">236.0456 u</tspan></text>
+        </g>
+      </g>
+    </svg>
+  </section>
+
+  <!-- PROSE -->
+  <section class="prose">
+    <div class="step">
+      <span class="num">01</span>
+      <div>
+        <h3>Things that attract sit lower once together</h3>
+        <p>The neutron and the nucleus pull on each other through the strong nuclear force, just as the rock and the Earth pull on each other through gravity. A bound pair sits <em>lower</em> in that pull than two free pieces do — like a rock resting at the pool's bottom versus one held in the air.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="num">02</span>
+      <div>
+        <h3>Falling into the bond releases energy</h3>
+        <p>To drop from "apart" to "bound," the system must shed the difference. The nucleus flings out a gamma photon; the rock throws up a splash, ripples, a little heat and sound. In both cases energy radiates <em>outward, away from the system</em>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="num">03</span>
+      <div>
+        <h3>Energy that leaves takes mass with it</h3>
+        <p>This is the whole trick: <span style="color:var(--energy)">E = mc²</span> says energy and mass are the same currency. When 6.5 MeV of binding energy flies off as a gamma ray, it carries 0.00703 u of mass with it. The leftover U‑236 is genuinely, measurably lighter than the parts that made it.</p>
+        <p class="seam">The seam in the analogy: a rock's splash radiates to the whole Earth, and its mass change is far too tiny to weigh. But the logic is identical — bound state sits lower, binding spills energy, and the energy that escapes is mass that left.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    Masses are atomic masses in unified mass units (u). Electrons cancel on both sides, so they don't disturb the balance. &nbsp;<span class="hot">0.00703 u × 931.49 MeV/u ≈ 6.5 MeV</span> — close to the real neutron‑capture gamma energy of U‑236.
+  </p>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- build nucleus ---------- */
+  const nucleus = document.getElementById("nucleus");
+  const NUC = [];
+  // ~24 nucleons packed in a rough disc
+  const placements = [];
+  for(let ring=0; ring<3; ring++){
+    const count = ring===0?1:ring*6;
+    const r = ring*22;
+    for(let i=0;i<count;i++){
+      const a = (i/count)*Math.PI*2 + ring*0.6;
+      placements.push({x:Math.cos(a)*r, y:Math.sin(a)*r});
+    }
+  }
+  placements.push({x:0,y:0});
+  placements.forEach((p,i)=>{
+    const el=document.createElement("div");
+    el.className="nucleon"+(i%2?" p":"");
+    el.style.left=(48+p.x)+"px";
+    el.style.top=(48+p.y)+"px";
+    nucleus.appendChild(el);
+    NUC.push(el);
+  });
+
+  /* ---------- pool canvas ---------- */
+  const cv = document.getElementById("pool");
+  const ctx = cv.getContext("2d");
+  let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+  function resize(){
+    const r=cv.getBoundingClientRect();
+    W=r.width; H=340;
+    cv.width=W*DPR; cv.height=H*DPR;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  resize();
+  window.addEventListener("resize",resize);
+
+  const surfaceY = 200;     // water line
+  let ripples=[], drops=[], motes=[];
+  let rockY = 40, rockX = ()=>W*0.5, rockRest=300, rockBob=0;
+
+  function drawPool(t, phase){
+    ctx.clearRect(0,0,W,H);
+
+    // water body
+    const g=ctx.createLinearGradient(0,surfaceY,0,H);
+    g.addColorStop(0,"rgba(55,197,216,0.28)");
+    g.addColorStop(1,"rgba(12,60,72,0.55)");
+    ctx.fillStyle=g;
+    ctx.fillRect(0,surfaceY,W,H-surfaceY);
+
+    // gentle ambient surface line
+    ctx.strokeStyle="rgba(120,220,235,0.5)";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=6){
+      let y=surfaceY+Math.sin(x*0.04 + t*0.002)*1.6;
+      // disturbance from ripples
+      ripples.forEach(rp=>{
+        const d=Math.abs(x-rp.x);
+        if(d<rp.r+30 && d>rp.r-30){ y += Math.sin((rp.r-d)*0.3)*rp.a*0.6; }
+      });
+      x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    // ripples (rings on surface, drawn as ellipses)
+    ripples.forEach(rp=>{
+      ctx.strokeStyle=`rgba(150,230,242,${rp.a*0.5})`;
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.ellipse(rp.x, surfaceY, rp.r, rp.r*0.18, 0, 0, Math.PI*2);
+      ctx.stroke();
+    });
+
+    // submerged rock (after impact)
+    if(phase>=2){
+      drawRock(rockX(), rockRest + Math.sin(t*0.003)*rockBob, 0.6);
+    }
+
+    // falling rock
+    if(phase<2){
+      drawRock(rockX(), rockY, 1);
+    }
+
+    // water droplets (splash)
+    drops.forEach(d=>{
+      ctx.fillStyle="rgba(170,235,245,"+d.a+")";
+      ctx.beginPath();
+      ctx.arc(d.x,d.y,d.s,0,Math.PI*2);
+      ctx.fill();
+    });
+
+    // energy motes (gold) escaping upward/outward
+    motes.forEach(m=>{
+      ctx.fillStyle="rgba(255,200,80,"+m.a+")";
+      ctx.shadowColor="rgba(255,200,80,0.9)";
+      ctx.shadowBlur=10;
+      ctx.beginPath();
+      ctx.arc(m.x,m.y,m.s,0,Math.PI*2);
+      ctx.fill();
+      ctx.shadowBlur=0;
+    });
+  }
+  function drawRock(x,y,alpha){
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle="#9fb2bb";
+    ctx.strokeStyle="#c9d8de";
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(x-16,y+2);
+    ctx.lineTo(x-9,y-13);
+    ctx.lineTo(x+8,y-15);
+    ctx.lineTo(x+17,y-2);
+    ctx.lineTo(x+11,y+13);
+    ctx.lineTo(x-8,y+14);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle="rgba(255,255,255,0.18)";
+    ctx.beginPath();ctx.ellipse(x-4,y-5,6,4,-0.5,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+
+  /* ---------- DOM refs ---------- */
+  const freeN=document.getElementById("freeN");
+  const nlabel=document.getElementById("nlabel");
+  const nukeState=document.getElementById("nukeState");
+  const poolState=document.getElementById("poolState");
+  const nukeRead=document.getElementById("nukeRead");
+  const poolRead=document.getElementById("poolRead");
+  const beam=document.getElementById("beam");
+  const btn=document.getElementById("dropBtn");
+  const slow=document.getElementById("slow");
+
+  /* ---------- timeline ---------- */
+  let running=false, start=0, raf=null, impactFired=false;
+  function reset(){
+    ripples=[];drops=[];motes=[];impactFired=false;
+    rockY=40; rockBob=0;
+    freeN.style.transition="none";
+    freeN.style.transform="translate(0,0)";
+    freeN.style.opacity="1";
+    nucleus.style.transform="translate(-50%,-50%)";
+    nlabel.innerHTML='²³⁵U<small>+ neutron</small>';
+    nukeState.textContent="U‑235 + n";
+    poolState.textContent="rock, held high";
+    nukeRead.innerHTML="A loose neutron approaches. Apart, the parts carry their full mass.";
+    poolRead.innerHTML="A rock waits above calm water — lifted high, holding extra energy.";
+    beam.style.transform="rotate(0deg)";
+    drawPool(0,0);
+  }
+
+  function spawnImpact(){
+    impactFired=true;
+    const cx=rockX();
+    // splash droplets
+    for(let i=0;i<26;i++){
+      const a=-Math.PI/2 + (Math.random()-0.5)*1.9;
+      const v=2.2+Math.random()*3.6;
+      drops.push({x:cx,y:surfaceY,vx:Math.cos(a)*v,vy:Math.sin(a)*v - 1.5,s:1.5+Math.random()*2.5,a:1});
+    }
+    // ripples
+    ripples.push({x:cx,r:6,a:1,grow:1.7});
+    ripples.push({x:cx,r:2,a:1,grow:1.0});
+    // energy motes (the radiated binding energy)
+    for(let i=0;i<22;i++){
+      const a=-Math.PI/2 + (Math.random()-0.5)*2.4;
+      const v=1.4+Math.random()*2.8;
+      motes.push({x:cx,y:surfaceY-4,vx:Math.cos(a)*v,vy:Math.sin(a)*v,s:1.2+Math.random()*2,a:1});
+    }
+    // nucleus emits a gamma flash: spawn gold motes from the nucleus center too
+    const nb=nucleus.getBoundingClientRect();
+    nukeBurst();
+    // shake nucleus
+    nucleus.animate(
+      [{transform:"translate(-50%,-50%)"},
+       {transform:"translate(-48%,-52%)"},
+       {transform:"translate(-52%,-49%)"},
+       {transform:"translate(-50%,-50%)"}],
+      {duration: slow.checked?900:450, iterations:1}
+    );
+    // relabel + readouts
+    nlabel.innerHTML='²³⁶U<small>bound &amp; lighter</small>';
+    nukeState.textContent="U‑236";
+    poolState.textContent="rock, at the bottom";
+    nukeRead.innerHTML='Bound! A <span class="hot">gamma photon</span> flies off — and 0.00703 u of mass rides away with it.';
+    poolRead.innerHTML='Splash, ripples, heat — <span class="hot">energy radiates away</span>, leaving a lower‑energy system behind.';
+    // tip the balance toward the separate parts (left side down)
+    beam.style.transform = reduce ? "rotate(0deg)" : "rotate(-7deg)";
+  }
+
+  // gold gamma burst overlaid on the nuclear panel via DOM particles
+  const nukePanel=document.getElementById("nuke");
+  function nukeBurst(){
+    const flash=document.createElement("div");
+    flash.style.cssText="position:absolute;left:50%;top:54%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,#ffe9bd,rgba(255,200,80,0));pointer-events:none;z-index:4";
+    nukePanel.appendChild(flash);
+    flash.animate([{width:"10px",height:"10px",opacity:1},{width:"260px",height:"260px",opacity:0}],
+      {duration:slow.checked?1200:650,easing:"ease-out"}).onfinish=()=>flash.remove();
+    // one streaking gamma photon
+    const ph=document.createElement("div");
+    ph.style.cssText="position:absolute;left:50%;top:54%;width:8px;height:8px;border-radius:50%;background:var(--energy);box-shadow:0 0 16px 4px rgba(255,200,80,.8);pointer-events:none;z-index:4";
+    nukePanel.appendChild(ph);
+    const ang=-0.7, dist=220;
+    ph.animate([
+      {transform:"translate(-50%,-50%) translate(0,0)",opacity:1},
+      {transform:`translate(-50%,-50%) translate(${Math.cos(ang)*dist}px,${Math.sin(ang)*dist}px)`,opacity:0}
+    ],{duration:slow.checked?1500:800,easing:"cubic-bezier(.2,.6,.3,1)"}).onfinish=()=>ph.remove();
+  }
+
+  function frame(now){
+    const speed = slow.checked?0.45:1;
+    const elapsed=(now-start)*speed;
+    const t=elapsed;
+
+    // phase boundaries (ms in scene time)
+    const FALL_END=1200, SETTLE_END=3200;
+    let phase=0;
+    if(t<FALL_END) phase=1; else if(t<SETTLE_END) phase=2; else phase=3;
+
+    // ---- nuclear neutron fall ---- (DOM)
+    if(t<FALL_END){
+      const k=t/FALL_END; const e=k*k; // accelerate
+      const dx=(W*0); // not used
+      freeN.style.transform=`translate(${e*78}px, ${e*44}px)`;
+    } else if(!impactFired){
+      freeN.style.opacity="0";
+    }
+
+    // ---- rock fall ---- (canvas)
+    if(t<FALL_END){
+      const k=t/FALL_END; const e=k*k;
+      rockY = 40 + e*(surfaceY-40+ -2);
+    }
+    if(t>=FALL_END && !impactFired){ spawnImpact(); }
+    if(phase>=2){ rockBob = Math.max(0, 6 - (t-FALL_END)/300); }
+
+    // update particles
+    const dt = 1;
+    drops.forEach(d=>{ d.x+=d.vx; d.y+=d.vy; d.vy+=0.16; if(d.y>surfaceY)d.a-=0.04; });
+    drops=drops.filter(d=>d.a>0);
+    ripples.forEach(rp=>{ rp.r+=rp.grow*1.6; rp.a-=0.006; });
+    ripples=ripples.filter(rp=>rp.a>0 && rp.r<W);
+    motes.forEach(m=>{ m.x+=m.vx; m.y+=m.vy; m.vy*=0.99; m.vx*=0.99; m.a-=0.012; });
+    motes=motes.filter(m=>m.a>0);
+
+    drawPool(now, phase);
+
+    if(t<SETTLE_END+800 || drops.length||motes.length||ripples.length){
+      raf=requestAnimationFrame(frame);
+    } else {
+      running=false; btn.disabled=false; btn.textContent="Run it again";
+    }
+  }
+
+  function run(){
+    if(running) return;
+    reset();
+    running=true; btn.disabled=true; btn.textContent="Reacting…";
+    rockRest = surfaceY + (H-surfaceY)*0.55;
+    if(reduce){
+      // static end-state for reduced motion
+      spawnImpact();
+      drawPool(0,3);
+      running=false;btn.disabled=false;btn.textContent="Run it again";
+      return;
+    }
+    start=performance.now();
+    raf=requestAnimationFrame(frame);
+  }
+
+  btn.addEventListener("click",run);
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,510 @@
+<!-- Kinetic theory, made tangible: phase space box + velocity moments -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading f, dx dv, and the moments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Newsreader:ital,opsz@0,6..72;1,6..72&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c1016;
+    --ink-2:#11161f;
+    --panel:#141b25;
+    --panel-2:#19212d;
+    --line:#283545;
+    --paper:#ece3d3;
+    --paper-dim:#9aa6b2;
+    --paper-faint:#62707e;
+    --amber:#eaa54b;   /* n / count  */
+    --cyan:#54cfc4;    /* u / drift   */
+    --rose:#f06b7a;    /* p / spread  */
+    --grid:#1b2530;
+    --shadow:0 18px 50px -20px rgba(0,0,0,.75);
+    --font-display:"Fraunces",Georgia,serif;
+    --font-body:"Newsreader",Georgia,serif;
+    --font-mono:"Spline Sans Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--ink);color:var(--paper)}
+  body{
+    font-family:var(--font-body);
+    font-size:18px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1200px 700px at 78% -8%, rgba(84,207,196,.07), transparent 60%),
+      radial-gradient(900px 600px at 8% 12%, rgba(234,165,75,.06), transparent 55%),
+      var(--ink);
+  }
+  /* subtle grain */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.035;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  .wrap{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 22px 120px}
+
+  header{padding:64px 0 26px;border-bottom:1px solid var(--line)}
+  .eyebrow{
+    font-family:var(--font-mono);font-size:12.5px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--cyan);margin:0 0 18px;display:flex;align-items:center;gap:12px;
+  }
+  .eyebrow::before{content:"";width:34px;height:1px;background:var(--cyan);opacity:.6}
+  h1{
+    font-family:var(--font-display);font-weight:500;font-size:clamp(34px,6vw,62px);
+    line-height:1.02;letter-spacing:-.015em;margin:0 0 18px;
+  }
+  h1 em{font-style:italic;color:var(--amber)}
+  .lede{font-size:clamp(18px,2.4vw,21px);color:var(--paper-dim);max-width:64ch;margin:0}
+  .lede b{color:var(--paper);font-weight:500}
+
+  section{margin-top:60px;scroll-margin-top:20px}
+  .kicker{font-family:var(--font-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--paper-faint);margin:0 0 8px}
+  h2{font-family:var(--font-display);font-weight:500;font-size:clamp(25px,3.6vw,34px);letter-spacing:-.01em;margin:0 0 14px;line-height:1.08}
+  h2 .a{color:var(--amber)} h2 .c{color:var(--cyan)} h2 .r{color:var(--rose)}
+  p{margin:0 0 16px;max-width:66ch}
+  p .mono{font-family:var(--font-mono);font-size:.92em}
+  .hl-a{color:var(--amber)} .hl-c{color:var(--cyan)} .hl-r{color:var(--rose)}
+
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--ink-2));
+    border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    overflow:hidden;margin:22px 0;
+  }
+  .stage{position:relative;background:
+      linear-gradient(var(--grid) 1px,transparent 1px) 0 0/100% 34px,
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/34px 100%,
+      var(--ink);
+  }
+  canvas{display:block;width:100%;height:auto;touch-action:none}
+  .axis-tag{position:absolute;font-family:var(--font-mono);font-size:12px;color:var(--paper-faint);letter-spacing:.04em;pointer-events:none}
+
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px 26px;padding:20px 22px;border-top:1px solid var(--line);background:var(--panel-2)}
+  .ctrl{display:flex;flex-direction:column;gap:7px}
+  .ctrl label{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--paper-dim);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .ctrl label .val{color:var(--paper);font-size:13px}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:3px;background:var(--line);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--paper);border:0;box-shadow:0 0 0 4px rgba(236,227,211,.12);transition:transform .12s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.18)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--paper)}
+  input.a::-webkit-slider-thumb{background:var(--amber)} input.c::-webkit-slider-thumb{background:var(--cyan)} input.r::-webkit-slider-thumb{background:var(--rose)}
+  input.a::-moz-range-thumb{background:var(--amber)} input.c::-moz-range-thumb{background:var(--cyan)} input.r::-moz-range-thumb{background:var(--rose)}
+
+  .readout{display:flex;flex-wrap:wrap;gap:10px;padding:18px 22px;border-top:1px solid var(--line)}
+  .chip{flex:1 1 150px;background:var(--ink-2);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+  .chip .name{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--paper-faint)}
+  .chip .eq{font-family:var(--font-mono);font-size:11.5px;color:var(--paper-faint);margin-top:1px}
+  .chip .num{font-family:var(--font-mono);font-size:24px;font-weight:500;margin-top:6px;letter-spacing:-.01em}
+  .chip.n .num{color:var(--amber)} .chip.u .num{color:var(--cyan)} .chip.p .num{color:var(--rose)} .chip.t .num{color:var(--paper)}
+  .chip .sub{font-family:var(--font-mono);font-size:10.5px;color:var(--paper-faint);margin-top:2px}
+
+  .toggles{display:flex;flex-wrap:wrap;gap:9px;padding:18px 22px 4px}
+  .toggle{font-family:var(--font-mono);font-size:12.5px;letter-spacing:.04em;color:var(--paper-dim);background:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:9px 15px;cursor:pointer;transition:all .16s;display:flex;align-items:center;gap:8px}
+  .toggle .dot{width:8px;height:8px;border-radius:50%;background:var(--paper-faint)}
+  .toggle:hover{border-color:var(--paper-faint);color:var(--paper)}
+  .toggle.on{color:var(--ink);background:var(--paper);border-color:var(--paper)}
+  .toggle.on.k0{background:var(--amber);box-shadow:0 0 22px -6px var(--amber)} .toggle.on.k0 .dot{background:#3a2a08}
+  .toggle.on.k1{background:var(--cyan);box-shadow:0 0 22px -6px var(--cyan)} .toggle.on.k1 .dot{background:#06302c}
+  .toggle.on.k2{background:var(--rose);box-shadow:0 0 22px -6px var(--rose)} .toggle.on.k2 .dot{background:#3a0c12}
+  .replay{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--cyan);background:transparent;border:1px solid var(--line);border-radius:999px;padding:9px 15px;cursor:pointer;transition:all .16s}
+  .replay:hover{border-color:var(--cyan)}
+
+  .note{font-size:15.5px;color:var(--paper-dim);padding:6px 22px 20px;max-width:none}
+  .note b{color:var(--paper);font-weight:500}
+  .footer{margin-top:70px;padding-top:24px;border-top:1px solid var(--line);font-size:14.5px;color:var(--paper-faint)}
+  .footer .mono{font-family:var(--font-mono)}
+  @media(max-width:620px){ body{font-size:17px} .chip .num{font-size:21px} }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Kinetic theory &middot; what the symbols mean</p>
+    <h1>What <em>f</em>, the little <em>dx dv</em>,<br>and the moments are really saying</h1>
+    <p class="lede">Two live worlds. On the left, <b>phase space</b>: every particle is a dot at its position <span class="hl-a">x</span> and velocity <span class="hl-c">v</span>. Drag a box around them and watch <span class="mono">f&middot;dx&middot;dv</span> turn into an actual headcount. Below, the same particles' velocities become a curve, and you can <b>integrate it live</b> to see each moment appear.</p>
+  </header>
+
+  <!-- ============ SECTION 1: PHASE SPACE BOX ============ -->
+  <section id="phase">
+    <p class="kicker">01 &mdash; the phase-space box</p>
+    <h2><span class="mono" style="font-family:var(--font-mono);font-weight:500">f(x,v,t)&middot;dx&middot;dv</span> = a <span class="a">number of particles</span></h2>
+    <p>Position runs left&ndash;right, velocity runs bottom&ndash;top, so each dot says <i>where</i> a particle is and <i>how fast</i> it's going. <b>f is a density</b> &mdash; how crowded the dots are at a spot &mdash; not a count by itself. Multiply that crowding by the size of a tiny box <span class="hl-c">dx&middot;dv</span> and the units cancel to leave a plain number: how many particles live in that box.</p>
+
+    <div class="card">
+      <div class="stage" id="stagePhase">
+        <canvas id="phaseCanvas"></canvas>
+        <span class="axis-tag" style="left:14px;top:10px">v &uarr; velocity</span>
+        <span class="axis-tag" style="right:14px;bottom:10px">x &rarr; position</span>
+      </div>
+      <div class="controls">
+        <div class="ctrl"><label>box width &middot; dx <span class="val" id="dxVal"></span></label><input type="range" class="c" id="dx" min="0.3" max="6" step="0.1" value="2"></div>
+        <div class="ctrl"><label>box height &middot; dv <span class="val" id="dvVal"></span></label><input type="range" class="c" id="dv" min="0.3" max="6" step="0.1" value="2.4"></div>
+        <div class="ctrl"><label>box centre &middot; x&#8320; <span class="val" id="cxVal"></span></label><input type="range" id="cx" min="0" max="10" step="0.1" value="5"></div>
+        <div class="ctrl"><label>box centre &middot; v&#8320; <span class="val" id="cvVal"></span></label><input type="range" id="cv" min="-5" max="5" step="0.1" value="0"></div>
+      </div>
+      <div class="readout">
+        <div class="chip n"><div class="name">density here</div><div class="eq">f(x&#8320;,v&#8320;)</div><div class="num" id="fVal">&mdash;</div><div class="sub">particles per unit area</div></div>
+        <div class="chip u"><div class="name">box size</div><div class="eq">dx &middot; dv</div><div class="num" id="areaVal">&mdash;</div><div class="sub">phase-space area</div></div>
+        <div class="chip p"><div class="name">predicted</div><div class="eq">f &middot; dx &middot; dv</div><div class="num" id="predVal">&mdash;</div><div class="sub">smooth estimate</div></div>
+        <div class="chip t"><div class="name">actually counted</div><div class="eq">dots in box</div><div class="num" id="countVal">&mdash;</div><div class="sub">lit-up particles</div></div>
+      </div>
+      <p class="note">Resize and move the box. The <b>predicted</b> count from the smooth density and the <b>actually counted</b> dots track each other &mdash; that's the whole meaning of <span class="hl-a">f&middot;dx&middot;dv</span>. Shrink the box and both shrink toward a true infinitesimal patch.</p>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 2: MOMENTS ============ -->
+  <section id="moments">
+    <p class="kicker">02 &mdash; the moments</p>
+    <h2>Boil <span class="mono" style="font-family:var(--font-mono);font-weight:500">f</span> down: <span class="a">count</span>, <span class="c">drift</span>, <span class="r">spread</span></h2>
+    <p>Collapse the cloud onto the velocity axis and you get the <b>velocity distribution</b> &mdash; how many particles travel at each speed. Every measurable quantity is this curve <b>summed over all velocities</b> (that's <span class="mono">&int;&hellip;dv</span>), first multiplied by a power of v that chooses <i>what</i> you measure. Pick a moment below and hit <b>integrate</b> to watch the sum build up.</p>
+
+    <div class="card">
+      <div class="toggles">
+        <button class="toggle on k0" data-k="0"><span class="dot"></span>n = &int; f dv &nbsp;<span style="opacity:.6">&middot; weight v&#8304;</span></button>
+        <button class="toggle k1" data-k="1"><span class="dot"></span>nu = &int; v f dv &nbsp;<span style="opacity:.6">&middot; weight v&sup1;</span></button>
+        <button class="toggle k2" data-k="2"><span class="dot"></span>p = &int; m(v&minus;u)&sup2; f dv &nbsp;<span style="opacity:.6">&middot; weight (v&minus;u)&sup2;</span></button>
+        <button class="replay" id="replay">&#9658; integrate</button>
+      </div>
+      <div class="stage" id="stageMom">
+        <canvas id="momCanvas"></canvas>
+        <span class="axis-tag" style="left:14px;top:10px" id="momYTag">count of particles</span>
+        <span class="axis-tag" style="right:14px;bottom:10px">v &rarr; velocity</span>
+      </div>
+      <div class="controls">
+        <div class="ctrl"><label>particles &middot; N <span class="val" id="nVal2"></span></label><input type="range" class="a" id="N" min="120" max="1400" step="20" value="700"></div>
+        <div class="ctrl"><label>bulk drift &middot; u <span class="val" id="uVal2"></span></label><input type="range" class="c" id="u" min="-3" max="3" step="0.05" value="0.8"></div>
+        <div class="ctrl"><label>temperature &middot; T <span class="val" id="tVal2"></span></label><input type="range" class="r" id="T" min="0.15" max="4" step="0.05" value="1.1"></div>
+      </div>
+      <div class="readout">
+        <div class="chip n"><div class="name">number density</div><div class="eq">n = &int; f dv</div><div class="num" id="nOut">&mdash;</div><div class="sub">how many &middot; weight 1</div></div>
+        <div class="chip u"><div class="name">bulk velocity</div><div class="eq">u = (&int; v f dv)/n</div><div class="num" id="uOut">&mdash;</div><div class="sub">the average / drift</div></div>
+        <div class="chip p"><div class="name">pressure</div><div class="eq">p = &int; m(v&minus;u)&sup2;f dv</div><div class="num" id="pOut">&mdash;</div><div class="sub">the random spread</div></div>
+        <div class="chip t"><div class="name">temperature</div><div class="eq">T = p / n</div><div class="num" id="tOut">&mdash;</div><div class="sub">spread per particle</div></div>
+      </div>
+      <p class="note" id="momNote"></p>
+    </div>
+
+    <p style="margin-top:26px"><b>The one idea underneath all three views:</b> a <span class="hl-a">density</span> only becomes a <span class="hl-c">number</span> when you multiply it by a <i>chunk</i> of the space it lives in &mdash; a box <span class="mono">dx dv</span>, or a sliver <span class="mono">dv</span> swept across the whole axis by the integral. Change the weight (1, v, or <span class="mono">(v&minus;u)&sup2;</span>) and the very same sum hands you <span class="hl-a">how many</span>, <span class="hl-c">where the centre is</span>, or <span class="hl-r">how wide</span>.</p>
+  </section>
+
+  <div class="footer">
+    <span class="mono">m = 1, domain length L = 10. f(x,v) = (N/L)&middot;Gaussian(v; u, &sigma;) with &sigma; = &radic;T.</span><br>
+    Drag inside the top panel to grab the box. Everything updates live.
+  </div>
+</div>
+
+<script>
+// ---------- shared particle model ----------
+const L = 10;            // position domain length
+const VMAX = 6;          // plotted velocity half-range
+const m = 1;
+let state = { N: 700, u: 0.8, T: 1.1 };
+let particles = [];      // {x, v}
+
+function gaussRand(mean, sd){
+  // Box-Muller
+  let a = Math.random() || 1e-9, b = Math.random();
+  return mean + sd * Math.sqrt(-2*Math.log(a)) * Math.cos(2*Math.PI*b);
+}
+function rebuild(){
+  const sd = Math.sqrt(state.T);
+  particles = [];
+  for(let i=0;i<state.N;i++){
+    let v;
+    do { v = gaussRand(state.u, sd); } while (v < -VMAX+0.05 || v > VMAX-0.05);
+    particles.push({ x: Math.random()*L, v });
+  }
+}
+rebuild();
+
+function gaussPdf(v){
+  const sd = Math.sqrt(state.T);
+  return Math.exp(-((v-state.u)*(v-state.u))/(2*sd*sd))/(sd*Math.sqrt(2*Math.PI));
+}
+// phase-space density f(x,v) = (N/L)*pdf(v)  -> particles per unit (x,v) area
+function fDensity(v){ return (state.N/L) * gaussPdf(v); }
+
+// ---------- canvas helpers ----------
+function fitCanvas(canvas, h){
+  const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio||1));
+  const w = canvas.parentElement.clientWidth;
+  canvas.style.height = h + "px";
+  canvas.width = Math.round(w*dpr);
+  canvas.height = Math.round(h*dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return { ctx, w, h };
+}
+const css = getComputedStyle(document.documentElement);
+const C = {
+  amber: css.getPropertyValue('--amber').trim(),
+  cyan:  css.getPropertyValue('--cyan').trim(),
+  rose:  css.getPropertyValue('--rose').trim(),
+  paper: css.getPropertyValue('--paper').trim(),
+  faint: css.getPropertyValue('--paper-faint').trim(),
+  line:  css.getPropertyValue('--line').trim(),
+};
+
+// ================= SECTION 1: PHASE SPACE =================
+const phaseCanvas = document.getElementById('phaseCanvas');
+const PAD = {l:40,r:18,t:18,b:34};
+let box = { cx:5, cv:0, dx:2, dv:2.4 };
+
+const elDx=document.getElementById('dx'), elDv=document.getElementById('dv'),
+      elCx=document.getElementById('cx'), elCv=document.getElementById('cv');
+function syncBox(){
+  box.dx=+elDx.value; box.dv=+elDv.value; box.cx=+elCx.value; box.cv=+elCv.value;
+  document.getElementById('dxVal').textContent=box.dx.toFixed(1);
+  document.getElementById('dvVal').textContent=box.dv.toFixed(1);
+  document.getElementById('cxVal').textContent=box.cx.toFixed(1);
+  document.getElementById('cvVal').textContent=box.cv.toFixed(1);
+}
+[elDx,elDv,elCx,elCv].forEach(e=>e.addEventListener('input',syncBox));
+syncBox();
+
+function px(ctx,w,h){ // mapping helpers for phase space
+  const X = x => PAD.l + (x/L)*(w-PAD.l-PAD.r);
+  const Y = v => PAD.t + (1-(v+VMAX)/(2*VMAX))*(h-PAD.t-PAD.b);
+  return {X,Y};
+}
+
+function drawPhase(ts){
+  const {ctx,w,h} = fitCanvas(phaseCanvas, Math.max(300, Math.min(440, w0())));
+  const {X,Y} = px(ctx,w,h);
+  ctx.clearRect(0,0,w,h);
+
+  // box bounds in data space
+  const x0=box.cx-box.dx/2, x1=box.cx+box.dx/2, v0=box.cv-box.dv/2, v1=box.cv+box.dv/2;
+
+  // box fill
+  const bx=X(Math.max(0,x0)), bx2=X(Math.min(L,x1)), by=Y(v1), by2=Y(v0);
+  ctx.fillStyle="rgba(84,207,196,.10)";
+  ctx.fillRect(bx,by,bx2-bx,by2-by);
+  ctx.strokeStyle=C.cyan; ctx.lineWidth=1.4; ctx.setLineDash([5,4]);
+  ctx.strokeRect(bx,by,bx2-bx,by2-by); ctx.setLineDash([]);
+
+  // v=0 baseline
+  ctx.strokeStyle="rgba(154,166,178,.25)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(PAD.l,Y(0)); ctx.lineTo(w-PAD.r,Y(0)); ctx.stroke();
+
+  // particles
+  let count=0;
+  for(const p of particles){
+    // animate position drift
+    p.x += p.v*0.016*0.55; // dt scaled
+    if(p.x>L) p.x-=L; if(p.x<0) p.x+=L;
+    const inside = (p.x>=x0&&p.x<=x1&&p.v>=v0&&p.v<=v1);
+    if(inside) count++;
+    ctx.beginPath();
+    ctx.arc(X(p.x),Y(p.v), inside?2.6:1.7, 0, 6.2832);
+    ctx.fillStyle = inside ? C.amber : "rgba(154,166,178,.45)";
+    ctx.globalAlpha = inside ? 1 : .8;
+    ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // readouts
+  const fHere=fDensity(box.cv);
+  const area=box.dx*box.dv;
+  document.getElementById('fVal').textContent=fHere.toFixed(1);
+  document.getElementById('areaVal').textContent=area.toFixed(2);
+  document.getElementById('predVal').textContent=(fHere*area).toFixed(1);
+  document.getElementById('countVal').textContent=count;
+}
+// helper to size phase canvas height responsively
+function w0(){ return phaseCanvas.parentElement.clientWidth*0.42; }
+
+// drag the box inside the phase canvas
+let dragging=false;
+function canvasToData(ev){
+  const r=phaseCanvas.getBoundingClientRect();
+  const w=r.width, h=r.height;
+  const xpix=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;
+  const ypix=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
+  const xd = ( (xpix-PAD.l)/(w-PAD.l-PAD.r) )*L;
+  const vd = ( 1-(ypix-PAD.t)/(h-PAD.t-PAD.b) )*2*VMAX - VMAX;
+  return {xd,vd};
+}
+function startDrag(ev){ dragging=true; moveDrag(ev); }
+function moveDrag(ev){
+  if(!dragging) return;
+  const {xd,vd}=canvasToData(ev);
+  elCx.value=Math.max(0,Math.min(L,xd)).toFixed(1);
+  elCv.value=Math.max(-5,Math.min(5,vd)).toFixed(1);
+  syncBox(); if(ev.cancelable) ev.preventDefault();
+}
+function endDrag(){ dragging=false; }
+phaseCanvas.addEventListener('mousedown',startDrag);
+window.addEventListener('mousemove',moveDrag);
+window.addEventListener('mouseup',endDrag);
+phaseCanvas.addEventListener('touchstart',startDrag,{passive:false});
+phaseCanvas.addEventListener('touchmove',moveDrag,{passive:false});
+window.addEventListener('touchend',endDrag);
+
+// ================= SECTION 2: MOMENTS =================
+const momCanvas=document.getElementById('momCanvas');
+const MPAD={l:46,r:20,t:24,b:36};
+let activeK=0;          // 0=n,1=nu,2=p
+let sweep=0;            // 0..1 reveal progress
+let sweeping=false;
+
+const elN=document.getElementById('N'), elU=document.getElementById('u'), elT=document.getElementById('T');
+function syncSystem(){
+  state.N=+elN.value; state.u=+elU.value; state.T=+elT.value;
+  document.getElementById('nVal2').textContent=state.N;
+  document.getElementById('uVal2').textContent=state.u.toFixed(2);
+  document.getElementById('tVal2').textContent=state.T.toFixed(2);
+  rebuild();
+}
+[elN,elU,elT].forEach(e=>e.addEventListener('input',()=>{ syncSystem(); startSweep(); }));
+syncSystem();
+
+document.querySelectorAll('.toggle').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.toggle').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    activeK=+btn.dataset.k;
+    startSweep();
+    updateMomNote();
+  });
+});
+document.getElementById('replay').addEventListener('click',startSweep);
+function startSweep(){ sweep=0; sweeping=true; }
+
+// numeric integrand on a velocity grid
+const NB=240;
+function grid(){
+  const arr=[];
+  for(let i=0;i<NB;i++){
+    const v=-VMAX + (i+0.5)/NB*2*VMAX;
+    arr.push(v);
+  }
+  return arr;
+}
+const VG=grid(), dvg=2*VMAX/NB;
+function integrand(v,k){
+  const f=fDensity(v);
+  if(k===0) return f;
+  if(k===1) return v*f;
+  return m*(v-state.u)*(v-state.u)*f;
+}
+
+// live moments (analytic-ish via the same grid for consistency)
+function moments(){
+  let n=0,nu=0,p=0;
+  for(const v of VG){ const f=fDensity(v); n+=f*dvg; nu+=v*f*dvg; p+=m*(v-state.u)*(v-state.u)*f*dvg; }
+  const u=nu/n, T=p/n;
+  return {n,nu,u,p,T};
+}
+
+function drawMoments(){
+  const h=Math.max(260,Math.min(400, momCanvas.parentElement.clientWidth*0.40));
+  const {ctx,w}=fitCanvas(momCanvas,h);
+  ctx.clearRect(0,0,w,h);
+  const X=v=>MPAD.l+((v+VMAX)/(2*VMAX))*(w-MPAD.l-MPAD.r);
+  const x0=MPAD.l, x1=w-MPAD.r, yb=h-MPAD.b, yt=MPAD.t;
+
+  // peak scale for current integrand (use abs for signed nu)
+  let peak=1e-6;
+  for(const v of VG){ peak=Math.max(peak, Math.abs(integrand(v,activeK))); }
+  const Y=val=> yb - (val/peak)*(yb-yt)*0.92;
+
+  // axes
+  ctx.strokeStyle="rgba(154,166,178,.3)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(x0,yb); ctx.lineTo(x1,yb); ctx.stroke();
+  // zero-value line for signed case sits on baseline yb (val=0 -> yb). good.
+  // v=0 gridline
+  ctx.strokeStyle="rgba(154,166,178,.18)"; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(X(0),yt); ctx.lineTo(X(0),yb); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=C.faint; ctx.font='12px "Spline Sans Mono",monospace';
+  ctx.fillText("0",X(0)-3,yb+15);
+
+  const col = activeK===0?C.amber : activeK===1?C.cyan : C.rose;
+  const sweepV = -VMAX + sweep*2*VMAX;   // current sweep position in velocity
+
+  // faint full integrand outline (the curve you're about to sum)
+  ctx.beginPath();
+  VG.forEach((v,i)=>{ const Yp=Y(integrand(v,activeK)); i?ctx.lineTo(X(v),Yp):ctx.moveTo(X(v),Yp); });
+  ctx.strokeStyle="rgba(236,227,211,.22)"; ctx.lineWidth=1.4; ctx.stroke();
+
+  // filled accumulated area up to sweepV
+  ctx.beginPath();
+  ctx.moveTo(X(-VMAX), yb);
+  let started=false;
+  for(const v of VG){
+    if(v>sweepV) break;
+    const Yp=Y(integrand(v,activeK));
+    ctx.lineTo(X(v),Yp); started=true;
+  }
+  if(started){
+    ctx.lineTo(X(Math.min(sweepV,VMAX)), yb);
+    ctx.closePath();
+    const g=ctx.createLinearGradient(0,yt,0,yb);
+    g.addColorStop(0, col+"cc"); g.addColorStop(1, col+"22");
+    ctx.fillStyle=g; ctx.fill();
+  }
+  // for signed (nu): negative lobe drawn below baseline naturally since Y(neg)>yb
+  // sweep line
+  if(sweeping || sweep<1){
+    ctx.strokeStyle=C.paper; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(X(sweepV),yt-2); ctx.lineTo(X(sweepV),yb+4); ctx.stroke();
+    ctx.fillStyle=C.paper; ctx.beginPath(); ctx.arc(X(sweepV),yt-2,3,0,6.2832); ctx.fill();
+  }
+
+  // running accumulated value
+  let acc=0; for(const v of VG){ if(v>sweepV) break; acc+=integrand(v,activeK)*dvg; }
+  const M=moments();
+
+  // mean marker (cyan) when on nu
+  if(activeK===1){
+    ctx.strokeStyle=C.cyan; ctx.lineWidth=1.4; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(X(M.u),yt); ctx.lineTo(X(M.u),yb); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=C.cyan; ctx.font='12px "Spline Sans Mono",monospace';
+    ctx.fillText("u="+M.u.toFixed(2), X(M.u)+5, yt+12);
+  }
+  // spread band (rose) when on p
+  if(activeK===2){
+    const sd=Math.sqrt(state.T);
+    ctx.fillStyle="rgba(240,107,122,.10)";
+    ctx.fillRect(X(state.u-sd),yt,X(state.u+sd)-X(state.u-sd),yb-yt);
+    ctx.strokeStyle=C.rose; ctx.setLineDash([2,3]); ctx.lineWidth=1.2;
+    [state.u-sd,state.u+sd].forEach(vv=>{ctx.beginPath();ctx.moveTo(X(vv),yt);ctx.lineTo(X(vv),yb);ctx.stroke();});
+    ctx.setLineDash([]);
+    ctx.fillStyle=C.rose; ctx.font='12px "Spline Sans Mono",monospace';
+    ctx.fillText("u \u00B1 \u03C3", X(state.u+sd)+5, yt+12);
+  }
+
+  // running total label near top
+  ctx.fillStyle=col; ctx.font='600 15px "Spline Sans Mono",monospace';
+  const lbl = activeK===0?"\u222B f dv = " : activeK===1?"\u222B v f dv = " : "\u222B m(v\u2212u)\u00B2 f dv = ";
+  ctx.fillText(lbl+acc.toFixed(2), x0+6, yt+4);
+
+  // y tag
+  document.getElementById('momYTag').textContent =
+     activeK===0?"f  (count weight 1)" : activeK===1?"v\u00B7f  (weight v)" : "(v\u2212u)\u00B2\u00B7f  (weight (v\u2212u)\u00B2)";
+
+  // chips
+  document.getElementById('nOut').textContent=M.n.toFixed(1);
+  document.getElementById('uOut').textContent=M.u.toFixed(2);
+  document.getElementById('pOut').textContent=M.p.toFixed(1);
+  document.getElementById('tOut').textContent=M.T.toFixed(2);
+
+  if(sweeping){ sweep+=0.012; if(sweep>=1){sweep=1;sweeping=false;} }
+}
+
+function updateMomNote(){
+  const el=document.getElementById('momNote');
+  if(activeK===0) el.innerHTML='<b>n</b> &mdash; weight every particle by 1 and add them up. The shaded area <i>is</i> the headcount: <span class="hl-a">how many particles</span> there are, regardless of how fast they move.';
+  else if(activeK===1) el.innerHTML='<b>nu</b> &mdash; weight by v, so fast particles count more. The sum leans toward the side the crowd is drifting; divide by n and you get <span class="hl-c">u, the average velocity</span>. Watch the balance point sit right at u.';
+  else el.innerHTML='<b>p</b> &mdash; weight by (v&minus;u)&sup2;: each particle\u2019s <i>leftover jiggle</i> after removing the drift, squared. Wider cloud &rarr; bigger sum &rarr; more <span class="hl-r">pressure</span>. Share it per particle (T = p/n) and that\u2019s <span class="hl-r">temperature</span>.';
+}
+updateMomNote();
+
+// ================= MAIN LOOP =================
+function loop(){
+  drawPhase();
+  drawMoments();
+  requestAnimationFrame(loop);
+}
+window.addEventListener('resize',()=>{});
+loop();
+startSweep();
+</script>

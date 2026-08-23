@@ -1,0 +1,455 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>same shape diff metrics</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+  yellow: "#fff176",
+};
+
+// Two different pressure profiles that produce different internal spacing
+// but same boundary shape
+function fluxSurface(psiNorm, theta, profile) {
+  const r0 = 2.0, kappa = 1.6, delta = 0.35, shaf = 0.25;
+
+  // Remap psiNorm to create different internal spacing
+  let psiMapped;
+  if (profile === "peaked") {
+    // Surfaces bunched toward center
+    psiMapped = Math.pow(psiNorm, 0.6);
+  } else {
+    // Surfaces bunched toward edge
+    psiMapped = Math.pow(psiNorm, 1.8);
+  }
+
+  const a = 0.7 * psiMapped;
+  const shift = shaf * (1 - psiMapped * psiMapped);
+  return {
+    R: r0 + shift + a * Math.cos(theta + delta * Math.sin(theta)),
+    Z: kappa * a * Math.sin(theta),
+  };
+}
+
+function computeMetrics(psiNorm, theta, profile) {
+  const eps = 0.005;
+  const pp = fluxSurface(psiNorm + eps, theta, profile);
+  const pm = fluxSurface(psiNorm - eps, theta, profile);
+  const dRdpsi = (pp.R - pm.R) / (2 * eps);
+  const dZdpsi = (pp.Z - pm.Z) / (2 * eps);
+
+  const tp = fluxSurface(psiNorm, theta + eps, profile);
+  const tm = fluxSurface(psiNorm, theta - eps, profile);
+  const dRdth = (tp.R - tm.R) / (2 * eps);
+  const dZdth = (tp.Z - tm.Z) / (2 * eps);
+
+  const gxx = dRdpsi * dRdpsi + dZdpsi * dZdpsi;
+  const gyy = dRdth * dRdth + dZdth * dZdth;
+  const gxy = dRdpsi * dRdth + dZdpsi * dZdth;
+  const J = Math.abs(dRdpsi * dZdth - dZdpsi * dRdth);
+
+  return { dRdpsi, dZdpsi, dRdth, dZdth, gxx, gyy, gxy, J };
+}
+
+function SameShapeDifferentMetrics() {
+  const [theta, setTheta] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const [showParallelograms, setShowParallelograms] = useState(false);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const startRef = useRef(null);
+  const chosenPsi = 0.5;
+
+  useEffect(() => {
+    if (!animating) return;
+    startRef.current = Date.now();
+    const tick = () => {
+      const t = (Date.now() - startRef.current) / 1000;
+      setTheta((t * 0.5) % (Math.PI * 2));
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [animating]);
+
+  const peakedData = computeMetrics(chosenPsi, theta, "peaked");
+  const broadData = computeMetrics(chosenPsi, theta, "broad");
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const halfW = W / 2;
+    const nTheta = 100;
+    const nSurfaces = 10;
+
+    // Draw both tokamaks side by side
+    ["peaked", "broad"].forEach((profile, side) => {
+      const offsetX = side * halfW;
+      const cx = offsetX + halfW / 2;
+      const cy = H * 0.38;
+
+      const Rmin = 0.95, Rmax = 3.15, Zmin = -1.1, Zmax = 1.1;
+      const scaleR = (halfW - 30) / (Rmax - Rmin);
+      const scaleZ = (H * 0.55) / (Zmax - Zmin);
+      const sc = Math.min(scaleR, scaleZ);
+
+      const toX = (R) => cx + (R - 2.1) * sc;
+      const toY = (Z) => cy - Z * sc;
+
+      // Separator line
+      if (side === 1) {
+        ctx.beginPath();
+        ctx.moveTo(halfW, 10);
+        ctx.lineTo(halfW, H * 0.72);
+        ctx.strokeStyle = C.border + "40";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Title
+      ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = side === 0 ? C.warm : C.cool;
+      ctx.textAlign = "center";
+      ctx.fillText(
+        side === 0 ? "Tokamak A: peaked pressure" : "Tokamak B: broad pressure",
+        cx, 18
+      );
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      ctx.fillText(
+        side === 0 ? "surfaces bunched near center" : "surfaces bunched near edge",
+        cx, 32
+      );
+      ctx.textAlign = "left";
+
+      // Draw flux surfaces
+      for (let i = 1; i <= nSurfaces; i++) {
+        const psi = i / nSurfaces;
+        const isChosen = Math.abs(psi - chosenPsi) < 0.06;
+
+        ctx.beginPath();
+        for (let j = 0; j <= nTheta; j++) {
+          const th = (j / nTheta) * 2 * Math.PI;
+          const { R, Z } = fluxSurface(psi, th, profile);
+          if (j === 0) ctx.moveTo(toX(R), toY(Z));
+          else ctx.lineTo(toX(R), toY(Z));
+        }
+        ctx.closePath();
+
+        if (isChosen) {
+          ctx.strokeStyle = C.accent;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = C.accent;
+          ctx.shadowBlur = 8;
+        } else if (i === nSurfaces) {
+          ctx.strokeStyle = C.textBright + "60";
+          ctx.lineWidth = 1.5;
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.strokeStyle = (side === 0 ? C.warm : C.cool) + "50";
+          ctx.lineWidth = 0.8;
+          ctx.shadowBlur = 0;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Highlight point on chosen surface
+      const { R: ptR, Z: ptZ } = fluxSurface(chosenPsi, theta, profile);
+      ctx.beginPath();
+      ctx.arc(toX(ptR), toY(ptZ), 5, 0, Math.PI * 2);
+      ctx.fillStyle = C.highlight;
+      ctx.shadowColor = C.highlight;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Parallelogram at point
+      if (showParallelograms) {
+        const data = side === 0 ? peakedData : broadData;
+        const pScale = 40;
+        const px = data.dRdpsi * pScale * sc;
+        const py = -data.dZdpsi * pScale * sc;
+        const qx = data.dRdth * pScale * sc;
+        const qy = -data.dZdth * pScale * sc;
+        const ptX = toX(ptR), ptY = toY(ptZ);
+
+        ctx.beginPath();
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(ptX + px, ptY + py);
+        ctx.lineTo(ptX + px + qx, ptY + py + qy);
+        ctx.lineTo(ptX + qx, ptY + qy);
+        ctx.closePath();
+        ctx.fillStyle = C.purple + "40";
+        ctx.fill();
+        ctx.strokeStyle = C.purple;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // dψ arrow
+        ctx.beginPath();
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(ptX + px, ptY + py);
+        ctx.strokeStyle = C.green;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // dθ arrow
+        ctx.beginPath();
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(ptX + qx, ptY + qy);
+        ctx.strokeStyle = C.orange;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // "Same boundary" label on outer surface
+      if (side === 0) {
+        const { R: bR } = fluxSurface(1.0, 0, profile);
+        ctx.font = "8px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.textDim;
+        ctx.fillText("identical", toX(bR) + 3, toY(0) - 8);
+        ctx.fillText("boundary", toX(bR) + 3, toY(0) + 2);
+      }
+    });
+
+    // === BOTTOM: g_xx comparison chart ===
+    const chartY = H * 0.76;
+    const chartH = H * 0.2;
+    const chartPad = 40;
+
+    // Compute g_xx(theta) for both profiles
+    const nPts = 60;
+    const peakedGxx = [], broadGxx = [];
+    const peakedJ = [], broadJ = [];
+    for (let i = 0; i < nPts; i++) {
+      const th = (i / nPts) * 2 * Math.PI;
+      const p = computeMetrics(chosenPsi, th, "peaked");
+      const b = computeMetrics(chosenPsi, th, "broad");
+      peakedGxx.push(p.gxx);
+      broadGxx.push(b.gxx);
+      peakedJ.push(p.J);
+      broadJ.push(b.J);
+    }
+
+    const allVals = [...peakedGxx, ...broadGxx];
+    const maxVal = Math.max(...allVals);
+    const minVal = Math.min(...allVals);
+    const range = maxVal - minVal || 1;
+
+    const scX = (i) => chartPad + ((W - 2 * chartPad) * i) / (nPts - 1);
+    const scY = (v) => chartY + 15 + (chartH - 30) * (1 - (v - minVal) / range);
+
+    // Axes
+    ctx.beginPath();
+    ctx.moveTo(chartPad, chartY + 10);
+    ctx.lineTo(chartPad, chartY + chartH - 10);
+    ctx.moveTo(chartPad, chartY + chartH - 10);
+    ctx.lineTo(W - chartPad, chartY + chartH - 10);
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Peaked g_xx
+    ctx.beginPath();
+    peakedGxx.forEach((v, i) => {
+      if (i === 0) ctx.moveTo(scX(i), scY(v));
+      else ctx.lineTo(scX(i), scY(v));
+    });
+    ctx.strokeStyle = C.warm;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Broad g_xx
+    ctx.beginPath();
+    broadGxx.forEach((v, i) => {
+      if (i === 0) ctx.moveTo(scX(i), scY(v));
+      else ctx.lineTo(scX(i), scY(v));
+    });
+    ctx.strokeStyle = C.cool;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Sweep line
+    const sweepIdx = Math.floor((theta / (Math.PI * 2)) * nPts) % nPts;
+    ctx.beginPath();
+    ctx.moveTo(scX(sweepIdx), chartY + 10);
+    ctx.lineTo(scX(sweepIdx), chartY + chartH - 10);
+    ctx.strokeStyle = C.highlight;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dots on curves at sweep
+    if (sweepIdx < nPts) {
+      ctx.beginPath();
+      ctx.arc(scX(sweepIdx), scY(peakedGxx[sweepIdx]), 4, 0, Math.PI * 2);
+      ctx.fillStyle = C.warm;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(scX(sweepIdx), scY(broadGxx[sweepIdx]), 4, 0, Math.PI * 2);
+      ctx.fillStyle = C.cool;
+      ctx.fill();
+    }
+
+    // Labels
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textBright;
+    ctx.textAlign = "center";
+    ctx.fillText("g_xx(θ) — same shape, different values", W / 2, chartY + 6);
+    ctx.textAlign = "left";
+
+    ctx.font = "8px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.warm;
+    ctx.fillText("A: peaked", W - chartPad - 55, chartY + 20);
+    ctx.fillStyle = C.cool;
+    ctx.fillText("B: broad", W - chartPad - 55, chartY + 32);
+
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("0", chartPad - 5, chartY + chartH - 2);
+    ctx.fillText("2π", W - chartPad - 12, chartY + chartH - 2);
+    ctx.textAlign = "center";
+    ctx.fillText("θ", W / 2, chartY + chartH + 2);
+    ctx.textAlign = "left";
+
+    // Current values
+    if (sweepIdx < nPts) {
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.warm;
+      ctx.fillText(`A: g_xx = ${peakedGxx[sweepIdx].toFixed(3)}`, chartPad + 5, chartY + 20);
+      ctx.fillStyle = C.cool;
+      ctx.fillText(`B: g_xx = ${broadGxx[sweepIdx].toFixed(3)}`, chartPad + 5, chartY + 32);
+
+      const ratio = (peakedGxx[sweepIdx] / (broadGxx[sweepIdx] || 0.001)).toFixed(1);
+      ctx.fillStyle = C.yellow;
+      ctx.fillText(`ratio: ${ratio}×`, chartPad + 5, chartY + 44);
+    }
+
+  }, [theta, showParallelograms, peakedData, broadData]);
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: C.textBright, margin: 0 }}>
+            Same Shape, Different Metrics
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            why the boundary shape alone isn't enough
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, overflow: "hidden", marginBottom: 12,
+        }}>
+          <canvas ref={canvasRef} width={500} height={520}
+            style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        {/* Controls */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14, marginBottom: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: C.textDim, minWidth: 25 }}>θ</div>
+            <input type="range" min="0" max={Math.PI * 2} step="0.02"
+              value={theta}
+              onChange={(e) => { setAnimating(false); setTheta(parseFloat(e.target.value)); }}
+              style={{ flex: 1, accentColor: C.accent }} />
+            <div style={{ fontSize: 11, color: C.accent, minWidth: 35, textAlign: "right" }}>
+              {((theta * 180) / Math.PI).toFixed(0)}°
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button onClick={() => setAnimating(!animating)} style={{
+              padding: "6px 14px", borderRadius: 6, fontSize: 10,
+              border: `1px solid ${animating ? C.highlight : C.border}`,
+              background: animating ? C.highlight + "20" : C.bgPanel,
+              color: animating ? C.highlight : C.textDim,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+              {animating ? "■ stop" : "▶ sweep"}
+            </button>
+            <button onClick={() => setShowParallelograms(!showParallelograms)} style={{
+              padding: "6px 14px", borderRadius: 6, fontSize: 10,
+              border: `1px solid ${showParallelograms ? C.purple : C.border}`,
+              background: showParallelograms ? C.purple + "20" : C.bgPanel,
+              color: showParallelograms ? C.purple : C.textDim,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+              {showParallelograms ? "● " : "○ "}parallelograms
+            </button>
+          </div>
+        </div>
+
+        {/* Explanation */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14,
+        }}>
+          <div style={{ fontSize: 11, color: C.text, lineHeight: 1.7 }}>
+            Both tokamaks have the <span style={{ color: C.textBright }}>same D-shaped boundary</span>.
+            But the internal flux surfaces are spaced differently — A has surfaces
+            bunched near the center, B has them bunched near the edge.
+          </div>
+          <div style={{
+            marginTop: 10, padding: "8px 10px", background: C.surface,
+            borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.7,
+          }}>
+            The g_xx(θ) chart below shows the result: at the same ψ surface and
+            same θ location, the metric coefficients are completely different.
+            GENE would simulate different turbulence on these two machines,
+            even though a photo of their cross-sections would look the same.
+            <br /><br />
+            Toggle parallelograms to see it directly — same point on the
+            surface, different sized parallelograms, because the surface
+            spacing differs.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(SameShapeDifferentMetrics));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

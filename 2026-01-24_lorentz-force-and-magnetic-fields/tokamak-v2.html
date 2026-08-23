@@ -1,0 +1,730 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tokamak v2</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const TokamakVisualization = () => {
+  const canvasRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [showVectors, setShowVectors] = useState(true);
+  const [showBFieldGrid, setShowBFieldGrid] = useState(true);
+  const [showDriftArrows, setShowDriftArrows] = useState(true);
+  const [showCoils, setShowCoils] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  const [rotationX, setRotationX] = useState(-20);
+  const [rotationY, setRotationY] = useState(30);
+  const [time, setTime] = useState(0);
+  const [twistAmount, setTwistAmount] = useState(3);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+  const animationRef = useRef(null);
+  const lastTimeRef = useRef(Date.now());
+
+  // Torus parameters
+  const R = 140; // Major radius
+  const r = 50;  // Minor radius
+
+  // 3D projection with rotation
+  const project3D = (x, y, z) => {
+    const radX = (rotationX * Math.PI) / 180;
+    const radY = (rotationY * Math.PI) / 180;
+    
+    // Rotate around Y
+    let x1 = x * Math.cos(radY) - z * Math.sin(radY);
+    let z1 = x * Math.sin(radY) + z * Math.cos(radY);
+    let y1 = y;
+    
+    // Rotate around X
+    let y2 = y1 * Math.cos(radX) - z1 * Math.sin(radX);
+    let z2 = y1 * Math.sin(radX) + z1 * Math.cos(radX);
+    
+    const perspective = 800;
+    const scale = perspective / (perspective + z2);
+    
+    return {
+      x: 400 + x1 * scale,
+      y: 280 + y2 * scale,
+      z: z2,
+      scale
+    };
+  };
+
+  // Get point on torus surface
+  const getTorusPoint = (theta, phi, majorR = R, minorR = r) => {
+    const x = (majorR + minorR * Math.cos(phi)) * Math.cos(theta);
+    const y = minorR * Math.sin(phi);
+    const z = (majorR + minorR * Math.cos(phi)) * Math.sin(theta);
+    return { x, y, z };
+  };
+
+  // Get magnetic field at a point (toroidal + poloidal)
+  const getMagneticFieldAt = (theta, phi, rPos) => {
+    // Distance from central axis affects toroidal field strength
+    const distFromAxis = R + rPos * Math.cos(phi);
+    const toroidalStrength = R / distFromAxis; // B ∝ 1/R - stronger inside!
+    
+    // Toroidal component (around the donut) - perpendicular to radius
+    const toroidalX = -Math.sin(theta) * toroidalStrength;
+    const toroidalY = 0;
+    const toroidalZ = Math.cos(theta) * toroidalStrength;
+    
+    // Poloidal component (around the cross-section) - creates the twist
+    const poloidalStrength = 0.25;
+    const poloidalX = -Math.sin(phi) * Math.cos(theta) * poloidalStrength;
+    const poloidalY = Math.cos(phi) * poloidalStrength;
+    const poloidalZ = -Math.sin(phi) * Math.sin(theta) * poloidalStrength;
+    
+    return {
+      x: toroidalX + poloidalX,
+      y: toroidalY + poloidalY,
+      z: toroidalZ + poloidalZ,
+      toroidalStrength,
+      total: Math.sqrt((toroidalX + poloidalX)**2 + (toroidalY + poloidalY)**2 + (toroidalZ + poloidalZ)**2)
+    };
+  };
+
+  // Get particle position with helical motion
+  const getParticlePosition = (t) => {
+    const toroidalAngle = t * 0.5;
+    const poloidalAngle = t * twistAmount * 0.5;
+    const baseMinorR = r * 0.5;
+    
+    // Add small gyration
+    const gyroRadius = 6;
+    const gyroPhase = t * 25;
+    
+    const fieldX = (R + baseMinorR * Math.cos(poloidalAngle)) * Math.cos(toroidalAngle);
+    const fieldY = baseMinorR * Math.sin(poloidalAngle);
+    const fieldZ = (R + baseMinorR * Math.cos(poloidalAngle)) * Math.sin(toroidalAngle);
+    
+    // Gyration perpendicular to field line
+    const gyroX = gyroRadius * Math.cos(gyroPhase) * Math.sin(toroidalAngle);
+    const gyroY = gyroRadius * Math.sin(gyroPhase);
+    const gyroZ = -gyroRadius * Math.cos(gyroPhase) * Math.cos(toroidalAngle);
+    
+    return {
+      x: fieldX + gyroX,
+      y: fieldY + gyroY,
+      z: fieldZ + gyroZ,
+      toroidalAngle,
+      poloidalAngle
+    };
+  };
+
+  // Get velocity vector
+  const getVelocityVector = (t) => {
+    const dt = 0.01;
+    const p1 = getParticlePosition(t);
+    const p2 = getParticlePosition(t + dt);
+    
+    const vx = (p2.x - p1.x) / dt;
+    const vy = (p2.y - p1.y) / dt;
+    const vz = (p2.z - p1.z) / dt;
+    
+    const mag = Math.sqrt(vx*vx + vy*vy + vz*vz);
+    return { x: vx / mag * 35, y: vy / mag * 35, z: vz / mag * 35 };
+  };
+
+  // Cross product
+  const crossProduct = (v, b) => ({
+    x: v.y * b.z - v.z * b.y,
+    y: v.z * b.x - v.x * b.z,
+    z: v.x * b.y - v.y * b.x
+  });
+
+  // Draw 3D arrow
+  const drawArrow3D = (ctx, start, dir, color, label = '', scale = 1) => {
+    const end = {
+      x: start.x + dir.x * scale,
+      y: start.y + dir.y * scale,
+      z: start.z + dir.z * scale
+    };
+    
+    const startProj = project3D(start.x, start.y, start.z);
+    const endProj = project3D(end.x, end.y, end.z);
+    
+    // Check if behind camera
+    if (startProj.z > 300 || endProj.z > 300) return;
+    
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.moveTo(startProj.x, startProj.y);
+    ctx.lineTo(endProj.x, endProj.y);
+    ctx.stroke();
+    
+    // Arrowhead
+    const angle = Math.atan2(endProj.y - startProj.y, endProj.x - startProj.x);
+    const headLength = 8;
+    
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.moveTo(endProj.x, endProj.y);
+    ctx.lineTo(
+      endProj.x - headLength * Math.cos(angle - Math.PI/6),
+      endProj.y - headLength * Math.sin(angle - Math.PI/6)
+    );
+    ctx.lineTo(
+      endProj.x - headLength * Math.cos(angle + Math.PI/6),
+      endProj.y - headLength * Math.sin(angle + Math.PI/6)
+    );
+    ctx.closePath();
+    ctx.fill();
+    
+    if (label) {
+      ctx.fillStyle = color;
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText(label, endProj.x + 8, endProj.y - 5);
+    }
+  };
+
+  // Mouse handlers
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    const rect = canvasRef.current.getBoundingClientRect();
+    setLastMouse({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setRotationY(prev => prev + (x - lastMouse.x) * 0.5);
+    setRotationX(prev => Math.max(-89, Math.min(89, prev + (y - lastMouse.y) * 0.5)));
+    setLastMouse({ x, y });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  // Animation loop
+  useEffect(() => {
+    if (!isPlaying) return;
+    
+    const animate = () => {
+      const now = Date.now();
+      const delta = (now - lastTimeRef.current) / 1000;
+      lastTimeRef.current = now;
+      
+      setTime(t => t + delta * speed * 0.5);
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [isPlaying, speed]);
+
+  // Main render
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, width, height);
+
+    // Collect all drawable elements with z-depth for sorting
+    const drawables = [];
+
+    // Draw toroidal field coils (D-shaped, external)
+    if (showCoils) {
+      for (let i = 0; i < 12; i++) {
+        const theta = (i / 12) * Math.PI * 2;
+        const coilPoints = [];
+        
+        // D-shaped coil cross-section
+        for (let angle = 0; angle <= Math.PI * 2; angle += 0.2) {
+          const coilR = r + 20; // Outside the plasma
+          const px = (R + coilR * Math.cos(angle)) * Math.cos(theta);
+          const py = coilR * Math.sin(angle);
+          const pz = (R + coilR * Math.cos(angle)) * Math.sin(theta);
+          coilPoints.push({ x: px, y: py, z: pz });
+        }
+        
+        const avgZ = coilPoints.reduce((sum, p) => sum + project3D(p.x, p.y, p.z).z, 0) / coilPoints.length;
+        
+        drawables.push({
+          z: avgZ,
+          draw: () => {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
+            ctx.lineWidth = 6;
+            coilPoints.forEach((p, idx) => {
+              const proj = project3D(p.x, p.y, p.z);
+              if (idx === 0) ctx.moveTo(proj.x, proj.y);
+              else ctx.lineTo(proj.x, proj.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+          }
+        });
+      }
+    }
+
+    // Draw torus wireframe
+    // Toroidal circles
+    for (let phi = 0; phi < Math.PI * 2; phi += Math.PI / 4) {
+      const points = [];
+      for (let theta = 0; theta <= Math.PI * 2; theta += 0.1) {
+        const p = getTorusPoint(theta, phi);
+        points.push(p);
+      }
+      const avgZ = points.reduce((sum, p) => sum + project3D(p.x, p.y, p.z).z, 0) / points.length;
+      
+      drawables.push({
+        z: avgZ,
+        draw: () => {
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(100, 100, 150, 0.25)';
+          ctx.lineWidth = 1;
+          points.forEach((p, idx) => {
+            const proj = project3D(p.x, p.y, p.z);
+            if (idx === 0) ctx.moveTo(proj.x, proj.y);
+            else ctx.lineTo(proj.x, proj.y);
+          });
+          ctx.stroke();
+        }
+      });
+    }
+
+    // Poloidal circles
+    for (let theta = 0; theta < Math.PI * 2; theta += Math.PI / 6) {
+      const points = [];
+      for (let phi = 0; phi <= Math.PI * 2; phi += 0.1) {
+        const p = getTorusPoint(theta, phi);
+        points.push(p);
+      }
+      const avgZ = points.reduce((sum, p) => sum + project3D(p.x, p.y, p.z).z, 0) / points.length;
+      
+      drawables.push({
+        z: avgZ,
+        draw: () => {
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(100, 100, 150, 0.25)';
+          ctx.lineWidth = 1;
+          points.forEach((p, idx) => {
+            const proj = project3D(p.x, p.y, p.z);
+            if (idx === 0) ctx.moveTo(proj.x, proj.y);
+            else ctx.lineTo(proj.x, proj.y);
+          });
+          ctx.stroke();
+        }
+      });
+    }
+
+    // Draw B field vectors throughout torus
+    if (showBFieldGrid) {
+      for (let theta = 0; theta < Math.PI * 2; theta += Math.PI / 4) {
+        for (let phi = 0; phi < Math.PI * 2; phi += Math.PI / 2) {
+          const rPos = r * 0.6;
+          const pos = getTorusPoint(theta, phi, R, rPos);
+          const B = getMagneticFieldAt(theta, phi, rPos);
+          
+          // Color based on field strength (stronger = brighter)
+          const brightness = Math.min(255, Math.floor(B.toroidalStrength * 200));
+          const color = `rgba(${brightness}, 50, ${255 - brightness * 0.3}, 0.8)`;
+          
+          const projPos = project3D(pos.x, pos.y, pos.z);
+          
+          drawables.push({
+            z: projPos.z,
+            draw: () => {
+              // Normalize and scale
+              const mag = Math.sqrt(B.x**2 + B.y**2 + B.z**2);
+              const scaled = {
+                x: B.x / mag * 25,
+                y: B.y / mag * 25,
+                z: B.z / mag * 25
+              };
+              drawArrow3D(ctx, pos, scaled, color);
+            }
+          });
+        }
+      }
+    }
+
+    // Draw drift indicators
+    if (showDriftArrows) {
+      const driftPositions = [
+        { theta: 0, label: 'Outside' },
+        { theta: Math.PI, label: 'Inside' }
+      ];
+      
+      driftPositions.forEach(({ theta, label }) => {
+        const pos = getTorusPoint(theta, 0, R, r * 0.8);
+        const projPos = project3D(pos.x, pos.y, pos.z);
+        
+        // Drift is vertical, direction depends on position
+        // On outside (theta=0): drift UP for positive particle
+        // On inside (theta=π): drift DOWN
+        const driftY = theta === 0 ? 30 : -30;
+        const color = driftY > 0 ? '#ffcc33' : '#33ccff';
+        
+        drawables.push({
+          z: projPos.z - 10, // Draw in front
+          draw: () => {
+            ctx.setLineDash([5, 5]);
+            drawArrow3D(ctx, pos, { x: 0, y: driftY, z: 0 }, color);
+            ctx.setLineDash([]);
+            
+            // Label
+            ctx.fillStyle = color;
+            ctx.font = '11px Arial';
+            ctx.fillText(driftY > 0 ? '↑ Drift UP' : '↓ Drift DOWN', projPos.x - 30, projPos.y - 40);
+            ctx.fillStyle = '#888';
+            ctx.fillText(`(${label})`, projPos.x - 20, projPos.y - 28);
+          }
+        });
+      });
+    }
+
+    // Draw particle trail
+    const trailPoints = [];
+    for (let i = 0; i < 150; i++) {
+      const trailT = time - i * 0.025;
+      const p = getParticlePosition(trailT);
+      trailPoints.push(p);
+    }
+    
+    drawables.push({
+      z: 0,
+      draw: () => {
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
+        ctx.lineWidth = 2;
+        trailPoints.forEach((p, idx) => {
+          const proj = project3D(p.x, p.y, p.z);
+          if (idx === 0) ctx.moveTo(proj.x, proj.y);
+          else ctx.lineTo(proj.x, proj.y);
+        });
+        ctx.stroke();
+      }
+    });
+
+    // Get particle state
+    const particle = getParticlePosition(time);
+    const velocity = getVelocityVector(time);
+    const bField = getMagneticFieldAt(particle.toroidalAngle, particle.poloidalAngle, r * 0.5);
+    const bNorm = {
+      x: bField.x / bField.total * 30,
+      y: bField.y / bField.total * 30,
+      z: bField.z / bField.total * 30
+    };
+    const force = crossProduct(velocity, bNorm);
+    const forceMag = Math.sqrt(force.x**2 + force.y**2 + force.z**2);
+    const forceNorm = {
+      x: force.x / forceMag * 25,
+      y: force.y / forceMag * 25,
+      z: force.z / forceMag * 25
+    };
+
+    const particleProj = project3D(particle.x, particle.y, particle.z);
+
+    // Particle and vectors
+    drawables.push({
+      z: particleProj.z - 20,
+      draw: () => {
+        // Vectors
+        if (showVectors) {
+          drawArrow3D(ctx, particle, velocity, '#00ffff', 'v');
+          drawArrow3D(ctx, particle, bNorm, '#ff00ff', 'B');
+          drawArrow3D(ctx, particle, forceNorm, '#00ff00', 'F');
+        }
+        
+        // Particle glow
+        const gradient = ctx.createRadialGradient(
+          particleProj.x, particleProj.y, 0,
+          particleProj.x, particleProj.y, 20
+        );
+        gradient.addColorStop(0, 'rgba(255, 100, 100, 0.9)');
+        gradient.addColorStop(1, 'rgba(255, 100, 100, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(particleProj.x, particleProj.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Particle
+        ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.arc(particleProj.x, particleProj.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('+', particleProj.x, particleProj.y);
+      }
+    });
+
+    // Sort by z and draw back to front
+    drawables.sort((a, b) => b.z - a.z);
+    drawables.forEach(d => d.draw());
+
+    // Info panel
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(10, 10, 200, 140);
+    ctx.strokeStyle = '#333';
+    ctx.strokeRect(10, 10, 200, 140);
+    
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px monospace';
+    
+    const toroidalDeg = ((particle.toroidalAngle * 180 / Math.PI) % 360).toFixed(0);
+    ctx.fillText(`Position: ${toroidalDeg}° around torus`, 20, 30);
+    
+    // Field strength indicator
+    const fieldStrength = bField.toroidalStrength;
+    ctx.fillText(`B field strength: ${fieldStrength.toFixed(2)}`, 20, 50);
+    
+    // Strength bar
+    ctx.fillStyle = '#333';
+    ctx.fillRect(20, 58, 160, 12);
+    const barColor = fieldStrength > 1 ? '#ff6b6b' : '#6bffff';
+    ctx.fillStyle = barColor;
+    ctx.fillRect(20, 58, Math.min(160, fieldStrength * 80), 12);
+    ctx.fillStyle = '#888';
+    ctx.font = '9px Arial';
+    ctx.fillText('weaker', 25, 68);
+    ctx.fillText('stronger', 140, 68);
+    
+    // Drift direction
+    const driftDir = Math.cos(particle.toroidalAngle) > 0 ? '↑ UP' : '↓ DOWN';
+    const driftColor = Math.cos(particle.toroidalAngle) > 0 ? '#ffcc33' : '#33ccff';
+    ctx.font = '12px monospace';
+    ctx.fillStyle = driftColor;
+    ctx.fillText(`Current drift: ${driftDir}`, 20, 95);
+    
+    ctx.fillStyle = '#888';
+    ctx.font = '10px Arial';
+    ctx.fillText('Field stronger on inside (smaller R)', 20, 115);
+    ctx.fillText('→ causes gradient drift', 20, 128);
+    ctx.fillText('→ twist makes drifts cancel!', 20, 141);
+
+    // Legend
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(width - 150, 10, 140, 115);
+    ctx.strokeStyle = '#333';
+    ctx.strokeRect(width - 150, 10, 140, 115);
+    
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText('→ Velocity v', width - 135, 30);
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillText('→ Magnetic field B', width - 135, 48);
+    ctx.fillStyle = '#00ff00';
+    ctx.fillText('→ Lorentz force F', width - 135, 66);
+    ctx.fillStyle = '#ffcc33';
+    ctx.fillText('⇢ Drift (up)', width - 135, 84);
+    ctx.fillStyle = '#33ccff';
+    ctx.fillText('⇢ Drift (down)', width - 135, 102);
+    ctx.fillStyle = '#6699ff';
+    ctx.fillText('◯ External coils', width - 135, 120);
+
+    // Instructions
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Drag to rotate view', width/2, height - 15);
+
+  }, [time, rotationX, rotationY, showVectors, showBFieldGrid, showDriftArrows, showCoils, twistAmount]);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold text-center mb-1">
+        Tokamak Particle Confinement
+      </h1>
+      <p className="text-center text-gray-400 mb-4 text-sm">
+        Drag to rotate • Watch B-field strength change • See how twist cancels drift
+      </p>
+      
+      <div className="flex flex-col lg:flex-row gap-4 max-w-6xl mx-auto">
+        <div className="flex-1">
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={550}
+            className="bg-gray-800 rounded-lg w-full cursor-grab active:cursor-grabbing"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+        </div>
+        
+        <div className="w-full lg:w-56 space-y-3">
+          {/* Playback */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2 text-sm">Playback</h3>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className={`flex-1 py-1.5 rounded text-sm transition ${
+                  isPlaying ? 'bg-yellow-600' : 'bg-green-600 hover:bg-green-500'
+                }`}
+              >
+                {isPlaying ? '⏸ Pause' : '▶ Play'}
+              </button>
+              <button
+                onClick={() => setTime(0)}
+                className="flex-1 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-sm transition"
+              >
+                ↺ Reset
+              </button>
+            </div>
+            <label className="block text-xs text-gray-400">
+              Speed: {speed.toFixed(1)}x
+            </label>
+            <input
+              type="range"
+              min="0.1"
+              max="3"
+              step="0.1"
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              className="w-full h-2"
+            />
+          </div>
+          
+          {/* Physics */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2 text-sm">Field Twist (q)</h3>
+            <label className="block text-xs text-gray-400">
+              Rotational transform: {twistAmount}
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="6"
+              step="0.5"
+              value={twistAmount}
+              onChange={(e) => setTwistAmount(Number(e.target.value))}
+              className="w-full h-2 accent-fuchsia-400"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              0 = no confinement!
+            </p>
+          </div>
+          
+          {/* Display */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2 text-sm">Display</h3>
+            <label className="flex items-center gap-2 mb-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={showVectors}
+                onChange={(e) => setShowVectors(e.target.checked)}
+                className="accent-cyan-400"
+              />
+              v, B, F vectors
+            </label>
+            <label className="flex items-center gap-2 mb-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={showBFieldGrid}
+                onChange={(e) => setShowBFieldGrid(e.target.checked)}
+                className="accent-fuchsia-400"
+              />
+              B field grid
+            </label>
+            <label className="flex items-center gap-2 mb-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={showDriftArrows}
+                onChange={(e) => setShowDriftArrows(e.target.checked)}
+                className="accent-yellow-400"
+              />
+              Drift arrows
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showCoils}
+                onChange={(e) => setShowCoils(e.target.checked)}
+                className="accent-blue-400"
+              />
+              External coils
+            </label>
+          </div>
+
+          {/* Quick views */}
+          <div className="bg-gray-800 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2 text-sm">Quick Views</h3>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={() => { setRotationX(-20); setRotationY(30); }}
+                className="py-1 px-2 rounded bg-gray-700 hover:bg-gray-600 text-xs"
+              >
+                Default
+              </button>
+              <button
+                onClick={() => { setRotationX(-90); setRotationY(0); }}
+                className="py-1 px-2 rounded bg-gray-700 hover:bg-gray-600 text-xs"
+              >
+                Top
+              </button>
+              <button
+                onClick={() => { setRotationX(0); setRotationY(0); }}
+                className="py-1 px-2 rounded bg-gray-700 hover:bg-gray-600 text-xs"
+              >
+                Side
+              </button>
+              <button
+                onClick={() => { setRotationX(0); setRotationY(90); }}
+                className="py-1 px-2 rounded bg-gray-700 hover:bg-gray-600 text-xs"
+              >
+                Front
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Explanation */}
+      <div className="max-w-4xl mx-auto mt-4 bg-gray-800 p-4 rounded-lg text-sm">
+        <h3 className="font-semibold mb-2">Why Is B Stronger on the Inside?</h3>
+        <div className="grid md:grid-cols-3 gap-4 text-gray-300">
+          <div>
+            <p className="font-semibold text-blue-400 mb-1">The Coils</p>
+            <p>
+              Toroidal field coils wrap around the outside of the torus. On the inner edge, 
+              coils are bunched closer together → higher field density → stronger B.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-yellow-400 mb-1">The Gradient Drift</p>
+            <p>
+              When B varies in space, particles drift perpendicular to both B and ∇B.
+              In a torus, this means UP on one side, DOWN on the other.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-fuchsia-400 mb-1">The Solution</p>
+            <p>
+              Twist the field lines! The particle follows the helix, sampling both 
+              up-drift and down-drift regions → net drift cancels → confinement!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TokamakVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

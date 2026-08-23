@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magnetic Shear — CHEASE → GENE</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e17;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: #1e293b;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --text-muted: #475569;
+  --accent-cyan: #22d3ee;
+  --accent-cyan-dim: rgba(34,211,238,0.15);
+  --accent-red: #f87171;
+  --accent-red-dim: rgba(248,113,113,0.12);
+  --accent-green: #4ade80;
+  --accent-green-dim: rgba(74,222,128,0.12);
+  --accent-amber: #fbbf24;
+  --accent-amber-dim: rgba(251,191,36,0.12);
+  --accent-purple: #a78bfa;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Ambient background */
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(ellipse at 30% 20%, rgba(34,211,238,0.03) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 80%, rgba(248,113,113,0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Header */
+.header {
+  margin-bottom: 48px;
+}
+
+.breadcrumb {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  margin-bottom: 16px;
+  opacity: 0;
+  animation: fadeSlideUp 0.6s ease forwards;
+}
+
+.title {
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 12px;
+  opacity: 0;
+  animation: fadeSlideUp 0.6s ease 0.1s forwards;
+}
+
+.title span { color: var(--accent-cyan); }
+
+.subtitle {
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--text-dim);
+  line-height: 1.6;
+  max-width: 600px;
+  opacity: 0;
+  animation: fadeSlideUp 0.6s ease 0.2s forwards;
+}
+
+/* Tab navigation */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 40px;
+  border: 1px solid var(--border);
+  opacity: 0;
+  animation: fadeSlideUp 0.6s ease 0.3s forwards;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.tab:hover { color: var(--text); }
+
+.tab.active {
+  background: var(--surface2);
+  color: var(--accent-cyan);
+  box-shadow: 0 2px 12px rgba(34,211,238,0.1);
+}
+
+/* Section styles */
+.section {
+  margin-bottom: 48px;
+  opacity: 0;
+  animation: fadeSlideUp 0.6s ease 0.4s forwards;
+}
+
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* Main visualization canvas */
+.viz-container {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 48px;
+}
+
+.viz-header {
+  padding: 20px 24px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.viz-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.viz-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+  letter-spacing: 1px;
+}
+
+canvas#shearCanvas {
+  display: block;
+  width: 100%;
+  height: 500px;
+}
+
+.viz-caption {
+  padding: 16px 24px 20px;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 300;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.caption-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caption-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.caption-dot.good { background: var(--accent-green); box-shadow: 0 0 8px rgba(74,222,128,0.4); }
+.caption-dot.bad { background: var(--accent-red); box-shadow: 0 0 8px rgba(248,113,113,0.4); }
+.caption-dot.neutral { background: var(--accent-cyan); box-shadow: 0 0 8px rgba(34,211,238,0.4); }
+
+/* Shear slider */
+.slider-row {
+  padding: 0 24px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.slider-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.slider-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  min-width: 50px;
+  text-align: right;
+}
+
+input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(34,211,238,0.5);
+  transition: transform 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Concept cards */
+.concept-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.concept-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.concept-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.concept-card.good::before { background: linear-gradient(90deg, var(--accent-green), transparent); }
+.concept-card.bad::before { background: linear-gradient(90deg, var(--accent-red), transparent); }
+
+.concept-card:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-2px);
+}
+
+.card-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.concept-card.good .card-title { color: var(--accent-green); }
+.concept-card.bad .card-title { color: var(--accent-red); }
+
+.card-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  font-weight: 300;
+}
+
+.card-formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--accent-cyan);
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--accent-cyan-dim);
+  border-radius: 8px;
+  display: inline-block;
+}
+
+/* Pipeline */
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 40px;
+}
+
+.pipe-node {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 20px 16px;
+  text-align: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.pipe-node:first-child { border-radius: 16px 0 0 16px; }
+.pipe-node:last-child { border-radius: 0 16px 16px 0; }
+
+.pipe-node:hover {
+  background: var(--surface2);
+  z-index: 2;
+}
+
+.pipe-node .pipe-name {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.pipe-node .pipe-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 300;
+}
+
+.pipe-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--accent-cyan);
+  font-size: 20px;
+  padding: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.pipe-node.active {
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan-dim);
+}
+
+.pipe-node.active .pipe-name { color: var(--accent-cyan); }
+
+.pipe-status {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.pipe-status.yes { background: var(--accent-green); }
+.pipe-status.no { background: var(--accent-red); }
+
+/* Data table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.data-table th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(30,41,59,0.5);
+  vertical-align: top;
+}
+
+.data-table tr:hover td {
+  background: rgba(34,211,238,0.03);
+}
+
+.data-table .source-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-table .source-desc {
+  color: var(--text-dim);
+  font-weight: 300;
+  font-size: 13px;
+}
+
+.status-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.status-badge.stored { background: var(--accent-green-dim); color: var(--accent-green); }
+.status-badge.not-stored { background: var(--accent-red-dim); color: var(--accent-red); }
+.status-badge.computed { background: var(--accent-amber-dim); color: var(--accent-amber); }
+
+/* Formula section */
+.formula-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 40px;
+}
+
+.formula-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(16px, 3vw, 22px);
+  color: var(--text);
+  text-align: center;
+  padding: 20px;
+  line-height: 1.8;
+}
+
+.formula-display .hl-cyan { color: var(--accent-cyan); }
+.formula-display .hl-green { color: var(--accent-green); }
+.formula-display .hl-red { color: var(--accent-red); }
+.formula-display .hl-amber { color: var(--accent-amber); }
+
+.formula-note {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 300;
+  margin-top: 8px;
+}
+
+/* Animations */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Tab content */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .concept-grid { grid-template-columns: 1fr; }
+  .pipeline { flex-direction: column; }
+  .pipe-node:first-child { border-radius: 16px 16px 0 0; }
+  .pipe-node:last-child { border-radius: 0 0 16px 16px; }
+  .pipe-arrow { justify-content: center; padding: 4px; border: 1px solid var(--border); border-top: none; border-bottom: none; }
+  canvas#shearCanvas { height: 380px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="breadcrumb">CHEASE → GENE · Geometry Quantities</div>
+    <h1 class="title">Magnetic <span>Shear</span></h1>
+    <p class="subtitle">How neighboring flux surfaces twist at different rates — and why GENE needs this from CHEASE to compute turbulent transport.</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="intuition">Intuition</button>
+    <button class="tab" data-tab="technical">Technical</button>
+    <button class="tab" data-tab="pipeline">Data Pipeline</button>
+  </div>
+
+  <!-- ===================== INTUITION TAB ===================== -->
+  <div class="tab-content active" id="tab-intuition">
+
+    <div class="section">
+      <div class="section-label">Interactive Visualization</div>
+      <div class="viz-container">
+        <div class="viz-header">
+          <span class="viz-title">TOKAMAK CROSS-SECTION · MAGNETIC SHEAR</span>
+          <span class="viz-badge">INTERACTIVE</span>
+        </div>
+        <canvas id="shearCanvas"></canvas>
+        <div class="slider-row">
+          <span class="slider-label">ŝ =</span>
+          <input type="range" id="shearSlider" min="-1" max="4" step="0.1" value="1.5">
+          <span class="slider-value" id="shearVal">1.5</span>
+        </div>
+        <div class="viz-caption">
+          <div class="caption-item"><div class="caption-dot good"></div> Low shear (stabilizing)</div>
+          <div class="caption-item"><div class="caption-dot bad"></div> High shear (can drive modes)</div>
+          <div class="caption-item"><div class="caption-dot neutral"></div> Flux surfaces</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">What's happening</div>
+      <div class="concept-grid">
+        <div class="concept-card good">
+          <div class="card-icon">🌀</div>
+          <div class="card-title">Low Shear (ŝ ≈ 0)</div>
+          <div class="card-desc">Field lines on neighboring surfaces twist at nearly the same rate. Perturbations stay aligned — shear doesn't tear them apart, so certain modes can persist.</div>
+          <div class="card-formula">ŝ → 0 : modes stay coherent</div>
+        </div>
+        <div class="concept-card bad">
+          <div class="card-icon">💥</div>
+          <div class="card-title">High Shear (ŝ ≫ 1)</div>
+          <div class="card-desc">Neighboring field lines twist at very different rates. This "shearing" tears apart turbulent eddies — but can also couple to other drive mechanisms.</div>
+          <div class="card-formula">ŝ ≫ 1 : eddies get sheared</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">The key formula</div>
+      <div class="formula-block">
+        <div class="formula-display">
+          <span class="hl-cyan">ŝ</span> = <span class="hl-amber">r</span> / <span class="hl-green">q</span> · d<span class="hl-green">q</span> / d<span class="hl-amber">r</span>
+        </div>
+        <div class="formula-note">
+          <span style="color:var(--accent-amber)">r</span> = minor radius &nbsp;·&nbsp;
+          <span style="color:var(--accent-green)">q</span> = safety factor &nbsp;·&nbsp;
+          <span style="color:var(--accent-cyan)">ŝ</span> = magnetic shear
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================== TECHNICAL TAB ===================== -->
+  <div class="tab-content" id="tab-technical">
+
+    <div class="section">
+      <div class="section-label">Physical Definition</div>
+      <div class="formula-block">
+        <div class="formula-display">
+          <span class="hl-cyan">ŝ</span> = <span class="hl-amber">ρ<sub>tor</sub></span> / <span class="hl-green">q</span> · d<span class="hl-green">q</span> / d<span class="hl-amber">ρ<sub>tor</sub></span>
+        </div>
+        <div class="formula-note">
+          In GENE's flux-tube coordinates, ŝ enters the parallel boundary condition<br>
+          and the metric coefficients g<sup>xx</sup>, g<sup>xy</sup>, g<sup>yy</sup>.
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Why GENE Cares</div>
+      <div class="concept-grid">
+        <div class="concept-card" style="grid-column: 1/-1;">
+          <div class="card-title" style="color:var(--accent-cyan);">Parallel Boundary Condition</div>
+          <div class="card-desc" style="max-width:100%;">In a flux-tube simulation, GENE uses the "twist-and-shift" boundary condition: when a mode reaches the end of the parallel domain, it's shifted by <strong>Δk<sub>x</sub> = 2π ŝ k<sub>y</sub></strong>. This connects the radial wavenumber spectrum across the domain — wrong shear means the wrong mode coupling.</div>
+          <div class="card-formula">Δk_x = 2π · ŝ · k_y</div>
+        </div>
+        <div class="concept-card good">
+          <div class="card-title">Metric Coefficients</div>
+          <div class="card-desc">The magnetic shear appears explicitly in GENE's field-aligned metric: g<sup>xx</sup>, g<sup>xy</sup> both depend on ŝ. These control the effective perpendicular wavenumber along the field line.</div>
+        </div>
+        <div class="concept-card bad">
+          <div class="card-title">ITG / TEM Stability</div>
+          <div class="card-desc">Shear modifies the critical gradient for ITG modes. Typically, higher ŝ raises the critical gradient — but the relationship is nonlinear and interacts with elongation and triangularity.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Typical Values</div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Region</th><th>ŝ range</th><th>Physics note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Magnetic axis</td><td style="color:var(--accent-cyan)">≈ 0</td><td class="source-desc">q has a minimum → dq/dr ≈ 0</td></tr>
+            <tr><td>Mid-radius</td><td style="color:var(--accent-amber)">0.5 – 2.0</td><td class="source-desc">Standard tokamak profile, most flux-tube simulations here</td></tr>
+            <tr><td>Edge / pedestal</td><td style="color:var(--accent-red)">2 – 5+</td><td class="source-desc">Steep q profile; can drive peeling-ballooning modes</td></tr>
+            <tr><td>Reversed shear</td><td style="color:var(--accent-purple)">< 0</td><td class="source-desc">Advanced scenarios — internal transport barrier formation</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PIPELINE TAB ===================== -->
+  <div class="tab-content" id="tab-pipeline">
+
+    <div class="section">
+      <div class="section-label">Data Flow</div>
+      <div class="pipeline">
+        <div class="pipe-node">
+          <div class="pipe-name">EQDSK</div>
+          <div class="pipe-detail"><span class="pipe-status no"></span>ŝ not stored</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node active">
+          <div class="pipe-name">CHEASE</div>
+          <div class="pipe-detail"><span class="pipe-status yes"></span>Computes ŝ(ρ)</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node">
+          <div class="pipe-name">GENE geometry</div>
+          <div class="pipe-detail"><span class="pipe-status yes"></span>Stored in file</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node">
+          <div class="pipe-name">GENE sim</div>
+          <div class="pipe-detail"><span class="pipe-status yes"></span>Used at runtime</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Where does shear live?</div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Source</th><th>Status</th><th>Details</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="source-name">EQDSK file</div></td>
+              <td><span class="status-badge not-stored">NOT STORED</span></td>
+              <td class="source-desc">Old format — only stores ψ(R,Z), p(ψ), q(ψ). No shear directly.</td>
+            </tr>
+            <tr>
+              <td><div class="source-name">CHEASE solve</div></td>
+              <td><span class="status-badge computed">COMPUTED</span></td>
+              <td class="source-desc">Reconstructs equilibrium on Hermite elements, then differentiates q(ρ) to get ŝ with high accuracy.</td>
+            </tr>
+            <tr>
+              <td><div class="source-name">GENE geometry file</div></td>
+              <td><span class="status-badge stored">STORED</span></td>
+              <td class="source-desc">Written by CHEASE interface in GENE's format. Contains ŝ, q, geometric coefficients along the field line.</td>
+            </tr>
+            <tr>
+              <td><div class="source-name">GENE simulation</div></td>
+              <td><span class="status-badge stored">USED</span></td>
+              <td class="source-desc">Read once at initialization. Sets boundary conditions and metric for the entire run.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Common Pitfalls</div>
+      <div class="concept-grid">
+        <div class="concept-card bad">
+          <div class="card-icon">⚠️</div>
+          <div class="card-title">Numerical noise in dq/dr</div>
+          <div class="card-desc">If q(ρ) from EQDSK is noisy, the derivative blows up. CHEASE's Hermite reconstruction smooths this — don't compute ŝ from raw EQDSK data.</div>
+        </div>
+        <div class="concept-card bad">
+          <div class="card-icon">🔄</div>
+          <div class="card-title">ρ definition mismatch</div>
+          <div class="card-desc">CHEASE and GENE can use different radial coordinates (ρ_tor vs ρ_pol). If the mapping is wrong, ŝ is wrong — and every k_x in the simulation is shifted.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'intuition') requestAnimationFrame(draw);
+  });
+});
+
+// Canvas visualization
+const canvas = document.getElementById('shearCanvas');
+const ctx = canvas.getContext('2d');
+const slider = document.getElementById('shearSlider');
+const shearValEl = document.getElementById('shearVal');
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * window.devicePixelRatio;
+  canvas.height = rect.height * window.devicePixelRatio;
+  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+}
+
+function draw() {
+  const W = canvas.getBoundingClientRect().width;
+  const H = canvas.getBoundingClientRect().height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const shear = parseFloat(slider.value);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background gradient
+  const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.6);
+  bgGrad.addColorStop(0, 'rgba(34,211,238,0.04)');
+  bgGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  const numSurfaces = 7;
+  const minR = 40;
+  const maxR = Math.min(W, H) * 0.4;
+
+  // Draw flux surfaces (ellipses with Shafranov shift + elongation)
+  for (let i = 1; i <= numSurfaces; i++) {
+    const frac = i / numSurfaces;
+    const r = minR + (maxR - minR) * frac;
+    const shift = 15 * (1 - frac); // Shafranov shift
+    const elongation = 1.3 + 0.1 * frac;
+
+    ctx.beginPath();
+    ctx.ellipse(cx + shift, cy, r, r * elongation, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(34,211,238,${0.08 + 0.06 * frac})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Draw field line arrows showing twist rate
+  const numFieldLines = 5;
+  for (let i = 1; i <= numFieldLines; i++) {
+    const frac = i / numFieldLines;
+    const r = minR + (maxR - minR) * frac;
+    const shift = 15 * (1 - frac);
+    const elongation = 1.3 + 0.1 * frac;
+
+    // q increases with radius; shear controls how fast
+    const q_local = 1 + shear * frac;
+    const twistAngle = (Math.PI * 2) / Math.max(q_local, 0.3); // poloidal advance per toroidal turn
+
+    const numArrows = 12;
+    for (let j = 0; j < numArrows; j++) {
+      const theta = (j / numArrows) * Math.PI * 2;
+      const x = cx + shift + r * Math.cos(theta);
+      const y = cy + r * elongation * Math.sin(theta);
+
+      // Arrow direction: tangent to surface, tilted by shear
+      const tx = -Math.sin(theta);
+      const ty = elongation * Math.cos(theta);
+      const len = Math.sqrt(tx * tx + ty * ty);
+
+      // Scale arrow size by shear magnitude at this radius
+      const localShear = Math.abs(shear) * frac;
+      const arrowLen = 8 + localShear * 6;
+
+      const nx = tx / len;
+      const ny = ty / len;
+
+      // Color: green for low shear, red for high
+      const intensity = Math.min(localShear / 2.5, 1);
+      const red = Math.round(74 + (248 - 74) * intensity);
+      const green = Math.round(222 + (113 - 222) * intensity);
+      const blue = Math.round(128 + (113 - 128) * intensity);
+      const alpha = 0.4 + 0.4 * frac;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + nx * arrowLen, y + ny * arrowLen);
+      ctx.strokeStyle = `rgba(${red},${green},${blue},${alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Arrow head
+      const headLen = 3;
+      const ax = x + nx * arrowLen;
+      const ay = y + ny * arrowLen;
+      ctx.beginPath();
+      ctx.arc(ax, ay, headLen * (0.5 + 0.5 * intensity), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${red},${green},${blue},${alpha * 0.8})`;
+      ctx.fill();
+    }
+  }
+
+  // Center label
+  ctx.fillStyle = 'rgba(34,211,238,0.5)';
+  ctx.font = '600 11px Outfit';
+  ctx.textAlign = 'center';
+  ctx.fillText('Magnetic', cx + 15, cy - 6);
+  ctx.fillText('Axis', cx + 15, cy + 8);
+
+  // Annotations
+  const shearAbs = Math.abs(shear);
+  let label, labelColor;
+  if (shear < 0) { label = 'REVERSED SHEAR'; labelColor = '#a78bfa'; }
+  else if (shearAbs < 0.5) { label = 'LOW SHEAR — WEAK TWIST VARIATION'; labelColor = '#4ade80'; }
+  else if (shearAbs < 2) { label = 'MODERATE SHEAR'; labelColor = '#fbbf24'; }
+  else { label = 'HIGH SHEAR — STRONG TWIST VARIATION'; labelColor = '#f87171'; }
+
+  ctx.fillStyle = labelColor;
+  ctx.font = '700 12px "JetBrains Mono"';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, cx, H - 16);
+}
+
+slider.addEventListener('input', () => {
+  shearValEl.textContent = parseFloat(slider.value).toFixed(1);
+  draw();
+});
+
+window.addEventListener('resize', () => { resize(); draw(); });
+resize();
+draw();
+</script>
+
+</body>
+</html>

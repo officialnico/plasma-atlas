@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radiation → Fission → Reactors → Bombs · A Visual Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f; --bg2:#0d1020; --ink:#eef0fb; --muted:#8a90b4; --line:rgba(255,255,255,.09);
+    --radio:#ff5d73; --micro:#ff9d5c; --ir:#ffd166; --vis:#7be08a; --uv:#5cc8ff; --xray:#7c8bff; --gamma:#c98bff;
+    --neutron:#39c2ff; --hot:#ff4d6d; --safe:#5fe0a0; --u235:#39c2ff; --u238:#ff9d5c; --energy:#ffd166;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(124,139,255,.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(201,139,255,.12), transparent 55%),
+      var(--bg);
+    color:var(--ink); font-family:"Hanken Grotesk",sans-serif; line-height:1.6;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .mono{font-family:"Space Mono",monospace}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:72px 0 40px;position:relative}
+  .kicker{color:var(--neutron);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:26px;background:rgba(57,194,255,.06)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.4rem,8.5vw,4.4rem);line-height:.98;letter-spacing:-.02em;margin-bottom:22px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--radio),var(--ir),var(--vis),var(--uv),var(--gamma));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.18rem;color:#c7cbe6;max-width:54ch}
+  .lede b{color:var(--ink);font-weight:700}
+  .toc{margin-top:30px;display:flex;flex-wrap:wrap;gap:8px}
+  .toc a{font-family:"Space Mono",monospace;font-size:.7rem;color:var(--muted);border:1px solid var(--line);padding:6px 11px;border-radius:100px;text-decoration:none;transition:.18s}
+  .toc a:hover{color:var(--ink);border-color:var(--neutron)}
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.7rem,5.5vw,2.4rem);letter-spacing:-.01em;line-height:1.05;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.85rem;color:var(--neutron);display:block;margin-bottom:14px;font-weight:700;letter-spacing:.2em}
+  .sub{color:var(--muted);margin-bottom:26px;max-width:60ch}
+  p+p{margin-top:14px}
+  .body{color:#c7cbe6}.body b{color:var(--ink)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));border:1px solid var(--line);border-radius:16px;padding:22px}
+  .card h3{font-family:"Fraunces",serif;font-size:1.25rem;font-weight:600;margin-bottom:6px}
+  .card .icn{font-size:1.6rem;margin-bottom:10px;display:block}
+  .card p{font-size:.95rem;color:var(--muted)}
+  .card .ex{margin-top:12px;font-family:"Space Mono",monospace;font-size:.72rem;color:#a6abce;border-top:1px dashed var(--line);padding-top:10px}
+  .card .mag{margin-top:12px;font-size:.82rem;line-height:1.45;color:#c7cbe6;border-left:2px solid var(--c);padding-left:11px}
+  .card .mag b{color:var(--c)}
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(124,139,255,.08),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0 4px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;letter-spacing:.05em;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.18s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle.on{background:var(--neutron);color:#04121c;border-color:var(--neutron);font-weight:700}
+  .readout{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--muted)}
+  .spectrum{display:flex;border-radius:14px;overflow:hidden;border:1px solid var(--line);height:64px;margin-top:6px}
+  .spectrum .band{flex:1;cursor:pointer;position:relative;transition:.2s;border:none}
+  .spectrum .band:hover{flex:1.4}.spectrum .band.active{flex:1.7}
+  .spectrum .band span{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-family:"Space Mono",monospace;font-size:.58rem;color:rgba(0,0,0,.65);font-weight:700}
+  .axis{display:flex;justify-content:space-between;margin-top:8px}
+  .axis span{font-family:"Space Mono",monospace;font-size:.66rem;color:var(--muted)}
+  .specinfo{margin-top:16px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:18px;min-height:120px}
+  .specinfo h4{font-family:"Fraunces",serif;font-size:1.4rem;font-weight:600;margin-bottom:4px}
+  .specinfo .stats{display:flex;gap:18px;flex-wrap:wrap;margin:12px 0}
+  .specinfo .stat{font-family:"Space Mono",monospace;font-size:.72rem;color:var(--muted)}
+  .specinfo .stat b{display:block;color:var(--ink);font-size:.92rem;margin-top:2px}
+  .pill{display:inline-block;font-family:"Space Mono",monospace;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:100px;font-weight:700}
+  .pill.no{background:rgba(95,224,160,.14);color:var(--safe);border:1px solid rgba(95,224,160,.3)}
+  .pill.yes{background:rgba(255,77,109,.14);color:var(--hot);border:1px solid rgba(255,77,109,.3)}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--safe),var(--ir),var(--hot));outline:none;margin:8px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--neutron);box-shadow:0 0 12px rgba(57,194,255,.6)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--neutron)}
+  .ionstate{font-family:"Fraunces",serif;font-size:1.3rem;font-weight:600;margin-top:10px;transition:.2s}
+  .zoo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:560px){.zoo{grid-template-columns:1fr}}
+  .pcard{border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+  .pcard::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+  .pcard h4{font-family:"Fraunces",serif;font-size:1.2rem;margin-bottom:2px;display:flex;align-items:center;gap:8px}
+  .pcard .what{font-family:"Space Mono",monospace;font-size:.68rem;color:var(--c);letter-spacing:.04em;margin-bottom:10px}
+  .pcard p{font-size:.86rem;color:var(--muted)}
+  .pcard .props{display:flex;gap:14px;margin-top:10px;font-family:"Space Mono",monospace;font-size:.66rem;color:#a6abce}
+  .callout{margin-top:18px;border-left:3px solid var(--neutron);background:rgba(57,194,255,.06);padding:14px 18px;border-radius:0 12px 12px 0}
+  .callout b{color:var(--neutron)}
+  .callout.warn{border-color:var(--hot);background:rgba(255,77,109,.06)}.callout.warn b{color:var(--hot)}
+  footer{padding:50px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce}
+
+  /* ENERGY FLOW */
+  .flow{display:flex;align-items:stretch;gap:0;margin-top:8px;overflow-x:auto;padding-bottom:6px}
+  .flow .stg{flex:1;min-width:118px;border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center;background:rgba(255,255,255,.03);position:relative}
+  .flow .stg .e{font-size:1.5rem;display:block;margin-bottom:6px}
+  .flow .stg h5{font-family:"Fraunces",serif;font-size:.98rem;font-weight:600;margin-bottom:3px}
+  .flow .stg p{font-size:.72rem;color:var(--muted);line-height:1.4}
+  .flow .arr{display:flex;align-items:center;color:var(--energy);font-size:1.2rem;padding:0 4px}
+  .pulse{animation:pulse 2.4s infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+  /* ENRICHMENT BARS */
+  .isobar{margin:8px 0 4px}
+  .isobar .lbl{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:.72rem;margin-bottom:5px}
+  .isobar .lbl b{color:var(--u235)}
+  .isobar .track{height:24px;border-radius:8px;background:var(--u238);overflow:hidden;border:1px solid var(--line);position:relative}
+  .isobar .fill{height:100%;background:linear-gradient(90deg,var(--u235),#7be0ff);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .isobar .track .cap{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:"Space Mono",monospace;font-size:.66rem;color:rgba(0,0,0,.6);font-weight:700}
+  .gradenote{font-family:"Space Mono",monospace;font-size:.74rem;margin-top:12px;padding:10px 14px;border-radius:10px;transition:.3s}
+
+  /* BOMB two-col */
+  .splitcol{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  @media(max-width:560px){.splitcol{grid-template-columns:1fr}}
+  .bombcard{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(255,77,109,.04)}
+  .bombcard h4{font-family:"Fraunces",serif;font-size:1.15rem;margin-bottom:4px}
+  .bombcard .hist{font-family:"Space Mono",monospace;font-size:.66rem;color:var(--hot);margin-bottom:12px}
+  .bombcard p{font-size:.85rem;color:var(--muted)}
+  .bombcard svg{width:100%;height:96px;margin:10px 0}
+  .crittag{display:flex;gap:8px;margin:16px 0}
+  .crittag .t{flex:1;text-align:center;padding:12px 8px;border-radius:12px;font-family:"Space Mono",monospace;font-size:.72rem;border:1px solid var(--line)}
+  .crittag .t b{display:block;font-size:.9rem;margin-bottom:3px}
+  .crittag .sub-c{color:var(--safe)} .crittag .crit-c{color:var(--ir)} .crittag .super-c{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Field Guide · zero → hero</span>
+  <h1>From a single ray of light to <em>splitting the atom.</em></h1>
+  <p class="lede">We started with one neutron passing through your body. This guide walks the whole ladder: <b>what radiation is</b>, then <b>where it comes from</b> — the splitting of atoms — and how that same reaction is tamed into a <b>power plant</b> or unleashed in a <b>bomb</b>. Every section is interactive. Poke at it.</p>
+  <nav class="toc">
+    <a href="#s1">01 family tree</a><a href="#s2">02 wave/particle</a><a href="#s3">03 spectrum</a>
+    <a href="#s4">04 danger line</a><a href="#s5">05 particles</a><a href="#s6">06 shielding</a>
+    <a href="#s7">07 fission</a><a href="#s8">08 the reactor</a><a href="#s9">09 making power</a>
+    <a href="#s10">10 enrichment</a><a href="#s11">11 the bomb</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">01 / THE FAMILY TREE</span>Two ways energy travels</h2>
+  <p class="sub">Every kind of radiation belongs to one of these two branches. The cleanest way to tell them apart: <b style="color:var(--ink)">what a magnet does to them.</b></p>
+  <div class="grid2">
+    <div class="card" style="--c:var(--gamma)"><span class="icn">〰️</span><h3>Electromagnetic</h3><p>A wave of energy — no mass, no electric charge — always moving at light speed. Light itself, plus radio, microwaves, X-rays, gamma rays.</p><div class="ex">radio · micro · infrared · visible · UV · x-ray · gamma</div><div class="mag">🧲 <b>In a magnetic field:</b> unmoved. With no charge, a magnet can't grab it — it travels dead straight. It <i>carries</i> its own electric &amp; magnetic fields as part of the wave, but it doesn't <i>follow</i> an outside one.</div></div>
+    <div class="card" style="--c:var(--neutron)"><span class="icn">⦿</span><h3>Particle</h3><p>Actual chunks of matter — bits of atoms — hurled out fast. They have mass, and many carry electric charge.</p><div class="ex">alpha · beta · neutron · proton · cosmic rays</div><div class="mag">🧲 <b>In a magnetic field:</b> the charged ones (alpha, beta, protons) curve and spiral <i>along</i> the field lines — that's the aurora, and how accelerators steer beams. Neutral ones like the neutron ignore it and fly straight.</div></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">02 / YOUR FIRST QUESTION</span>Are X-rays waves or particles?</h2>
+  <p class="sub body">Both. The <b>same</b> X-ray is correctly described as a smooth wave <b>and</b> as a stream of energy packets called <b>photons</b>. Flip the switch.</p>
+  <div class="controls">
+    <button class="toggle on" id="wpWave">view as a wave</button>
+    <button class="toggle" id="wpParticle">view as photons</button>
+  </div>
+  <div class="stage"><canvas id="wpCanvas"></canvas></div>
+  <p class="readout" id="wpNote" style="margin-top:12px">The wave view explains how X-rays diffract, bend, and form images. ↑</p>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2><span class="num">03 / THE LINEUP</span>The electromagnetic spectrum</h2>
+  <p class="sub body">All the <b>same stuff</b> — only the wavelength changes. Tighter waves = harder-hitting photons. Tap a band.</p>
+  <div class="spectrum" id="spectrum"></div>
+  <div class="axis"><span>← longer wave · low energy</span><span>short wave · high energy →</span></div>
+  <div class="specinfo" id="specinfo"></div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="num">04 / THE DANGER LINE</span>What makes radiation harmful</h2>
+  <p class="sub body">One idea: can a single photon <b>kick an electron off an atom</b>? That's <b>ionization</b> — the line between "warms your soup" and "wrecks your DNA." Drag the energy up.</p>
+  <div class="stage"><canvas id="ionCanvas"></canvas></div>
+  <input type="range" id="ionSlider" min="0" max="20" value="3" step="0.1">
+  <div class="controls" style="justify-content:space-between">
+    <span class="readout">photon energy: <b id="ionEv" style="color:var(--ink)">3.0 eV</b></span>
+    <span class="readout">threshold ≈ 10 eV</span>
+  </div>
+  <div class="ionstate" id="ionState"></div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="num">05 / THE PARTICLES</span>The matter that flies at you</h2>
+  <p class="sub body">The other branch — real fragments of atoms, including the <b>neutron</b>, the key to everything that follows.</p>
+  <div class="zoo">
+    <div class="pcard" style="--c:var(--radio)"><h4>Alpha <span>α</span></h4><div class="what">2 protons + 2 neutrons · +2</div><p>A helium nucleus. Brutal up close, stopped by skin — dangerous only if inhaled or swallowed.</p><div class="props"><span>mass: heavy</span><span>charge: +2</span></div></div>
+    <div class="pcard" style="--c:var(--vis)"><h4>Beta <span>β</span></h4><div class="what">a single electron · −1</div><p>A fast electron from a decaying nucleus. Slips through skin, stopped by aluminum.</p><div class="props"><span>mass: tiny</span><span>charge: −1</span></div></div>
+    <div class="pcard" style="--c:var(--gamma)"><h4>Gamma / X-ray <span>γ</span></h4><div class="what">a photon · no mass · no charge</div><p>Pure energy, lethal at the high end. Needs thick lead or concrete.</p><div class="props"><span>mass: 0</span><span>charge: 0</span></div></div>
+    <div class="pcard" style="--c:var(--neutron)"><h4>Neutron <span>n</span></h4><div class="what">a bare neutron · no charge</div><p>Heavy <i>and</i> uncharged. Ignores electrons, only stops by hitting a nucleus — and it's what <b>splits atoms</b>.</p><div class="props"><span>mass: heavy</span><span>charge: 0</span></div></div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="num">06 / STOPPING IT</span>What blocks what</h2>
+  <p class="sub body">Each type is halted by something different. Watch them launch and hit their wall.</p>
+  <div class="stage"><canvas id="shieldCanvas"></canvas></div>
+  <div class="callout body"><b>The neutron twist</b> — it sails straight through lead, the very thing that stops gamma. No charge means it ignores the metal's electrons. It's stopped by <b>water, plastic, or concrete</b> — hydrogen-rich stuff — because a neutron and a proton weigh nearly the same, so a head-on bounce drains its energy fast. Remember this: it's also why neutrons are perfect for the next part.</div>
+</section>
+
+<!-- ============ FISSION ARC ============ -->
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">07 / THE PAYOFF</span>Fission — splitting the atom</h2>
+  <p class="sub body">Here's where every neutron and gamma ray on this page is born. Fire a slow neutron at a <b>uranium-235</b> nucleus and it doesn't bounce — it gets <b>swallowed</b>. The bloated nucleus wobbles and tears itself in two, flinging out:</p>
+  <div class="grid2" style="margin-bottom:18px">
+    <div class="card"><span class="icn">💥</span><h3>~200 MeV of energy</h3><p>Mostly the kinetic energy of the two fragments flying apart. This becomes <b>heat</b> — the entire point of a reactor.</p></div>
+    <div class="card"><span class="icn">⦿⦿⦿</span><h3>2–3 fresh neutrons</h3><p>The magic ingredient. Each can go split <b>another</b> nucleus. One event becomes two, becomes four… a <b>chain reaction</b>.</p></div>
+  </div>
+  <p class="body">That self-feeding cascade is the whole game. Control it and you have a power station; let it run wild and you have a weapon. Everything from here is just <b>how fast you let the chain go.</b> The fragments are themselves radioactive and the burst throws off gamma rays and spare neutrons — exactly the radiation from sections 04–06.</p>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2><span class="num">08 / THE REACTOR</span>Taming the chain reaction</h2>
+  <p class="sub body">A reactor's only trick is keeping the chain reaction <b>exactly balanced</b>: on average, each fission causes precisely one more. Physicists call this number <b>k</b>. Below 1 the reaction dies; at 1 it holds steady (a working reactor); above 1 it grows. The throttle is a set of <b>control rods</b> — made of neutron-hungry materials like boron — that you slide in to soak up spare neutrons. Move the slider and watch the regime change.</p>
+  <div class="stage"><canvas id="chainCanvas"></canvas></div>
+  <input type="range" id="rodSlider" min="0" max="100" value="50" step="1">
+  <div class="controls" style="justify-content:space-between">
+    <span class="readout">control rods inserted: <b id="rodVal" style="color:var(--ink)">50%</b></span>
+    <span class="readout">live neutrons: <b id="nCount" style="color:var(--neutron)">0</b></span>
+  </div>
+  <div class="crittag">
+    <div class="t sub-c"><b>k &lt; 1</b>rods deep → dies out</div>
+    <div class="t crit-c"><b>k = 1</b>balanced → steady power</div>
+    <div class="t super-c"><b>k &gt; 1</b>rods out → runs away</div>
+  </div>
+  <div class="ionstate" id="chainState" style="font-size:1.2rem"></div>
+  <div class="callout body"><b>The moderator</b> — fresh neutrons come out too <i>fast</i> to be reliably caught. So reactors run them through water or graphite (the moderator) to slow them down to the speed where U-235 readily absorbs them. Pull the coolant away or jam k too high and you get the runaway heat behind Chernobyl and Fukushima.</div>
+</section>
+
+<!-- 9 -->
+<section id="s9">
+  <h2><span class="num">09 / MAKING POWER</span>It's secretly just a steam engine</h2>
+  <p class="sub body">The anticlimax of nuclear power: after all that exotic physics, the energy is harvested the same way a coal plant does it — <b>by boiling water</b>. The reactor is just a very strange furnace. Heat → steam → spin a turbine → spin a magnet → electricity.</p>
+  <div class="flow">
+    <div class="stg"><span class="e">⚛️</span><h5>Core</h5><p>Fission heat, ~300°C+</p></div>
+    <div class="arr pulse">→</div>
+    <div class="stg"><span class="e">💧</span><h5>Boil water</h5><p>Coolant carries heat away</p></div>
+    <div class="arr pulse">→</div>
+    <div class="stg"><span class="e">♨️</span><h5>Steam</h5><p>High-pressure jet</p></div>
+    <div class="arr pulse">→</div>
+    <div class="stg"><span class="e">🌀</span><h5>Turbine</h5><p>Steam spins the blades</p></div>
+    <div class="arr pulse">→</div>
+    <div class="stg"><span class="e">⚡</span><h5>Generator</h5><p>Spinning magnet → current</p></div>
+  </div>
+  <p class="body" style="margin-top:18px">The used steam is cooled back into water (those giant curved towers are just condensers venting waste heat) and pumped around again. So a 1,000-megawatt reactor and a coal plant have nearly identical back halves — the only difference is whether the heat comes from <b>burning carbon</b> or <b>splitting uranium</b>. Uranium just packs millions of times more energy per gram, and emits no CO₂ doing it.</p>
+</section>
+
+<!-- 10 -->
+<section id="s10">
+  <h2><span class="num">10 / REFINEMENT</span>Enrichment — the hard part</h2>
+  <p class="sub body">Here's the catch that shapes the entire nuclear world. The uranium you dig up is <b>99.3% uranium-238</b>, which mostly won't sustain a chain reaction, and only <b>0.7% uranium-235</b>, the good stuff. To run a reactor you must raise that 0.7% to a few percent. The two isotopes are chemically identical twins — the <i>only</i> difference is that U-238 is three neutrons heavier.</p>
+  <div class="stage"><canvas id="enrichCanvas"></canvas></div>
+  <input type="range" id="enrichSlider" min="0" max="100" value="0" step="1">
+  <div class="controls"><span class="readout">centrifuge passes: <b id="passVal" style="color:var(--ink)">0</b></span></div>
+
+  <div class="isobar">
+    <div class="lbl"><span>U-235 concentration</span><b id="enrichPct">0.7%</b></div>
+    <div class="track"><div class="fill" id="enrichFill" style="width:0.7%"></div></div>
+  </div>
+  <div class="gradenote" id="gradeNote">Natural uranium · straight out of the ground</div>
+
+  <p class="body" style="margin-top:18px">Because the mass gap is so tiny, you can't filter them chemically — you spin uranium gas in <b>centrifuges</b> at enormous speed so the slightly heavier U-238 drifts outward, skimming off a fractionally richer center. The gain per spin is minuscule, so you chain <b>thousands</b> of centrifuges into cascades. This difficulty is the whole story of nonproliferation: the physics of a bomb has been public for 80 years, but <b>enriching enough material is the genuine barrier</b>, which is why international attention focuses on who has centrifuge cascades.</p>
+</section>
+
+<!-- 11 -->
+<section id="s11">
+  <h2><span class="num">11 / THE BOMB</span>The chain reaction unleashed</h2>
+  <p class="sub body">A weapon is conceptually the reactor's evil twin: instead of holding k at 1, you slam it <b>far above 1</b> using <b>fast</b> neutrons and a lump of nearly pure fissile material. The whole cascade — dozens of doublings — happens in under a millionth of a second, releasing in one instant what a reactor spreads over years.</p>
+
+  <p class="body" style="margin-bottom:18px">The deep engineering challenge (and the reason this stays conceptual here) is brutal: the reaction releases so much energy it <b>blows itself apart almost immediately</b>, which halts it. So the entire problem is <b>assembling a supercritical mass and holding it together long enough</b> — a race measured in microseconds. Get the timing wrong and it "fizzles." Historically there were two solutions:</p>
+
+  <div class="splitcol">
+    <div class="bombcard">
+      <h4>Gun-type</h4>
+      <div class="hist">Little Boy · Hiroshima · uranium-235</div>
+      <svg viewBox="0 0 200 80">
+        <rect x="10" y="32" width="120" height="16" rx="3" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.2)"/>
+        <circle cx="35" cy="40" r="9" fill="var(--u235)"/>
+        <circle cx="110" cy="40" r="11" fill="var(--u235)" opacity=".5"/>
+        <path d="M48 40 L92 40" stroke="var(--energy)" stroke-width="2" stroke-dasharray="3 3"/>
+        <polygon points="92,40 84,35 84,45" fill="var(--energy)"/>
+      </svg>
+      <p>Fire one subcritical slug of uranium into another. Together they exceed critical mass and the chain runs away. Mechanically simple — never even tested before use.</p>
+    </div>
+    <div class="bombcard">
+      <h4>Implosion</h4>
+      <div class="hist">Fat Man · Nagasaki · plutonium-239</div>
+      <svg viewBox="0 0 200 80">
+        <circle cx="100" cy="40" r="14" fill="var(--hot)"/>
+        <g stroke="var(--energy)" stroke-width="2">
+          <path d="M100 8 L100 22"/><path d="M100 72 L100 58"/>
+          <path d="M68 40 L82 40"/><path d="M132 40 L118 40"/>
+          <path d="M77 17 L87 27"/><path d="M123 63 L113 53"/>
+          <path d="M123 17 L113 27"/><path d="M77 63 L87 53"/>
+        </g>
+      </svg>
+      <p>Surround a subcritical sphere with shaped chemical explosives that crush it inward, squeezing it to a denser, supercritical state. Far harder, but the only route that works for plutonium.</p>
+    </div>
+  </div>
+
+  <div class="callout warn body" style="margin-top:18px"><b>Why plutonium forces the hard path</b> — plutonium spits out stray neutrons on its own, so the slow gun method would trigger the chain too early and blow the pieces apart before they fully assembled — a fizzle. Only implosion is fast enough. This is conceptual physics that's been in encyclopedias since the 1950s; the real-world barrier was never the idea, it was the enrichment and precision engineering behind it.</div>
+</section>
+
+<footer>
+  <p class="mono">RADIATION → FISSION → REACTORS → BOMBS · A VISUAL FIELD GUIDE</p>
+  <p style="margin-top:8px">Full circle from where we began: Louis Slotin's "demon core" and Tokai-mura were brief, accidental brushes with supercriticality — the chain reaction from section 07 momentarily slipping above k=1 in the open, dousing people in the neutrons and gamma rays of sections 04–06. Same physics, three very different intentions: an accident, a power plant, a weapon.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2), w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+
+/* 2. WAVE/PARTICLE */
+(function(){
+  const c=document.getElementById("wpCanvas");let mode="wave",S,t=0;
+  function size(){S=setup(c,Math.min(220,Math.max(160,c.clientWidth*0.42)));}size();
+  const bW=document.getElementById("wpWave"),bP=document.getElementById("wpParticle"),note=document.getElementById("wpNote");
+  bW.onclick=()=>{mode="wave";bW.classList.add("on");bP.classList.remove("on");note.textContent="The wave view explains how X-rays diffract, bend, and form images. ↑";};
+  bP.onclick=()=>{mode="particle";bP.classList.add("on");bW.classList.remove("on");note.textContent="The photon view explains how a single X-ray knocks an electron off an atom. ↑";};
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const my=h/2;
+    if(mode==="wave"){ctx.lineWidth=3;ctx.strokeStyle="#7c8bff";ctx.shadowColor="#7c8bff";ctx.shadowBlur=16;ctx.beginPath();
+      for(let x=0;x<=w;x++){const y=my+Math.sin((x*0.06)-(t*0.12))*36;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.shadowBlur=0;
+      ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='11px "Space Mono"';ctx.fillText("one continuous oscillating wave",16,h-16);
+    }else{const sp=64,r=9;ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='11px "Space Mono"';ctx.fillText("discrete energy packets (photons)",16,h-16);
+      for(let i=0;i<Math.ceil(w/sp)+1;i++){let x=((i*sp)-(t*1.6)%sp);x=((x%(w+sp))+(w+sp))%(w+sp);
+        const g=ctx.createRadialGradient(x,my,0,x,my,r*2.4);g.addColorStop(0,"#c98bff");g.addColorStop(1,"rgba(201,139,255,0)");
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,my,r*2.4,0,7);ctx.fill();ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(x,my,r,0,7);ctx.fill();}}
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* 3. SPECTRUM */
+(function(){
+  const bands=[
+    {n:"Radio",c:"--radio",wl:"1 km – 1 m",e:"~1 peV – 1 µeV",ion:false,d:"Every broadcast, wifi, phone signal. Energy per photon is absurdly tiny — passes through you with zero drama."},
+    {n:"Micro",c:"--micro",wl:"1 m – 1 mm",e:"~1 µeV – 1 meV",ion:false,d:"Just enough to make water molecules spin and rub — that friction is heat, exactly how your microwave cooks."},
+    {n:"Infrared",c:"--ir",wl:"1 mm – 700 nm",e:"~1 meV – 1.7 eV",ion:false,d:"Felt as radiant warmth. Your body glows in it; night-vision reads it. Still pure heat."},
+    {n:"Visible",c:"--vis",wl:"700 – 400 nm",e:"~1.7 – 3.1 eV",ion:false,d:"The one-octave sliver your eyes evolved to see. Triggers retinal chemistry, but can't ionize."},
+    {n:"UV",c:"--uv",wl:"400 – 10 nm",e:"~3.1 – 124 eV",ion:"edge",d:"The crossover. Low UV burns; high UV starts ripping electrons off atoms — where sunburn becomes DNA damage."},
+    {n:"X-ray",c:"--xray",wl:"10 – 0.01 nm",e:"~124 eV – 124 keV",ion:true,d:"Firmly ionizing. Punches through soft tissue, absorbed by bone — which is what makes an X-ray image. Born from energetic electrons."},
+    {n:"Gamma",c:"--gamma",wl:"< 0.01 nm",e:"> ~100 keV",ion:true,d:"The hardest light there is, born in the nucleus — including from fission. Deeply penetrating, intensely ionizing."},
+  ];
+  const sp=document.getElementById("spectrum"),info=document.getElementById("specinfo");
+  function show(i){const b=bands[i];[...sp.children].forEach((el,j)=>el.classList.toggle("active",j===i));
+    let pill=b.ion===true?'<span class="pill yes">Ionizing · dangerous</span>':b.ion==="edge"?'<span class="pill yes">Ionizing begins here</span>':'<span class="pill no">Non-ionizing · safe-ish</span>';
+    info.innerHTML=`<h4 style="color:var(${b.c})">${b.n} ${pill}</h4><div class="stats"><span class="stat">wavelength<b>${b.wl}</b></span><span class="stat">photon energy<b>${b.e}</b></span></div><p class="body" style="font-size:.95rem">${b.d}</p>`;}
+  bands.forEach((b,i)=>{const d=document.createElement("button");d.className="band";d.style.background=`var(${b.c})`;d.innerHTML=`<span>${b.n}</span>`;d.onclick=()=>show(i);sp.appendChild(d);});
+  show(5);
+})();
+
+/* 4. IONIZATION */
+(function(){
+  const c=document.getElementById("ionCanvas");let S,t=0,ev=3,ejected=false,ejX=0,ejY=0,ejVX=0,ejVY=0,photonX=-50;
+  function size(){S=setup(c,Math.min(240,Math.max(180,c.clientWidth*0.45)));}size();
+  const sl=document.getElementById("ionSlider"),lab=document.getElementById("ionEv"),st=document.getElementById("ionState");const TH=10;
+  function up(){ev=parseFloat(sl.value);lab.textContent=ev.toFixed(1)+" eV";
+    if(ev>=TH){st.textContent="⚡ IONIZED — electron ejected, bond broken";st.style.color="var(--hot)";}
+    else{st.textContent="〰️ Just jiggling — absorbed as heat";st.style.color="var(--safe)";}}
+  sl.oninput=up;up();
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const cx=w*0.62,cy=h/2;
+    const ng=ctx.createRadialGradient(cx,cy,0,cx,cy,26);ng.addColorStop(0,"#ff9d5c");ng.addColorStop(1,"rgba(255,93,115,.15)");
+    ctx.fillStyle=ng;ctx.beginPath();ctx.arc(cx,cy,26,0,7);ctx.fill();ctx.fillStyle="#ff5d73";ctx.beginPath();ctx.arc(cx,cy,12,0,7);ctx.fill();
+    const orad=46;ctx.strokeStyle="rgba(255,255,255,.12)";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(cx,cy,orad,orad*0.62,0,0,7);ctx.stroke();
+    const hot=ev>=TH;photonX+=(3+ev*0.25);
+    if(photonX>cx-orad&&!ejected){if(hot){ejected=true;ejX=cx+orad;ejY=cy;ejVX=4.2;ejVY=-2.6;}else{photonX=-40;}}
+    if(photonX>w+40)photonX=-40;
+    if(!ejected||photonX<cx-orad){const pc=hot?"#c98bff":"#5fe0a0";ctx.fillStyle=pc;ctx.shadowColor=pc;ctx.shadowBlur=14;ctx.beginPath();ctx.arc(photonX,cy,6,0,7);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle="rgba(238,240,251,.4)";ctx.font='10px "Space Mono"';ctx.fillText("photon →",photonX-58,cy-14);}
+    if(!ejected){const a=t*0.05,ex=cx+Math.cos(a)*orad,ey=cy+Math.sin(a)*orad*0.62;ctx.fillStyle="#5cc8ff";ctx.shadowColor="#5cc8ff";ctx.shadowBlur=12;ctx.beginPath();ctx.arc(ex,ey,7,0,7);ctx.fill();ctx.shadowBlur=0;}
+    else{ejX+=ejVX;ejY+=ejVY;ctx.fillStyle="#5cc8ff";ctx.shadowColor="#5cc8ff";ctx.shadowBlur=16;ctx.beginPath();ctx.arc(ejX,ejY,7,0,7);ctx.fill();ctx.shadowBlur=0;
+      ctx.strokeStyle="rgba(255,77,109,.5)";ctx.lineWidth=2;for(let i=0;i<4;i++){const an=i*1.6+t*0.1;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(an)*18,cy+Math.sin(an)*18);ctx.stroke();}
+      if(ejX>w+30||ejY<-30){ejected=false;photonX=-40;}}
+    ctx.fillStyle=hot?"rgba(255,77,109,.05)":"rgba(95,224,160,.04)";ctx.fillRect(0,0,w,h);
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* 6. SHIELDING */
+(function(){
+  const c=document.getElementById("shieldCanvas");let S;
+  function size(){S=setup(c,Math.min(330,Math.max(260,c.clientWidth*0.62)));}size();
+  const lanes=[{n:"α  alpha",c:"#ff5d73",stop:0.30,mat:"paper"},{n:"β  beta",c:"#7be08a",stop:0.48,mat:"aluminum"},{n:"γ  gamma",c:"#c98bff",stop:0.80,mat:"thick lead"},{n:"n  neutron",c:"#39c2ff",stop:1.10,mat:"passes lead → needs water"}];
+  let parts=[],frame=0;
+  function laneY(i,h){return (i+0.5)*(h/4);}
+  function spawn(){for(let i=0;i<4;i++)if(Math.random()<0.5)parts.push({lane:i,x:0,done:false});}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const lh=h/4,sx=8;
+    lanes.forEach((L,i)=>{const y=laneY(i,h);ctx.fillStyle="rgba(255,255,255,.04)";ctx.fillRect(0,i*lh,w,lh-1);
+      ctx.fillStyle=L.c;ctx.font='bold 12px "Space Mono"';ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillText(L.n,10,y);
+      ctx.fillStyle="rgba(255,255,255,.25)";ctx.beginPath();ctx.arc(sx+2,y,3,0,7);ctx.fill();
+      const bx=sx+L.stop*(w-90);
+      if(bx<w-20){ctx.fillStyle="rgba(255,255,255,.16)";ctx.fillRect(bx,i*lh+10,9,lh-22);ctx.fillStyle="rgba(238,240,251,.55)";ctx.font='9px "Space Mono"';ctx.fillText(L.mat,bx+14,i*lh+18);}
+      else{ctx.fillStyle="rgba(57,194,255,.7)";ctx.font='9px "Space Mono"';ctx.fillText(L.mat,w-200,i*lh+18);}});
+    parts.forEach(p=>{const L=lanes[p.lane],y=laneY(p.lane,h),bx=sx+L.stop*(w-90);
+      if(p.done!=="gone"){if(!p.done){p.x+=2.4+p.lane*0.15;if(p.x>=bx-4&&L.stop<1.0){p.done=true;p.x=bx-4;}if(p.x>w+10)p.done="gone";}
+        if(p.done!=="gone"){ctx.fillStyle=L.c;ctx.shadowColor=L.c;ctx.shadowBlur=10;ctx.beginPath();ctx.arc(sx+p.x,y,4,0,7);ctx.fill();ctx.shadowBlur=0;
+          if(p.done===true){ctx.strokeStyle=L.c;ctx.globalAlpha=.5;ctx.beginPath();ctx.arc(sx+p.x,y,8,0,7);ctx.stroke();ctx.globalAlpha=1;}}}});
+    parts=parts.filter(p=>p.done!=="gone");
+    if(frame%26===0)spawn();frame++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",size);
+})();
+
+/* 8. CHAIN REACTION / CONTROL RODS */
+(function(){
+  const c=document.getElementById("chainCanvas");let S;
+  function size(){S=setup(c,Math.min(300,Math.max(240,c.clientWidth*0.6)));}size();
+  const sl=document.getElementById("rodSlider"),rv=document.getElementById("rodVal"),nc=document.getElementById("nCount"),stt=document.getElementById("chainState");
+  let nuclei=[],neutrons=[],flashes=[],smoothed=0;const MAX=300;
+  function buildGrid(){nuclei=[];const {w,h}=S;const cols=Math.max(6,Math.floor(w/46)),rows=Math.max(4,Math.floor(h/46));
+    const mx=w/(cols+1),my=h/(rows+1);
+    for(let i=1;i<=cols;i++)for(let j=1;j<=rows;j++)nuclei.push({x:i*mx,y:j*my,spent:false,cool:0});}
+  buildGrid();
+  function inject(){const {w,h}=S;neutrons.push({x:w/2,y:h/2,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4});}
+  sl.oninput=()=>{rv.textContent=sl.value+"%";};
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const survive=1-(parseFloat(sl.value)/100);
+    // nuclei
+    nuclei.forEach(n=>{if(n.spent){if(--n.cool<=0)n.spent=false;}
+      ctx.fillStyle=n.spent?"rgba(255,255,255,.07)":"rgba(255,157,92,.85)";
+      ctx.beginPath();ctx.arc(n.x,n.y,n.spent?3:6,0,7);ctx.fill();});
+    // neutrons
+    for(let k=neutrons.length-1;k>=0;k--){const p=neutrons[k];p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>w||p.y<0||p.y>h){neutrons.splice(k,1);continue;} // leakage
+      // collide
+      for(const n of nuclei){if(n.spent)continue;const dx=p.x-n.x,dy=p.y-n.y;
+        if(dx*dx+dy*dy<100){n.spent=true;n.cool=70+Math.random()*40;flashes.push({x:n.x,y:n.y,r:6,a:1});
+          neutrons.splice(k,1);
+          for(let m=0;m<3;m++){if(neutrons.length<MAX&&Math.random()<survive){const ang=Math.random()*7;const sp=2.4+Math.random()*1.6;neutrons.push({x:n.x,y:n.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp});}}
+          break;}}}
+    // draw neutrons
+    neutrons.forEach(p=>{ctx.fillStyle="#39c2ff";ctx.shadowColor="#39c2ff";ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,3,0,7);ctx.fill();});ctx.shadowBlur=0;
+    // flashes
+    for(let i=flashes.length-1;i>=0;i--){const f=flashes[i];f.r+=2;f.a-=0.06;
+      ctx.strokeStyle=`rgba(255,209,102,${f.a})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.stroke();if(f.a<=0)flashes.splice(i,1);}
+    // bookkeeping
+    if(neutrons.length===0)inject();
+    smoothed=smoothed*0.95+neutrons.length*0.05;
+    nc.textContent=neutrons.length;
+    const cnt=neutrons.length;
+    if(cnt>=MAX){stt.textContent="☢ SUPERCRITICAL — runaway (the bomb regime)";stt.style.color="var(--hot)";}
+    else if(cnt>smoothed*1.15&&cnt>14){stt.textContent="▲ Supercritical — power climbing";stt.style.color="var(--hot)";}
+    else if(cnt<smoothed*0.6){stt.textContent="▼ Subcritical — reaction dying out";stt.style.color="var(--safe)";}
+    else{stt.textContent="● Critical — steady, a working reactor";stt.style.color="var(--ir)";}
+    requestAnimationFrame(draw);}
+  draw();
+  window.addEventListener("resize",()=>{size();buildGrid();});
+})();
+
+/* 10. ENRICHMENT */
+(function(){
+  const c=document.getElementById("enrichCanvas");let S,t=0;
+  function size(){S=setup(c,Math.min(220,Math.max(160,c.clientWidth*0.42)));}size();
+  const sl=document.getElementById("enrichSlider"),pv=document.getElementById("passVal"),pct=document.getElementById("enrichPct"),fill=document.getElementById("enrichFill"),note=document.getElementById("gradeNote");
+  // particle field: light (U235) + heavy (U238)
+  let parts=[];function build(){parts=[];const {w,h}=S;for(let i=0;i<90;i++){parts.push({heavy:Math.random()>0.15,x:Math.random()*w,y:Math.random()*h,a:Math.random()*7});}}build();
+  function pctFor(v){ // 0.7% -> ~93%, eased
+    const f=v/100;const p=0.7+ (93-0.7)*Math.pow(f,1.7);return p;}
+  function up(){const v=parseInt(sl.value);pv.textContent=v;const p=pctFor(v);
+    pct.textContent=p.toFixed(p<10?1:0)+"%";fill.style.width=Math.max(0.7,p)+"%";
+    let txt,bg,col;
+    if(p<2){txt="Natural uranium · straight out of the ground";bg="rgba(255,157,92,.12)";col="#ff9d5c";}
+    else if(p<20){txt="⚛ Reactor grade (low-enriched, ~3–5%) · powers a plant";bg="rgba(95,224,160,.12)";col="#5fe0a0";}
+    else if(p<85){txt="Highly enriched · research/naval range";bg="rgba(255,209,102,.12)";col="#ffd166";}
+    else{txt="☢ Weapons grade (~90%+) · the proliferation red line";bg="rgba(255,77,109,.12)";col="#ff4d6d";}
+    note.textContent=txt;note.style.background=bg;note.style.color=col;}
+  sl.oninput=up;up();
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);const v=parseInt(sl.value)/100;const cx=w/2;
+    // axis hint: heavier pushed to edges as v increases
+    parts.forEach(p=>{p.a+=0.01;
+      // drift: heavy toward walls, light toward center, scaled by enrichment effort
+      const target=p.heavy? (p.x<cx? 12: w-12) : cx;
+      p.x+= (target-p.x)*0.01*v + Math.sin(p.a)*0.4;
+      p.y+= Math.cos(p.a*1.3)*0.5; if(p.y<0)p.y=h;if(p.y>h)p.y=0;
+      if(p.heavy){ctx.fillStyle="rgba(255,157,92,.7)";ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill();}
+      else{ctx.fillStyle="#39c2ff";ctx.shadowColor="#39c2ff";ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill();ctx.shadowBlur=0;}});
+    // center collection zone
+    ctx.strokeStyle="rgba(57,194,255,.25)";ctx.setLineDash([4,4]);ctx.strokeRect(cx-26,6,52,h-12);ctx.setLineDash([]);
+    ctx.fillStyle="rgba(238,240,251,.45)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    ctx.fillText("U-235 (light)",cx,h-10);ctx.textAlign="left";ctx.fillText("U-238 (heavy) →",10,16);
+    t++;requestAnimationFrame(draw);}
+  draw();window.addEventListener("resize",()=>{size();build();});
+})();
+</script>
+</body>
+</html>

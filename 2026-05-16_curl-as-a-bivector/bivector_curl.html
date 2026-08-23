@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Curl is a bivector — an interactive explainer</title>
+<style>
+  :root {
+    --bg: #0e0d12;
+    --panel: #17161d;
+    --panel-2: #1f1d27;
+    --border: #2a2833;
+    --text: #e8e6ef;
+    --muted: #9591a3;
+    --accent: #c8a8ff;
+    --a: #ff7a59;
+    --b: #5dcaa5;
+    --plane: #c8a8ff;
+    --normal: #ffd166;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100%;
+  }
+  #app {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: 100vh;
+  }
+  #sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    overflow-y: auto;
+  }
+  #sidebar h1 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  #sidebar .sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  .step-nav {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 24px;
+  }
+  .step-dot {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .step-dot.active { background: var(--accent); }
+  .step-dot.visited { background: #4a3d6b; }
+  .step-title {
+    font-size: 15px;
+    font-weight: 500;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+  .step-body {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #c9c5d4;
+  }
+  .step-body p { margin: 0 0 12px; }
+  .step-body code {
+    font-family: "SF Mono", Menlo, monospace;
+    background: var(--panel-2);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12.5px;
+    color: var(--accent);
+  }
+  .step-body .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .controls {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .control-row {
+    margin-bottom: 14px;
+  }
+  .control-row label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .control-row label span:last-child {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .toggle-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .toggle {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .toggle:hover { border-color: #3d3b48; color: var(--text); }
+  .toggle.on {
+    background: rgba(200, 168, 255, 0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .nav-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 24px;
+  }
+  .nav-buttons button {
+    flex: 1;
+    padding: 9px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  .nav-buttons button:hover:not(:disabled) {
+    background: #2a2833;
+    border-color: #3d3b48;
+  }
+  .nav-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .nav-buttons button.primary {
+    background: var(--accent);
+    color: #1a0f2e;
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  .nav-buttons button.primary:hover:not(:disabled) {
+    background: #b894f0;
+  }
+  #stage {
+    position: relative;
+    background: radial-gradient(ellipse at center, #15131c 0%, var(--bg) 70%);
+  }
+  #canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #overlay {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: var(--muted);
+    font-size: 12px;
+    pointer-events: none;
+    line-height: 1.6;
+  }
+  #overlay .key {
+    color: var(--text);
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  #legend {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(23, 22, 29, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  #legend .row { display: flex; align-items: center; gap: 8px; }
+  #legend .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+  #math-readout {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(23, 22, 29, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    min-width: 180px;
+  }
+  #math-readout .label { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  #math-readout .val { color: var(--text); margin-bottom: 8px; }
+  #math-readout .val:last-child { margin-bottom: 0; }
+  .formula {
+    font-family: "SF Mono", Menlo, monospace;
+    background: var(--panel-2);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--accent);
+    margin: 10px 0;
+    line-height: 1.6;
+  }
+  .callout {
+    background: rgba(255, 209, 102, 0.08);
+    border-left: 2px solid var(--normal);
+    padding: 10px 12px;
+    border-radius: 0 6px 6px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #e8d7a8;
+  }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d3b48; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Curl is a bivector</h1>
+    <div class="sub">An interactive geometric algebra primer</div>
+
+    <div class="step-nav" id="stepNav"></div>
+
+    <h2 class="step-title" id="stepTitle"></h2>
+    <div class="step-body" id="stepBody"></div>
+
+    <div class="controls" id="controls"></div>
+
+    <div class="nav-buttons">
+      <button id="prevBtn">Back</button>
+      <button id="nextBtn" class="primary">Next</button>
+    </div>
+  </aside>
+
+  <main id="stage">
+    <canvas id="canvas"></canvas>
+    <div id="overlay">
+      <span class="key">drag</span> to rotate &nbsp;·&nbsp;
+      <span class="key">scroll</span> to zoom
+    </div>
+    <div id="legend"></div>
+    <div id="math-readout"></div>
+  </main>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const canvas = document.getElementById('canvas');
+const scene = new THREE.Scene();
+scene.background = null;
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(4.5, 3.5, 5);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+function resize() {
+  const stage = document.getElementById('stage');
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+dir.position.set(5, 8, 5);
+scene.add(dir);
+
+const AX = 3.2;
+function makeAxes() {
+  const g = new THREE.Group();
+  const axMat = (c) => new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.35 });
+  const ax = [
+    { dir: [1,0,0], color: 0x6b6878 },
+    { dir: [0,1,0], color: 0x6b6878 },
+    { dir: [0,0,1], color: 0x6b6878 }
+  ];
+  ax.forEach(a => {
+    const pts = [new THREE.Vector3(-AX*a.dir[0], -AX*a.dir[1], -AX*a.dir[2]),
+                 new THREE.Vector3(AX*a.dir[0], AX*a.dir[1], AX*a.dir[2])];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    g.add(new THREE.Line(geo, axMat(a.color)));
+  });
+  const gridHelper = new THREE.GridHelper(6, 12, 0x2a2833, 0x1f1d27);
+  gridHelper.position.y = -0.001;
+  g.add(gridHelper);
+  return g;
+}
+scene.add(makeAxes());
+
+function axisLabel(text, pos, color = '#9591a3') {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 64;
+  const cx = c.getContext('2d');
+  cx.fillStyle = color;
+  cx.font = 'italic 36px serif';
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sp = new THREE.Sprite(mat);
+  sp.position.set(...pos);
+  sp.scale.set(0.5, 0.25, 1);
+  return sp;
+}
+scene.add(axisLabel('x', [AX + 0.3, 0, 0]));
+scene.add(axisLabel('y', [0, AX + 0.3, 0]));
+scene.add(axisLabel('z', [0, 0, AX + 0.3]));
+
+function makeArrow(dir, origin, length, color, headSize = 0.18, lw = 3) {
+  const grp = new THREE.Group();
+  const d = dir.clone().normalize();
+  const end = origin.clone().add(d.clone().multiplyScalar(length));
+  const shaftEnd = origin.clone().add(d.clone().multiplyScalar(length - headSize));
+
+  const tubeGeo = new THREE.CylinderGeometry(0.025, 0.025, length - headSize, 12);
+  const tubeMat = new THREE.MeshBasicMaterial({ color });
+  const tube = new THREE.Mesh(tubeGeo, tubeMat);
+  const mid = origin.clone().add(d.clone().multiplyScalar((length - headSize) / 2));
+  tube.position.copy(mid);
+  const up = new THREE.Vector3(0,1,0);
+  const q = new THREE.Quaternion().setFromUnitVectors(up, d);
+  tube.quaternion.copy(q);
+  grp.add(tube);
+
+  const headGeo = new THREE.ConeGeometry(headSize * 0.55, headSize, 16);
+  const head = new THREE.Mesh(headGeo, tubeMat);
+  const headMid = origin.clone().add(d.clone().multiplyScalar(length - headSize/2));
+  head.position.copy(headMid);
+  head.quaternion.copy(q);
+  grp.add(head);
+
+  return grp;
+}
+
+function makeLabel(text, color = '#e8e6ef', size = 28, italic = true) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 96;
+  const cx = c.getContext('2d');
+  cx.fillStyle = color;
+  cx.font = `${italic ? 'italic ' : ''}600 ${size}px -apple-system, "SF Pro Display", sans-serif`;
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(text, 128, 48);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(0.7, 0.26, 1);
+  return sp;
+}
+
+let state = {
+  step: 0,
+  a: new THREE.Vector3(1.6, 0, 0.4),
+  b: new THREE.Vector3(0.3, 1.4, 0.3),
+  showA: true,
+  showB: true,
+  showPlane: true,
+  showNormal: false,
+  showSecondOrder: false,
+  reflectionPlane: 'none',
+  fieldType: 'curl',
+  fieldStrength: 1.0,
+  fieldTime: 0,
+  rotateBuilder: 0
+};
+
+let dynGroup = new THREE.Group();
+scene.add(dynGroup);
+
+function clearDyn() {
+  while (dynGroup.children.length) {
+    const obj = dynGroup.children.pop();
+    obj.traverse?.(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+        else o.material.dispose();
+      }
+    });
+  }
+}
+
+function buildVectors() {
+  const A = state.a, B = state.b;
+  if (state.showA) {
+    const aArrow = makeArrow(A, new THREE.Vector3(0,0,0), A.length(), 0xff7a59);
+    dynGroup.add(aArrow);
+    const aLab = makeLabel('a', '#ff7a59');
+    aLab.position.copy(A.clone().multiplyScalar(1.15));
+    dynGroup.add(aLab);
+  }
+  if (state.showB) {
+    const bArrow = makeArrow(B, new THREE.Vector3(0,0,0), B.length(), 0x5dcaa5);
+    dynGroup.add(bArrow);
+    const bLab = makeLabel('b', '#5dcaa5');
+    bLab.position.copy(B.clone().multiplyScalar(1.15));
+    dynGroup.add(bLab);
+  }
+}
+
+function buildParallelogram(showSecond = false) {
+  const A = state.a, B = state.b;
+  const p0 = new THREE.Vector3(0,0,0);
+  const p1 = A.clone();
+  const p2 = A.clone().add(B);
+  const p3 = B.clone();
+
+  const shape = new THREE.BufferGeometry();
+  const verts = new Float32Array([
+    p0.x,p0.y,p0.z, p1.x,p1.y,p1.z, p2.x,p2.y,p2.z,
+    p0.x,p0.y,p0.z, p2.x,p2.y,p2.z, p3.x,p3.y,p3.z
+  ]);
+  shape.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  shape.computeVertexNormals();
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xc8a8ff,
+    transparent: true,
+    opacity: 0.32,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(shape, mat);
+  dynGroup.add(mesh);
+
+  const edges = new THREE.BufferGeometry().setFromPoints([p0, p1, p2, p3, p0]);
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0xc8a8ff, linewidth: 2, transparent: true, opacity: 0.85 });
+  dynGroup.add(new THREE.Line(edges, edgeMat));
+
+  drawCirculationArrow(p0, p1, p2, p3, 0xc8a8ff, false);
+
+  if (showSecond) {
+    const off = new THREE.Vector3(0, 0.04, 0);
+    const p0b = p0.clone().add(off), p1b = p1.clone().add(off), p2b = p2.clone().add(off), p3b = p3.clone().add(off);
+    const edges2 = new THREE.BufferGeometry().setFromPoints([p0b, p1b, p2b, p3b, p0b]);
+    dynGroup.add(new THREE.Line(edges2, new THREE.LineBasicMaterial({
+      color: 0xc8a8ff, transparent: true, opacity: 0.4
+    })));
+  }
+}
+
+function drawCirculationArrow(p0, p1, p2, p3, color, reversed = false) {
+  const center = p0.clone().add(p1).add(p2).add(p3).multiplyScalar(0.25);
+  const n = new THREE.Vector3().crossVectors(state.a, state.b);
+  if (n.lengthSq() < 1e-6) return;
+  n.normalize();
+  if (reversed) n.negate();
+
+  let u = state.a.clone().normalize();
+  let v = new THREE.Vector3().crossVectors(n, u).normalize();
+
+  const R = 0.35 * Math.min(state.a.length(), state.b.length());
+  const segs = 32;
+  const pts = [];
+  const range = Math.PI * 1.55;
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const ang = -Math.PI * 0.5 + t * range;
+    const p = center.clone()
+      .add(u.clone().multiplyScalar(R * Math.cos(ang)))
+      .add(v.clone().multiplyScalar(R * Math.sin(ang)));
+    pts.push(p);
+  }
+  const arcGeo = new THREE.BufferGeometry().setFromPoints(pts);
+  dynGroup.add(new THREE.Line(arcGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 })));
+
+  const last = pts[pts.length - 1];
+  const prev = pts[pts.length - 2];
+  const tan = last.clone().sub(prev).normalize();
+  const head = makeArrow(tan, last.clone().sub(tan.clone().multiplyScalar(0.001)), 0.18, color, 0.13);
+  dynGroup.add(head);
+}
+
+function buildNormal(faded = false) {
+  const A = state.a, B = state.b;
+  const n = new THREE.Vector3().crossVectors(A, B);
+  if (n.lengthSq() < 1e-5) return;
+  const len = n.length();
+  const visLen = Math.min(2.5, 0.5 + len * 0.5);
+  const arrow = makeArrow(n.clone().normalize(), new THREE.Vector3(0,0,0), visLen, faded ? 0xffd166 : 0xffd166);
+  if (faded) {
+    arrow.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; } });
+  }
+  dynGroup.add(arrow);
+  const lab = makeLabel('a × b', '#ffd166', 24);
+  lab.position.copy(n.clone().normalize().multiplyScalar(visLen + 0.25));
+  dynGroup.add(lab);
+}
+
+function buildReflection() {
+  const A = state.a, B = state.b;
+  let plane = state.reflectionPlane;
+  let Ar = A.clone(), Br = B.clone();
+  if (plane === 'xy') { Ar.z *= -1; Br.z *= -1; }
+  else if (plane === 'xz') { Ar.y *= -1; Br.y *= -1; }
+  else if (plane === 'yz') { Ar.x *= -1; Br.x *= -1; }
+
+  if (plane !== 'none') {
+    const planeGeo = new THREE.PlaneGeometry(5, 5);
+    const planeMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.04, side: THREE.DoubleSide, depthWrite: false
+    });
+    const m = new THREE.Mesh(planeGeo, planeMat);
+    if (plane === 'xy') {}
+    else if (plane === 'xz') m.rotation.x = Math.PI/2;
+    else if (plane === 'yz') m.rotation.y = Math.PI/2;
+    dynGroup.add(m);
+
+    const eGeo = new THREE.EdgesGeometry(planeGeo);
+    const eMat = new THREE.LineDashedMaterial({ color: 0xffffff, opacity: 0.25, transparent: true, dashSize: 0.1, gapSize: 0.08 });
+    const edges = new THREE.LineSegments(eGeo, eMat);
+    edges.computeLineDistances();
+    if (plane === 'xz') edges.rotation.x = Math.PI/2;
+    else if (plane === 'yz') edges.rotation.y = Math.PI/2;
+    dynGroup.add(edges);
+  }
+
+  const drawPair = (vec1, vec2, opacity, label1, label2) => {
+    [{v: vec1, c: 0xff7a59, l: label1}, {v: vec2, c: 0x5dcaa5, l: label2}].forEach(item => {
+      const arr = makeArrow(item.v, new THREE.Vector3(0,0,0), item.v.length(), item.c);
+      arr.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = opacity; } });
+      dynGroup.add(arr);
+    });
+    const p0 = new THREE.Vector3(), p1 = vec1.clone(), p2 = vec1.clone().add(vec2), p3 = vec2.clone();
+    const shape = new THREE.BufferGeometry();
+    const verts = new Float32Array([
+      p0.x,p0.y,p0.z, p1.x,p1.y,p1.z, p2.x,p2.y,p2.z,
+      p0.x,p0.y,p0.z, p2.x,p2.y,p2.z, p3.x,p3.y,p3.z
+    ]);
+    shape.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    dynGroup.add(new THREE.Mesh(shape, new THREE.MeshBasicMaterial({
+      color: 0xc8a8ff, transparent: true, opacity: opacity * 0.4, side: THREE.DoubleSide, depthWrite: false
+    })));
+    drawCirculationArrow(p0, p1, p2, p3, 0xc8a8ff);
+
+    const n = new THREE.Vector3().crossVectors(vec1, vec2);
+    if (n.lengthSq() > 1e-5) {
+      const visLen = Math.min(2.5, 0.5 + n.length() * 0.5);
+      const narr = makeArrow(n.clone().normalize(), new THREE.Vector3(0,0,0), visLen, 0xffd166);
+      narr.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = opacity; } });
+      dynGroup.add(narr);
+    }
+  };
+
+  if (plane !== 'none') {
+    drawPair(A, B, 0.25, 'a', 'b');
+    drawPair(Ar, Br, 1.0, "a'", "b'");
+  } else {
+    drawPair(A, B, 1.0, 'a', 'b');
+  }
+}
+
+function buildFieldDemo() {
+  const N = 6;
+  const spacing = 0.7;
+  const off = -(N-1) * spacing * 0.5;
+  const t = state.fieldTime;
+
+  const fieldFn = (x, y, z) => {
+    const s = state.fieldStrength;
+    if (state.fieldType === 'curl') {
+      return new THREE.Vector3(-y * s, x * s, 0);
+    } else if (state.fieldType === 'divergent') {
+      return new THREE.Vector3(x * s * 0.4, y * s * 0.4, z * s * 0.4);
+    } else if (state.fieldType === 'uniform') {
+      return new THREE.Vector3(s, 0, 0);
+    } else if (state.fieldType === 'shear') {
+      return new THREE.Vector3(y * s, 0, 0);
+    }
+    return new THREE.Vector3();
+  };
+
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      for (let k = 0; k < 3; k++) {
+        const x = off + i * spacing;
+        const y = off + j * spacing;
+        const z = (k - 1) * spacing;
+        const v = fieldFn(x, y, z);
+        if (v.length() < 0.05) continue;
+        const len = Math.min(0.55, v.length() * 0.35);
+        const origin = new THREE.Vector3(x, y, z);
+        const dir = v.clone().normalize();
+        const arr = makeArrow(dir, origin, len, 0x85b7eb, 0.09, 1);
+        arr.traverse(o => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.6; } });
+        dynGroup.add(arr);
+      }
+    }
+  }
+
+  const A = new THREE.Vector3(0.8, 0, 0);
+  const B = new THREE.Vector3(0, 0.8, 0);
+  const center = new THREE.Vector3(0, 0, 0);
+  const p0 = center.clone().add(new THREE.Vector3(-0.4, -0.4, 0));
+  const p1 = p0.clone().add(A);
+  const p2 = p1.clone().add(B);
+  const p3 = p0.clone().add(B);
+
+  const shape = new THREE.BufferGeometry();
+  const verts = new Float32Array([
+    p0.x,p0.y,p0.z, p1.x,p1.y,p1.z, p2.x,p2.y,p2.z,
+    p0.x,p0.y,p0.z, p2.x,p2.y,p2.z, p3.x,p3.y,p3.z
+  ]);
+  shape.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  dynGroup.add(new THREE.Mesh(shape, new THREE.MeshBasicMaterial({
+    color: 0xc8a8ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false
+  })));
+  const edges = new THREE.BufferGeometry().setFromPoints([p0, p1, p2, p3, p0]);
+  dynGroup.add(new THREE.Line(edges, new THREE.LineBasicMaterial({ color: 0xc8a8ff, transparent: true, opacity: 0.85 })));
+
+  if (state.fieldType === 'curl' || state.fieldType === 'shear') {
+    const reversed = state.fieldStrength < 0;
+    const center2 = p0.clone().add(p1).add(p2).add(p3).multiplyScalar(0.25);
+    const R = 0.28;
+    const segs = 24;
+    const pts = [];
+    const startAng = t;
+    const range = Math.PI * 1.55;
+    for (let i = 0; i <= segs; i++) {
+      const tt = i / segs;
+      const ang = startAng + tt * range * (reversed ? -1 : 1);
+      const p = center2.clone().add(new THREE.Vector3(R * Math.cos(ang), R * Math.sin(ang), 0));
+      pts.push(p);
+    }
+    const arcGeo = new THREE.BufferGeometry().setFromPoints(pts);
+    dynGroup.add(new THREE.Line(arcGeo, new THREE.LineBasicMaterial({ color: 0xc8a8ff, linewidth: 2 })));
+    const last = pts[pts.length - 1];
+    const prev = pts[pts.length - 2];
+    const tan = last.clone().sub(prev).normalize();
+    const head = makeArrow(tan, last.clone().sub(tan.clone().multiplyScalar(0.001)), 0.16, 0xc8a8ff, 0.11);
+    dynGroup.add(head);
+
+    if (state.showNormal) {
+      const curlMag = state.fieldType === 'curl' ? 2 * state.fieldStrength :
+                       state.fieldType === 'shear' ? -state.fieldStrength : 0;
+      const visLen = Math.min(2.0, Math.abs(curlMag) * 0.7);
+      if (visLen > 0.1) {
+        const sgn = Math.sign(curlMag);
+        const narr = makeArrow(new THREE.Vector3(0, 0, sgn), new THREE.Vector3(0,0,0), visLen, 0xffd166);
+        dynGroup.add(narr);
+        const lab = makeLabel('∇ × F', '#ffd166', 22);
+        lab.position.set(0, 0, sgn * (visLen + 0.3));
+        dynGroup.add(lab);
+      }
+    }
+  }
+}
+
+function buildScene() {
+  clearDyn();
+  const s = state.step;
+
+  if (s === 0) {
+    buildVectors();
+  } else if (s === 1) {
+    buildVectors();
+    if (state.showPlane) buildParallelogram();
+  } else if (s === 2) {
+    buildVectors();
+    if (state.showPlane) buildParallelogram();
+    if (state.showNormal) buildNormal();
+  } else if (s === 3) {
+    buildReflection();
+  } else if (s === 4) {
+    buildFieldDemo();
+  }
+
+  updateReadout();
+  updateLegend();
+}
+
+function updateReadout() {
+  const r = document.getElementById('math-readout');
+  const A = state.a, B = state.b;
+  const cross = new THREE.Vector3().crossVectors(A, B);
+  const area = cross.length();
+
+  const wedge = {
+    xy: A.x * B.y - A.y * B.x,
+    yz: A.y * B.z - A.z * B.y,
+    zx: A.z * B.x - A.x * B.z
+  };
+
+  if (state.step <= 2) {
+    r.innerHTML = `
+      <div class="label">vector a</div>
+      <div class="val">(${A.x.toFixed(2)}, ${A.y.toFixed(2)}, ${A.z.toFixed(2)})</div>
+      <div class="label">vector b</div>
+      <div class="val">(${B.x.toFixed(2)}, ${B.y.toFixed(2)}, ${B.z.toFixed(2)})</div>
+      <div class="label">a ∧ b (bivector)</div>
+      <div class="val">e₁₂: ${wedge.xy.toFixed(2)}<br>e₂₃: ${wedge.yz.toFixed(2)}<br>e₃₁: ${wedge.zx.toFixed(2)}</div>
+      <div class="label">|a × b| (area)</div>
+      <div class="val">${area.toFixed(3)}</div>
+    `;
+  } else if (state.step === 3) {
+    const plane = state.reflectionPlane;
+    let Ar = A.clone(), Br = B.clone();
+    if (plane === 'xy') { Ar.z *= -1; Br.z *= -1; }
+    else if (plane === 'xz') { Ar.y *= -1; Br.y *= -1; }
+    else if (plane === 'yz') { Ar.x *= -1; Br.x *= -1; }
+    const crossR = new THREE.Vector3().crossVectors(Ar, Br);
+    r.innerHTML = `
+      <div class="label">original a × b</div>
+      <div class="val">(${cross.x.toFixed(2)}, ${cross.y.toFixed(2)}, ${cross.z.toFixed(2)})</div>
+      <div class="label">reflected (a×b)</div>
+      <div class="val">(${crossR.x.toFixed(2)}, ${crossR.y.toFixed(2)}, ${crossR.z.toFixed(2)})</div>
+      <div class="label">mirror plane</div>
+      <div class="val">${plane === 'none' ? '—' : plane.toUpperCase()}</div>
+    `;
+  } else if (state.step === 4) {
+    let curlVal = 0;
+    if (state.fieldType === 'curl') curlVal = 2 * state.fieldStrength;
+    else if (state.fieldType === 'shear') curlVal = -state.fieldStrength;
+    r.innerHTML = `
+      <div class="label">field F(x,y,z)</div>
+      <div class="val">${fieldString()}</div>
+      <div class="label">∇ × F</div>
+      <div class="val">(0, 0, ${curlVal.toFixed(2)})</div>
+      <div class="label">circulation/area</div>
+      <div class="val">${curlVal.toFixed(2)} in xy-plane</div>
+    `;
+  }
+}
+
+function fieldString() {
+  const s = state.fieldStrength.toFixed(1);
+  if (state.fieldType === 'curl') return `(-${s}y, ${s}x, 0)`;
+  if (state.fieldType === 'divergent') return `(${(state.fieldStrength*0.4).toFixed(1)}x, ${(state.fieldStrength*0.4).toFixed(1)}y, ${(state.fieldStrength*0.4).toFixed(1)}z)`;
+  if (state.fieldType === 'uniform') return `(${s}, 0, 0)`;
+  if (state.fieldType === 'shear') return `(${s}y, 0, 0)`;
+  return '—';
+}
+
+function updateLegend() {
+  const l = document.getElementById('legend');
+  const items = [];
+  if (state.step <= 3) {
+    if (state.showA && state.step <= 3) items.push({c: '#ff7a59', t: 'vector a'});
+    if (state.showB && state.step <= 3) items.push({c: '#5dcaa5', t: 'vector b'});
+  }
+  if (state.step >= 1 && state.step <= 3) items.push({c: '#c8a8ff', t: 'bivector a ∧ b (oriented plane)'});
+  if ((state.step === 2 && state.showNormal) || state.step === 3) items.push({c: '#ffd166', t: 'a × b (the "fake vector" / normal)'});
+  if (state.step === 4) {
+    items.push({c: '#85b7eb', t: 'vector field F'});
+    items.push({c: '#c8a8ff', t: 'circulation (bivector view)'});
+    if (state.showNormal) items.push({c: '#ffd166', t: '∇ × F (vector view)'});
+  }
+  l.innerHTML = items.map(i => `<div class="row"><div class="dot" style="background:${i.c}"></div>${i.t}</div>`).join('');
+}
+
+const STEPS = [
+  {
+    title: '1. Two vectors',
+    body: `<p>Start with the familiar: two vectors <code>a</code> and <code>b</code> in 3D space. A vector is an <em>oriented line segment</em> — it has a direction and a length.</p>
+           <p>Drag the sliders to change them. Rotate the scene with your mouse.</p>`,
+    controls: ['vectorSliders']
+  },
+  {
+    title: '2. The wedge: a ∧ b',
+    body: `<p>Now sweep <code>a</code> along <code>b</code> (or vice versa). You get a parallelogram. This is the <strong>bivector</strong> <code>a ∧ b</code>.</p>
+           <p>A bivector is an <em>oriented patch of area</em>. It has three pieces of information:</p>
+           <ul style="margin: 8px 0 12px 18px; padding: 0; color: #c9c5d4;">
+             <li>which plane it lies in</li>
+             <li>how much area it covers</li>
+             <li>a sense of rotation inside that plane (a ⤳ b, not b ⤳ a)</li>
+           </ul>
+           <p>That circulating arrow on the patch is the orientation. Flip <code>a</code> and <code>b</code> and it reverses: <code>b ∧ a = −(a ∧ b)</code>.</p>
+           <div class="formula">a ∧ b = (a_x·b_y − a_y·b_x) e₁₂<br>     + (a_y·b_z − a_z·b_y) e₂₃<br>     + (a_z·b_x − a_x·b_z) e₃₁</div>
+           <p>Those three numbers <code>e₁₂, e₂₃, e₃₁</code> are the bivector's components — the three basis <em>planes</em> of 3D space.</p>`,
+    controls: ['vectorSliders', 'togglePlane']
+  },
+  {
+    title: '3. The clever lie',
+    body: `<p>In 3D, every plane has exactly one perpendicular direction. So we can cheat: instead of carrying around an oriented patch, we replace it with an arrow pointing <em>out of</em> the patch, with length equal to the area.</p>
+           <p>That arrow is <code>a × b</code> — the cross product. It's the same information, repackaged.</p>
+           <div class="callout">Toggle the normal vector on. Notice: the yellow arrow isn't really pointing anywhere in particular — it's a placeholder for the purple patch.</div>
+           <p>This trick only works in 3D. In 2D a bivector has 1 component (a scalar). In 4D it has 6 components — far too many to fit in a vector. The cross product is a 3D-only coincidence.</p>`,
+    controls: ['vectorSliders', 'togglePlane', 'toggleNormal']
+  },
+  {
+    title: '4. The smoking gun: reflection',
+    body: `<p>Here's the proof that the cross product was secretly a plane all along.</p>
+           <p>Pick a mirror. Reflect both <code>a</code> and <code>b</code> through it. A true vector flips its component perpendicular to the mirror — that's what reflection means.</p>
+           <p>But watch <code>a × b</code>. It doesn't flip the way a real vector should. It points the "wrong way" relative to a real reflected vector.</p>
+           <div class="callout">Physicists call this a <em>pseudovector</em> or <em>axial vector</em>. The plane reflects naturally; the fake-arrow representation of the plane has to flip oddly to keep up.</div>
+           <p>The plane has no problem with reflection — it's just a 2D patch. The arrow disguise is what breaks.</p>`,
+    controls: ['reflectionPicker']
+  },
+  {
+    title: '5. Curl is the same trick',
+    body: `<p>Curl measures the <em>local rotation</em> of a vector field. Drop a tiny paddle wheel into the field — how fast does it spin, and around what axis?</p>
+           <p>"Around what axis" is really "<em>in what plane</em>". The spinning happens in a 2D plane. The axis is just the perpendicular to that plane.</p>
+           <div class="formula">curl F = (∂F_z/∂y − ∂F_y/∂z) e₂₃<br>       + (∂F_x/∂z − ∂F_z/∂x) e₃₁<br>       + (∂F_y/∂x − ∂F_x/∂y) e₁₂</div>
+           <p>Notice the antisymmetric pairs. These are <em>exactly</em> the components of a bivector. Curl is the wedge of <code>∇</code> with <code>F</code>:</p>
+           <div class="formula">curl F = ∇ ∧ F &nbsp;&nbsp;(bivector, always)<br>curl F = ∇ × F &nbsp;&nbsp;(vector dual, 3D only)</div>
+           <p>Try the field types. The purple patch shows the bivector — how the field circulates locally. The yellow arrow is the cross-product disguise.</p>`,
+    controls: ['fieldPicker', 'fieldStrength', 'toggleNormal']
+  }
+];
+
+function renderStep() {
+  const s = STEPS[state.step];
+  document.getElementById('stepTitle').textContent = s.title;
+  document.getElementById('stepBody').innerHTML = s.body;
+  document.getElementById('prevBtn').disabled = state.step === 0;
+  document.getElementById('nextBtn').textContent = state.step === STEPS.length - 1 ? 'Restart' : 'Next';
+  renderControls(s.controls);
+  renderNav();
+  buildScene();
+}
+
+function renderNav() {
+  const nav = document.getElementById('stepNav');
+  nav.innerHTML = STEPS.map((_, i) => {
+    const cls = i === state.step ? 'active' : (i < state.step ? 'visited' : '');
+    return `<div class="step-dot ${cls}" data-i="${i}"></div>`;
+  }).join('');
+  nav.querySelectorAll('.step-dot').forEach(d => {
+    d.addEventListener('click', () => { state.step = +d.dataset.i; resetDefaultsForStep(); renderStep(); });
+  });
+}
+
+function resetDefaultsForStep() {
+  if (state.step === 0) {
+    state.showA = state.showB = true;
+    state.showPlane = false;
+    state.showNormal = false;
+  } else if (state.step === 1) {
+    state.showA = state.showB = true;
+    state.showPlane = true;
+    state.showNormal = false;
+  } else if (state.step === 2) {
+    state.showA = state.showB = true;
+    state.showPlane = true;
+    state.showNormal = true;
+  } else if (state.step === 3) {
+    state.reflectionPlane = 'xz';
+  } else if (state.step === 4) {
+    state.fieldType = 'curl';
+    state.fieldStrength = 1.0;
+    state.showNormal = true;
+  }
+}
+
+function renderControls(types) {
+  const c = document.getElementById('controls');
+  let html = '';
+  if (types.includes('vectorSliders')) {
+    html += vectorSlidersHTML();
+  }
+  if (types.includes('togglePlane')) {
+    html += `<div class="control-row"><div class="toggle-group">
+      <button class="toggle ${state.showPlane?'on':''}" data-toggle="plane">Show bivector</button>
+    </div></div>`;
+  }
+  if (types.includes('toggleNormal')) {
+    html += `<div class="control-row"><div class="toggle-group">
+      <button class="toggle ${state.showNormal?'on':''}" data-toggle="normal">Show a × b (normal)</button>
+    </div></div>`;
+  }
+  if (types.includes('reflectionPicker')) {
+    html += `<div class="control-row">
+      <label><span>Reflect through</span></label>
+      <div class="toggle-group">
+        <button class="toggle ${state.reflectionPlane==='none'?'on':''}" data-refl="none">None</button>
+        <button class="toggle ${state.reflectionPlane==='xy'?'on':''}" data-refl="xy">xy</button>
+        <button class="toggle ${state.reflectionPlane==='xz'?'on':''}" data-refl="xz">xz</button>
+        <button class="toggle ${state.reflectionPlane==='yz'?'on':''}" data-refl="yz">yz</button>
+      </div>
+    </div>`;
+  }
+  if (types.includes('fieldPicker')) {
+    html += `<div class="control-row">
+      <label><span>Vector field</span></label>
+      <div class="toggle-group">
+        <button class="toggle ${state.fieldType==='curl'?'on':''}" data-field="curl">Curl</button>
+        <button class="toggle ${state.fieldType==='shear'?'on':''}" data-field="shear">Shear</button>
+        <button class="toggle ${state.fieldType==='divergent'?'on':''}" data-field="divergent">Divergent</button>
+        <button class="toggle ${state.fieldType==='uniform'?'on':''}" data-field="uniform">Uniform</button>
+      </div>
+    </div>`;
+  }
+  if (types.includes('fieldStrength')) {
+    html += `<div class="control-row">
+      <label><span>Field strength</span><span id="strength-out">${state.fieldStrength.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${state.fieldStrength}" id="strength" />
+    </div>`;
+  }
+  c.innerHTML = html;
+  attachControlHandlers();
+}
+
+function vectorSlidersHTML() {
+  const A = state.a, B = state.b;
+  return `
+    <div class="control-row">
+      <label><span style="color:#ff7a59">a_x</span><span>${A.x.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${A.x}" data-vec="ax" />
+    </div>
+    <div class="control-row">
+      <label><span style="color:#ff7a59">a_y</span><span>${A.y.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${A.y}" data-vec="ay" />
+    </div>
+    <div class="control-row">
+      <label><span style="color:#ff7a59">a_z</span><span>${A.z.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${A.z}" data-vec="az" />
+    </div>
+    <div class="control-row">
+      <label><span style="color:#5dcaa5">b_x</span><span>${B.x.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${B.x}" data-vec="bx" />
+    </div>
+    <div class="control-row">
+      <label><span style="color:#5dcaa5">b_y</span><span>${B.y.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${B.y}" data-vec="by" />
+    </div>
+    <div class="control-row">
+      <label><span style="color:#5dcaa5">b_z</span><span>${B.z.toFixed(2)}</span></label>
+      <input type="range" min="-2" max="2" step="0.05" value="${B.z}" data-vec="bz" />
+    </div>
+  `;
+}
+
+function attachControlHandlers() {
+  document.querySelectorAll('[data-vec]').forEach(el => {
+    el.addEventListener('input', () => {
+      const k = el.dataset.vec;
+      const v = parseFloat(el.value);
+      if (k[0] === 'a') state.a[k[1]] = v;
+      else state.b[k[1]] = v;
+      el.previousElementSibling.lastElementChild.textContent = v.toFixed(2);
+      buildScene();
+    });
+  });
+  document.querySelectorAll('[data-toggle]').forEach(el => {
+    el.addEventListener('click', () => {
+      const k = el.dataset.toggle;
+      if (k === 'plane') state.showPlane = !state.showPlane;
+      if (k === 'normal') state.showNormal = !state.showNormal;
+      el.classList.toggle('on');
+      buildScene();
+    });
+  });
+  document.querySelectorAll('[data-refl]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.reflectionPlane = el.dataset.refl;
+      document.querySelectorAll('[data-refl]').forEach(e => e.classList.toggle('on', e.dataset.refl === state.reflectionPlane));
+      buildScene();
+    });
+  });
+  document.querySelectorAll('[data-field]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.fieldType = el.dataset.field;
+      document.querySelectorAll('[data-field]').forEach(e => e.classList.toggle('on', e.dataset.field === state.fieldType));
+      buildScene();
+    });
+  });
+  const str = document.getElementById('strength');
+  if (str) {
+    str.addEventListener('input', () => {
+      state.fieldStrength = parseFloat(str.value);
+      document.getElementById('strength-out').textContent = state.fieldStrength.toFixed(2);
+      buildScene();
+    });
+  }
+}
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (state.step > 0) { state.step--; resetDefaultsForStep(); renderStep(); }
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (state.step < STEPS.length - 1) { state.step++; resetDefaultsForStep(); renderStep(); }
+  else { state.step = 0; resetDefaultsForStep(); renderStep(); }
+});
+
+resetDefaultsForStep();
+renderStep();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  if (state.step === 4 && (state.fieldType === 'curl' || state.fieldType === 'shear')) {
+    state.fieldTime += 0.02 * Math.sign(state.fieldStrength || 1);
+  }
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

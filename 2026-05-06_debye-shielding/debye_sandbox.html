@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Debye Screening Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-panel: #131826;
+    --bg-deep: #060912;
+    --ink: #e8ebf2;
+    --ink-dim: #8a92a8;
+    --ink-faint: #4a5168;
+    --accent: #ff6b35;
+    --accent-2: #4ecdc4;
+    --accent-3: #ffd166;
+    --line: #1f2538;
+    --line-strong: #2a3148;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', Georgia, serif;
+    font-feature-settings: "ss01", "ss02";
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: 1fr;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .panel {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--line);
+    padding: 28px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 28px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-top: 10px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 12px;
+  }
+
+  /* ---------- Toggle ---------- */
+  .mode-toggle {
+    display: flex;
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .mode-toggle button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--ink-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 9px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+  }
+
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: var(--bg-deep);
+    font-weight: 500;
+  }
+
+  .mode-toggle button:not(.active):hover {
+    color: var(--ink);
+  }
+
+  /* ---------- Slider ---------- */
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .control-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .control-label {
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .control-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--line-strong);
+    outline: none;
+    border-radius: 1px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg-panel);
+    transition: transform 0.15s ease;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg-panel);
+  }
+
+  input[type="range"]:disabled::-webkit-slider-thumb {
+    background: var(--ink-faint);
+    cursor: not-allowed;
+  }
+
+  input[type="range"]:disabled {
+    opacity: 0.4;
+  }
+
+  /* ---------- Buttons ---------- */
+  .button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: 3px;
+    text-align: left;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn:hover {
+    border-color: var(--accent-2);
+    color: var(--accent-2);
+  }
+
+  .btn .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .btn.electron .dot { background: var(--accent-2); }
+  .btn.ion .dot { background: var(--accent); }
+  .btn.clear { color: var(--ink-dim); }
+  .btn.clear:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Legend / readout ---------- */
+  .readout {
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    line-height: 1.7;
+  }
+
+  .readout .formula {
+    color: var(--ink);
+    font-size: 13px;
+    margin: 8px 0;
+    letter-spacing: 0.02em;
+  }
+
+  .readout .accent { color: var(--accent); }
+  .readout .accent-2 { color: var(--accent-2); }
+
+  /* ---------- Stage ---------- */
+  .stage {
+    position: relative;
+    background: radial-gradient(ellipse at center, #0d1424 0%, var(--bg) 70%);
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  .stage-label {
+    position: absolute;
+    top: 24px;
+    left: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    pointer-events: none;
+  }
+
+  .stage-mode {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink-dim);
+    pointer-events: none;
+  }
+
+  .stage-mode .strong {
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .hint {
+    position: absolute;
+    bottom: 24px;
+    left: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    letter-spacing: 0.05em;
+  }
+
+  .hint kbd {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-strong);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--ink-dim);
+    font-family: inherit;
+    font-size: 10px;
+  }
+
+  /* ---------- Mini graph ---------- */
+  .graph-wrap {
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 12px;
+  }
+
+  .graph-wrap .graph-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+
+  #graph {
+    width: 100%;
+    height: 100px;
+    display: block;
+  }
+
+  /* ---------- Mobile fallback ---------- */
+  @media (max-width: 768px) {
+    body {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    .panel {
+      max-height: 50vh;
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+    }
+  }
+</style>
+</head>
+<body>
+
+<aside class="panel">
+  <div class="header">
+    <div class="eyebrow">Plasma physics · sandbox</div>
+    <h1>Debye <em>screening</em></h1>
+    <p class="subtitle">An ion sits in a soup. Drop electrons and watch the soup decide how far the ion's pull reaches.</p>
+  </div>
+
+  <div>
+    <div class="section-title">Medium</div>
+    <div class="mode-toggle">
+      <button id="mode-vacuum" class="active">Vacuum</button>
+      <button id="mode-plasma">Plasma</button>
+    </div>
+  </div>
+
+  <div class="control">
+    <div class="control-row">
+      <span class="control-label">Debye length λ<sub>D</sub></span>
+      <span class="control-value" id="lambda-out">2.0</span>
+    </div>
+    <input type="range" id="lambda" min="0.5" max="6" step="0.1" value="2" disabled>
+  </div>
+
+  <div class="control">
+    <div class="control-row">
+      <span class="control-label">Ion charge</span>
+      <span class="control-value" id="charge-out">+1.0</span>
+    </div>
+    <input type="range" id="charge" min="0.3" max="2.5" step="0.1" value="1.0">
+  </div>
+
+  <div>
+    <div class="section-title">Drop a particle</div>
+    <div class="button-group">
+      <button class="btn electron" id="add-electron"><span class="dot"></span>Add electron (negative)</button>
+      <button class="btn ion" id="add-ion"><span class="dot"></span>Add positive test charge</button>
+      <button class="btn clear" id="clear-all">Clear all particles</button>
+    </div>
+  </div>
+
+  <div class="graph-wrap">
+    <div class="graph-label">Potential vs distance</div>
+    <canvas id="graph"></canvas>
+  </div>
+
+  <div class="readout">
+    <div>φ(r) = <span class="accent">q</span> / (4πε₀ r) · e<sup>−r/λ<sub>D</sub></sup></div>
+    <div class="formula">
+      <span class="accent-2">vacuum:</span> 1/r reach<br>
+      <span class="accent">plasma:</span> exp cutoff at λ<sub>D</sub>
+    </div>
+    Drag particles. They follow the field.
+  </div>
+</aside>
+
+<main class="stage">
+  <div class="stage-label">field landscape</div>
+  <div class="stage-mode" id="stage-mode"><span class="strong">vacuum</span> · 1/r falloff</div>
+  <canvas id="field"></canvas>
+  <div class="hint">click stage to drop electron · <kbd>shift</kbd>+click for positive · drag to move</div>
+</main>
+
+<script>
+(() => {
+  // --- State ---
+  const state = {
+    mode: 'vacuum',  // 'vacuum' or 'plasma'
+    lambdaD: 2.0,    // in "world units"
+    ionCharge: 1.0,
+    particles: [],   // {x, y, vx, vy, q, dragging}
+    dragging: null,
+    ion: { x: 0, y: 0 },  // recomputed on resize
+    worldScale: 50,  // pixels per world unit
+  };
+
+  const fieldCanvas = document.getElementById('field');
+  const fieldCtx = fieldCanvas.getContext('2d');
+  const graphCanvas = document.getElementById('graph');
+  const graphCtx = graphCanvas.getContext('2d');
+
+  // --- Resize handling ---
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const stage = fieldCanvas.parentElement;
+    const rect = stage.getBoundingClientRect();
+    fieldCanvas.width = rect.width * dpr;
+    fieldCanvas.height = rect.height * dpr;
+    fieldCanvas.style.width = rect.width + 'px';
+    fieldCanvas.style.height = rect.height + 'px';
+    fieldCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    state.ion.x = rect.width / 2;
+    state.ion.y = rect.height / 2;
+    state.worldScale = Math.min(rect.width, rect.height) / 14;
+
+    const gRect = graphCanvas.getBoundingClientRect();
+    graphCanvas.width = gRect.width * dpr;
+    graphCanvas.height = gRect.height * dpr;
+    graphCanvas.style.width = gRect.width + 'px';
+    graphCanvas.style.height = gRect.height + 'px';
+    graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+
+  // --- Physics ---
+  // Potential at world distance r (in world units)
+  function potential(r, q = state.ionCharge) {
+    if (r < 0.01) r = 0.01;
+    const bare = q / r;
+    if (state.mode === 'vacuum') return bare;
+    return bare * Math.exp(-r / state.lambdaD);
+  }
+
+  // Force magnitude (derivative of potential, with sign)
+  // For Yukawa: F ~ q*(1 + r/lambda)*exp(-r/lambda)/r^2
+  function forceFactor(r) {
+    if (r < 0.05) r = 0.05;
+    if (state.mode === 'vacuum') return state.ionCharge / (r * r);
+    const exp = Math.exp(-r / state.lambdaD);
+    return state.ionCharge * (1 + r / state.lambdaD) * exp / (r * r);
+  }
+
+  // --- Field rendering: draw potential as colored "elevation" hill ---
+  function drawField() {
+    const w = fieldCanvas.clientWidth;
+    const h = fieldCanvas.clientHeight;
+
+    // Background
+    fieldCtx.fillStyle = '#0a0e1a';
+    fieldCtx.fillRect(0, 0, w, h);
+
+    // Concentric "elevation" rings — these visualize the potential as terrain contours
+    const maxR = Math.hypot(w, h) / state.worldScale;
+    const ringSteps = 60;
+
+    for (let i = ringSteps; i > 0; i--) {
+      const r = (maxR * i) / ringSteps;
+      const phi = potential(r);
+      // Map phi to intensity. Bare 1/r gets large near center; clamp.
+      const intensity = Math.min(1, phi / 4);
+      if (intensity < 0.005) continue;
+
+      const radius = r * state.worldScale;
+      // Color: warm (orange) for positive ion potential
+      const alpha = intensity * 0.55;
+      const hue = 18 + (1 - intensity) * 8;  // 18-26 (orange)
+      const sat = 75 + intensity * 15;
+      const light = 40 + intensity * 20;
+      fieldCtx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
+      fieldCtx.beginPath();
+      fieldCtx.arc(state.ion.x, state.ion.y, radius, 0, Math.PI * 2);
+      fieldCtx.fill();
+    }
+
+    // Contour lines (equipotentials)
+    fieldCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    fieldCtx.lineWidth = 1;
+    const contourLevels = [0.15, 0.3, 0.5, 0.8, 1.3, 2.0];
+    for (const phi0 of contourLevels) {
+      // Find r where potential(r) == phi0 (numerical, simple bisect)
+      let lo = 0.05, hi = maxR;
+      for (let k = 0; k < 24; k++) {
+        const mid = (lo + hi) / 2;
+        if (potential(mid) > phi0) lo = mid; else hi = mid;
+      }
+      const r = (lo + hi) / 2;
+      if (r < maxR && r > 0.1) {
+        fieldCtx.beginPath();
+        fieldCtx.arc(state.ion.x, state.ion.y, r * state.worldScale, 0, Math.PI * 2);
+        fieldCtx.stroke();
+      }
+    }
+
+    // Debye length ring (only in plasma mode)
+    if (state.mode === 'plasma') {
+      const lr = state.lambdaD * state.worldScale;
+      fieldCtx.strokeStyle = 'rgba(78, 205, 196, 0.5)';
+      fieldCtx.setLineDash([4, 6]);
+      fieldCtx.lineWidth = 1.5;
+      fieldCtx.beginPath();
+      fieldCtx.arc(state.ion.x, state.ion.y, lr, 0, Math.PI * 2);
+      fieldCtx.stroke();
+      fieldCtx.setLineDash([]);
+
+      // label
+      fieldCtx.fillStyle = 'rgba(78, 205, 196, 0.7)';
+      fieldCtx.font = '11px "JetBrains Mono", monospace';
+      fieldCtx.fillText('λ_D', state.ion.x + lr + 8, state.ion.y - 4);
+    }
+
+    // The ion itself
+    drawIon();
+
+    // Particles
+    for (const p of state.particles) drawParticle(p);
+  }
+
+  function drawIon() {
+    const x = state.ion.x, y = state.ion.y;
+    // Glow
+    const grad = fieldCtx.createRadialGradient(x, y, 0, x, y, 28);
+    grad.addColorStop(0, 'rgba(255, 107, 53, 0.9)');
+    grad.addColorStop(1, 'rgba(255, 107, 53, 0)');
+    fieldCtx.fillStyle = grad;
+    fieldCtx.beginPath();
+    fieldCtx.arc(x, y, 28, 0, Math.PI * 2);
+    fieldCtx.fill();
+    // Core
+    fieldCtx.fillStyle = '#ff6b35';
+    fieldCtx.beginPath();
+    fieldCtx.arc(x, y, 9, 0, Math.PI * 2);
+    fieldCtx.fill();
+    // Plus sign
+    fieldCtx.strokeStyle = '#0a0e1a';
+    fieldCtx.lineWidth = 2;
+    fieldCtx.beginPath();
+    fieldCtx.moveTo(x - 4, y);
+    fieldCtx.lineTo(x + 4, y);
+    fieldCtx.moveTo(x, y - 4);
+    fieldCtx.lineTo(x, y + 4);
+    fieldCtx.stroke();
+  }
+
+  function drawParticle(p) {
+    const isElectron = p.q < 0;
+    const color = isElectron ? '#4ecdc4' : '#ffd166';
+    fieldCtx.fillStyle = color;
+    fieldCtx.beginPath();
+    fieldCtx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    fieldCtx.fill();
+    // Sign
+    fieldCtx.strokeStyle = '#0a0e1a';
+    fieldCtx.lineWidth = 1.5;
+    fieldCtx.beginPath();
+    fieldCtx.moveTo(p.x - 3, p.y);
+    fieldCtx.lineTo(p.x + 3, p.y);
+    if (!isElectron) {
+      fieldCtx.moveTo(p.x, p.y - 3);
+      fieldCtx.lineTo(p.x, p.y + 3);
+    }
+    fieldCtx.stroke();
+  }
+
+  // --- Particle dynamics ---
+  function step(dt) {
+    for (const p of state.particles) {
+      if (p.dragging) { p.vx = 0; p.vy = 0; continue; }
+      const dx = p.x - state.ion.x;
+      const dy = p.y - state.ion.y;
+      const distPx = Math.hypot(dx, dy);
+      const r = distPx / state.worldScale;  // world units
+      if (r < 0.05) continue;
+
+      // Force on test charge: F = q_test * (-dphi/dr in radial direction for ion charge q_ion)
+      // Simplified: acceleration magnitude proportional to q_test * forceFactor(r)
+      // sign: positive q_ion repels positive q_test (push outward), attracts negative (pull inward)
+      const f = forceFactor(r);  // always positive magnitude
+      const sign = -p.q;  // q_ion is positive; if p.q > 0 (positive), force is outward (push); we want acceleration toward ion when sign positive
+      // Acceleration direction: unit vector from ion to particle, scaled by force; positive means outward.
+      const ux = dx / distPx;
+      const uy = dy / distPx;
+
+      // For positive test charge (p.q > 0), force is outward (repel) → ax = +f * ux
+      // For negative test charge (p.q < 0), force is inward → ax = -f * ux
+      // So acceleration = sign(p.q) * f * unit_vector_outward... wait we want negative q to accelerate inward
+      // p.q > 0: a = +f * u (outward)
+      // p.q < 0: a = -f * u (inward)
+      // So a = (p.q / |p.q|) * f * u  — but then magnitude doesn't depend on |p.q|; let's include |p.q|
+      const accelMag = f * Math.abs(p.q) * 800;  // tuning constant
+      const dirSign = p.q > 0 ? 1 : -1;
+      const ax = dirSign * accelMag * ux;
+      const ay = dirSign * accelMag * uy;
+
+      p.vx += ax * dt;
+      p.vy += ay * dt;
+
+      // Damping (the "soup" provides viscous drag — keeps things stable and physically plausible)
+      p.vx *= 0.92;
+      p.vy *= 0.92;
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // Soft boundary
+      const w = fieldCanvas.clientWidth, h = fieldCanvas.clientHeight;
+      if (p.x < 10) { p.x = 10; p.vx = 0; }
+      if (p.x > w - 10) { p.x = w - 10; p.vx = 0; }
+      if (p.y < 10) { p.y = 10; p.vy = 0; }
+      if (p.y > h - 10) { p.y = h - 10; p.vy = 0; }
+
+      // Prevent collapse into ion: small repulsive core
+      if (distPx < 18) {
+        const push = (18 - distPx) * 2;
+        p.x += ux * push * dt * 60;
+        p.y += uy * push * dt * 60;
+      }
+    }
+  }
+
+  // --- Mini graph: potential vs distance ---
+  function drawGraph() {
+    const w = graphCanvas.clientWidth;
+    const h = graphCanvas.clientHeight;
+    graphCtx.clearRect(0, 0, w, h);
+
+    // axes
+    const padL = 24, padR = 8, padT = 8, padB = 18;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    graphCtx.strokeStyle = '#2a3148';
+    graphCtx.lineWidth = 1;
+    graphCtx.beginPath();
+    graphCtx.moveTo(padL, padT);
+    graphCtx.lineTo(padL, padT + plotH);
+    graphCtx.lineTo(padL + plotW, padT + plotH);
+    graphCtx.stroke();
+
+    // x: r from 0.2 to 8 world units. y: potential from 0 to 3.
+    const rMin = 0.2, rMax = 8;
+    const phiMax = 3;
+    const x = (r) => padL + ((r - rMin) / (rMax - rMin)) * plotW;
+    const y = (phi) => padT + plotH - Math.min(1, phi / phiMax) * plotH;
+
+    // Bare Coulomb (faint reference)
+    graphCtx.strokeStyle = 'rgba(255, 107, 53, 0.25)';
+    graphCtx.lineWidth = 1;
+    graphCtx.beginPath();
+    for (let i = 0; i <= 100; i++) {
+      const r = rMin + (rMax - rMin) * i / 100;
+      const phi = state.ionCharge / r;
+      if (i === 0) graphCtx.moveTo(x(r), y(phi));
+      else graphCtx.lineTo(x(r), y(phi));
+    }
+    graphCtx.stroke();
+
+    // Active curve
+    graphCtx.strokeStyle = state.mode === 'vacuum' ? '#ff6b35' : '#4ecdc4';
+    graphCtx.lineWidth = 2;
+    graphCtx.beginPath();
+    for (let i = 0; i <= 100; i++) {
+      const r = rMin + (rMax - rMin) * i / 100;
+      const phi = potential(r);
+      if (i === 0) graphCtx.moveTo(x(r), y(phi));
+      else graphCtx.lineTo(x(r), y(phi));
+    }
+    graphCtx.stroke();
+
+    // Debye length marker
+    if (state.mode === 'plasma' && state.lambdaD <= rMax) {
+      const lx = x(state.lambdaD);
+      graphCtx.strokeStyle = 'rgba(78, 205, 196, 0.5)';
+      graphCtx.setLineDash([3, 4]);
+      graphCtx.beginPath();
+      graphCtx.moveTo(lx, padT);
+      graphCtx.lineTo(lx, padT + plotH);
+      graphCtx.stroke();
+      graphCtx.setLineDash([]);
+      graphCtx.fillStyle = 'rgba(78, 205, 196, 0.7)';
+      graphCtx.font = '9px "JetBrains Mono", monospace';
+      graphCtx.fillText('λ_D', lx + 3, padT + 9);
+    }
+
+    // Particle markers — show each particle's (r, phi) on the curve
+    for (const p of state.particles) {
+      const dx = p.x - state.ion.x;
+      const dy = p.y - state.ion.y;
+      const r = Math.hypot(dx, dy) / state.worldScale;
+      if (r < rMin || r > rMax) continue;
+      const phi = potential(r);
+      const px = x(r);
+      const py = y(phi);
+      // Vertical drop line down to x-axis
+      graphCtx.strokeStyle = p.q < 0 ? 'rgba(78, 205, 196, 0.35)' : 'rgba(255, 209, 102, 0.35)';
+      graphCtx.lineWidth = 1;
+      graphCtx.beginPath();
+      graphCtx.moveTo(px, py);
+      graphCtx.lineTo(px, padT + plotH);
+      graphCtx.stroke();
+      // Marker dot
+      graphCtx.fillStyle = p.q < 0 ? '#4ecdc4' : '#ffd166';
+      graphCtx.beginPath();
+      graphCtx.arc(px, py, 3.5, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.strokeStyle = '#0a0e1a';
+      graphCtx.lineWidth = 1;
+      graphCtx.stroke();
+    }
+
+    // labels
+    graphCtx.fillStyle = '#4a5168';
+    graphCtx.font = '9px "JetBrains Mono", monospace';
+    graphCtx.fillText('φ', 6, padT + 8);
+    graphCtx.fillText('r →', padL + plotW - 18, padT + plotH + 13);
+  }
+
+  // --- Loop ---
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    step(dt);
+    drawField();
+    drawGraph();
+    requestAnimationFrame(loop);
+  }
+
+  // --- Interaction ---
+  fieldCanvas.addEventListener('mousedown', (e) => {
+    const rect = fieldCanvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    // Check if clicking an existing particle
+    for (const p of state.particles) {
+      if (Math.hypot(p.x - mx, p.y - my) < 12) {
+        p.dragging = true;
+        state.dragging = p;
+        return;
+      }
+    }
+
+    // Otherwise drop a new particle
+    const q = e.shiftKey ? +0.6 : -0.6;
+    state.particles.push({ x: mx, y: my, vx: 0, vy: 0, q, dragging: false });
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!state.dragging) return;
+    const rect = fieldCanvas.getBoundingClientRect();
+    state.dragging.x = e.clientX - rect.left;
+    state.dragging.y = e.clientY - rect.top;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (state.dragging) {
+      state.dragging.dragging = false;
+      state.dragging = null;
+    }
+  });
+
+  // --- UI bindings ---
+  const lambdaSlider = document.getElementById('lambda');
+  const lambdaOut = document.getElementById('lambda-out');
+  lambdaSlider.addEventListener('input', (e) => {
+    state.lambdaD = parseFloat(e.target.value);
+    lambdaOut.textContent = state.lambdaD.toFixed(1);
+  });
+
+  const chargeSlider = document.getElementById('charge');
+  const chargeOut = document.getElementById('charge-out');
+  chargeSlider.addEventListener('input', (e) => {
+    state.ionCharge = parseFloat(e.target.value);
+    chargeOut.textContent = '+' + state.ionCharge.toFixed(1);
+  });
+
+  const modeVacuum = document.getElementById('mode-vacuum');
+  const modePlasma = document.getElementById('mode-plasma');
+  const stageMode = document.getElementById('stage-mode');
+
+  function setMode(m) {
+    state.mode = m;
+    modeVacuum.classList.toggle('active', m === 'vacuum');
+    modePlasma.classList.toggle('active', m === 'plasma');
+    lambdaSlider.disabled = (m === 'vacuum');
+    if (m === 'vacuum') {
+      stageMode.innerHTML = '<span class="strong">vacuum</span> · 1/r falloff';
+    } else {
+      stageMode.innerHTML = '<span class="strong" style="color:#4ecdc4">plasma</span> · screened at λ<sub>D</sub>';
+    }
+  }
+
+  modeVacuum.addEventListener('click', () => setMode('vacuum'));
+  modePlasma.addEventListener('click', () => setMode('plasma'));
+
+  document.getElementById('add-electron').addEventListener('click', () => {
+    const w = fieldCanvas.clientWidth, h = fieldCanvas.clientHeight;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 100 + Math.random() * 150;
+    state.particles.push({
+      x: state.ion.x + Math.cos(angle) * dist,
+      y: state.ion.y + Math.sin(angle) * dist,
+      vx: 0, vy: 0, q: -0.6, dragging: false
+    });
+  });
+
+  document.getElementById('add-ion').addEventListener('click', () => {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 100 + Math.random() * 150;
+    state.particles.push({
+      x: state.ion.x + Math.cos(angle) * dist,
+      y: state.ion.y + Math.sin(angle) * dist,
+      vx: 0, vy: 0, q: +0.6, dragging: false
+    });
+  });
+
+  document.getElementById('clear-all').addEventListener('click', () => {
+    state.particles = [];
+  });
+
+  // --- Init ---
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

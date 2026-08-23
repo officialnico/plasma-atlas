@@ -1,0 +1,352 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease step</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Generate a psi profile with controllable noise
+function genPsiSlice(n, noiseLevel) {
+  const arr = [];
+  // Use a seed-like approach for consistent "noise"
+  const noise = [0.23, -0.31, 0.18, -0.42, 0.35, -0.15, 0.28, -0.37, 0.12, -0.25, 0.33, -0.19, 0.41, -0.11, 0.29, -0.38, 0.16, -0.44, 0.21, -0.32, 0.27, -0.14, 0.39, -0.22, 0.34, -0.17, 0.43, -0.26, 0.13, -0.36, 0.24, -0.41, 0.19, -0.30, 0.37, -0.20, 0.15, -0.33, 0.40, -0.12, 0.26, -0.39, 0.22, -0.35, 0.31, -0.16, 0.44, -0.23, 0.18, -0.28, 0.36, -0.21, 0.14, -0.43, 0.25, -0.34, 0.20, -0.27, 0.38, -0.13, 0.32, -0.40, 0.17, -0.24, 0.42];
+  for (let i = 0; i < n; i++) {
+    const psiN = i / (n - 1);
+    // Base smooth psi: quadratic-ish profile
+    const base = psiN * psiN * 0.85;
+    // Add noise
+    const wiggle = noise[i % noise.length] * noiseLevel * 0.008 * (0.3 + psiN);
+    arr.push(base + wiggle);
+  }
+  return arr;
+}
+
+// Compute numerical derivative
+function derivative(arr, dx) {
+  const d = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (i === 0) d.push((arr[1] - arr[0]) / dx);
+    else if (i === arr.length - 1) d.push((arr[i] - arr[i - 1]) / dx);
+    else d.push((arr[i + 1] - arr[i - 1]) / (2 * dx));
+  }
+  return d;
+}
+
+// Second derivative
+function secondDerivative(arr, dx) {
+  const d = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (i === 0 || i === arr.length - 1) d.push(0);
+    else d.push((arr[i + 1] - 2 * arr[i] + arr[i - 1]) / (dx * dx));
+  }
+  return d;
+}
+
+function CHEASEViz() {
+  const [showLayer, setShowLayer] = useState("psi"); // psi, deriv1, deriv2
+  const [expanded, setExpanded] = useState(null); // simple, technical, relevance, before_after
+
+  const nEFIT = 33; // Low-res EFIT
+  const nCHEASE = 65; // High-res CHEASE
+  const noiseEFIT = 1.0;
+  const noiseCHEASE = 0.05;
+
+  const efitPsi = useMemo(() => genPsiSlice(nEFIT, noiseEFIT), []);
+  const cheasePsi = useMemo(() => genPsiSlice(nCHEASE, noiseCHEASE), []);
+
+  const dxEFIT = 1 / (nEFIT - 1);
+  const dxCHEASE = 1 / (nCHEASE - 1);
+
+  const efitDeriv1 = useMemo(() => derivative(efitPsi, dxEFIT), [efitPsi]);
+  const cheaseDeriv1 = useMemo(() => derivative(cheasePsi, dxCHEASE), [cheasePsi]);
+
+  const efitDeriv2 = useMemo(() => secondDerivative(efitPsi, dxEFIT), [efitPsi]);
+  const cheaseDeriv2 = useMemo(() => secondDerivative(cheasePsi, dxCHEASE), [cheasePsi]);
+
+  // Chart component
+  function Chart({ title, efitData, cheaseData, nEfit, nChease, yLabel, color, showDots }) {
+    const w = 380, h = 160;
+    const pad = { l: 50, r: 15, t: 25, b: 25 };
+    const pw = w - pad.l - pad.r;
+    const ph = h - pad.t - pad.b;
+
+    const allVals = [...efitData, ...cheaseData];
+    const minV = Math.min(...allVals);
+    const maxV = Math.max(...allVals);
+    const range = (maxV - minV) || 1;
+    const margin = range * 0.1;
+
+    const yMin = minV - margin;
+    const yMax = maxV + margin;
+    const yRange = yMax - yMin;
+
+    const toX = (i, n) => pad.l + (i / (n - 1)) * pw;
+    const toY = (v) => pad.t + ph - ((v - yMin) / yRange) * ph;
+
+    const efitPath = efitData.map((v, i) =>
+      `${i === 0 ? "M" : "L"} ${toX(i, nEfit)} ${toY(v)}`
+    ).join(" ");
+
+    const cheasePath = cheaseData.map((v, i) =>
+      `${i === 0 ? "M" : "L"} ${toX(i, nChease)} ${toY(v)}`
+    ).join(" ");
+
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+          {title}
+        </div>
+        <svg width={w} height={h} style={{ display: "block", maxWidth: "100%" }}>
+          <rect x={pad.l} y={pad.t} width={pw} height={ph} fill="#080c12" stroke="#1e2630" />
+
+          {/* EFIT line */}
+          <path d={efitPath} fill="none" stroke="#ff6b6b" strokeWidth={1.5} opacity={0.8} />
+          {showDots && efitData.map((v, i) => (
+            <circle key={`e${i}`} cx={toX(i, nEfit)} cy={toY(v)} r={2} fill="#ff6b6b" opacity={0.6} />
+          ))}
+
+          {/* CHEASE line */}
+          <path d={cheasePath} fill="none" stroke="#4ecdc4" strokeWidth={2} />
+
+          {/* Y axis */}
+          <text x={pad.l - 5} y={pad.t + 8} textAnchor="end" fill="#3a4a5a" fontSize={7}>
+            {yMax.toFixed(3)}
+          </text>
+          <text x={pad.l - 5} y={pad.t + ph} textAnchor="end" fill="#3a4a5a" fontSize={7}>
+            {yMin.toFixed(3)}
+          </text>
+          <text x={pad.l - 5} y={pad.t + ph / 2 + 3} textAnchor="end" fill="#5c6a7a" fontSize={8}>
+            {yLabel}
+          </text>
+
+          {/* X axis */}
+          <text x={pad.l} y={h - 5} fill="#3a4a5a" fontSize={7}>center</text>
+          <text x={pad.l + pw} y={h - 5} textAnchor="end" fill="#3a4a5a" fontSize={7}>edge</text>
+
+          {/* Legend */}
+          <line x1={pad.l + 5} y1={pad.t + 5} x2={pad.l + 20} y2={pad.t + 5} stroke="#ff6b6b" strokeWidth={2} />
+          <text x={pad.l + 23} y={pad.t + 8} fill="#ff6b6b" fontSize={8}>EFIT ({nEfit} pts)</text>
+          <line x1={pad.l + 110} y1={pad.t + 5} x2={pad.l + 125} y2={pad.t + 5} stroke="#4ecdc4" strokeWidth={2} />
+          <text x={pad.l + 128} y={pad.t + 8} fill="#4ecdc4" fontSize={8}>CHEASE ({nChease} pts)</text>
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          STEP 2b: CHEASE
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          TAKES THE EFIT EQUILIBRIUM AND SMOOTHS IT FOR GYROKINETIC CODES
+        </p>
+
+        {/* Explanation buttons */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 12, flexWrap: "wrap" }}>
+          {[
+            { id: "simple", label: "💡 Simple", color: "#4ecdc4" },
+            { id: "technical", label: "🔧 Technical", color: "#8ab4f8" },
+            { id: "relevance", label: "⚡ Why it matters for us", color: "#c9a3f5" },
+            { id: "before_after", label: "📊 Before / After", color: "#c9b87c" },
+          ].map(btn => (
+            <button key={btn.id}
+              onClick={() => setExpanded(expanded === btn.id ? null : btn.id)}
+              style={{
+                padding: "8px 12px", fontSize: 10, fontFamily: "inherit",
+                background: expanded === btn.id ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${expanded === btn.id ? btn.color : "#1e2630"}`,
+                color: expanded === btn.id ? btn.color : "#5c6a7a",
+                borderRadius: 4, cursor: "pointer",
+                fontWeight: expanded === btn.id ? 700 : 400,
+              }}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Expanded explanation */}
+        {expanded && (
+          <div style={{
+            padding: "12px 16px", marginBottom: 12,
+            background: expanded === "relevance" ? "rgba(201,163,245,0.05)" : "#12171f",
+            borderRadius: 6,
+            borderLeft: `3px solid ${expanded === "simple" ? "#4ecdc4" : expanded === "technical" ? "#8ab4f8" : expanded === "relevance" ? "#c9a3f5" : "#c9b87c"}`,
+            border: `1px solid ${expanded === "simple" ? "#4ecdc4" : expanded === "technical" ? "#8ab4f8" : expanded === "relevance" ? "#c9a3f5" : "#c9b87c"}33`,
+          }}>
+            {expanded === "simple" && (
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.9 }}>
+                EFIT gives you a correct but slightly rough answer. Like a photo taken with a decent camera — good enough to see what's going on, but a bit noisy if you zoom in.
+                <br /><br />
+                CHEASE takes that photo and cleans it up. Same image, less noise. It re-solves the same physics on a finer grid with smoother math.
+                <br /><br />
+                Why bother? Because the next step (GENE) is going to zoom in very hard. It needs the slopes and curves of the magnetic field to be smooth, not bumpy. If GENE gets bumpy inputs, the turbulence simulation can get confused.
+                <br /><br />
+                <span style={{ color: "#4ecdc4", fontWeight: 600 }}>Input:</span> EQDSK file from EFIT
+                <br />
+                <span style={{ color: "#4ecdc4", fontWeight: 600 }}>Output:</span> Cleaner EQDSK file, same format, same physics
+                <br />
+                <span style={{ color: "#4ecdc4", fontWeight: 600 }}>Compute cost:</span> Seconds. Trivial.
+              </div>
+            )}
+            {expanded === "technical" && (
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.9 }}>
+                EFIT solves the Grad-Shafranov equation using a finite-difference scheme on a rectangular (R,Z) grid, typically 65×65. The solution ψ(R,Z) is accurate but the numerical derivatives — especially ∂ψ/∂R, ∂²ψ/∂R², and the resulting metric coefficients g_xx, g_xy, g_yy — can have grid-scale oscillations.
+                <br /><br />
+                CHEASE re-solves the same Grad-Shafranov equation but in flux coordinates using a spectral method (Fourier in the poloidal angle, finite elements in the radial direction). This produces smoother metric quantities because:
+                <br /><br />
+                1. Higher radial resolution (more flux surfaces)
+                <br />
+                2. Spectral poloidal representation eliminates angular aliasing
+                <br />
+                3. Flux-aligned coordinates naturally produce the geometric quantities that gyrokinetic codes need (curvature, local shear, |∇ψ|)
+                <br /><br />
+                The output is mapped back to an EQDSK-format file, but with smoother profiles and more accurate derivatives. Some gyrokinetic codes (like GENE) can also read CHEASE's native output format directly, bypassing the EQDSK round-trip entirely.
+              </div>
+            )}
+            {expanded === "relevance" && (
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.9 }}>
+                <span style={{ color: "#c9a3f5", fontWeight: 700 }}>Connection to quantum collision operator:</span>
+                <br /><br />
+                The magnetic geometry from the equilibrium determines the structure of the gyrokinetic equation that GENE solves. The collision operator operates in velocity space, but the velocity space itself is defined relative to the magnetic field — parallel and perpendicular to B. Wiggly geometry → wiggly coordinate system → noisy collision operator inputs.
+                <br /><br />
+                Specifically, the trapped particle fraction (how many particles bounce back and forth vs stream freely) depends on the magnetic field variation along a field line, which comes from the geometric coefficients. The collision operator treats trapped and passing particles differently. If the geometry is noisy, the trapped/passing boundary is noisy, and the collision calculation inherits that noise.
+                <br /><br />
+                For your quantum collision operator to produce clean, benchmarkable results, it needs clean geometric inputs. CHEASE ensures that. If you skip CHEASE and feed rough EFIT output into GENE, you might see differences between your quantum results and classical results that are actually from geometry noise, not from your algorithm. CHEASE eliminates that confound.
+              </div>
+            )}
+            {expanded === "before_after" && (
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.9 }}>
+                Look at the three charts below. Each shows the same physical quantity — the EFIT version (red, 33 points, slightly noisy) and the CHEASE version (teal, 65 points, smooth).
+                <br /><br />
+                <span style={{ color: "#c9b87c", fontWeight: 600 }}>ψ itself:</span> Both look almost identical. The noise is tiny — you can barely see the difference. This is why people sometimes skip CHEASE for quick studies.
+                <br /><br />
+                <span style={{ color: "#c9b87c", fontWeight: 600 }}>First derivative (dψ/dr):</span> The noise is amplified. The EFIT curve has visible wiggles that the CHEASE curve doesn't. These derivatives become metric coefficients in the gyrokinetic equation.
+                <br /><br />
+                <span style={{ color: "#c9b87c", fontWeight: 600 }}>Second derivative (d²ψ/dr²):</span> Much worse. The EFIT curve is visibly ragged. The CHEASE curve is smooth. This is where the noise matters most — second derivatives appear in the magnetic curvature, which directly drives ballooning instabilities. Noisy curvature = unreliable turbulence predictions.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Flow diagram */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          gap: 8, marginBottom: 16, flexWrap: "wrap",
+        }}>
+          <div style={{
+            padding: "8px 14px", background: "#1a1420",
+            border: "1px solid #ff6b6b44", borderRadius: 6, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 11, color: "#ff6b6b", fontWeight: 700 }}>EFIT output</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a" }}>33×33 or 65×65</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a" }}>slightly rough</div>
+          </div>
+          <div style={{ fontSize: 18, color: "#3a4a5a" }}>→</div>
+          <div style={{
+            padding: "8px 14px", background: "#1a2a3a",
+            border: "1px solid #4ecdc444", borderRadius: 6, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>CHEASE</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a" }}>re-solves GS equation</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a" }}>spectral methods</div>
+          </div>
+          <div style={{ fontSize: 18, color: "#3a4a5a" }}>→</div>
+          <div style={{
+            padding: "8px 14px", background: "#142a1a",
+            border: "1px solid #4ecdc444", borderRadius: 6, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>Clean EQDSK</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a" }}>higher resolution</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a" }}>smooth derivatives</div>
+          </div>
+        </div>
+
+        {/* Charts */}
+        <div style={{
+          background: "#0d1117", borderRadius: 6,
+          border: "1px solid #1e2630", padding: 12,
+        }}>
+          <Chart
+            title="ψ — the flux values (barely different)"
+            efitData={efitPsi} cheaseData={cheasePsi}
+            nEfit={nEFIT} nChease={nCHEASE}
+            yLabel="ψ" color="#e6ecf2" showDots={true}
+          />
+          <Chart
+            title="dψ/dr — first derivative (noise amplified)"
+            efitData={efitDeriv1} cheaseData={cheaseDeriv1}
+            nEfit={nEFIT} nChease={nCHEASE}
+            yLabel="dψ/dr" color="#c9b87c" showDots={true}
+          />
+          <Chart
+            title="d²ψ/dr² — second derivative (noise much worse)"
+            efitData={efitDeriv2} cheaseData={cheaseDeriv2}
+            nEfit={nEFIT} nChease={nCHEASE}
+            yLabel="d²ψ/dr²" color="#ff6b6b" showDots={true}
+          />
+
+          <div style={{
+            marginTop: 8, padding: "8px 12px",
+            background: "#0a0e14", borderRadius: 4,
+            fontSize: 10, color: "#5c6a7a", lineHeight: 1.7,
+          }}>
+            <span style={{ color: "#ff6b6b" }}>Red</span> = EFIT ({nEFIT} points, noisy) ·
+            <span style={{ color: "#4ecdc4" }}> Teal</span> = CHEASE ({nCHEASE} points, smooth).
+            Notice how the noise gets worse with each derivative. By the second derivative, EFIT is ragged while CHEASE is clean. Gyrokinetic codes use these derivatives directly.
+          </div>
+        </div>
+
+        {/* What CHEASE actually changes */}
+        <div style={{
+          marginTop: 12, padding: 12, background: "#12171f",
+          borderRadius: 6, border: "1px solid #1e2630",
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+            What CHEASE changes vs keeps
+          </div>
+          {[
+            { item: "ψ(R,Z) grid", change: "Re-solved at higher resolution", changes: true },
+            { item: "fpol(ψ)", change: "Smoother, higher resolution", changes: true },
+            { item: "P(ψ)", change: "Smoother, higher resolution", changes: true },
+            { item: "ff'(ψ), P'(ψ)", change: "Much smoother — this is the main benefit", changes: true },
+            { item: "q(ψ)", change: "Re-derived from smoother geometry", changes: true },
+            { item: "Plasma shape", change: "Same — the physics hasn't changed", changes: false },
+            { item: "Total current", change: "Same", changes: false },
+            { item: "Pressure profile shape", change: "Same — just sampled more finely", changes: false },
+            { item: "File format", change: "Same — still EQDSK (or CHEASE native)", changes: false },
+          ].map((row, i) => (
+            <div key={i} style={{
+              display: "flex", justifyContent: "space-between",
+              padding: "5px 8px", marginBottom: 2,
+              background: row.changes ? "rgba(78,205,196,0.04)" : "#0a0e14",
+              borderRadius: 3, fontSize: 10,
+            }}>
+              <span style={{ color: row.changes ? "#4ecdc4" : "#5c6a7a", fontWeight: 600 }}>{row.item}</span>
+              <span style={{ color: "#5c6a7a" }}>{row.change}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CHEASEViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

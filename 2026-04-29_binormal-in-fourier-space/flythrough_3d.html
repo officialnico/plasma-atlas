@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flying through δT — the 3D shape of fluctuations</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #050508; color: #e8e6e0; font-family: 'Fraunces', serif; }
+#c { position: fixed; inset: 0; cursor: grab; }
+#c:active { cursor: grabbing; }
+.panel {
+  position: fixed; background: rgba(12, 12, 18, 0.88);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+  padding: 14px 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;
+  z-index: 10;
+}
+#title { top: 16px; left: 16px; max-width: 360px; }
+#title h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; margin-bottom: 6px; color: #fff; }
+#title p { font-size: 11px; color: #a8a59c; line-height: 1.55; }
+
+#hud { top: 16px; right: 16px; min-width: 220px; }
+.hud-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.hud-row .k { color: #888; }
+.hud-row .v { color: #d4a04a; font-weight: 600; }
+
+#controls { bottom: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; }
+.toggle {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  color: #e8e6e0; padding: 6px 12px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.toggle:hover { background: rgba(255,255,255,0.12); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+.toggle.bin.on { background: #4a9d6e; color: #08120c; border-color: #4a9d6e; }
+.row { display: flex; gap: 6px; }
+
+#help { bottom: 16px; right: 16px; max-width: 280px; }
+#help h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; color: #fff; margin-bottom: 6px; }
+#help .key { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.1); border-radius: 3px; color: #d4a04a; font-weight: 600; margin: 0 1px; }
+#help p { color: #a8a59c; font-size: 10.5px; }
+
+.tag-x { color: #ff6b6b; font-weight: 600; }
+.tag-y { color: #5fc28e; font-weight: 600; }
+.tag-z { color: #7badd6; font-weight: 600; }
+
+#explainer { top: 16px; left: 50%; transform: translateX(-50%); max-width: 480px; text-align: center;
+  background: rgba(212, 160, 74, 0.08); border-color: rgba(212, 160, 74, 0.3);
+  font-family: 'Fraunces', serif; font-size: 13px; color: #f0e6d0; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="title" class="panel">
+  <h1>Flying through δT</h1>
+  <p>The 3D shape of fluctuations inside a flux tube. Eddies are <strong>long sausages along z</strong> and <strong>narrow across x and y</strong>. Drag to rotate. <span class="tag-x">x</span> radial, <span class="tag-y">y</span> binormal, <span class="tag-z">z</span> along the field.</p>
+</div>
+
+<div id="hud" class="panel">
+  <div class="hud-row"><span class="k">camera mode</span><span class="v" id="modeHud">orbit</span></div>
+  <div class="hud-row"><span class="k">view</span><span class="v" id="viewHud">3/4</span></div>
+  <div class="hud-row"><span class="k">box dims (x:y:z)</span><span class="v">1 : 1.4 : 8</span></div>
+</div>
+
+<div id="controls">
+  <button class="toggle on" id="rotBtn">auto-rotate</button>
+  <button class="toggle on" id="boxBtn">show flux tube box</button>
+  <button class="toggle on" id="axesBtn">show x,y,z axes</button>
+  <button class="toggle bin" id="binBtn">show binormal slice</button>
+  <button class="toggle" id="radBtn">show radial slice</button>
+  <button class="toggle" id="parBtn">show parallel slice</button>
+  <div class="row">
+    <button class="toggle" id="viewSide">side view</button>
+    <button class="toggle" id="viewEnd">end-on (along z)</button>
+    <button class="toggle on" id="view34">3/4 view</button>
+  </div>
+</div>
+
+<div id="help" class="panel">
+  <h3>fly through it</h3>
+  <p><span class="key">drag</span> rotate · <span class="key">scroll</span> zoom · <span class="key">W A S D</span> fly · <span class="key">space</span> toggle fly mode · <span class="key">arrows</span> alt fly</p>
+</div>
+
+<div id="explainer" class="panel">
+  Look at the eddies — they're stretched ribbons along z, narrow across x and y. <strong>That's why the 2D cuts look so different.</strong> A poloidal cut slices through them sideways (you see narrow stripes); a toroidal cut slices them differently. Same eddies, different cross-sections.
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============ Scene setup ============
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x050508, 0.025);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x050508, 1);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(8, 8, 5); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xff8866, 0.25); dl2.position.set(-5, -3, -5); scene.add(dl2);
+
+// ============ Flux tube box ============
+// x in [-0.5, 0.5], y in [-0.7, 0.7], z in [-4, 4]
+// (long along z = along the field line)
+const BOX = { xHalf: 0.5, yHalf: 0.7, zHalf: 4 };
+
+const boxEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(BOX.xHalf*2, BOX.yHalf*2, BOX.zHalf*2)),
+  new THREE.LineBasicMaterial({ color: 0xd4a04a, transparent: true, opacity: 0.45 })
+);
+scene.add(boxEdges);
+
+// faintly shade the faces
+const boxFaces = new THREE.Mesh(
+  new THREE.BoxGeometry(BOX.xHalf*2, BOX.yHalf*2, BOX.zHalf*2),
+  new THREE.MeshBasicMaterial({ color: 0xd4a04a, transparent: true, opacity: 0.025, side: THREE.BackSide })
+);
+scene.add(boxFaces);
+
+// ============ Field-line spine inside the tube ============
+const spineGeo = new THREE.BufferGeometry();
+const spinePts = [];
+for (let z = -BOX.zHalf; z <= BOX.zHalf; z += 0.05) spinePts.push(new THREE.Vector3(0, 0, z));
+spineGeo.setFromPoints(spinePts);
+const spine = new THREE.Line(spineGeo, new THREE.LineBasicMaterial({ color: 0x7badd6, transparent: true, opacity: 0.3 }));
+scene.add(spine);
+
+// ============ δT fluctuation field ============
+// Build a 3D "eddy" field as superposition of ky modes, each with structure
+// long in z (sausage shape), narrow in x and y.
+const NY = 16;
+const AMPS = new Array(NY).fill(0).map((_, k) => {
+  if (k === 0) return 0;
+  return Math.exp(-Math.pow((k - 4) / 3, 2)) * (0.5 + 0.8 * Math.sin(k * 1.7));
+});
+const PHASES = new Array(NY).fill(0).map((_, k) => k * 1.31 + 0.7);
+
+function deltaT(x, y, z) {
+  // y dependence: sum of Fourier modes (ky scaled to fit box)
+  // x dependence: gaussian-ish envelope
+  // z dependence: slow modulation along the field line (eddies have finite extent in z but are LONG)
+  let v = 0;
+  const yNorm = (y / BOX.yHalf) * Math.PI; // map y in [-yHalf, yHalf] to [-pi, pi]
+  for (let k = 1; k < NY; k++) {
+    v += AMPS[k] * Math.cos(k * yNorm + PHASES[k]);
+  }
+  // Radial envelope: peaked in middle of box
+  const xEnv = Math.exp(-Math.pow(x / (BOX.xHalf * 0.6), 2));
+  // z envelope: slowly varying, eddies extend almost full length
+  const zEnv = Math.cos(z * 0.4 + 0.6) * 0.5 + 0.5;
+  // Add a slow z-dependent twist for visual richness (mild)
+  const zPhase = z * 0.15;
+  let v2 = 0;
+  for (let k = 1; k < NY; k++) {
+    v2 += AMPS[k] * Math.cos(k * yNorm + PHASES[k] + zPhase);
+  }
+  return xEnv * (zEnv * v + (1 - zEnv) * v2) / 4;
+}
+
+// ============ Volume rendering via instanced colored spheres ============
+// Sample δT on a 3D grid and place a colored point sprite at each grid point
+// where |δT| exceeds a threshold.
+const Nx = 14, Ny = 22, Nz = 36;
+const positions = [];
+const colors = [];
+for (let i = 0; i < Nx; i++) {
+  for (let j = 0; j < Ny; j++) {
+    for (let k = 0; k < Nz; k++) {
+      const x = -BOX.xHalf + (i + 0.5) * (2*BOX.xHalf) / Nx;
+      const y = -BOX.yHalf + (j + 0.5) * (2*BOX.yHalf) / Ny;
+      const z = -BOX.zHalf + (k + 0.5) * (2*BOX.zHalf) / Nz;
+      const v = deltaT(x, y, z);
+      if (Math.abs(v) > 0.04) {
+        positions.push(x, y, z);
+        // diverging colormap
+        const t = Math.max(-1, Math.min(1, v * 3));
+        let r, g, b;
+        if (t >= 0) {
+          r = 245 - 30 * t; g = 220 - 150 * t; b = 200 - 130 * t;
+        } else {
+          r = 245 + 100 * t; g = 220 + 70 * t; b = 200 + 20 * t;
+        }
+        colors.push(r/255, g/255, b/255);
+      }
+    }
+  }
+}
+const cloudGeo = new THREE.BufferGeometry();
+cloudGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+cloudGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+const cloudMat = new THREE.PointsMaterial({
+  size: 0.13, vertexColors: true, transparent: true, opacity: 0.55,
+  sizeAttenuation: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+const cloud = new THREE.Points(cloudGeo, cloudMat);
+scene.add(cloud);
+
+// ============ Cutting planes (slices) ============
+// Show the same δT data restricted to a plane — what the 2D cuts actually correspond to.
+function makeSlice(plane, color) {
+  // plane: 'binormal' (xy plane at z=0), 'radial' (yz plane at x=0), 'parallel' (xz plane at y=0)
+  const positions = [], colors = [];
+  const Nu = 80, Nv = 160;
+  for (let i = 0; i < Nu; i++) {
+    for (let j = 0; j < Nv; j++) {
+      let x, y, z;
+      if (plane === 'binormal') {
+        x = -BOX.xHalf + (i + 0.5) * (2*BOX.xHalf) / Nu;
+        y = -BOX.yHalf + (j + 0.5) * (2*BOX.yHalf) / Nv;
+        z = 0;
+      } else if (plane === 'radial') {
+        x = 0;
+        y = -BOX.yHalf + (i + 0.5) * (2*BOX.yHalf) / Nu;
+        z = -BOX.zHalf + (j + 0.5) * (2*BOX.zHalf) / Nv;
+      } else { // parallel
+        x = -BOX.xHalf + (i + 0.5) * (2*BOX.xHalf) / Nu;
+        y = 0;
+        z = -BOX.zHalf + (j + 0.5) * (2*BOX.zHalf) / Nv;
+      }
+      const v = deltaT(x, y, z);
+      positions.push(x, y, z);
+      const t = Math.max(-1, Math.min(1, v * 3));
+      let r, g, b;
+      if (t >= 0) { r = 245 - 30 * t; g = 220 - 150 * t; b = 200 - 130 * t; }
+      else        { r = 245 + 100 * t; g = 220 + 70 * t; b = 200 + 20 * t; }
+      colors.push(r/255, g/255, b/255);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.05, vertexColors: true, transparent: true, opacity: 0.95,
+    sizeAttenuation: true
+  });
+  const points = new THREE.Points(geo, mat);
+  // Add a thin border outline
+  const bordPts = [];
+  if (plane === 'binormal') {
+    bordPts.push(new THREE.Vector3(-BOX.xHalf, -BOX.yHalf, 0), new THREE.Vector3( BOX.xHalf, -BOX.yHalf, 0));
+    bordPts.push(new THREE.Vector3( BOX.xHalf, -BOX.yHalf, 0), new THREE.Vector3( BOX.xHalf,  BOX.yHalf, 0));
+    bordPts.push(new THREE.Vector3( BOX.xHalf,  BOX.yHalf, 0), new THREE.Vector3(-BOX.xHalf,  BOX.yHalf, 0));
+    bordPts.push(new THREE.Vector3(-BOX.xHalf,  BOX.yHalf, 0), new THREE.Vector3(-BOX.xHalf, -BOX.yHalf, 0));
+  } else if (plane === 'radial') {
+    bordPts.push(new THREE.Vector3(0, -BOX.yHalf, -BOX.zHalf), new THREE.Vector3(0,  BOX.yHalf, -BOX.zHalf));
+    bordPts.push(new THREE.Vector3(0,  BOX.yHalf, -BOX.zHalf), new THREE.Vector3(0,  BOX.yHalf,  BOX.zHalf));
+    bordPts.push(new THREE.Vector3(0,  BOX.yHalf,  BOX.zHalf), new THREE.Vector3(0, -BOX.yHalf,  BOX.zHalf));
+    bordPts.push(new THREE.Vector3(0, -BOX.yHalf,  BOX.zHalf), new THREE.Vector3(0, -BOX.yHalf, -BOX.zHalf));
+  } else {
+    bordPts.push(new THREE.Vector3(-BOX.xHalf, 0, -BOX.zHalf), new THREE.Vector3( BOX.xHalf, 0, -BOX.zHalf));
+    bordPts.push(new THREE.Vector3( BOX.xHalf, 0, -BOX.zHalf), new THREE.Vector3( BOX.xHalf, 0,  BOX.zHalf));
+    bordPts.push(new THREE.Vector3( BOX.xHalf, 0,  BOX.zHalf), new THREE.Vector3(-BOX.xHalf, 0,  BOX.zHalf));
+    bordPts.push(new THREE.Vector3(-BOX.xHalf, 0,  BOX.zHalf), new THREE.Vector3(-BOX.xHalf, 0, -BOX.zHalf));
+  }
+  const bordGeo = new THREE.BufferGeometry().setFromPoints(bordPts);
+  const border = new THREE.LineSegments(bordGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 }));
+  const group = new THREE.Group();
+  group.add(points); group.add(border);
+  return group;
+}
+
+const sliceBin = makeSlice('binormal', 0x5fc28e);
+const sliceRad = makeSlice('radial', 0xff6b6b);
+const slicePar = makeSlice('parallel', 0x7badd6);
+sliceBin.visible = true; sliceRad.visible = false; slicePar.visible = false;
+scene.add(sliceBin); scene.add(sliceRad); scene.add(slicePar);
+
+// ============ Axis arrows ============
+const axesGroup = new THREE.Group();
+function makeArrow(dir, color, len) {
+  const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0, 0), len, color, len*0.18, len*0.1);
+  return arrow;
+}
+axesGroup.add(makeArrow(new THREE.Vector3(1, 0, 0), 0xff6b6b, 0.9));
+axesGroup.add(makeArrow(new THREE.Vector3(0, 1, 0), 0x5fc28e, 1.1));
+axesGroup.add(makeArrow(new THREE.Vector3(0, 0, 1), 0x7badd6, 1.4));
+
+function makeLabel(text, color, pos) {
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 64;
+  const c = cv.getContext('2d');
+  c.fillStyle = color;
+  c.font = 'bold 44px JetBrains Mono, monospace';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sp = new THREE.Sprite(mat);
+  sp.position.copy(pos);
+  sp.scale.set(0.6, 0.3, 1);
+  return sp;
+}
+axesGroup.add(makeLabel('x', '#ff6b6b', new THREE.Vector3(1.1, 0, 0)));
+axesGroup.add(makeLabel('y', '#5fc28e', new THREE.Vector3(0, 1.3, 0)));
+axesGroup.add(makeLabel('z', '#7badd6', new THREE.Vector3(0, 0, 1.6)));
+scene.add(axesGroup);
+
+// ============ Camera control ============
+let camMode = 'orbit'; // 'orbit' or 'fly'
+let orbitYaw = 0.7, orbitPitch = 0.35, orbitDist = 9;
+let autoRotate = true;
+let viewPreset = '34';
+
+// fly state
+const flyPos = new THREE.Vector3(0, 0, -8);
+const flyYaw = { v: 0 }; // around y
+const flyPitch = { v: 0 }; // around x
+const keys = {};
+
+function setOrbit() {
+  camera.position.set(
+    orbitDist * Math.cos(orbitPitch) * Math.sin(orbitYaw),
+    orbitDist * Math.sin(orbitPitch),
+    orbitDist * Math.cos(orbitPitch) * Math.cos(orbitYaw)
+  );
+  camera.lookAt(0, 0, 0);
+}
+function setFly() {
+  camera.position.copy(flyPos);
+  const tgt = new THREE.Vector3(
+    Math.cos(flyPitch.v) * Math.sin(flyYaw.v),
+    Math.sin(flyPitch.v),
+    Math.cos(flyPitch.v) * Math.cos(flyYaw.v)
+  ).add(flyPos);
+  camera.lookAt(tgt);
+}
+setOrbit();
+
+// ============ Interaction ============
+const cv = document.getElementById('c');
+let dragging = false, prevX = 0, prevY = 0;
+cv.addEventListener('mousedown', e => { dragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => dragging = false);
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - prevX, dy = e.clientY - prevY;
+  prevX = e.clientX; prevY = e.clientY;
+  if (camMode === 'orbit') {
+    orbitYaw += dx * 0.005;
+    orbitPitch = Math.max(-1.4, Math.min(1.4, orbitPitch + dy * 0.005));
+  } else {
+    flyYaw.v -= dx * 0.005;
+    flyPitch.v = Math.max(-1.4, Math.min(1.4, flyPitch.v - dy * 0.005));
+  }
+});
+window.addEventListener('wheel', e => {
+  if (camMode === 'orbit') {
+    orbitDist = Math.max(2, Math.min(30, orbitDist * (1 + e.deltaY * 0.001)));
+  }
+});
+
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === ' ') {
+    e.preventDefault();
+    camMode = camMode === 'orbit' ? 'fly' : 'orbit';
+    document.getElementById('modeHud').textContent = camMode;
+    if (camMode === 'fly') {
+      // start fly from current orbit position
+      flyPos.copy(camera.position);
+      // face the origin
+      const dir = new THREE.Vector3().subVectors(new THREE.Vector3(0,0,0), flyPos).normalize();
+      flyYaw.v = Math.atan2(dir.x, dir.z);
+      flyPitch.v = Math.asin(dir.y);
+    }
+  }
+});
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============ UI bindings ============
+document.getElementById('rotBtn').addEventListener('click', e => {
+  autoRotate = !autoRotate;
+  e.target.classList.toggle('on', autoRotate);
+});
+document.getElementById('boxBtn').addEventListener('click', e => {
+  boxEdges.visible = !boxEdges.visible;
+  boxFaces.visible = boxEdges.visible;
+  e.target.classList.toggle('on', boxEdges.visible);
+});
+document.getElementById('axesBtn').addEventListener('click', e => {
+  axesGroup.visible = !axesGroup.visible;
+  e.target.classList.toggle('on', axesGroup.visible);
+});
+document.getElementById('binBtn').addEventListener('click', e => {
+  sliceBin.visible = !sliceBin.visible;
+  e.target.classList.toggle('on', sliceBin.visible);
+});
+document.getElementById('radBtn').addEventListener('click', e => {
+  sliceRad.visible = !sliceRad.visible;
+  e.target.classList.toggle('on', sliceRad.visible);
+});
+document.getElementById('parBtn').addEventListener('click', e => {
+  slicePar.visible = !slicePar.visible;
+  e.target.classList.toggle('on', slicePar.visible);
+});
+document.getElementById('viewSide').addEventListener('click', () => {
+  camMode = 'orbit'; document.getElementById('modeHud').textContent = camMode;
+  orbitYaw = Math.PI/2; orbitPitch = 0; orbitDist = 12; autoRotate = false;
+  document.getElementById('rotBtn').classList.remove('on');
+  setView('side');
+});
+document.getElementById('viewEnd').addEventListener('click', () => {
+  camMode = 'orbit'; document.getElementById('modeHud').textContent = camMode;
+  orbitYaw = 0; orbitPitch = 0; orbitDist = 7; autoRotate = false;
+  document.getElementById('rotBtn').classList.remove('on');
+  setView('end');
+});
+document.getElementById('view34').addEventListener('click', () => {
+  camMode = 'orbit'; document.getElementById('modeHud').textContent = camMode;
+  orbitYaw = 0.7; orbitPitch = 0.35; orbitDist = 9; autoRotate = true;
+  document.getElementById('rotBtn').classList.add('on');
+  setView('3/4');
+});
+function setView(name) {
+  document.getElementById('viewHud').textContent = name;
+  ['viewSide','viewEnd','view34'].forEach(id => document.getElementById(id).classList.remove('on'));
+  if (name === 'side') document.getElementById('viewSide').classList.add('on');
+  if (name === 'end') document.getElementById('viewEnd').classList.add('on');
+  if (name === '3/4') document.getElementById('view34').classList.add('on');
+}
+
+// ============ Animate ============
+const clock = new THREE.Clock();
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (camMode === 'orbit') {
+    if (autoRotate && !dragging) orbitYaw += dt * 0.18;
+    setOrbit();
+  } else {
+    // WASD movement
+    const speed = 4 * dt;
+    const forward = new THREE.Vector3(
+      Math.cos(flyPitch.v) * Math.sin(flyYaw.v),
+      Math.sin(flyPitch.v),
+      Math.cos(flyPitch.v) * Math.cos(flyYaw.v)
+    );
+    const right = new THREE.Vector3(
+      Math.sin(flyYaw.v - Math.PI/2), 0, Math.cos(flyYaw.v - Math.PI/2)
+    );
+    if (keys['w'] || keys['arrowup'])    flyPos.addScaledVector(forward, speed);
+    if (keys['s'] || keys['arrowdown'])  flyPos.addScaledVector(forward, -speed);
+    if (keys['a'] || keys['arrowleft'])  flyPos.addScaledVector(right, -speed);
+    if (keys['d'] || keys['arrowright']) flyPos.addScaledVector(right, speed);
+    if (keys['q']) flyPos.y -= speed;
+    if (keys['e']) flyPos.y += speed;
+    setFly();
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>

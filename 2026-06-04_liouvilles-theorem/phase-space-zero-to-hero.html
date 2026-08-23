@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase Space: Zero to Hero</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="../_lib/katex/katex.min.css">
+<script defer src="../_lib/katex/katex.min.js"></script>
+<script defer src="../_lib/katex/auto-render.min.js"></script>
+
+<style>
+:root{
+  --bg:#0a0e16; --bg2:#0c1220; --panel:#101a2b; --panel2:#0d1626;
+  --ink:#dde4f0; --dim:#8593a8; --faint:#5b6779;
+  --amber:#ffb454; --cyan:#4fd6c0; --mag:#ff6b9d; --violet:#9d8cff;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --grid:rgba(79,214,192,.10);
+  --maxw:880px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:
+    radial-gradient(1200px 700px at 80% -5%, rgba(157,140,255,.10), transparent 60%),
+    radial-gradient(900px 600px at -5% 20%, rgba(79,214,192,.08), transparent 55%),
+    var(--bg);
+  color:var(--ink);
+  font-family:"Newsreader",Georgia,serif; font-size:19px; line-height:1.72;
+  -webkit-font-smoothing:antialiased;
+}
+/* subtle scanline / grain atmosphere */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:1; opacity:.5;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+.progress{position:fixed; top:0; left:0; height:3px; width:0%; z-index:50;
+  background:linear-gradient(90deg,var(--cyan),var(--amber)); box-shadow:0 0 12px var(--cyan);}
+header.hero{position:relative; z-index:2; padding:13vh 24px 7vh; max-width:var(--maxw); margin:0 auto;}
+.kicker{font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.32em; text-transform:uppercase;
+  color:var(--cyan); margin-bottom:22px;}
+h1{font-family:"Fraunces",serif; font-weight:900; font-size:clamp(44px,8vw,86px); line-height:.96;
+  margin:0 0 18px; letter-spacing:-.02em;}
+h1 em{font-style:italic; color:var(--amber);}
+.lede{font-size:22px; color:var(--dim); max-width:62ch; margin:0;}
+.lede b{color:var(--ink); font-weight:500;}
+
+nav.toc{position:relative; z-index:2; max-width:var(--maxw); margin:0 auto 4vh; padding:0 24px;
+  display:flex; flex-wrap:wrap; gap:8px;}
+nav.toc a{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--dim);
+  text-decoration:none; border:1px solid var(--line); padding:6px 11px; border-radius:999px;
+  transition:.2s; white-space:nowrap;}
+nav.toc a:hover{color:var(--bg); background:var(--cyan); border-color:var(--cyan);}
+
+main{position:relative; z-index:2; max-width:var(--maxw); margin:0 auto; padding:0 24px 18vh;}
+section{padding:7vh 0 2vh; border-top:1px solid var(--line); scroll-margin-top:64px;}
+section:first-of-type{border-top:none;}
+.rung{font-family:"JetBrains Mono",monospace; font-size:13px; letter-spacing:.2em; color:var(--amber);
+  text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:12px;}
+.rung .n{display:inline-grid; place-items:center; width:30px; height:30px; border-radius:50%;
+  border:1px solid var(--amber); color:var(--amber); font-size:13px;}
+h2{font-family:"Fraunces",serif; font-weight:600; font-size:clamp(28px,4.5vw,42px); line-height:1.05;
+  margin:.1em 0 .5em; letter-spacing:-.01em;}
+p{margin:0 0 1.15em;}
+.dim{color:var(--dim);} .small{font-size:16px;}
+strong,b{color:#fff; font-weight:500;}
+.amber{color:var(--amber)} .cyan{color:var(--cyan)} .mag{color:var(--mag)} .violet{color:var(--violet)}
+
+.callout{border-left:3px solid var(--cyan); background:linear-gradient(90deg,rgba(79,214,192,.06),transparent);
+  padding:14px 20px; margin:1.6em 0; border-radius:0 10px 10px 0;}
+.callout.amber{border-color:var(--amber); background:linear-gradient(90deg,rgba(255,180,84,.07),transparent);}
+.callout.mag{border-color:var(--mag); background:linear-gradient(90deg,rgba(255,107,157,.07),transparent);}
+.callout .lbl{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--cyan); display:block; margin-bottom:6px;}
+.callout.amber .lbl{color:var(--amber)} .callout.mag .lbl{color:var(--mag)}
+
+/* figure / instrument panel */
+.panel{background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--line2);
+  border-radius:14px; padding:18px; margin:1.8em 0; box-shadow:0 24px 60px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.04);}
+.panel .cap{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+.panel.eqlive{margin-top:-8px; border-color:rgba(79,214,192,.35);
+  box-shadow:0 24px 60px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.04), inset 3px 0 0 var(--cyan);}
+.panel.eqlive .cap{color:var(--cyan);}
+canvas{display:block; width:100%; border-radius:8px; background:#070a11; touch-action:none;}
+.controls{display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px;
+  font-family:"JetBrains Mono",monospace; font-size:13px; color:var(--dim);}
+.controls label{display:flex; align-items:center; gap:8px;}
+button.btn{font-family:"JetBrains Mono",monospace; font-size:13px; cursor:pointer; color:var(--bg);
+  background:var(--cyan); border:none; padding:7px 16px; border-radius:8px; transition:.15s; font-weight:600;}
+button.btn:hover{filter:brightness(1.12)} button.btn.alt{background:var(--amber)}
+input[type=range]{-webkit-appearance:none; appearance:none; height:4px; width:130px; border-radius:4px;
+  background:var(--line2); outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+  background:var(--amber); cursor:pointer; box-shadow:0 0 8px var(--amber);}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border:none;border-radius:50%;background:var(--amber);cursor:pointer}
+.readout{font-family:"JetBrains Mono",monospace; color:var(--cyan)}
+.legend{display:flex; gap:18px; flex-wrap:wrap; font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--dim); margin-top:10px}
+.legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:6px; vertical-align:-1px}
+
+/* code */
+pre{background:#070a11; border:1px solid var(--line2); border-radius:12px; padding:18px 18px 18px 16px;
+  overflow:auto; margin:1.6em 0; font-family:"JetBrains Mono",monospace; font-size:14px; line-height:1.6;
+  color:#cdd6e6;}
+pre .c{color:var(--faint); font-style:italic} /* comment */
+pre .k{color:var(--mag)} /* keyword */
+pre .f{color:var(--cyan)} /* func */
+pre .s{color:var(--amber)} /* string/num */
+pre .o{color:var(--violet)}
+code.inl{font-family:"JetBrains Mono",monospace; font-size:.86em; background:rgba(255,255,255,.06);
+  padding:2px 6px; border-radius:5px; color:var(--cyan)}
+
+.steps{counter-reset:s; margin:1.6em 0; padding:0; list-style:none}
+.steps li{counter-increment:s; position:relative; padding:10px 0 10px 44px; border-bottom:1px dashed var(--line)}
+.steps li::before{content:counter(s); position:absolute; left:0; top:9px; width:28px; height:28px;
+  border-radius:50%; background:rgba(255,180,84,.12); color:var(--amber); display:grid; place-items:center;
+  font-family:"JetBrains Mono",monospace; font-size:13px; border:1px solid rgba(255,180,84,.3)}
+.steps li:last-child{border-bottom:none}
+
+.katex{font-size:1.04em}
+.eqbox{background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:10px;
+  padding:14px 8px; margin:1.4em 0; overflow-x:auto}
+footer{position:relative; z-index:2; max-width:var(--maxw); margin:0 auto; padding:6vh 24px 12vh;
+  border-top:1px solid var(--line); color:var(--dim); font-size:16px}
+.tag{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--faint)}
+@media(max-width:560px){ body{font-size:17px} .lede{font-size:19px} }
+</style>
+</head>
+<body>
+<div class="progress" id="prog"></div>
+
+<header class="hero">
+  <div class="kicker">Phase space · zero → hero</div>
+  <h1>From a dot over <em>x</em><br>to a Vlasov solver</h1>
+  <p class="lede"><b>Never built one of these before?</b> So here's the whole ladder, one short rung at a time — every idea earns the next, nothing skips. By the end the streaming phase factor of shape <code class="inl">(Nx, Nv)</code> will feel obvious instead of magic.</p>
+</header>
+
+<nav class="toc" id="toc">
+  <a href="#r1">1 · ẋ</a>
+  <a href="#r2">2 · phase space</a>
+  <a href="#r3">3 · a trajectory</a>
+  <a href="#r4">4 · the Hamiltonian</a>
+  <a href="#r5">5 · the flow</a>
+  <a href="#r6">6 · Liouville</a>
+  <a href="#r7">7 · density f</a>
+  <a href="#r8">8 · Vlasov</a>
+  <a href="#r9">9 · free streaming</a>
+  <a href="#r10">10 · go spectral</a>
+  <a href="#r11">11 · the code</a>
+</nav>
+
+<main>
+
+<!-- 1 -->
+<section id="r1">
+  <div class="rung"><span class="n">1</span> the dot just means "per second"</div>
+  <h2>A particle is two numbers</h2>
+  <p>At any instant a particle on a line is fully described by two numbers: <span class="amber">where it is</span>, <span class="amber">x</span>, and <span class="cyan">how fast it's moving</span>, <span class="cyan">v</span>. That's it. If you know both right now, the laws of motion tell you both a moment later.</p>
+  <p>The dot is shorthand for <b>rate of change in time</b> — Newton's notation for <span class="inl">d/dt</span>. So:</p>
+  <div class="eqbox" data-tex="\dot x \equiv \frac{dx}{dt} = v \qquad\qquad \dot v \equiv \frac{dv}{dt} = a"></div>
+  <p>Read out loud: <em>"the rate position changes is the velocity; the rate velocity changes is the acceleration."</em> A double dot, <span class="inl">ẍ</span>, is just acceleration directly. Nothing deeper than that — it's a tick mark that saves you writing <span class="inl">d/dt</span> a thousand times. Drag the particle below and watch its <span class="cyan">ẋ</span> respond.</p>
+
+  <div class="panel">
+    <div class="cap"><span>fig 1 · drag the dot</span><span class="readout" id="r1read">ẋ = 0.00</span></div>
+    <canvas id="c1" height="150"></canvas>
+    <div class="controls"><span class="dim">grab the <span class="amber">●</span> and sweep it left/right — faster sweep, bigger ẋ.</span></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="r2">
+  <div class="rung"><span class="n">2</span> stop thinking in time-plots</div>
+  <h2>Phase space: the whole state as one point</h2>
+  <p>Here's the move that unlocks everything. Instead of two separate graphs of <span class="amber">x(t)</span> and <span class="cyan">v(t)</span> against time, plot <b>x on one axis and v on the other</b>. Now the complete state of the particle — both numbers at once — is a <b>single point</b>. This plane is called <b>phase space</b>.</p>
+  <p>As time runs, that point moves, tracing a <b>curve</b>. The curve is the particle's entire life story: no time axis needed, because the geometry already encodes the dynamics. Below, the same particle lives on the line (top) and as a point in phase space (bottom). Drag it.</p>
+  <div class="panel">
+    <div class="cap"><span>fig 2 · one particle, two views</span><span class="readout" id="r2read">x=0.0  v=0.0</span></div>
+    <canvas id="c2" height="300"></canvas>
+    <div class="legend"><span><i style="background:var(--amber)"></i>x — position</span><span><i style="background:var(--cyan)"></i>v — velocity</span></div>
+  </div>
+  <div class="callout"><span class="lbl">why bother</span>Every law of motion becomes a rule about <em>how points move through this plane</em>. Once we think of the state as a point flowing in phase space, Liouville's theorem is almost a one-liner. Hold that thought.</div>
+</section>
+
+<!-- 3 -->
+<section id="r3">
+  <div class="rung"><span class="n">3</span> the simplest real example</div>
+  <h2>A mass on a spring traces a loop</h2>
+  <p>Take the friendliest system in physics: a mass on a spring. Pull it further, it pulls back harder — the force is proportional to the stretch (Hooke's law), \(F=-kx\), where \(k\) is the spring's stiffness and the minus sign means "back toward home." Acceleration is force over mass, so \(a=F/m=-(k/m)\,x\). The combination \(k/m\) controls how fast it oscillates, so we give it a name, \(\omega^2=k/m\), and write \(a=-\omega^2 x\). Feed that into rung 1:</p>
+  <div class="eqbox" data-tex="\dot x = v, \qquad \dot v = -\omega^2 x"></div>
+  <p>In the time view, <span class="amber">x</span> and <span class="cyan">v</span> are sine waves a quarter-cycle out of step. But watch what that <em>same motion</em> looks like in phase space: the point goes <b>round and round a closed loop</b> — an ellipse. Forever. Press play.</p>
+  <div class="panel">
+    <div class="cap"><span>fig 3 · spring — time view vs phase view</span><span class="readout" id="r3read">t = 0.0</span></div>
+    <canvas id="c3" height="340"></canvas>
+    <div class="controls">
+      <button class="btn" id="c3play">▶ play</button>
+      <label>amplitude <input type="range" id="c3amp" min="0.3" max="1" step="0.01" value="0.8"></label>
+      <span class="dim">the <span class="cyan">●</span> in the right panel is the live state.</span>
+    </div>
+  </div>
+  <p class="dim small">The loop is closed because the spring conserves energy: the particle keeps returning to the same states. That closed loop is your first hint that something is being <em>preserved</em>.</p>
+</section>
+
+<!-- 4 -->
+<section id="r4">
+  <div class="rung"><span class="n">4</span> the new bookkeeping</div>
+  <h2>The Hamiltonian is just the energy</h2>
+  <p>Now the word that tripped you up. I'm going to build it in three slow steps, because last time I skipped all three.</p>
+
+  <p>A <b>Hamiltonian system</b> is not new physics — it's a new <em>starting point</em>. Newton starts from forces. The Hamiltonian approach starts from a single function, written <span class="inl">H</span>, that holds the system's <b>total energy</b> (kinetic + potential), expressed using position <span class="inl">x</span> and <b>momentum</b> \(p=mv\) (momentum is just mass × velocity — we use \(p\) instead of \(v\), and that choice is the whole trick).</p>
+
+  <div class="callout amber"><span class="lbl">step 1 · build H, from energies you already know</span>
+  A mass on a spring stores energy two ways:
+  <ul class="steps" style="margin:.8em 0 .2em">
+    <li><b>Kinetic energy</b> (energy of motion) is the formula you've seen, \(\tfrac12 m v^2\). We want it in terms of momentum. Since \(p=mv\), we have \(v=p/m\), so \(\tfrac12 m v^2=\tfrac12 m\,(p/m)^2=\dfrac{p^2}{2m}\). That's the first term — nothing new, just \(\tfrac12 mv^2\) rewritten.</li>
+    <li><b>Potential energy</b> (energy stored in the stretch) is \(\tfrac12 k x^2\). Why: the spring pushes with force \(kx\), and the work piled up stretching from \(0\) to \(x\) is the area under that force, \(\tfrac12 k x^2\). Second term.</li>
+  </ul>
+  </div>
+
+  <p>Add the two and you have the spring's Hamiltonian. It is <em>literally just total energy</em>, written with \(p\) in place of \(v\):</p>
+  <div class="eqbox" data-tex="H(x,p)=\underbrace{\frac{p^2}{2m}}_{\text{kinetic}}+\underbrace{\tfrac12 k x^2}_{\text{potential}}"></div>
+  <p>Because \(H\) <em>is</em> the total energy, it's <b>conserved</b> — the number \(H\) never changes as the spring swings. That doesn't mean nothing moves: the energy is endlessly <b>traded</b> between the two terms. At full stretch the mass is stopped, so it's all potential; through the middle it's all kinetic; in between, a mix. The two slosh in anti-step while their sum (which is \(H\)) stays pinned. Here's that equation alive — the bar's total height is locked, only the split slides:</p>
+  <div class="panel eqlive">
+    <div class="cap"><span>↳ the equation above, in motion · KE + PE = H</span><span class="readout" id="r4aread">KE 0% · PE 100%</span></div>
+    <canvas id="c4b" height="230"></canvas>
+    <div class="controls"><button class="btn" id="c4bplay">❚❚ pause</button><span class="dim">the <span class="cyan">kinetic</span> and <span class="amber">potential</span> chunks trade size — the bar never grows or shrinks.</span></div>
+  </div>
+
+  <p><b>Step 2 — what Hamilton's equations actually say.</b> Here is the rule of the game. From <em>any</em> energy function \(H\), the motion is generated by these two equations:</p>
+  <div class="eqbox" data-tex="\dot x = \frac{\partial H}{\partial p}, \qquad \dot p = -\frac{\partial H}{\partial x}"></div>
+  <p>And here's what those two lines <em>do</em> once you feed them the spring's \(H\): at every instant they nudge the state \((x,v)\) just so, and the result is a point marching around a closed loop forever. The equations are the rule; this is the rule running:</p>
+  <div class="panel eqlive">
+    <div class="cap"><span>↳ the two equations above, generating motion</span><span class="readout" id="r4cread">state looping</span></div>
+    <canvas id="c4c" height="240"></canvas>
+    <div class="controls"><button class="btn" id="c4cplay">❚❚ pause</button><span class="dim">the <span class="cyan">●</span> obeys ẋ = ∂H/∂p and ṗ = −∂H/∂x at every step.</span></div>
+  </div>
+  <p>Don't swallow the equations as magic — read each as a plain sentence. (Reminder: \(\partial H/\partial p\) means "differentiate \(H\) with respect to \(p\), treating \(x\) as a frozen constant," and vice-versa.)</p>
+  <ul class="steps">
+    <li><b>\(\dot x = \partial H/\partial p\):</b> how fast position changes = how steeply the energy depends on momentum.</li>
+    <li><b>\(\dot p = -\partial H/\partial x\):</b> how fast momentum changes = minus how steeply the energy depends on position. You may already know the rule <b>force = −(slope of potential energy)</b> — this <em>is</em> that rule, since only the potential part of \(H\) depends on \(x\). The minus sign is just "systems accelerate downhill in energy."</li>
+  </ul>
+  <p class="dim small">Where do these two come from, deep down? In a full course they fall out of the principle of least action. For us the honest test is the one we're about to run: feed in a system whose answer we <em>already</em> know — the spring — and check that Newton's law comes back out. A rule that regenerates known physics is the right rule.</p>
+
+  <p><b>Step 3 — turn the crank for the spring.</b> We only need two derivatives of \(H=\dfrac{p^2}{2m}+\tfrac12 kx^2\). One at a time.</p>
+
+  <p>First equation, \(\dot x=\partial H/\partial p\). Differentiate with respect to \(p\), holding \(x\) fixed — so the \(\tfrac12kx^2\) term is a constant and vanishes:</p>
+  <div class="eqbox" data-tex="\dot x=\frac{\partial H}{\partial p}=\frac{\partial}{\partial p}\!\left(\frac{p^2}{2m}\right)=\frac{2p}{2m}=\frac{p}{m}=v"></div>
+  <p>So \(\dot x = v\). That's almost too obvious — "position changes at the rate of the velocity" — which is the point: the machinery didn't break the definition of velocity.</p>
+
+  <p>Second equation, \(\dot p=-\partial H/\partial x\). Differentiate with respect to \(x\), holding \(p\) fixed — now the \(p^2/2m\) term is the constant that vanishes:</p>
+  <div class="eqbox" data-tex="\dot p=-\frac{\partial H}{\partial x}=-\frac{\partial}{\partial x}\!\left(\tfrac12 k x^2\right)=-(k x)=-kx"></div>
+  <p>So \(\dot p=-kx\). Now connect it back to acceleration: momentum is \(p=mv\), so its rate of change is \(\dot p=m\dot v=ma\). Set the two expressions for \(\dot p\) equal:</p>
+  <div class="eqbox" data-tex="ma=-kx"></div>
+  <p>That is Newton's second law for the spring — mass × acceleration equals the spring force \(-kx\). <b>We started from an energy function and the equation of motion fell straight out.</b> It's the same physics as rung 3, reached from the opposite direction. (Quick consistency check: \(a=-kx/m=-(k/m)x=-\omega^2x\), exactly rung 3's law, with \(\omega^2=k/m\).)</p>
+
+  <p>Because \(H\) stays fixed, the particle can never leave its energy level — so its phase-space path is a single closed <b>ring</b> (exactly the loop from rung 3). Different starting energies give nested rings, like a topographic map. Here they are, with a live point riding one — it can never leave its ring:</p>
+  <div class="panel">
+    <div class="cap"><span>fig 4 · energy contours = the orbits</span><span class="readout" id="r4read">H = const</span></div>
+    <canvas id="c4" height="320"></canvas>
+    <div class="controls"><button class="btn" id="c4play">▶ play</button><span class="dim">each ring is one energy level; the orbit can't leave its ring.</span></div>
+  </div>
+  <div class="callout amber"><span class="lbl">the payoff is the shape</span>Notice the <em>structure</em> of Hamilton's equations: a <b>plus</b> on one, a <b>minus</b> on the other, with the variables crossed (∂p drives x, ∂x drives p). That little antisymmetry is the whole reason Liouville's theorem is true. We unpack it next.</div>
+</section>
+
+<!-- 5 -->
+<section id="r5">
+  <div class="rung"><span class="n">5</span> picture the motion as a fluid</div>
+  <h2>Every point in the plane has a velocity</h2>
+  <p>Don't track one particle now — imagine <b>every</b> point of phase space as a possible state, each with its own marching order from rung 3: a state at <span class="inl">(x,v)</span> moves with phase-space velocity <span class="inl">(ẋ, v̇) = (v, −ω²x)</span>. That's a <b>vector field</b>: an arrow at every point. The whole plane is flowing, like a fluid.</p>
+  <div class="panel">
+    <div class="cap"><span>fig 5 · the flow field (arrows) + a drifting tile</span></div>
+    <canvas id="c5" height="320"></canvas>
+    <div class="controls"><button class="btn" id="c5play">▶ release tile</button><span class="dim">the <span class="mag">tile</span> gets carried by the arrows — watch its <em>area</em>.</span> <span class="readout" id="r5read">area = 1.000</span></div>
+  </div>
+  <p>The key question for Liouville: does this flow <b>squeeze</b> a little patch of states together or <b>spread</b> it apart? The quantity that measures exactly that is the <b>divergence</b> of the velocity field — the sum of "how fast the \(x\)-velocity grows as you step in \(x\)" and "how fast the \(p\)-velocity grows as you step in \(p\)." If neighbours get pushed apart faster than they're pulled together, divergence is positive (the patch expands); if it's zero, the patch's area is frozen. Compute it term by term — no leap:</p>
+  <ul class="steps">
+    <li>The flow velocity is <span class="inl">(\dot x,\dot p)=\big(\partial H/\partial p,\ -\partial H/\partial x\big)</span>.</li>
+    <li>Divergence = <span class="inl">\dfrac{\partial \dot x}{\partial x}+\dfrac{\partial \dot p}{\partial p}</span>.</li>
+    <li>Substitute: <span class="inl">\dfrac{\partial}{\partial x}\!\Big(\dfrac{\partial H}{\partial p}\Big)+\dfrac{\partial}{\partial p}\!\Big(-\dfrac{\partial H}{\partial x}\Big)=\dfrac{\partial^2 H}{\partial x\,\partial p}-\dfrac{\partial^2 H}{\partial p\,\partial x}</span>.</li>
+    <li>Those last two terms are the same second derivative of \(H\) taken in opposite orders — and a standard calculus fact (the symmetry of mixed partial derivatives, Clairaut's theorem) says order doesn't matter, so they're equal and <b>cancel exactly</b>: divergence <span class="inl">=0</span>.</li>
+  </ul>
+  <div class="callout"><span class="lbl">read it</span>Zero divergence means the flow is <b>incompressible</b> — it never compresses or rarefies. That cancellation came <em>only</em> from the plus/minus crossing in Hamilton's equations. No specific <span class="inl">H</span> needed: it's true for <em>every</em> Hamiltonian system. That is Liouville's theorem in disguise.</div>
+</section>
+
+<!-- 6 -->
+<section id="r6">
+  <div class="rung"><span class="n">6</span> the theorem, made visible</div>
+  <h2>Liouville: a blob keeps its area forever</h2>
+  <p><b>Joseph Liouville</b> (19th-century French mathematician). His theorem, stated for what we just built: under Hamiltonian flow, <b>phase-space volume is conserved</b>. Take a little blob of states and let it evolve — it can <b>stretch, twist, and shear into a wild shape, but its area never changes</b>. That's exactly what "incompressible flow" buys you.</p>
+  <p>Below: a square of states released into the spring's flow. It rotates and shears — but the running area readout stays pinned. (The integrator is <em>symplectic</em>, so it honors this to machine precision, which is itself a piece of the lesson.)</p>
+  <div class="panel">
+    <div class="cap"><span>fig 6 · same blob, distorting, constant area</span><span class="readout" id="r6read">area: start 1.000 · now 1.000</span></div>
+    <canvas id="c6" height="340"></canvas>
+    <div class="controls"><button class="btn" id="c6play">▶ play</button><button class="btn alt" id="c6reset">↺ reset</button><span class="dim">watch the shape mangle while the number holds.</span></div>
+  </div>
+  <div class="callout mag"><span class="lbl">remember this</span>"Volume preserved" → if you follow any chosen state, the <em>density of states around it</em> can't change. That single consequence is the bridge to the equation you're coding.</div>
+</section>
+
+<!-- 7 -->
+<section id="r7">
+  <div class="rung"><span class="n">7</span> from countable points to a smear</div>
+  <h2>Many particles become a density f(x,v)</h2>
+  <p>A real system has zillions of particles, each a point in phase space. Tracking them individually is hopeless, so we describe them by a <b>density</b>: <span class="inl">f(x,v,t)</span> = how many particles are near position <span class="inl">x</span> with velocity <span class="inl">v</span>. Bright = crowded, dark = empty.</p>
+  <p>This is the object your code actually stores: a 2-D array, position along one axis, velocity along the other. It's the same phase plane as before — we've just gone from a few dots to a continuous heat-map.</p>
+  <div class="panel">
+    <div class="cap"><span>fig 7 · the same plane, now a density f(x,v)</span></div>
+    <canvas id="c7" height="280"></canvas>
+    <div class="legend"><span class="dim">horizontal = position x · vertical = velocity v · brightness = f</span></div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="r8">
+  <div class="rung"><span class="n">8</span> the equation, assembled</div>
+  <h2>Liouville → the Vlasov equation</h2>
+  <p>Here's the link from rung 6, spelled out. Imagine a tiny packet of neighbouring particles drifting along together. Two things stay fixed as it moves: the <b>number</b> of particles in the packet (they travel as a group — none leak out) and, by Liouville, the <b>phase-space volume</b> the packet occupies. The density \(f\) is just number ÷ volume, so if both are fixed, \(f\) is fixed too — as seen by someone <em>riding along</em> with the packet. "Riding along" is the <b>total time derivative</b> \(df/dt\), so the whole content of Liouville is one line:</p>
+  <div class="eqbox" data-tex="\frac{df}{dt}=0"></div>
+  <p>Now expand that with the chain rule. As the packet moves, \(f\) changes for two reasons: time ticks (the explicit \(t\)), and the packet's own \(x\) and \(v\) drift. The chain rule adds up all three contributions — the direct one plus one for each moving coordinate, each weighted by how fast that coordinate moves:</p>
+  <div class="eqbox" data-tex="\frac{df}{dt}=\underbrace{\frac{\partial f}{\partial t}}_{\text{clock}}+\underbrace{\dot x\,\frac{\partial f}{\partial x}}_{\text{x drifts}}+\underbrace{\dot v\,\frac{\partial f}{\partial v}}_{\text{v drifts}}=0"></div>
+  <p>Substitute <span class="inl">ẋ = v</span> and <span class="inl">v̇ = a</span> from rung 1, and you've arrived:</p>
+  <div class="eqbox" data-tex="\boxed{\;\frac{\partial f}{\partial t}+v\,\frac{\partial f}{\partial x}+a\,\frac{\partial f}{\partial v}=0\;}"></div>
+  <p>This is the <b>Vlasov equation</b>. It's nothing but "phase-space density is conserved along trajectories," written out. Each term has a plain meaning:</p>
+  <ul class="steps">
+    <li><span class="inl">\partial f/\partial t</span> — how the density changes at a fixed spot.</li>
+    <li><span class="inl">v\,\partial f/\partial x</span> — <b>streaming</b>: fast particles carry density to new positions.</li>
+    <li><span class="inl">a\,\partial f/\partial v</span> — <b>forcing</b>: accelerations push density to new velocities.</li>
+  </ul>
+  <div class="callout amber"><span class="lbl">strategy</span>Because the equation says "f is carried along trajectories," you can solve it by <em>following the trajectories</em> — the method of characteristics. For the streaming term that's exact, which is what makes the next step clean.</div>
+</section>
+
+<!-- 9 -->
+<section id="r9">
+  <div class="rung"><span class="n">9</span> turn off the force</div>
+  <h2>Free streaming: every velocity-row just slides</h2>
+  <p>Set the force to zero (<span class="inl">a=0</span>). The Vlasov equation collapses to the <b>free-streaming</b> equation:</p>
+  <div class="eqbox" data-tex="\frac{\partial f}{\partial t}+v\,\frac{\partial f}{\partial x}=0 \qquad\Longrightarrow\qquad f(x,v,t)=f_0(x-vt,\;v)"></div>
+  <p>Why is that the solution? With no force, every particle keeps its velocity \(v\) forever and just coasts in a straight line. So a particle sitting at position \(x\) right now must have started, a time \(t\) ago, at \(x-vt\). Rung 8 told us it carried its density value <em>unchanged</em> the whole way. Therefore the density at \((x,v)\) now equals the initial density at \((x-vt,\,v)\) — which is exactly \(f(x,v,t)=f_0(x-vt,v)\). No new math, just "follow the coasting particle backwards."</p>
+  <p>Now read what the formula means as a picture. The velocity \(v\) doesn't change (no force), and the position advances by \(v\,t\). So in the \(f(x,v)\) image, <b>each horizontal row of constant \(v\) slides sideways at its own speed</b> — fast rows race ahead, slow rows crawl. A compact blob therefore <b>shears into a diagonal streak</b>. (And per Liouville, the streak's area is conserved — it gets thin because it gets long.)</p>
+  <div class="panel">
+    <div class="cap"><span>fig 9 · free streaming — watch the blob shear</span><span class="readout" id="r9read">t = 0.00</span></div>
+    <canvas id="c9" height="300"></canvas>
+    <div class="controls">
+      <button class="btn" id="c9play">▶ play</button>
+      <button class="btn alt" id="c9reset">↺ reset</button>
+      <label>t <input type="range" id="c9t" min="0" max="6.283" step="0.01" value="0"></label>
+      <span class="dim">x wraps around (periodic box).</span>
+    </div>
+  </div>
+  <div class="callout"><span class="lbl">this is the whole task</span>Your assignment is to compute exactly this slide. Doing it row-by-row with array index-shifting is clumsy and inexact for fractional shifts. There's a far cleaner tool: the Fourier transform. Last two rungs.</div>
+</section>
+
+<!-- 10 -->
+<section id="r10">
+  <div class="rung"><span class="n">10</span> why Fourier makes shifting trivial</div>
+  <h2>A shift in x is a phase twist in k</h2>
+  <p>The <b>shift theorem</b> is the only fact you need, and it's a one-liner once you see it. The Fourier transform breaks \(f(x)\) into pure waves \(e^{ikx}\). Shifting the whole function right by \(s\) means replacing \(x\) with \(x-s\) inside every wave: \(e^{ik(x-s)}=e^{-iks}\,e^{ikx}\). Each wave comes back unchanged except for a constant front factor \(e^{-iks}\). So shifting in \(x\) is the same as multiplying every Fourier component by that phase:</p>
+  <div class="eqbox" data-tex="f(x-s)\ \longleftrightarrow\ e^{-iks}\,\hat f(k)"></div>
+  <p>No interpolation, no rounding — fractional shifts are exact. For free streaming each row's shift is <span class="inl">s = v\,\Delta t</span>, so the multiplier for row <span class="inl">v</span> at wavenumber <span class="inl">k_x</span> is</p>
+  <div class="eqbox" data-tex="e^{-i\,k_x\, v\,\Delta t}"></div>
+  <p>Sweep <span class="inl">v</span> below: the bump glides, while the same operation in <span class="inl">k</span>-space is just a spinning phasor whose <b>length never changes</b> (<span class="inl">|e^{i\theta}|=1</span>). That unit length is Liouville sneaking back in — a pure rotation moves density without creating or destroying any.</p>
+  <div class="panel">
+    <div class="cap"><span>fig 10 · shift in x  =  phase spin in k</span><span class="readout" id="r10read">s = 0.00 · |phase| = 1.000</span></div>
+    <canvas id="c10" height="240"></canvas>
+    <div class="controls"><label>shift s = v·Δt <input type="range" id="c10s" min="0" max="6.283" step="0.01" value="0"></label></div>
+  </div>
+  <p>So the plan for one time-step: FFT along <span class="inl">x</span>, multiply every column by its phase, inverse-FFT. The phases for all <span class="inl">(k_x, v)</span> pairs form one array of shape <code class="inl">(Nx, Nv)</code> — the thing you're building.</p>
+</section>
+
+<!-- 11 -->
+<section id="r11">
+  <div class="rung"><span class="n">11</span> hero</div>
+  <h2>The streaming phase factor, fully built</h2>
+  <p>Everything above lands here. The array is one outer product: wavenumber <span class="inl">k_x</span> down the rows, velocity <span class="inl">v</span> across the columns.</p>
+  <pre><span class="k">import</span> numpy <span class="k">as</span> np
+
+<span class="c"># --- grids (swap in your own) ---</span>
+Nx, Nv = <span class="s">256</span>, <span class="s">64</span>
+Lx = <span class="s">2</span>*np.pi
+x  = np.<span class="f">linspace</span>(<span class="s">0</span>, Lx, Nx, endpoint=<span class="k">False</span>)
+dx = x[<span class="s">1</span>] - x[<span class="s">0</span>]
+v  = np.<span class="f">linspace</span>(-<span class="s">5</span>, <span class="s">5</span>, Nv)        <span class="c"># velocity grid, shape (Nv,)</span>
+dt = <span class="s">0.01</span>
+
+<span class="c"># --- wavenumbers for the x-FFT  (the 2*pi is the classic gotcha) ---</span>
+kx = <span class="s">2</span>*np.pi * np.fft.<span class="f">fftfreq</span>(Nx, d=dx)     <span class="c"># shape (Nx,)</span>
+
+<span class="c"># --- the streaming phase factor, shape (Nx, Nv) ---</span>
+<span class="c"># shift theorem:  f0(x - v*dt)  &lt;-&gt;  exp(-i*kx*v*dt) * f0_hat(kx)</span>
+phase = np.<span class="f">exp</span>(-<span class="s">1j</span> * kx[:, <span class="k">None</span>] * v[<span class="k">None</span>, :] * dt)   <span class="c"># (Nx,1)*(1,Nv) -> (Nx,Nv)</span>
+
+<span class="k">assert</span> phase.shape == (Nx, Nv)
+<span class="k">assert</span> np.<span class="f">allclose</span>(np.<span class="f">abs</span>(phase), <span class="s">1.0</span>)        <span class="c"># pure rotation — Liouville fingerprint</span></pre>
+
+  <p>And one streaming step on a field laid out as <code class="inl">f[x, v]</code>:</p>
+  <pre>f_hat = np.fft.<span class="f">fft</span>(f, axis=<span class="s">0</span>)              <span class="c"># transform over x only</span>
+f     = np.fft.<span class="f">ifft</span>(f_hat * phase, axis=<span class="s">0</span>).real</pre>
+
+  <p>The three traps, each tied to a rung you now understand:</p>
+  <ul class="steps">
+    <li><b>The <code class="inl">2*np.pi</code> on kx.</b> <code class="inl">fftfreq</code> returns ordinary frequency, not angular wavenumber. Drop it and every row streams at the wrong speed (rung 10's <span class="inl">k</span> is angular).</li>
+    <li><b>The broadcasting axes.</b> <code class="inl">kx[:,None]</code> is <code class="inl">(Nx,1)</code>, <code class="inl">v[None,:]</code> is <code class="inl">(1,Nv)</code> → product <code class="inl">(Nx,Nv)</code>, with <span class="inl">k_x</span> down the axis you FFT over. Swap them and the shape assert fires.</li>
+    <li><b>The sign.</b> <code class="inl">f0(x − v·dt)</code> (moving right, rung 9) pairs with <code class="inl">−1j</code> under numpy's <span class="inl">e^{-ikx}</span> forward transform. Flip it and you stream backward in time.</li>
+  </ul>
+
+  <div class="callout amber"><span class="lbl">the whole ladder in one line</span>energy function → Hamilton's equations → their crossed plus/minus → zero-divergence flow → conserved phase-space volume (Liouville) → <span class="inl">df/dt=0</span> → the Vlasov equation → free streaming <span class="inl">f_0(x-vt,v)</span> → shift theorem → that <code class="inl">(Nx,Nv)</code> phase array. The <code class="inl">|phase|=1</code> assert is Liouville checking your work: if it drifts off 1, that's a bug, not physics.</div>
+
+  <p class="dim small">Next rung whenever you want it: switch the <span class="inl">a=0</span> back on and add the forcing term <span class="inl">a\,\partial f/\partial v</span> — same shift trick, but in the <span class="inl">v</span> direction, alternated with this one (Strang splitting). Say the word.</p>
+</section>
+
+</main>
+
+<footer>
+  <span class="tag">built rung-by-rung · drag, play, and break every figure · all simulations run live in your browser</span>
+</footer>
+
+<script>
+/* ---------- KaTeX render ---------- */
+window.addEventListener("DOMContentLoaded",function(){
+  function renderAll(){
+    if(!window.renderMathInElement) return setTimeout(renderAll,80);
+    document.querySelectorAll(".eqbox[data-tex]").forEach(function(el){
+      try{ katex.render(el.getAttribute("data-tex"), el, {displayMode:true, throwOnError:false}); }catch(e){ el.textContent=el.getAttribute("data-tex"); }
+    });
+    renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false}], throwOnError:false});
+    /* inline .inl spans that contain TeX (used in <li>) */
+    document.querySelectorAll(".inl").forEach(function(el){
+      var t=el.textContent;
+      if(/[\\^_{}]|\\frac|partial|dfrac|equiv/.test(t)){
+        try{ katex.render(t, el, {throwOnError:false}); }catch(e){}
+      }
+    });
+  }
+  renderAll();
+});
+
+/* ---------- helpers ---------- */
+function setup(canvas){
+  var ctx = canvas.getContext('2d');
+  // Capture the intended height ONCE. Reading canvas.getAttribute('height') every
+  // frame is fatal: setting canvas.height reflects back into that attribute, so the
+  // value would double each frame (150->300->600...) and blow up the buffer.
+  var Hcss = parseInt(canvas.getAttribute('height'),10) || 200;
+  canvas.style.height = Hcss + 'px';          // lock the displayed height in CSS
+  var cw=-1, cdpr=-1;
+  function fit(){
+    var w = canvas.clientWidth || 700;
+    var dpr = Math.min(window.devicePixelRatio||1, 2);   // cap dpr to keep buffers sane
+    if(w!==cw || dpr!==cdpr){                 // only resize on a genuine change
+      canvas.width  = Math.round(w*dpr);
+      canvas.height = Math.round(Hcss*dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      cw=w; cdpr=dpr;
+    }
+    return {w:w, h:Hcss, ctx:ctx};
+  }
+  return fit;
+}
+var COL={amber:'#ffb454',cyan:'#4fd6c0',mag:'#ff6b9d',violet:'#9d8cff',dim:'#5b6779',grid:'rgba(79,214,192,.12)',ink:'#dde4f0'};
+function clamp(a,lo,hi){return a<lo?lo:a>hi?hi:a;}
+// pause a canvas's animation while it's scrolled off-screen (saves CPU/GPU)
+function gate(cv){
+  var st={live:true};
+  if('IntersectionObserver' in window){
+    st.live=false;
+    new IntersectionObserver(function(es){ st.live=es[0].isIntersecting; },{threshold:0.01}).observe(cv);
+  }
+  return st;
+}
+
+/* ============ FIG 1 : drag dot, show xdot ============ */
+(function(){
+  var cv=document.getElementById('c1'); if(!cv)return;
+  var fit=setup(cv); var S=fit(); var ctx=S.ctx,w=S.w,h=S.h;
+  var px=0.5, lastpx=0.5, xdot=0, dragging=false, lastT=performance.now();
+  var read=document.getElementById('r1read');
+  function pos(e){ var r=cv.getBoundingClientRect(); var cx=(e.touches?e.touches[0].clientX:e.clientX)-r.left; return clamp(cx/r.width,0.04,0.96);}
+  cv.addEventListener('mousedown',function(e){dragging=true;px=pos(e);});
+  window.addEventListener('mousemove',function(e){if(dragging)px=pos(e);});
+  window.addEventListener('mouseup',function(){dragging=false;});
+  cv.addEventListener('touchstart',function(e){dragging=true;px=pos(e);e.preventDefault();},{passive:false});
+  cv.addEventListener('touchmove',function(e){if(dragging){px=pos(e);e.preventDefault();}},{passive:false});
+  cv.addEventListener('touchend',function(){dragging=false;});
+  function loop(now){
+    S=fit(); ctx=S.ctx; w=S.w; h=S.h;
+    var dt=Math.max((now-lastT)/1000,1e-3); lastT=now;
+    var vx=(px-lastpx)/dt; lastpx=px;
+    xdot = xdot*0.7 + vx*0.3; if(!dragging) xdot*=0.9;
+    ctx.clearRect(0,0,w,h);
+    var y=h/2, x=20+px*(w-40);
+    // track
+    ctx.strokeStyle=COL.grid; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(20,y); ctx.lineTo(w-20,y); ctx.stroke();
+    for(var i=0;i<=10;i++){var tx=20+i/10*(w-40);ctx.strokeStyle='rgba(255,255,255,.06)';ctx.beginPath();ctx.moveTo(tx,y-6);ctx.lineTo(tx,y+6);ctx.stroke();}
+    // velocity arrow
+    var aw=clamp(xdot*0.12,-w*0.4,w*0.4);
+    if(Math.abs(aw)>3){ctx.strokeStyle=COL.cyan;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y-26);ctx.lineTo(x+aw,y-26);ctx.stroke();
+      ctx.fillStyle=COL.cyan;var s=aw>0?1:-1;ctx.beginPath();ctx.moveTo(x+aw,y-26);ctx.lineTo(x+aw-9*s,y-31);ctx.lineTo(x+aw-9*s,y-21);ctx.fill();
+      ctx.font='12px JetBrains Mono';ctx.fillText('ẋ',x+aw/2-4,y-34);}
+    // dot
+    ctx.fillStyle=COL.amber; ctx.shadowColor=COL.amber; ctx.shadowBlur=18;
+    ctx.beginPath();ctx.arc(x,y,11,0,7); ctx.fill(); ctx.shadowBlur=0;
+    read.textContent='ẋ = '+(xdot).toFixed(2);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 2 : line + phase point, draggable ============ */
+(function(){
+  var cv=document.getElementById('c2'); if(!cv)return;
+  var fit=setup(cv); var pxX=0.6, pxV=0.62, dragging=false;
+  var read=document.getElementById('r2read');
+  function pos(e){var r=cv.getBoundingClientRect();return{x:((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width,y:((e.touches?e.touches[0].clientY:e.clientY)-r.top)/r.height};}
+  function near(p,h){ // bottom half is the phase plane
+    return p.y>0.5;
+  }
+  function set(p){
+    if(p.y>0.5){ pxX=clamp(p.x,0.05,0.95); pxV=clamp((p.y-0.5)*2,0.05,0.95); }
+    else { pxX=clamp(p.x,0.05,0.95); }
+  }
+  cv.addEventListener('mousedown',function(e){dragging=true;set(pos(e));});
+  window.addEventListener('mousemove',function(e){if(dragging)set(pos(e));});
+  window.addEventListener('mouseup',function(){dragging=false;});
+  cv.addEventListener('touchstart',function(e){dragging=true;set(pos(e));e.preventDefault();},{passive:false});
+  cv.addEventListener('touchmove',function(e){if(dragging){set(pos(e));e.preventDefault();}},{passive:false});
+  cv.addEventListener('touchend',function(){dragging=false;});
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    var topY=h*0.22, m=24;
+    // ---- top: line view ----
+    ctx.font='11px JetBrains Mono';ctx.fillStyle=COL.dim;ctx.fillText('LINE VIEW',m,18);
+    ctx.strokeStyle=COL.grid;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(m,topY);ctx.lineTo(w-m,topY);ctx.stroke();
+    var x=m+pxX*(w-2*m);
+    ctx.fillStyle=COL.amber;ctx.shadowColor=COL.amber;ctx.shadowBlur=14;ctx.beginPath();ctx.arc(x,topY,9,0,7);ctx.fill();ctx.shadowBlur=0;
+    // ---- bottom: phase plane ----
+    var py0=h*0.5, ph=h*0.5;
+    ctx.fillStyle=COL.dim;ctx.fillText('PHASE SPACE  (x , v)',m,py0+14);
+    // axes
+    var cx=w/2, cyA=py0+ph/2;
+    ctx.strokeStyle='rgba(255,255,255,.10)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(m,cyA);ctx.lineTo(w-m,cyA);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,py0+22);ctx.lineTo(cx,h-10);ctx.stroke();
+    ctx.fillStyle=COL.faint||'#5b6779';ctx.fillText('x →',w-m-26,cyA-6);ctx.fillText('v ↑',cx+6,py0+30);
+    var Px=m+pxX*(w-2*m);
+    var Py=(h-10) - pxV*(h-10-(py0+22));
+    // connector showing x lines up with line view
+    ctx.strokeStyle='rgba(255,180,84,.25)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x,topY);ctx.lineTo(Px,Py);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=COL.cyan;ctx.shadowColor=COL.cyan;ctx.shadowBlur=16;ctx.beginPath();ctx.arc(Px,Py,9,0,7);ctx.fill();ctx.shadowBlur=0;
+    var xv=(pxX*2-1).toFixed(1), vv=(pxV*2-1).toFixed(1);
+    read.textContent='x='+xv+'  v='+vv;
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 3 : spring, time view + phase view ============ */
+(function(){
+  var cv=document.getElementById('c3'); if(!cv)return;
+  var fit=setup(cv); var t=0, playing=false, amp=0.8, w2=2.0;
+  var x=amp, v=0, trail=[], hist=[];
+  var read=document.getElementById('r3read');
+  document.getElementById('c3play').onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ play';};
+  document.getElementById('c3amp').oninput=function(){amp=+this.value;x=amp;v=0;t=0;trail=[];hist=[];};
+  function step(dt){ // symplectic
+    v += -w2*w2*x*dt; x += v*dt; t+=dt;
+    hist.push({t:t,x:x,v:v}); if(hist.length>600)hist.shift();
+    trail.push({x:x,v:v}); if(trail.length>240)trail.shift();
+  }
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    if(playing){for(var k=0;k<2;k++)step(0.016);}
+    var gap=18, leftW=w*0.52, rightW=w-leftW-gap;
+    // ---- left: time traces ----
+    var lx=0, ly=10, lh=h-20;
+    ctx.font='11px JetBrains Mono';ctx.fillStyle=COL.dim;ctx.fillText('TIME VIEW',lx+6,ly+8);
+    var mid=ly+lh/2;
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.beginPath();ctx.moveTo(lx,mid);ctx.lineTo(lx+leftW,mid);ctx.stroke();
+    function trace(key,color){
+      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();
+      var n=hist.length;
+      for(var i=0;i<n;i++){var hx=lx+ i/600*leftW; var val=hist[i][key]; var hy=mid - val/(amp*1.3)*(lh*0.4); if(i===0)ctx.moveTo(hx,hy);else ctx.lineTo(hx,hy);}
+      ctx.stroke();
+    }
+    trace('x',COL.amber); trace('v',COL.cyan);
+    ctx.fillStyle=COL.amber;ctx.fillText('x',lx+leftW-16,ly+18);ctx.fillStyle=COL.cyan;ctx.fillText('v',lx+leftW-16,ly+34);
+    // ---- right: phase ellipse ----
+    var rx=leftW+gap, cx=rx+rightW/2, cy=h/2, R=Math.min(rightW,h)*0.4;
+    ctx.fillStyle=COL.dim;ctx.fillText('PHASE VIEW',rx+6,18);
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.beginPath();ctx.moveTo(rx,cy);ctx.lineTo(rx+rightW,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,20);ctx.lineTo(cx,h-10);ctx.stroke();
+    // trail
+    ctx.strokeStyle='rgba(79,214,192,.5)';ctx.lineWidth=1.5;ctx.beginPath();
+    for(var i=0;i<trail.length;i++){var tx=cx+trail[i].x/(amp*1.25)*R; var ty=cy-trail[i].v/(amp*w2*1.25)*R; if(i===0)ctx.moveTo(tx,ty);else ctx.lineTo(tx,ty);}
+    ctx.stroke();
+    // live point
+    var dx=cx+x/(amp*1.25)*R, dy=cy-v/(amp*w2*1.25)*R;
+    ctx.fillStyle=COL.cyan;ctx.shadowColor=COL.cyan;ctx.shadowBlur=16;ctx.beginPath();ctx.arc(dx,dy,8,0,7);ctx.fill();ctx.shadowBlur=0;
+    read.textContent='t = '+t.toFixed(1);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 4 : energy contours ============ */
+(function(){
+  var cv=document.getElementById('c4'); if(!cv)return;
+  var fit=setup(cv); var t=0, playing=false, w2=1.6;
+  var read=document.getElementById('r4read');
+  document.getElementById('c4play').onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ play';};
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    if(playing)t+=0.02;
+    var cx=w/2, cy=h/2, R=Math.min(w,h)*0.42;
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.beginPath();ctx.moveTo(20,cy);ctx.lineTo(w-20,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx,16);ctx.lineTo(cx,h-12);ctx.stroke();
+    ctx.font='11px JetBrains Mono';ctx.fillStyle=COL.dim;ctx.fillText('x →',w-46,cy-6);ctx.fillText('v ↑',cx+6,24);
+    // nested energy ellipses: x^2 + v^2/w2^2 = E
+    for(var e=1;e<=5;e++){
+      var Ex=R*e/5, Ev=R*e/5;
+      ctx.strokeStyle='rgba(157,140,255,'+(0.18+e*0.05)+')';ctx.lineWidth=1.4;
+      ctx.beginPath();ctx.ellipse(cx,cy,Ex,Ev*0.78,0,0,7);ctx.stroke();
+    }
+    // live orbit on ring 4
+    var rr=4/5;
+    var px=cx+ R*rr*Math.cos(t);
+    var py=cy- R*rr*0.78*Math.sin(t);
+    ctx.fillStyle=COL.amber;ctx.shadowColor=COL.amber;ctx.shadowBlur=16;ctx.beginPath();ctx.arc(px,py,8,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=COL.violet;ctx.font='12px JetBrains Mono';ctx.fillText('each ring = one energy H',20,h-14);
+    read.textContent='H = const on its ring';
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 4a : energy sloshing, total fixed ============ */
+(function(){
+  var cv=document.getElementById('c4b'); if(!cv)return;
+  var fit=setup(cv); var g=gate(cv); var th=0, playing=true;
+  var read=document.getElementById('r4aread');
+  var btn=document.getElementById('c4bplay');
+  btn.onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ play';};
+  function loop(){
+    if(!g.live){requestAnimationFrame(loop);return;}
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    if(playing)th+=0.02;
+    var ke=Math.sin(th)*Math.sin(th);     // KE fraction
+    var pe=Math.cos(th)*Math.cos(th);      // PE fraction (full stretch -> all PE)
+
+    // ----- left: spring + mass -----
+    var wallX=16, eqX=w*0.27, A=w*0.13;
+    var mass=eqX + A*Math.cos(th);
+    var midY=h*0.40;
+    // wall
+    ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(wallX-6,midY-30,6,60);
+    // spring coil (zigzag)
+    ctx.strokeStyle=COL.dim;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(wallX,midY);
+    var coils=10, span=mass-wallX-14;
+    for(var i=0;i<=coils;i++){var cxp=wallX+span*i/coils; var cy=midY+((i%2)?-9:9); if(i===0)ctx.lineTo(cxp,midY);else ctx.lineTo(cxp,cy);}
+    ctx.lineTo(mass,midY);ctx.stroke();
+    // equilibrium tick
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(eqX,midY-34);ctx.lineTo(eqX,midY+34);ctx.stroke();ctx.setLineDash([]);
+    // mass
+    ctx.fillStyle=COL.violet;ctx.shadowColor=COL.violet;ctx.shadowBlur=14;
+    ctx.beginPath();ctx.arc(mass,midY,14,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.font='11px JetBrains Mono';ctx.fillStyle=COL.dim;ctx.fillText('mass on spring',wallX,h-12);
+
+    // ----- right: locked-height stacked energy bar -----
+    var bx=w*0.70, bw=Math.min(64,w*0.12), top=24, bot=h-26, Htot=bot-top;
+    // outline of the fixed total
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.strokeRect(bx,top,bw,Htot);
+    // PE from bottom (amber)
+    var peH=Htot*pe;
+    ctx.fillStyle='rgba(255,180,84,.85)';ctx.fillRect(bx,bot-peH,bw,peH);
+    // KE on top (cyan)
+    var keH=Htot*ke;
+    ctx.fillStyle='rgba(79,214,192,.85)';ctx.fillRect(bx,top,bw,keH);
+    // divider
+    ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx,top+keH);ctx.lineTo(bx+bw,top+keH);ctx.stroke();
+    // labels
+    ctx.font='11px JetBrains Mono';ctx.textAlign='left';
+    ctx.fillStyle=COL.cyan;ctx.fillText('KE',bx+bw+8,top+12);
+    ctx.fillStyle=COL.amber;ctx.fillText('PE',bx+bw+8,bot-6);
+    ctx.fillStyle=COL.dim;ctx.fillText('total energy',bx-4,top-8);
+    // bracket showing total is fixed
+    ctx.strokeStyle='rgba(255,255,255,.3)';ctx.beginPath();ctx.moveTo(bx-10,top);ctx.lineTo(bx-14,top);ctx.lineTo(bx-14,bot);ctx.lineTo(bx-10,bot);ctx.stroke();
+    ctx.textAlign='left';
+    read.textContent='KE '+Math.round(ke*100)+'% · PE '+Math.round(pe*100)+'%';
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 4b : live orbit generated by Hamilton's equations ============ */
+(function(){
+  var cv=document.getElementById('c4c'); if(!cv)return;
+  var fit=setup(cv); var g=gate(cv); var th=0, playing=true, w2=1.6, trail=[];
+  var btn=document.getElementById('c4cplay'); var read=document.getElementById('r4cread');
+  if(btn) btn.onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ play';};
+  function loop(){
+    if(!g.live){requestAnimationFrame(loop);return;}
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    if(playing){ th+=0.025; trail.push(th); if(trail.length>90)trail.shift(); }
+    var cx=w/2, cy=h/2, R=Math.min(w,h)*0.40;
+    // axes
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(20,cy);ctx.lineTo(w-20,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,16);ctx.lineTo(cx,h-12);ctx.stroke();
+    ctx.font='11px JetBrains Mono';ctx.fillStyle=COL.dim;ctx.fillText('x →',w-44,cy-6);ctx.fillText('v ↑',cx+6,24);
+    // the constant-energy ring this orbit lives on
+    ctx.strokeStyle='rgba(255,255,255,.10)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.ellipse(cx,cy,R,R*0.78,0,0,7);ctx.stroke();
+    // recent trail
+    ctx.strokeStyle='rgba(79,214,192,.5)';ctx.lineWidth=2;ctx.beginPath();
+    for(var i=0;i<trail.length;i++){var a=trail[i];var tx=cx+R*Math.cos(a),ty=cy-R*0.78*Math.sin(a);if(i===0)ctx.moveTo(tx,ty);else ctx.lineTo(tx,ty);}
+    ctx.stroke();
+    // live state point
+    var px=cx+R*Math.cos(th), py=cy-R*0.78*Math.sin(th);
+    ctx.fillStyle=COL.cyan;ctx.shadowColor=COL.cyan;ctx.shadowBlur=16;ctx.beginPath();ctx.arc(px,py,8,0,7);ctx.fill();ctx.shadowBlur=0;
+    if(read) read.textContent='state (x, v) looping';
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 5 : flow field + drifting tile ============ */
+(function(){
+  var cv=document.getElementById('c5'); if(!cv)return;
+  var fit=setup(cv); var w2=1.3, playing=false;
+  var read=document.getElementById('r5read');
+  var tile; function reset(){ tile=[]; var x0=-0.45,v0=0.35,s=0.18;
+    tile=[[x0,v0],[x0+s,v0],[x0+s,v0+s],[x0,v0+s]]; }
+  reset();
+  document.getElementById('c5play').onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ release tile';};
+  function shoelace(p){var a=0;for(var i=0;i<p.length;i++){var j=(i+1)%p.length;a+=p[i][0]*p[j][1]-p[j][0]*p[i][1];}return Math.abs(a)/2;}
+  var area0=shoelace(tile);
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    var cx=w/2, cy=h/2, R=Math.min(w,h)*0.42;
+    function X(x){return cx+x*R;} function Y(v){return cy-v*R;}
+    // arrow field
+    var N=11;
+    for(var i=0;i<N;i++)for(var j=0;j<N;j++){
+      var x=-1+2*i/(N-1), v=-1+2*j/(N-1);
+      var dx=v, dv=-w2*w2*x; var mag=Math.hypot(dx,dv)||1; var L=12;
+      var ax=X(x), ay=Y(v), bx=ax+dx/mag*L, by=ay-dv/mag*L;
+      ctx.strokeStyle='rgba(79,214,192,.30)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+      ctx.fillStyle='rgba(79,214,192,.30)';ctx.beginPath();ctx.arc(bx,by,1.6,0,7);ctx.fill();
+    }
+    if(playing){ for(var s=0;s<2;s++){ var dt=0.02;
+      for(var k=0;k<tile.length;k++){ var x=tile[k][0],v=tile[k][1]; var nv=v+(-w2*w2*x)*dt; var nx=x+nv*dt; tile[k][0]=nx;tile[k][1]=nv; } } }
+    // tile
+    ctx.fillStyle='rgba(255,107,157,.22)';ctx.strokeStyle=COL.mag;ctx.lineWidth=2;ctx.beginPath();
+    for(var k=0;k<tile.length;k++){var P=tile[k];if(k===0)ctx.moveTo(X(P[0]),Y(P[1]));else ctx.lineTo(X(P[0]),Y(P[1]));}
+    ctx.closePath();ctx.fill();ctx.stroke();
+    read.textContent='area = '+(shoelace(tile)/area0).toFixed(3);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 6 : Liouville blob ============ */
+(function(){
+  var cv=document.getElementById('c6'); if(!cv)return;
+  var fit=setup(cv); var w2=1.7, playing=false, pts, ring, area0;
+  var read=document.getElementById('r6read');
+  function reset(){
+    pts=[]; ring=[];
+    var x0=0.0,v0=0.45,s=0.30;
+    // filled grid for visual + ordered boundary ring for area
+    for(var a=0;a<=8;a++)for(var b=0;b<=8;b++){ pts.push([x0-s/2+s*a/8, v0-s/2+s*b/8]); }
+    var nb=10;
+    for(var i=0;i<nb;i++)ring.push([x0-s/2+s*i/nb, v0-s/2]);
+    for(var i=0;i<nb;i++)ring.push([x0+s/2, v0-s/2+s*i/nb]);
+    for(var i=0;i<nb;i++)ring.push([x0+s/2-s*i/nb, v0+s/2]);
+    for(var i=0;i<nb;i++)ring.push([x0-s/2, v0+s/2-s*i/nb]);
+    area0=shoelace(ring);
+  }
+  function shoelace(p){var a=0;for(var i=0;i<p.length;i++){var j=(i+1)%p.length;a+=p[i][0]*p[j][1]-p[j][0]*p[i][1];}return Math.abs(a)/2;}
+  function evolve(arr,dt){for(var k=0;k<arr.length;k++){var x=arr[k][0],v=arr[k][1];var nv=v+(-w2*w2*x)*dt;var nx=x+nv*dt;arr[k][0]=nx;arr[k][1]=nv;}}
+  reset();
+  document.getElementById('c6play').onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ play';};
+  document.getElementById('c6reset').onclick=function(){reset();playing=false;document.getElementById('c6play').textContent='▶ play';};
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    var cx=w/2, cy=h/2, R=Math.min(w,h)*0.4;
+    function X(x){return cx+x*R;} function Y(v){return cy-v*R;}
+    ctx.strokeStyle='rgba(255,255,255,.07)';ctx.beginPath();ctx.moveTo(20,cy);ctx.lineTo(w-20,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx,16);ctx.lineTo(cx,h-12);ctx.stroke();
+    if(playing){for(var s=0;s<2;s++){evolve(pts,0.018);evolve(ring,0.018);}}
+    // ring fill
+    ctx.fillStyle='rgba(255,107,157,.16)';ctx.strokeStyle=COL.mag;ctx.lineWidth=2;ctx.beginPath();
+    for(var i=0;i<ring.length;i++){if(i===0)ctx.moveTo(X(ring[i][0]),Y(ring[i][1]));else ctx.lineTo(X(ring[i][0]),Y(ring[i][1]));}
+    ctx.closePath();ctx.fill();ctx.stroke();
+    // points
+    ctx.fillStyle=COL.amber;
+    for(var k=0;k<pts.length;k++){ctx.beginPath();ctx.arc(X(pts[k][0]),Y(pts[k][1]),2.2,0,7);ctx.fill();}
+    read.textContent='area: start 1.000 · now '+(shoelace(ring)/area0).toFixed(3);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 7 : static density heatmap ============ */
+(function(){
+  var cv=document.getElementById('c7'); if(!cv)return;
+  var fit=setup(cv);
+  var NX=200, NV=110;                              // low-res offscreen buffer
+  var off=document.createElement('canvas'); off.width=NX; off.height=NV;
+  var octx=off.getContext('2d'); var img=octx.createImageData(NX,NV);
+  function color(val){ // val 0..1 -> dark->cyan->amber->white
+    val=clamp(val,0,1);
+    var r,g,b;
+    if(val<0.5){var u=val/0.5; r=7+u*(79-7); g=10+u*(214-10); b=17+u*(192-17);}
+    else{var u=(val-0.5)/0.5; r=79+u*(255-79); g=214+u*(220-214); b=192+u*(140-192);}
+    return [r|0,g|0,b|0];
+  }
+  // fill the small buffer once
+  for(var py=0;py<NV;py++)for(var px=0;px<NX;px++){
+    var x=px/NX*2-1, v=(1-py/NV)*2-1;
+    var f=Math.exp(-((x+0.4)*(x+0.4)/0.05+(v-0.3)*(v-0.3)/0.05))
+         +0.8*Math.exp(-((x-0.45)*(x-0.45)/0.04+(v+0.35)*(v+0.35)/0.04));
+    var c=color(f);
+    var idx=(py*NX+px)*4; img.data[idx]=c[0];img.data[idx+1]=c[1];img.data[idx+2]=c[2];img.data[idx+3]=255;
+  }
+  octx.putImageData(img,0,0);
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h;
+    ctx.imageSmoothingEnabled=true; ctx.drawImage(off,0,0,w,h);   // GPU scales it up
+    ctx.fillStyle='rgba(221,228,240,.8)';ctx.font='11px JetBrains Mono';ctx.fillText('x →',w-40,h-10);
+    ctx.save();ctx.translate(12,40);ctx.rotate(-Math.PI/2);ctx.fillText('v →',0,0);ctx.restore();
+  }
+  loop(); window.addEventListener('resize',loop);
+})();
+
+/* ============ FIG 9 : free streaming shear ============ */
+(function(){
+  var cv=document.getElementById('c9'); if(!cv)return;
+  var fit=setup(cv); var t=0, playing=false;
+  var read=document.getElementById('r9read'), slider=document.getElementById('c9t');
+  document.getElementById('c9play').onclick=function(){playing=!playing;this.textContent=playing?'❚❚ pause':'▶ play';};
+  document.getElementById('c9reset').onclick=function(){t=0;slider.value=0;playing=false;document.getElementById('c9play').textContent='▶ play';};
+  slider.oninput=function(){t=+this.value;playing=false;document.getElementById('c9play').textContent='▶ play';};
+  function color(val){val=clamp(val,0,1);var r,g,b;
+    if(val<0.5){var u=val/0.5;r=7+u*72;g=10+u*204;b=17+u*175;}
+    else{var u=(val-0.5)/0.5;r=79+u*176;g=214+u*6;b=192-u*52;}
+    return [r|0,g|0,b|0];}
+  var NX=200, NV=110;                              // low-res offscreen buffer, reused each frame
+  var off=document.createElement('canvas'); off.width=NX; off.height=NV;
+  var octx=off.getContext('2d'); var img=octx.createImageData(NX,NV);
+  var g=gate(cv);
+  function loop(){
+    if(!g.live){requestAnimationFrame(loop);return;}
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h;
+    if(playing){t+=0.012; if(t>6.283)t=0; slider.value=t;}
+    for(var py=0;py<NV;py++){
+      var v=(1-py/NV)*2-1;                 // v in [-1,1]
+      for(var px=0;px<NX;px++){
+        var x=px/NX*2*Math.PI;             // x in [0,2pi) periodic
+        var xs=x - v*t*Math.PI;            // shift each row by v*t
+        xs = ((xs % (2*Math.PI))+2*Math.PI)%(2*Math.PI);   // wrap
+        var dx=xs-Math.PI; var f=Math.exp(-(dx*dx/0.25 + v*v/0.18));
+        var c=color(f); var idx=(py*NX+px)*4;
+        img.data[idx]=c[0];img.data[idx+1]=c[1];img.data[idx+2]=c[2];img.data[idx+3]=255;
+      }
+    }
+    octx.putImageData(img,0,0);
+    ctx.imageSmoothingEnabled=true; ctx.drawImage(off,0,0,w,h);   // GPU scales it up
+    ctx.fillStyle='rgba(221,228,240,.85)';ctx.font='11px JetBrains Mono';ctx.fillText('x →',w-40,h-10);
+    ctx.save();ctx.translate(12,42);ctx.rotate(-Math.PI/2);ctx.fillText('v →',0,0);ctx.restore();
+    read.textContent='t = '+t.toFixed(2);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ============ FIG 10 : shift in x  =  phase spin in k ============ */
+(function(){
+  var cv=document.getElementById('c10'); if(!cv)return;
+  var fit=setup(cv); var s=0;
+  var read=document.getElementById('r10read'), slider=document.getElementById('c10s');
+  slider.oninput=function(){s=+this.value;};
+  function loop(){
+    var S=fit(),ctx=S.ctx,w=S.w,h=S.h; ctx.clearRect(0,0,w,h);
+    var leftW=w*0.6, gap=20, rightW=w-leftW-gap;
+    // left: bump f0(x-s)
+    ctx.font='11px JetBrains Mono';ctx.fillStyle=COL.dim;ctx.fillText('x-space:  f(x − s)',8,16);
+    var bx=0, by=h*0.55, bw=leftW, bh=h*0.36;
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+bw,by);ctx.stroke();
+    ctx.strokeStyle=COL.cyan;ctx.lineWidth=2.4;ctx.beginPath();
+    for(var i=0;i<=bw;i++){var x=i/bw*2*Math.PI; var xs=((x - s)%(2*Math.PI)+2*Math.PI)%(2*Math.PI); var dx=xs-Math.PI; var f=Math.exp(-dx*dx/0.3);
+      var X=bx+i, Y=by - f*bh; if(i===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+    ctx.stroke();
+    // ghost original
+    ctx.strokeStyle='rgba(255,180,84,.35)';ctx.setLineDash([4,4]);ctx.lineWidth=1.5;ctx.beginPath();
+    for(var i=0;i<=bw;i++){var x=i/bw*2*Math.PI; var dx=x-Math.PI; var f=Math.exp(-dx*dx/0.3); var X=bx+i, Y=by-f*bh; if(i===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+    ctx.stroke();ctx.setLineDash([]);
+    // right: phasor wheel
+    var cx=leftW+gap+rightW/2, cy=h*0.46, R=Math.min(rightW,h*0.7)*0.4;
+    ctx.fillStyle=COL.dim;ctx.fillText('k-space:  e^{ -i k s }',leftW+gap,16);
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.beginPath();ctx.moveTo(cx-R,cy);ctx.lineTo(cx+R,cy);ctx.moveTo(cx,cy-R);ctx.lineTo(cx,cy+R);ctx.stroke();
+    var th=-s; var ex=cx+R*Math.cos(th), ey=cy-R*Math.sin(th);
+    ctx.strokeStyle=COL.mag;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
+    ctx.fillStyle=COL.mag;ctx.shadowColor=COL.mag;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(ex,ey,5,0,7);ctx.fill();ctx.shadowBlur=0;
+    read.textContent='s = '+s.toFixed(2)+' · |phase| = 1.000';
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ---------- reading progress + active toc ---------- */
+(function(){
+  var prog=document.getElementById('prog');
+  window.addEventListener('scroll',function(){
+    var st=document.documentElement.scrollTop||document.body.scrollTop;
+    var sh=(document.documentElement.scrollHeight-document.documentElement.clientHeight);
+    prog.style.width=(sh>0?(st/sh*100):0)+'%';
+  },{passive:true});
+})();
+</script>
+</body>
+</html>

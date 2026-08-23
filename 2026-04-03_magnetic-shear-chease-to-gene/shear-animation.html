@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magnetic Shear — Differential Twist</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06090f;
+  --surface: #0d1320;
+  --border: #1a2540;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --text-muted: #3a4a6b;
+  --cyan: #22d3ee;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --purple: #a78bfa;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+.container {
+  width: 100%;
+  max-width: 860px;
+  padding: 32px 20px 60px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.header h1 {
+  font-size: clamp(22px, 5vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+
+.header h1 span { color: var(--cyan); }
+
+.header p {
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 300;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* View toggle */
+.view-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 24px;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.view-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.view-btn:hover { color: var(--text); }
+.view-btn.active {
+  background: rgba(34,211,238,0.1);
+  color: var(--cyan);
+}
+
+/* Canvas area */
+.canvas-wrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 480px;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.control-group {
+  flex: 1;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.control-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cyan);
+  min-width: 40px;
+  text-align: right;
+}
+
+input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(34,211,238,0.4);
+}
+
+.play-btn {
+  background: rgba(34,211,238,0.1);
+  border: 1px solid rgba(34,211,238,0.3);
+  color: var(--cyan);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.play-btn:hover {
+  background: rgba(34,211,238,0.2);
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 400;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+
+.legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Explainer */
+.explainer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+
+.explainer-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.explainer p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  font-weight: 300;
+}
+
+.explainer p + p { margin-top: 10px; }
+
+.hl { font-weight: 600; }
+.hl-cyan { color: var(--cyan); }
+.hl-green { color: var(--green); }
+.hl-amber { color: var(--amber); }
+.hl-red { color: var(--red); }
+.hl-purple { color: var(--purple); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Different Surfaces, Different <span>Twist Speeds</span></h1>
+    <p>Watch how field lines on inner vs outer flux surfaces spiral at different rates — that difference is magnetic shear.</p>
+  </div>
+
+  <div class="view-toggle">
+    <button class="view-btn active" data-view="cross">Cross-section</button>
+    <button class="view-btn" data-view="unrolled">Unrolled view</button>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <div class="control-label">Magnetic Shear ŝ</div>
+      <div class="control-row">
+        <input type="range" id="shearSlider" min="0" max="4" step="0.1" value="1.5">
+        <span class="control-val" id="shearVal">1.5</span>
+      </div>
+    </div>
+    <div class="control-group">
+      <div class="control-label">Animation Speed</div>
+      <div class="control-row">
+        <input type="range" id="speedSlider" min="0.2" max="3" step="0.1" value="1">
+        <span class="control-val" id="speedVal">1.0</span>
+      </div>
+    </div>
+    <div class="control-group" style="flex:0; display:flex; align-items:flex-end;">
+      <button class="play-btn" id="playBtn">⏸ Pause</button>
+    </div>
+  </div>
+
+  <div class="legend" id="legend-cross">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,0.5)"></div> Inner surface (low q, fast twist)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,0.5)"></div> Mid surface</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f87171;box-shadow:0 0 6px rgba(248,113,113,0.5)"></div> Outer surface (high q, slow twist)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22d3ee;box-shadow:0 0 6px rgba(34,211,238,0.3)"></div> Dots = field line positions</div>
+  </div>
+
+  <div class="explainer">
+    <div class="explainer-title">What you're seeing</div>
+    <p>Each colored dot is a field line marker on a different flux surface. They all move toroidally (around the big ring of the tokamak) at the same speed — but their <span class="hl hl-cyan">poloidal rotation rate</span> differs because each surface has a different <span class="hl">q</span>.</p>
+    <p>The <span class="hl hl-green">inner surface</span> has low q ≈ 1, so its field line completes a full poloidal loop quickly. The <span class="hl hl-red">outer surface</span> has high q, so it barely moves poloidally in the same time. <span class="hl hl-cyan">Shear</span> controls how big this difference is — crank it up and watch them separate.</p>
+    <p>When ŝ = 0, all surfaces twist at the same rate (no shear). As you increase ŝ, the outer surfaces lag behind more and more — that differential twisting is what tears apart turbulent eddies.</p>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, dpr;
+let shear = 1.5;
+let speed = 1.0;
+let playing = true;
+let time = 0;
+let view = 'cross'; // 'cross' or 'unrolled'
+
+// Surfaces
+const surfaces = [
+  { color: '#4ade80', glow: 'rgba(74,222,128,', label: 'Inner', baseFrac: 0.25 },
+  { color: '#a3e635', glow: 'rgba(163,230,53,', label: '', baseFrac: 0.4 },
+  { color: '#fbbf24', glow: 'rgba(251,191,36,', label: 'Mid', baseFrac: 0.55 },
+  { color: '#fb923c', glow: 'rgba(251,146,60,', label: '', baseFrac: 0.72 },
+  { color: '#f87171', glow: 'rgba(248,113,113,', label: 'Outer', baseFrac: 0.9 },
+];
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  W = rect.width;
+  H = rect.height;
+}
+
+function getQ(frac) {
+  // q = q0 + shear * frac (simplified model)
+  return 1.0 + shear * frac;
+}
+
+function drawCrossSection() {
+  const cx = W / 2;
+  const cy = H / 2;
+  const maxR = Math.min(W, H) * 0.38;
+  const minR = 30;
+
+  // Subtle background glow
+  const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 1.3);
+  bg.addColorStop(0, 'rgba(34,211,238,0.03)');
+  bg.addColorStop(1, 'transparent');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw ghost flux surfaces
+  for (let i = 0; i < 8; i++) {
+    const f = (i + 1) / 8;
+    const r = minR + (maxR - minR) * f;
+    const shift = 12 * (1 - f);
+    const elong = 1.35;
+    ctx.beginPath();
+    ctx.ellipse(cx + shift, cy, r, r * elong, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(34,211,238,${0.04 + 0.02 * f})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // Draw field line dots on each surface
+  surfaces.forEach((s) => {
+    const frac = s.baseFrac;
+    const r = minR + (maxR - minR) * frac;
+    const shift = 12 * (1 - frac);
+    const elong = 1.35;
+    const q = getQ(frac);
+
+    // Poloidal angle advances as time / q
+    const poloidalAngle = (time / q);
+
+    // Draw trail
+    const trailLen = 40;
+    for (let t = 0; t < trailLen; t++) {
+      const age = t / trailLen;
+      const theta = poloidalAngle - age * 0.8;
+      const x = cx + shift + r * Math.cos(theta);
+      const y = cy + r * elong * Math.sin(theta);
+      const alpha = (1 - age) * 0.3;
+      const size = (1 - age) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fillStyle = s.glow + alpha + ')';
+      ctx.fill();
+    }
+
+    // Main dot
+    const theta = poloidalAngle;
+    const x = cx + shift + r * Math.cos(theta);
+    const y = cy + r * elong * Math.sin(theta);
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, 12);
+    grd.addColorStop(0, s.glow + '0.4)');
+    grd.addColorStop(1, s.glow + '0)');
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    // Dot
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = s.color;
+    ctx.fill();
+
+    // q label on the right
+    if (s.label) {
+      const lx = cx + shift + r + 18;
+      const ly = cy;
+      ctx.font = '500 11px "JetBrains Mono", monospace';
+      ctx.fillStyle = s.color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`q=${q.toFixed(1)}`, lx, ly);
+    }
+  });
+
+  // Center marker
+  ctx.fillStyle = 'rgba(34,211,238,0.3)';
+  ctx.font = '600 10px Outfit';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('AXIS', cx + 12, cy);
+}
+
+function drawUnrolled() {
+  // "Unrolled" view: x = toroidal angle, y = poloidal angle
+  // Each surface is a diagonal line with slope 1/q
+  const pad = 60;
+  const plotW = W - pad * 2;
+  const plotH = H - pad * 2;
+  const ox = pad;
+  const oy = pad;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(34,211,238,0.06)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const x = ox + (plotW / 4) * i;
+    ctx.beginPath(); ctx.moveTo(x, oy); ctx.lineTo(x, oy + plotH); ctx.stroke();
+    const y = oy + (plotH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(ox, y); ctx.lineTo(ox + plotW, y); ctx.stroke();
+  }
+
+  // Axes labels
+  ctx.font = '400 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = 'rgba(34,211,238,0.4)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Toroidal angle φ →', ox + plotW / 2, oy + plotH + 12);
+
+  ctx.save();
+  ctx.translate(ox - 16, oy + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('Poloidal angle θ →', 0, 0);
+  ctx.restore();
+
+  // π labels
+  ctx.font = '300 10px "JetBrains Mono", monospace';
+  ctx.fillStyle = 'rgba(100,116,139,0.5)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let i = 0; i <= 4; i++) {
+    const labels = ['0', 'π/2', 'π', '3π/2', '2π'];
+    ctx.fillText(labels[i], ox + (plotW / 4) * i, oy + plotH + 2);
+  }
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const labels = ['0', 'π/2', 'π', '3π/2', '2π'];
+    ctx.fillText(labels[i], ox - 4, oy + plotH - (plotH / 4) * i);
+  }
+
+  // Draw field lines as diagonal lines
+  // θ = φ / q  →  on the plot, slope = 1/q (steeper = lower q = faster twist)
+  surfaces.forEach((s) => {
+    const frac = s.baseFrac;
+    const q = getQ(frac);
+    const slope = 1 / q; // dθ/dφ
+
+    // Draw the field line wrapping
+    ctx.strokeStyle = s.glow + '0.4)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+
+    // The line goes from (0, offset) with slope, wrapping in θ
+    const offset = 0;
+    ctx.beginPath();
+    let started = false;
+    for (let px = 0; px <= plotW; px += 1) {
+      const phi = (px / plotW) * 2 * Math.PI;
+      const theta = (phi / q) % (2 * Math.PI);
+      const py = plotH - (theta / (2 * Math.PI)) * plotH;
+
+      // Detect wrapping
+      if (!started) { ctx.moveTo(ox + px, oy + py); started = true; }
+      else {
+        const prevPhi = ((px - 1) / plotW) * 2 * Math.PI;
+        const prevTheta = (prevPhi / q) % (2 * Math.PI);
+        if (Math.abs(theta - prevTheta) > Math.PI) {
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(ox + px, oy + py);
+        } else {
+          ctx.lineTo(ox + px, oy + py);
+        }
+      }
+    }
+    ctx.stroke();
+
+    // Moving dot
+    const toroidalPos = (time * 0.5) % (2 * Math.PI);
+    const poloidalPos = (toroidalPos / q) % (2 * Math.PI);
+    const dx = ox + (toroidalPos / (2 * Math.PI)) * plotW;
+    const dy = oy + plotH - (poloidalPos / (2 * Math.PI)) * plotH;
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(dx, dy, 14, 0, Math.PI * 2);
+    const grd = ctx.createRadialGradient(dx, dy, 0, dx, dy, 14);
+    grd.addColorStop(0, s.glow + '0.5)');
+    grd.addColorStop(1, s.glow + '0)');
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(dx, dy, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = s.color;
+    ctx.fill();
+
+    // Label
+    if (s.label) {
+      ctx.font = '600 11px "JetBrains Mono", monospace';
+      ctx.fillStyle = s.color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`q=${q.toFixed(1)} (${s.label})`, ox + plotW + 8, dy);
+    }
+  });
+
+  // Title in plot
+  ctx.font = '700 12px "JetBrains Mono", monospace';
+  ctx.fillStyle = 'rgba(34,211,238,0.5)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('UNROLLED FLUX SURFACE', ox, oy - 22);
+  ctx.font = '300 10px Outfit';
+  ctx.fillStyle = 'rgba(100,116,139,0.6)';
+  ctx.fillText('Steeper line = lower q = faster poloidal twist', ox, oy - 10);
+}
+
+let lastT = 0;
+function animate(ts) {
+  if (!lastT) lastT = ts;
+  const dt = (ts - lastT) / 1000;
+  lastT = ts;
+
+  if (playing) time += dt * speed * 1.2;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (view === 'cross') drawCrossSection();
+  else drawUnrolled();
+
+  requestAnimationFrame(animate);
+}
+
+// Controls
+const shearSlider = document.getElementById('shearSlider');
+const shearVal = document.getElementById('shearVal');
+const speedSlider = document.getElementById('speedSlider');
+const speedVal = document.getElementById('speedVal');
+const playBtn = document.getElementById('playBtn');
+
+shearSlider.addEventListener('input', () => {
+  shear = parseFloat(shearSlider.value);
+  shearVal.textContent = shear.toFixed(1);
+});
+
+speedSlider.addEventListener('input', () => {
+  speed = parseFloat(speedSlider.value);
+  speedVal.textContent = speed.toFixed(1);
+});
+
+playBtn.addEventListener('click', () => {
+  playing = !playing;
+  playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+});
+
+// View toggle
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    view = btn.dataset.view;
+  });
+});
+
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame(animate);
+</script>
+
+</body>
+</html>

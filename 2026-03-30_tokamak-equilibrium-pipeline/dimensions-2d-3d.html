@@ -1,0 +1,169 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dimensions 2d 3d</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function Dimensions2D3D() {
+  const [view, setView] = useState("cross");
+  const [phiSlice, setPhiSlice] = useState(0);
+  const canvasRef = useRef(null);
+
+  const W = 380, H = 400;
+  const R0 = 1.18, a = 0.42, kappa = 1.7, delta = 0.35;
+
+  function plasmaPoint(s, theta) {
+    const r = s * a;
+    const rZ = s * a * kappa;
+    const asd = Math.asin(delta);
+    const R = R0 + r * Math.cos(theta + asd * Math.sin(theta));
+    const Z = rZ * Math.sin(theta);
+    return { R, Z };
+  }
+
+  function seededRandom(seed) {
+    let s = seed;
+    return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+  }
+
+  const drawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+    if (view === "cross") drawCross(ctx);
+    else if (view === "unwrap") drawUnwrap(ctx);
+    else if (view === "turbulence") drawTurbulence(ctx);
+  }, [view, phiSlice]);
+
+  useEffect(() => { drawCanvas(); }, [drawCanvas]);
+
+  function drawCross(ctx) {
+    const cx = W / 2, cy = H / 2 + 10, sc = 150;
+    const toX = (R) => cx + (R - R0) * sc;
+    const toY = (Z) => cy - Z * sc;
+    ctx.fillStyle = "#060a0e"; ctx.fillRect(0, 0, W, H);
+    for (let si = 10; si >= 1; si--) {
+      const s = si / 10;
+      ctx.beginPath();
+      for (let t = 0; t <= 200; t++) { const theta = (2*Math.PI*t)/200; const p = plasmaPoint(s, theta); t===0?ctx.moveTo(toX(p.R),toY(p.Z)):ctx.lineTo(toX(p.R),toY(p.Z)); }
+      ctx.closePath();
+      ctx.fillStyle = `rgba(78,205,196,${0.03+(10-si)*0.008})`; ctx.fill();
+      ctx.strokeStyle = si===10?"rgba(78,205,196,0.7)":`rgba(78,205,196,${0.12+si*0.02})`; ctx.lineWidth = si===10?2:0.6; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(toX(R0),toY(0)); ctx.lineTo(toX(R0+a*0.95),toY(0)); ctx.strokeStyle="#c9b87c"; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(toX(R0+a),toY(0)); ctx.lineTo(toX(R0+a)-10,toY(0)-5); ctx.lineTo(toX(R0+a)-10,toY(0)+5); ctx.fillStyle="#c9b87c"; ctx.fill();
+    ctx.font="bold 14px monospace"; ctx.fillStyle="#c9b87c"; ctx.textAlign="center"; ctx.fillText("s",toX(R0+a*0.5),toY(0)-12);
+    ctx.font="9px monospace"; ctx.fillText("s=0",toX(R0)-2,toY(0)+16); ctx.fillText("s=1",toX(R0+a),toY(0)+16);
+    const arcS=0.6; ctx.beginPath(); ctx.strokeStyle="#c9a3f5"; ctx.lineWidth=3;
+    for(let t=0;t<=55;t++){const theta=(2*Math.PI*t)/80;const p=plasmaPoint(arcS,theta);t===0?ctx.moveTo(toX(p.R),toY(p.Z)):ctx.lineTo(toX(p.R),toY(p.Z));}ctx.stroke();
+    const endP=plasmaPoint(arcS,(2*Math.PI*55)/80); ctx.beginPath(); ctx.arc(toX(endP.R),toY(endP.Z),5,0,Math.PI*2); ctx.fillStyle="#c9a3f5"; ctx.fill();
+    ctx.font="bold 14px monospace"; ctx.fillStyle="#c9a3f5"; ctx.fillText("θ",toX(R0+arcS*a*0.35),toY(arcS*a*kappa*0.75)-8);
+    ctx.font="9px monospace"; const p0=plasmaPoint(arcS,0); ctx.fillText("θ=0",toX(p0.R)+12,toY(p0.Z)+4);
+    ctx.beginPath(); ctx.arc(toX(R0),toY(0),5,0,Math.PI*2); ctx.strokeStyle="#ff6b6b"; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(toX(R0),toY(0),2,0,Math.PI*2); ctx.fillStyle="#ff6b6b"; ctx.fill();
+    ctx.beginPath(); ctx.arc(35,35,14,0,Math.PI*2); ctx.strokeStyle="#8ab4f8"; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(35,35,3,0,Math.PI*2); ctx.fillStyle="#8ab4f8"; ctx.fill();
+    ctx.font="bold 11px monospace"; ctx.fillStyle="#8ab4f8"; ctx.textAlign="left"; ctx.fillText("ϕ  into screen",55,33);
+    ctx.font="9px monospace"; ctx.fillStyle="#5c6a7a"; ctx.fillText("(around donut)",55,45);
+    ctx.textAlign="center"; ctx.fillText("This 2D slice is the same at every ϕ — axisymmetric",W/2,H-8);
+  }
+
+  function drawUnwrap(ctx) {
+    ctx.fillStyle="#060a0e"; ctx.fillRect(0,0,W,H);
+    const lx=60,ly=95,lr=50;
+    for(let si=2;si<=10;si+=2){const s=si/10;ctx.beginPath();for(let t=0;t<=100;t++){const theta=(2*Math.PI*t)/100;const p=plasmaPoint(s,theta);const x=lx+(p.R-R0)*lr/a;const y=ly-p.Z*lr/(a*kappa);t===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.closePath();ctx.strokeStyle=si===6?"#4ecdc4":"rgba(78,205,196,0.15)";ctx.lineWidth=si===6?2.5:0.5;ctx.stroke();}
+    ctx.font="bold 9px monospace"; ctx.fillStyle="#4ecdc4"; ctx.textAlign="center"; ctx.fillText("s=0.6 surface",lx,ly+lr+18); ctx.fillText("on the donut",lx,ly+lr+30);
+    const markerS=0.6;
+    const thetaLabels=[{theta:0,label:"θ=0"},{theta:Math.PI/2,label:"π/2"},{theta:Math.PI,label:"π"},{theta:3*Math.PI/2,label:"3π/2"}];
+    thetaLabels.forEach(({theta,label})=>{const p=plasmaPoint(markerS,theta);const x=lx+(p.R-R0)*lr/a;const y=ly-p.Z*lr/(a*kappa);ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fillStyle="#c9a3f5";ctx.fill();ctx.font="8px monospace";ctx.fillStyle="#c9a3f5";ctx.textAlign=theta===Math.PI?"right":"left";const ox=theta===Math.PI?-8:theta===0?8:0;const oy=theta===Math.PI/2?-8:theta===3*Math.PI/2?12:4;ctx.fillText(label,x+ox,y+oy);});
+    ctx.beginPath();ctx.moveTo(120,90);ctx.lineTo(155,90);ctx.strokeStyle="#5c6a7a";ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(160,90);ctx.lineTo(152,85);ctx.lineTo(152,95);ctx.fillStyle="#5c6a7a";ctx.fill();
+    ctx.font="8px monospace";ctx.fillStyle="#5c6a7a";ctx.textAlign="center";ctx.fillText("unwrap",140,78);
+    const rx=170,ry=30,rw=195,rh=160;
+    ctx.fillStyle="#080c12";ctx.fillRect(rx,ry,rw,rh);ctx.strokeStyle="#1e2630";ctx.lineWidth=1;ctx.strokeRect(rx,ry,rw,rh);
+    ctx.strokeStyle="rgba(78,205,196,0.07)";ctx.lineWidth=0.5;
+    for(let i=1;i<8;i++){const x=rx+(i/8)*rw;ctx.beginPath();ctx.moveTo(x,ry);ctx.lineTo(x,ry+rh);ctx.stroke();}
+    for(let i=1;i<6;i++){const y=ry+(i/6)*rh;ctx.beginPath();ctx.moveTo(rx,y);ctx.lineTo(rx+rw,y);ctx.stroke();}
+    const q=2;
+    for(let k=-2;k<=3;k++){ctx.beginPath();ctx.strokeStyle=k===1?"#4ecdc4":"rgba(230,236,242,0.15)";ctx.lineWidth=k===1?2.5:1;const y0=ry+(k/q)*rh;const y1=y0+rh/q;ctx.moveTo(rx,y0);ctx.lineTo(rx+rw,y1);ctx.stroke();}
+    thetaLabels.forEach(({theta})=>{const y=ry+(theta/(2*Math.PI))*rh;ctx.beginPath();ctx.arc(rx-1,y,4,0,Math.PI*2);ctx.fillStyle="#c9a3f5";ctx.fill();const pDot=plasmaPoint(markerS,theta);const srcX=lx+(pDot.R-R0)*lr/a;const srcY=ly-pDot.Z*lr/(a*kappa);ctx.beginPath();ctx.setLineDash([2,3]);ctx.moveTo(srcX+6,srcY);ctx.lineTo(rx-6,y);ctx.strokeStyle="rgba(201,163,245,0.25)";ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);});
+    ctx.font="bold 10px monospace";ctx.fillStyle="#8ab4f8";ctx.textAlign="center";ctx.fillText("ϕ (toroidal — around donut) →",rx+rw/2,ry-10);
+    ctx.fillStyle="#c9a3f5";ctx.save();ctx.translate(rx-18,ry+rh/2);ctx.rotate(-Math.PI/2);ctx.fillText("θ (poloidal) →",0,0);ctx.restore();
+    ctx.font="8px monospace";ctx.fillStyle="#c9a3f5";ctx.textAlign="left";ctx.fillText("θ=0",rx+rw+4,ry+4);ctx.fillText("θ=π",rx+rw+4,ry+rh/2+4);ctx.fillText("θ=2π",rx+rw+4,ry+rh+4);
+    ctx.fillStyle="#8ab4f8";ctx.textAlign="center";ctx.fillText("ϕ=0",rx,ry+rh+14);ctx.fillText("ϕ=2π",rx+rw,ry+rh+14);
+    ctx.font="bold 9px monospace";ctx.fillStyle="#4ecdc4";ctx.textAlign="left";ctx.fillText("field line",rx+rw*0.55,ry+rh*0.3);ctx.font="8px monospace";ctx.fillText("slope = 1/q = 1/2",rx+rw*0.55,ry+rh*0.3+13);ctx.fillText("(2 toroidal loops per",rx+rw*0.55,ry+rh*0.3+25);ctx.fillText(" 1 poloidal loop)",rx+rw*0.55,ry+rh*0.3+37);
+    ctx.font="8px monospace";ctx.fillStyle="#ff6b6b";ctx.textAlign="center";ctx.fillText("OUTBOARD",rx+rw/2,ry+12);ctx.fillStyle="#4ecdc4";ctx.fillText("INBOARD",rx+rw/2,ry+rh/2+4);ctx.fillStyle="#ff6b6b";ctx.fillText("OUTBOARD",rx+rw/2,ry+rh-4);
+    ctx.font="9px monospace";ctx.fillStyle="#c9b87c";ctx.textAlign="center";ctx.fillText("s (radial) goes INTO the screen",W/2,215);
+    ctx.fillStyle="#5c6a7a";ctx.fillText("Same surface, two views. Dotted lines connect matching θ positions.",W/2,H-42);ctx.fillText("θ=0 (top) and θ=2π (bottom) = same point: outboard midplane.",W/2,H-29);ctx.fillText("GENE simulates a thin strip following the highlighted field line.",W/2,H-16);
+  }
+
+  function drawTurbulence(ctx) {
+    ctx.fillStyle="#060a0e";ctx.fillRect(0,0,W,H);
+    const cx=W/2,cy=H/2+15,sc=135;
+    const toX=(R)=>cx+(R-R0)*sc;const toY=(Z)=>cy-Z*sc;
+    for(let si=2;si<=10;si+=2){const s=si/10;ctx.beginPath();for(let t=0;t<=200;t++){const theta=(2*Math.PI*t)/200;const p=plasmaPoint(s,theta);t===0?ctx.moveTo(toX(p.R),toY(p.Z)):ctx.lineTo(toX(p.R),toY(p.Z));}ctx.closePath();ctx.strokeStyle=`rgba(78,205,196,${si===10?0.3:0.08})`;ctx.lineWidth=si===10?1.5:0.5;ctx.stroke();}
+    const rand=seededRandom(42+phiSlice*137);
+    for(let i=0;i<80;i++){const s=0.25+rand()*0.65;const theta=rand()*Math.PI*2;const p=plasmaPoint(s,theta);const isOutboard=p.R>R0;const outboardness=Math.max(0,(p.R-R0)/a);if(!isOutboard&&rand()>0.25)continue;const baseSize=isOutboard?5+outboardness*14:2+rand()*3;const elongation=1.8+rand()*1.5;const tangentAngle=theta+Math.PI/2+0.3*Math.sin(theta);let r=0,g=0,b=0;if(isOutboard){if(rand()>0.5){r=255;g=107;b=107;}else{r=255;g=159;b=67;}}else{r=138;g=180;b=248;}const alpha=isOutboard?0.12+outboardness*0.18:0.05;
+    ctx.save();ctx.translate(toX(p.R),toY(p.Z));ctx.rotate(-tangentAngle);ctx.beginPath();ctx.ellipse(0,0,baseSize*elongation,baseSize,0,0,Math.PI*2);ctx.fillStyle=`rgba(${r},${g},${b},${alpha})`;ctx.fill();ctx.strokeStyle=`rgba(${r},${g},${b},${alpha+0.08})`;ctx.lineWidth=0.8;ctx.stroke();ctx.restore();}
+    ctx.font="bold 10px monospace";ctx.fillStyle="#ff6b6b";ctx.textAlign="left";ctx.fillText("Strong turbulence",toX(R0+0.3),toY(0.55));ctx.font="9px monospace";ctx.fillText("(outboard — bad κ)",toX(R0+0.3),toY(0.55)+13);ctx.fillText("elongated along B",toX(R0+0.3),toY(0.55)+25);
+    ctx.font="bold 10px monospace";ctx.fillStyle="#8ab4f8";ctx.textAlign="right";ctx.fillText("Weak turbulence",toX(R0-0.25),toY(0.15));ctx.font="9px monospace";ctx.fillText("(inboard — good κ)",toX(R0-0.25),toY(0.15)+13);
+    ctx.font="bold 10px monospace";ctx.fillStyle="#8ab4f8";ctx.textAlign="center";ctx.fillText(`ϕ slice ${phiSlice+1} of 8`,W/2,18);ctx.font="9px monospace";ctx.fillStyle="#5c6a7a";ctx.fillText("Drag slider — eddies change, flux surfaces don't",W/2,32);
+    ctx.fillText("Background = same at every ϕ  |  Eddies = different → 3D",W/2,H-8);
+  }
+
+  return (
+    <div style={{fontFamily:"'IBM Plex Mono',monospace",background:"#0a0e14",color:"#c5cdd9",minHeight:"100vh",padding:"20px",boxSizing:"border-box"}}>
+      <div style={{maxWidth:750,margin:"0 auto"}}>
+        <h1 style={{fontSize:16,color:"#e6ecf2",margin:"0 0 4px"}}>2D EQUILIBRIUM → 3D TURBULENCE</h1>
+        <p style={{fontSize:10,color:"#5c6a7a",margin:"0 0 16px",letterSpacing:1}}>THE EQUILIBRIUM IS ONE SLICE — THE TURBULENCE VARIES AROUND THE DONUT</p>
+        <div style={{display:"flex",gap:4,marginBottom:12}}>
+          {[{id:"cross",label:"1. Cross-section",sub:"s, θ, ϕ coordinates"},{id:"unwrap",label:"2. Unwrap surface",sub:"Donut → flat rectangle"},{id:"turbulence",label:"3. Turbulence",sub:"3D eddies — drag ϕ slider"}].map(v=>(
+            <button key={v.id} onClick={()=>setView(v.id)} style={{flex:1,padding:"8px 6px",textAlign:"center",background:view===v.id?"#1a2a3a":"#12171f",border:`1px solid ${view===v.id?"#4ecdc4":"#1e2630"}`,borderRadius:4,cursor:"pointer",fontFamily:"inherit"}}>
+              <div style={{fontSize:10,color:view===v.id?"#4ecdc4":"#5c6a7a",fontWeight:700}}>{v.label}</div>
+              <div style={{fontSize:8,color:"#3a4a5a"}}>{v.sub}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          <div style={{background:"#0d1117",borderRadius:6,border:"1px solid #1e2630",padding:6,flexShrink:0}}>
+            <canvas ref={canvasRef} width={W} height={H} style={{width:W,height:H,display:"block"}}/>
+            {view==="turbulence"&&(<div style={{padding:"8px 4px 0"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#8ab4f8",marginBottom:2}}><span>ϕ = 0</span><span>ϕ = 2π</span></div><input type="range" min={0} max={7} value={phiSlice} onChange={e=>setPhiSlice(Number(e.target.value))} style={{width:"100%",accentColor:"#8ab4f8"}}/></div>)}
+          </div>
+          <div style={{flex:1,minWidth:220}}>
+            <div style={{padding:14,background:"#12171f",borderRadius:6,border:"1px solid #1e2630",marginBottom:10}}>
+              {view==="cross"&&(<div style={{fontSize:11,color:"#8a95a5",lineHeight:1.9}}><div style={{fontSize:13,fontWeight:700,color:"#4ecdc4",marginBottom:6}}>The coordinates</div><span style={{color:"#c9b87c",fontWeight:700}}>s</span> — which surface (0=center, 1=edge)<br/><br/><span style={{color:"#c9a3f5",fontWeight:700}}>θ</span> — angle around the surface (poloidal)<br/><br/><span style={{color:"#8ab4f8",fontWeight:700}}>ϕ</span> — angle around the donut (toroidal, into screen)<br/><br/>The equilibrium only uses s and θ. Every ϕ slice is identical.</div>)}
+              {view==="unwrap"&&(<div style={{fontSize:11,color:"#8a95a5",lineHeight:1.9}}><div style={{fontSize:13,fontWeight:700,color:"#4ecdc4",marginBottom:6}}>Unwrapping the surface</div>Left: s=0.6 surface on the donut with θ markers.<br/><br/>Right: same surface peeled flat. Dotted lines connect matching points. Top and bottom of the rectangle are the same physical point (outboard midplane, θ=0=2π).<br/><br/>Field lines become diagonals with slope 1/q. At q=2, a field line goes around the donut twice per poloidal loop.<br/><br/>"OUTBOARD" at top/bottom is where turbulence is strongest. "INBOARD" in the middle is where it's weakest.</div>)}
+              {view==="turbulence"&&(<div style={{fontSize:11,color:"#8a95a5",lineHeight:1.9}}><div style={{fontSize:13,fontWeight:700,color:"#4ecdc4",marginBottom:6}}>3D turbulence</div><span style={{color:"#8ab4f8",fontWeight:700}}>Drag the ϕ slider.</span> Flux surfaces stay fixed. Eddies change completely.<br/><br/>Eddies are <span style={{color:"#ff6b6b"}}>elongated along field lines</span> — a real physical feature called "ballooning."<br/><br/>Outboard (right): large intense eddies. Bad curvature drives them.<br/><br/>Inboard (left): small faint eddies. Good curvature suppresses.<br/><br/>The <span style={{color:"#c9a3f5"}}>collision operator</span> (your quantum target) determines how fast eddies dissipate at each point.</div>)}
+            </div>
+            <div style={{padding:12,background:"#12171f",borderRadius:6,border:"1px solid #1e2630"}}>
+              <div style={{fontSize:9,color:"#4ecdc4",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Dimensions through the pipeline</div>
+              {[{code:"EFIT/CHEASE",dims:"2D (s, θ)",note:"Same at every ϕ",color:"#4ecdc4"},{code:"Geometry file",dims:"2D (s, θ)",note:"Jacobian, curvature, shear",color:"#c9b87c"},{code:"GENE",dims:"5D",note:"(s, θ, ϕ) × (v∥, μ)",color:"#ff6b6b"},{code:"Collision op",dims:"2D velocity",note:"(v∥, μ) at each point",color:"#c9a3f5"}].map((item,i)=>(
+                <div key={i} style={{padding:"4px 8px",marginBottom:2,borderLeft:`3px solid ${item.color}`,fontSize:9}}>
+                  <span style={{color:item.color,fontWeight:700}}>{item.code}</span>
+                  <span style={{color:"#e6ecf2",marginLeft:8}}>{item.dims}</span>
+                  <span style={{color:"#3a4a5a",marginLeft:8}}>{item.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Dimensions2D3D));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vlasov-Poisson · Zero to Hero</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121a2b; --panel2:#0e1524;
+    --ink:#e7ecf6; --mut:#93a0b8; --faint:#5d6b85;
+    --cool:#2fe0c6; --warm:#ff9a62; --field:#9b8cff;
+    --line:rgba(231,236,246,.10); --line2:rgba(231,236,246,.06);
+    --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --serif:"Charter","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --measure:66ch;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;color:var(--ink);font-family:var(--serif);line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1200px 700px at 82% -12%, rgba(155,140,255,.10), transparent 60%),
+      radial-gradient(1000px 600px at -6% 28%, rgba(47,224,198,.07), transparent 55%),
+      var(--bg);}
+  ::selection{background:rgba(155,140,255,.35)}
+  a{color:var(--field);text-underline-offset:3px}
+  #rail{position:fixed;left:max(14px,2vw);top:0;bottom:0;width:2px;background:var(--line2);z-index:40}
+  #railfill{position:absolute;top:0;left:0;width:100%;height:0;
+    background:linear-gradient(var(--cool),var(--field),var(--warm))}
+  @media(max-width:880px){#rail{display:none}}
+  main{max-width:980px;margin:0 auto;padding:0 24px 7rem}
+  section{padding:5rem 0 1rem;border-top:1px solid var(--line2)}
+  section:first-of-type{border-top:none}
+  .prose{max-width:var(--measure)}
+  p{margin:0 0 1.05rem}
+  .lede{font-size:1.16rem;color:#cfd8ea}
+  .small{font-size:.9rem;color:var(--mut)}
+  h1,h2,h3,h4,.eyebrow,.tag,.ctrl label,.read,code,.btn,.step .num,figcaption,.legend,.herometa{font-family:var(--mono)}
+  .eyebrow{font-size:.72rem;letter-spacing:.32em;text-transform:uppercase;color:var(--faint);
+    margin:0 0 1.1rem;display:flex;align-items:center;gap:.8rem}
+  .eyebrow .n{color:var(--cool)} .eyebrow .bar{flex:1;height:1px;background:var(--line)}
+  h1{font-weight:600;font-size:clamp(2.4rem,7vw,4.8rem);line-height:.98;letter-spacing:-.03em;margin:.2rem 0 .7rem}
+  h1 .arrow{color:var(--faint);font-weight:400}
+  h2{font-weight:600;font-size:clamp(1.5rem,3.4vw,2.1rem);letter-spacing:-.02em;margin:.1rem 0 1.1rem;line-height:1.1}
+  h3{font-weight:600;font-size:1.02rem;color:#dde4f2;margin:1.9rem 0 .6rem}
+  em{color:#dfe6f4;font-style:italic} strong{color:#fff;font-weight:600}
+  #hero{padding-top:clamp(3rem,9vh,6rem);border:none}
+  .herometa{display:flex;flex-wrap:wrap;gap:1.3rem;font-size:.76rem;color:var(--mut);margin-top:.6rem}
+  .herometa b{color:var(--ink);font-weight:500}
+  .eq{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:12px;padding:1rem 1.15rem;margin:1.3rem 0;font-size:1.1rem;text-align:center;
+    overflow-x:auto;color:#eef2fb}
+  .eq i{font-style:italic;color:#fff} .eq .op{color:var(--mut);padding:0 .12em}
+  .eq.box{border-color:rgba(155,140,255,.5);box-shadow:0 0 0 1px rgba(155,140,255,.12) inset}
+  .sqrt{border-top:1px solid currentColor;padding:0 .1em}
+  .term{border-radius:5px;padding:.04em .22em;white-space:nowrap}
+  .t-stream{background:rgba(47,224,198,.16);color:#bff3ea}
+  .t-field{background:rgba(155,140,255,.20);color:#d8d0ff}
+  .t-coll{background:rgba(255,154,98,.16);color:#ffd5bd}
+  figure{margin:1.6rem 0}
+  .fig{border:1px solid var(--line);border-radius:14px;background:var(--panel2);overflow:hidden}
+  .fig canvas{display:block;width:100%}
+  figcaption,.legend{font-size:.74rem;color:var(--mut);padding:.7rem .9rem;border-top:1px solid var(--line2);line-height:1.5}
+  figcaption b{color:var(--ink);font-weight:500}
+  .legend{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:.4em}
+  .btn{font-size:.76rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:.5rem .8rem;cursor:pointer;transition:border-color .15s,background .15s}
+  .btn:hover{border-color:var(--field);background:#172033}
+  .btn.primary{border-color:rgba(155,140,255,.55);color:#e9e5ff}
+  .btn:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.8rem .9rem;border-top:1px solid var(--line2)}
+  .ctrls{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem 1.3rem;
+    padding:1.1rem;border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-bottom:1rem}
+  .ctrl{display:flex;flex-direction:column;gap:.35rem}
+  .ctrl label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
+    display:flex;justify-content:space-between}
+  .ctrl label b{color:var(--cool);font-weight:500}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border-radius:3px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--field);cursor:pointer;border:2px solid #0b0f17}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--field);
+    cursor:pointer;border:2px solid #0b0f17}
+  .solver{display:grid;grid-template-columns:1.25fr 1fr;gap:1rem}
+  .solver .phase{grid-column:1/3}
+  @media(max-width:760px){.solver{grid-template-columns:1fr}.solver .phase{grid-column:1}}
+  .read{font-size:.78rem;color:var(--mut);display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;margin:.9rem 0 0}
+  .read b{color:var(--ink);font-weight:500} .read .hi{color:var(--warm)} .read .ok{color:var(--cool)}
+  .recipe{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin:1.4rem 0}
+  .step{border:1px solid var(--line);border-radius:12px;padding:1rem;background:var(--panel2)}
+  .step .num{font-size:.7rem;color:var(--faint);letter-spacing:.2em}
+  .step h4{font-size:.9rem;margin:.4rem 0 .5rem;color:#fff;font-weight:600}
+  .step p{font-size:.88rem;color:var(--mut);margin:0;font-family:var(--serif)}
+  .step .ax{display:inline-block;font-size:.72rem;color:var(--cool);border:1px solid var(--line);
+    border-radius:5px;padding:.05em .4em;margin-top:.6rem}
+  @media(max-width:680px){.recipe{grid-template-columns:1fr}}
+  ul.check{list-style:none;padding:0;margin:1.2rem 0;max-width:var(--measure)}
+  ul.check li{padding:.7rem 0 .7rem 2.1rem;border-bottom:1px solid var(--line2);position:relative}
+  ul.check li::before{content:attr(data-n);position:absolute;left:0;top:.72rem;font-family:var(--mono);
+    font-size:.72rem;color:var(--cool)}
+  ul.check b{font-family:var(--mono);font-weight:500;font-size:.9rem;color:#fff}
+  .tag{display:inline-block;font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--field);
+    border:1px solid rgba(155,140,255,.4);border-radius:20px;padding:.12em .6em;margin-left:.4em;vertical-align:middle}
+  .note{border-left:2px solid var(--warm);padding:.2rem 0 .2rem 1.1rem;margin:1.4rem 0;color:var(--mut);font-size:.95rem}
+  .note b{color:var(--warm)}
+  code{font-size:.85em;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:5px;
+    padding:.05em .35em;color:#d8e0f0}
+  footer{max-width:980px;margin:0 auto;padding:3rem 24px 4rem;border-top:1px solid var(--line2);
+    font-family:var(--mono);font-size:.76rem;color:var(--faint);line-height:1.75}
+  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div id="rail"><div id="railfill"></div></div>
+<main>
+
+  <section id="hero">
+    <p class="eyebrow"><span class="n">1D1V</span> · Vlasov-Poisson · Fourier-Hermite<span class="bar"></span><span>zero to hero</span></p>
+    <h1>A plasma that is<br>all distribution,<br>no particles. <span class="arrow">&#8594;</span></h1>
+    <div class="prose"><p class="lede">You're about to build a kinetic plasma solver in one space and one velocity dimension &mdash; and watch it reproduce <em>Landau damping</em>: a wave that fades with no collisions, no friction, nothing obvious to dissipate it. The visualizer below runs the real method live. The companion notebook is where you build it.</p></div>
+    <div class="fig"><canvas id="heroCanvas" height="280"></canvas>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--warm)"></span>surplus electrons &nbsp;&delta;f &gt; 0</span>
+        <span><span class="swatch" style="background:var(--cool)"></span>deficit &nbsp;&delta;f &lt; 0</span>
+        <span>x &#8594; position &nbsp;&middot;&nbsp; y &#8594; velocity &nbsp;&middot;&nbsp; watch the smooth tilt shear into filaments</span>
+      </div></div>
+    <div class="herometa">
+      <span><b>state:</b> f(x, v, t)</span><span><b>space:</b> Fourier</span>
+      <span><b>velocity:</b> Hermite</span><span><b>time:</b> RK4</span>
+      <span><b>target:</b> &gamma; &#8776; &minus;0.153, &omega;<sub>r</sub> &#8776; 1.416 @ k=0.5</span>
+    </div>
+  </section>
+
+  <section id="s00">
+    <p class="eyebrow"><span class="n">00</span> the object<span class="bar"></span></p>
+    <h2>Forget particles. Track a density in phase space.</h2>
+    <div class="prose">
+      <p>A plasma has far too many particles to follow individually. So we describe it with one field, the <strong>distribution function</strong> <i>f(x,&nbsp;v,&nbsp;t)</i>: roughly, how many electrons sit near position <i>x</i> with velocity near <i>v</i> at time <i>t</i>. Its home is the two-dimensional <em>phase space</em> of position and velocity.</p>
+      <p>In the panel above, warm regions hold more electrons than the smooth thermal background <i>f<sub>0</sub>(v)</i> and cool regions hold fewer. Everything reduces to evolving this field forward in time. Two effects move it; a third closes the loop.</p>
+    </div>
+    <div class="eq"><i>f</i><span class="op">(</span><i>x,v,t</i><span class="op">)</span><span class="op">=</span><i>f</i><sub>0</sub><span class="op">(</span><i>v</i><span class="op">)</span><span class="op">+</span><span class="term t-coll">&delta;<i>f</i></span><span class="op">,</span>&nbsp;&nbsp;<i>f</i><sub>0</sub><span class="op">=</span><i>e</i><sup>&minus;<i>v</i>&sup2;/2</sup><span class="op">/</span><span class="sqrt">2&pi;</span></div>
+  </section>
+
+  <section id="s01">
+    <p class="eyebrow"><span class="n">01</span> the two motions<span class="bar"></span></p>
+    <h2>Streaming shears it. The field bends it.</h2>
+    <div class="prose"><p>The Vlasov equation says <i>f</i> is conserved as it rides along particle trajectories. Written out, it carries two transport terms plus the field:</p></div>
+    <div class="eq">&part;<i>f</i>/&part;<i>t</i><span class="op">+</span><span class="term t-stream"><i>v</i>&nbsp;&part;<i>f</i>/&part;<i>x</i></span><span class="op">&minus;</span><span class="term t-field"><i>E</i>&nbsp;&part;<i>f</i>/&part;<i>v</i></span><span class="op">=</span>0</div>
+    <div class="prose">
+      <p><strong style="color:#9beee0">Free streaming</strong> (<i>v&nbsp;&part;f/&part;x</i>): each velocity slice drifts at its own speed, so fast electrons outrun slow ones and any smooth bump gets <em>sheared</em> into an ever-thinner diagonal streak. This is the engine that manufactures fine velocity structure &mdash; the whole reason the velocity method will need many modes.</p>
+      <p><strong style="color:#cabfff">Acceleration</strong> (<i>&minus;E&nbsp;&part;f/&part;v</i>): the electric field pushes electrons up or down in velocity. Below, turn the field on and watch a column of test particles shear under streaming, then get bent and trapped once the field acts.</p>
+    </div>
+    <div class="fig"><canvas id="streamCanvas" height="300"></canvas>
+      <div class="toolbar">
+        <button class="btn" id="streamField">Turn field on</button>
+        <button class="btn" id="streamReset">Reset column</button>
+        <span class="small" id="streamMode" style="margin-left:.4rem">mode: free streaming</span>
+      </div></div>
+  </section>
+
+  <section id="s02">
+    <p class="eyebrow"><span class="n">02</span> the surprise<span class="bar"></span></p>
+    <h2>Landau damping: a wave dies without collisions.</h2>
+    <div class="prose"><p>Close the loop with <strong>Poisson's equation</strong> &mdash; the charge imbalance generates the field that then accelerates the electrons:</p></div>
+    <div class="eq">&part;<i>E</i>/&part;<i>x</i><span class="op">=</span>1<span class="op">&minus;</span><span style="font-size:1.2em">&int;</span><i>f</i>&nbsp;<i>dv</i></div>
+    <div class="prose">
+      <p>Now give the plasma a small density ripple. It launches a wave. In 1946 Landau predicted, against intuition, that the wave decays <em>even though the system is perfectly reversible and lossless</em>. The energy isn't destroyed &mdash; it's handed to electrons moving near the wave's phase velocity <i>v &#8776; &omega;/k</i>, the ones that "surf" it. Below: a traveling wave fading at the Landau rate, with resonant surfers gaining energy.</p>
+    </div>
+    <div class="fig"><canvas id="landauCanvas" height="240"></canvas>
+      <figcaption><b>k = 0.5:</b> the field amplitude falls like <i>e<sup>&gamma;t</sup></i> with &gamma; &#8776; &minus;0.153 while oscillating at &omega;<sub>r</sub> &#8776; 1.416. Dots near the phase velocity (dashed line) are the resonant electrons absorbing the wave's energy.</figcaption>
+    </div>
+  </section>
+
+  <section id="s03">
+    <p class="eyebrow"><span class="n">03</span> why hermite<span class="bar"></span></p>
+    <h2>Expand velocity in a ladder of moments.</h2>
+    <div class="prose">
+      <p>Instead of a grid in velocity, expand the <i>v</i>-dependence in <strong>Hermite functions</strong> <i>&Psi;<sub>n</sub>(v)</i> &mdash; a Maxwellian times Hermite polynomials. The coefficients <i>C<sub>n</sub>(x,t)</i> are physical moments: <i>C<sub>0</sub></i> is density, <i>C<sub>1</sub></i> is momentum, <i>C<sub>2</sub></i> is energy/pressure, and higher ones encode finer velocity shape.</p>
+    </div>
+    <div class="eq"><i>f</i><span class="op">(</span><i>x,v,t</i><span class="op">)</span><span class="op">=</span><span style="font-size:1.15em">&sum;</span><sub style="font-size:.7em">n</sub>&nbsp;<i>C<sub>n</sub></i><span class="op">(</span><i>x,t</i><span class="op">)</span>&nbsp;<i>&Psi;<sub>n</sub></i><span class="op">(</span><i>v</i><span class="op">)</span></div>
+    <div class="fig"><canvas id="basisCanvas" height="220"></canvas>
+      <figcaption>The first Hermite functions <b>&Psi;<sub>0</sub>&hellip;&Psi;<sub>4</sub></b>. Each adds one more wiggle in velocity &mdash; so resolving a sharply filamented <i>f</i> takes <em>many</em> of them.</figcaption>
+    </div>
+    <div class="prose">
+      <p>The payoff: substitute the expansion into Vlasov and the velocity derivatives collapse into a <strong>three-term recurrence</strong>. Every moment couples only to its immediate neighbors:</p>
+    </div>
+    <div class="eq box">&part;<i>C<sub>m</sub></i>/&part;<i>t</i><span class="op">=</span><span class="term t-stream">&minus;<span class="sqrt"><i>m</i></span>&nbsp;&part;<sub style="font-size:.7em">x</sub><i>C</i><sub>m&minus;1</sub></span> <span class="term t-stream">&minus;<span class="sqrt"><i>m</i>+1</span>&nbsp;&part;<sub style="font-size:.7em">x</sub><i>C</i><sub>m+1</sub></span> <span class="term t-field">&minus;<span class="sqrt"><i>m</i></span>&nbsp;<i>E&nbsp;C</i><sub>m&minus;1</sub></span> <span class="term t-coll">&minus;<i>&nu;&nbsp;m&nbsp;C<sub>m</sub></i></span></div>
+    <div class="prose">
+      <p>The <span style="color:#9beee0">teal</span> streaming terms move information up and down the ladder; the <span style="color:#cabfff">violet</span> field term injects the self-consistent force at <i>m=1</i>; the <span style="color:#ffd5bd">amber</span> term is optional collisions, which in Hermite space simply damp mode <i>m</i> at rate <i>&nu;m</i>. That's the entire physics, now in a form a computer loves.</p>
+    </div>
+  </section>
+
+  <section id="s04">
+    <p class="eyebrow"><span class="n">04</span> the recipe<span class="bar"></span></p>
+    <h2>One spectral method per axis.</h2>
+    <div class="recipe">
+      <div class="step"><div class="num">SPACE</div><h4>Fourier in x</h4><p>Periodic box, single ripple. Derivatives become multiply-by-<i>ik</i>; Poisson becomes <i>E&#770; = iC&#770;<sub>0</sub>/k</i>. Use <code>np.fft</code>.</p><span class="ax">&part;x &#8594; ik</span></div>
+      <div class="step"><div class="num">VELOCITY</div><h4>Hermite in v</h4><p>Track moments <i>C<sub>n</sub>(x)</i>, not a velocity grid. The recurrence gives the right-hand side directly &mdash; no integrals over <i>v</i>.</p><span class="ax">f &#8594; {Cn}</span></div>
+      <div class="step"><div class="num">TIME</div><h4>RK4 in t</h4><p>Four RHS samples per step. Mind the CFL: <i>dt &lt; 2.8 / (k<sub>max</sub>&radic;2N)</i>, since the ladder advects at speeds up to &radic;2N.</p><span class="ax">4th order</span></div>
+    </div>
+    <div class="prose"><p class="small">That CFL line is the single most common way this solver blows up. The streaming ladder behaves like advection with a maximum speed that grows with the number of Hermite modes, so adding modes <em>tightens</em> the timestep.</p></div>
+  </section>
+
+  <section id="s05">
+    <p class="eyebrow"><span class="n">05</span> the solver, live<span class="bar"></span>real Fourier-Hermite, in your browser</p>
+    <h2>Run it. Damp a wave. Read off &gamma;.</h2>
+    <div class="prose"><p>This is the actual linearized single-mode Fourier-Hermite system integrated with RK4 &mdash; the same equations as the boxed recurrence above. Drive the ripple, watch the <strong>field-energy trace</strong> decay along the theory line, see the <strong>Hermite spectrum</strong> climb the ladder, and watch <strong>phase space</strong> filament. Then make it recur.</p></div>
+    <div class="ctrls">
+      <div class="ctrl"><label>wavenumber k <b id="kVal">0.50</b></label><input type="range" id="kSlider" min="0.30" max="1.20" step="0.05" value="0.50"></div>
+      <div class="ctrl"><label>hermite modes N <b id="nVal">80</b></label><input type="range" id="nSlider" min="16" max="120" step="4" value="80"></div>
+      <div class="ctrl"><label>collisions &nu; <b id="nuVal">0.00</b></label><input type="range" id="nuSlider" min="0" max="1.0" step="0.02" value="0"></div>
+      <div class="ctrl"><label>speed <b id="spVal">2x</b></label><input type="range" id="spSlider" min="1" max="8" step="1" value="2"></div>
+    </div>
+    <div class="toolbar" style="border:1px solid var(--line);border-radius:10px;background:var(--panel2);margin-bottom:1rem">
+      <button class="btn primary" id="run">Pause</button>
+      <button class="btn" id="reset">Reset</button>
+      <button class="btn" id="preset05">Benchmark · k=0.5</button>
+      <button class="btn" id="presetRec">Force recurrence · N=24</button>
+      <button class="btn" id="presetColl">Add collisions · &nu;=0.4</button>
+    </div>
+    <div class="solver">
+      <figure class="fig scope" style="margin:0"><canvas id="scopeCanvas" height="260"></canvas>
+        <figcaption><b>field energy</b> log<sub>10</sub> W<sub>E</sub>(t). Dashed = exact Landau slope 2&gamma; from the dispersion relation.</figcaption></figure>
+      <figure class="fig ladder" style="margin:0"><canvas id="ladderCanvas" height="260"></canvas>
+        <figcaption><b>Hermite spectrum</b> |C<sub>n</sub>|. Energy climbs toward high n as filaments sharpen.</figcaption></figure>
+      <figure class="fig phase" style="margin:0"><canvas id="phaseCanvas" height="240"></canvas>
+        <figcaption><b>phase space</b> &delta;f(x,v), auto-scaled. The smooth tilt shears into striations &mdash; that's the energy hiding in fine velocity structure.</figcaption></figure>
+    </div>
+    <div class="read">
+      <span>t = <b id="rT">0.0</b></span>
+      <span>measured &gamma; = <b id="rGm" class="ok">&mdash;</b></span>
+      <span>theory &gamma; = <b id="rGt">&minus;0.153</b></span>
+      <span>theory &omega;<sub>r</sub> = <b id="rW">1.416</b></span>
+      <span id="rRec" class="hi"></span>
+    </div>
+  </section>
+
+  <section id="s06">
+    <p class="eyebrow"><span class="n">06</span> the catch<span class="bar"></span></p>
+    <h2>Truncation lies. Recurrence is the tell.</h2>
+    <div class="prose">
+      <p>The ladder is infinite; your array is not. Cutting it off at <i>C<sub>N</sub> = 0</i> is a <em>closure</em>, and it's a fib: the streaming that should carry structure off to higher moments instead <strong>reflects</strong> back down. After a while the reflected signal re-coheres and the field energy spuriously revives &mdash; the kink you can trigger with the recurrence preset above. More modes push the revival later (you saw the floor drop as you raised N); it never disappears on its own.</p>
+      <p>The honest fix is a touch of <strong>collisions</strong>, the <i>&minus;&nu;m C<sub>n</sub></i> term. It preferentially erases the highest, finest moments &mdash; exactly the ones the truncation mishandles &mdash; so the energy keeps falling cleanly. That's how Hermite-Vlasov codes run for long times: enough modes to resolve the physics, a whisker of collisionality to absorb what spills off the top.</p>
+    </div>
+    <div class="note"><b>Rule of thumb.</b> If your damping curve bottoms out and turns up, you're seeing numerics, not physics. Add modes or add &nu; before you trust anything past that point.</div>
+  </section>
+
+  <section id="s07">
+    <p class="eyebrow"><span class="n">07</span> now build it<span class="bar"></span></p>
+    <h2>From this page to your notebook.</h2>
+    <div class="prose"><p>Every concept here maps to one cell in the companion notebook. Fill the skeletons top to bottom and you'll reproduce the trace above with your own code.</p></div>
+    <ul class="check">
+      <li data-n="01"><b>Parameters &amp; grids</b> <span class="tag">given</span> &mdash; set k, L, Nx, N, dt; build the x-grid and wavenumbers; assert the CFL.</li>
+      <li data-n="02"><b>Hermite basis</b> <span class="tag">given</span> &mdash; the recurrence builder, used to draw f(x,v). The solver itself never needs it.</li>
+      <li data-n="03"><b>Initial condition</b> <span class="tag">todo</span> &mdash; set C<sub>0</sub> = 1 + &alpha; cos(kx), everything else zero.</li>
+      <li data-n="04"><b>Poisson</b> <span class="tag">todo</span> &mdash; E&#770; = iC&#770;<sub>0</sub>/k for k&ne;0, zero the mean. Check against &minus;(&alpha;/k) sin(kx).</li>
+      <li data-n="05"><b>Right-hand side</b> <span class="tag">todo</span> &mdash; the boxed four-term recurrence, with C<sub>&minus;1</sub>=C<sub>N</sub>=0 guards. The heart.</li>
+      <li data-n="06"><b>RK4 step</b> <span class="tag">todo</span> &mdash; four samples of your RHS, combined 1&middot;2&middot;2&middot;1.</li>
+      <li data-n="07"><b>Loop &amp; diagnostics</b> <span class="tag">todo</span> &mdash; march, record field energy, snapshot phase space.</li>
+      <li data-n="08"><b>Validate</b> <span class="tag">given</span> &mdash; fit the peaks, recover &gamma; &#8776; &minus;0.15 and &omega;<sub>r</sub> &#8776; 1.42, see filaments form.</li>
+    </ul>
+    <div class="prose"><p class="small">Hero status isn't running the code &mdash; it's knowing why each term is there: which one shears, which one bends, which one closes the loop, and which one is just keeping the truncation honest.</p></div>
+  </section>
+</main>
+
+<footer>
+  VLASOV-POISSON · 1D1V · FOURIER-HERMITE · RK4<br>
+  Live solver: linearized single-Fourier-mode system, integrated in real time. Theory curve: exact dominant root of the Maxwellian dispersion relation 1 + (1/k&sup2;)[1 + &zeta;Z(&zeta;)] = 0. Benchmark &gamma;(0.5) = &minus;0.1534, &omega;<sub>r</sub>(0.5) = 1.4157.<br>
+  Companion notebook: vlasov_poisson_hermite_assignment.ipynb
+</footer>
+
+<script>
+"use strict";
+const RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const LANDAU=[
+ {k:0.30,wr:1.1598,g:-0.0126},{k:0.35,wr:1.2210,g:-0.0343},{k:0.40,wr:1.2851,g:-0.0661},
+ {k:0.45,wr:1.3503,g:-0.1063},{k:0.50,wr:1.4157,g:-0.1534},{k:0.55,wr:1.4809,g:-0.2062},
+ {k:0.60,wr:1.5457,g:-0.2641},{k:0.65,wr:1.6100,g:-0.3263},{k:0.70,wr:1.6739,g:-0.3924},
+ {k:0.75,wr:1.7371,g:-0.4619},{k:0.80,wr:1.7999,g:-0.5346},{k:0.85,wr:1.8621,g:-0.6100},
+ {k:0.90,wr:1.9239,g:-0.6881},{k:0.95,wr:1.9851,g:-0.7686},{k:1.00,wr:2.0459,g:-0.8513},
+ {k:1.05,wr:2.1063,g:-0.9361},{k:1.10,wr:2.1662,g:-1.0229},{k:1.15,wr:2.2257,g:-1.1115},
+ {k:1.20,wr:2.2848,g:-1.2019}];
+function landauAt(k){
+  if(k<=LANDAU[0].k)return LANDAU[0];
+  if(k>=LANDAU[LANDAU.length-1].k)return LANDAU[LANDAU.length-1];
+  for(let i=0;i<LANDAU.length-1;i++){const a=LANDAU[i],b=LANDAU[i+1];
+    if(k>=a.k&&k<=b.k){const t=(k-a.k)/(b.k-a.k);
+      return{k,wr:a.wr+t*(b.wr-a.wr),g:a.g+t*(b.g-a.g)};}}
+  return LANDAU[4];
+}
+
+function hermiteBasis(vArr,N){
+  const M=vArr.length, Psi=[];
+  for(let n=0;n<N;n++)Psi.push(new Float64Array(M));
+  for(let i=0;i<M;i++){const v=vArr[i], w=Math.exp(-v*v/2)/Math.sqrt(2*Math.PI);
+    Psi[0][i]=w; if(N>1)Psi[1][i]=v*w;
+    for(let n=1;n<N-1;n++)Psi[n+1][i]=(v*Psi[n][i]-Math.sqrt(n)*Psi[n-1][i])/Math.sqrt(n+1);}
+  return Psi;
+}
+
+function setup(id){
+  const c=document.getElementById(id);const ctx=c.getContext("2d");
+  function size(){const dpr=Math.min(2,window.devicePixelRatio||1);
+    const w=c.clientWidth||c.parentElement.clientWidth, h=parseInt(c.getAttribute("height"))||220;
+    c.width=w*dpr;c.height=h*dpr;c.style.height=h+"px";ctx.setTransform(dpr,0,0,dpr,0,0);
+    return{w,h};}
+  let d=size();window.addEventListener("resize",()=>{d=size();});
+  return{c,ctx,get w(){return d.w;},get h(){return d.h;},resize:()=>{d=size();}};
+}
+const BG=[11,15,23],WARM=[255,154,98],COOL=[47,224,198];
+function divColor(t){
+  const a=Math.min(1,Math.abs(t)),c=t>=0?WARM:COOL;
+  return[BG[0]+a*(c[0]-BG[0]),BG[1]+a*(c[1]-BG[1]),BG[2]+a*(c[2]-BG[2])];
+}
+function blitField(ctx,W,H,nx,nv,getVal){
+  const img=ctx.createImageData(nx,nv),D=img.data;
+  for(let j=0;j<nv;j++)for(let i=0;i<nx;i++){
+    const t=getVal(i,j),col=divColor(t),p=4*((nv-1-j)*nx+i);
+    D[p]=col[0];D[p+1]=col[1];D[p+2]=col[2];D[p+3]=255;}
+  const off=document.createElement("canvas");off.width=nx;off.height=nv;
+  off.getContext("2d").putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,W,H);
+}
+
+function gate(el,fn){
+  let on=false,raf=null;
+  function loop(ts){if(!on)return;fn(ts);raf=requestAnimationFrame(loop);}
+  new IntersectionObserver(es=>{es.forEach(e=>{
+    if(e.isIntersecting&&!on){on=true;raf=requestAnimationFrame(loop);}
+    else if(!e.isIntersecting&&on){on=false;if(raf)cancelAnimationFrame(raf);}
+  });},{threshold:0.05}).observe(el);
+}
+
+/* HERO */
+(function(){
+  const S=setup("heroCanvas");const k0=0.7;let phase=RM?6:0;
+  const nx=180,nv=80,vmax=4.2;
+  function frame(){
+    const W=S.w,H=S.h;
+    blitField(S.ctx,W,H,nx,nv,(i,j)=>{
+      const x=i/nx*2*Math.PI, v=(j/(nv-1)*2-1)*vmax;
+      const env=Math.exp(-v*v/2.4);
+      return env*Math.cos(k0*8*x - phase*v);
+    });
+    if(!RM)phase+=0.012;
+  }
+  if(RM){frame();} else gate(S.c,frame);
+})();
+
+/* 01 streaming */
+(function(){
+  const S=setup("streamCanvas");let fieldOn=false;
+  const L=2*Math.PI, vmax=3.2, N=520;
+  let P=[];
+  function init(){P=[];for(let n=0;n<N;n++){
+    const col = n<160;
+    const x = col? (L*0.5 + (Math.random()-0.5)*0.05) : Math.random()*L;
+    const v = (Math.random()*2-1)*vmax;
+    P.push({x,v,col});
+  }}
+  init();
+  function toScreen(x,v,W,H){return[ x/L*W, H*(0.5 - v/(2*vmax)) ];}
+  function frame(){
+    const ctx=S.ctx,W=S.w,H=S.h;
+    ctx.fillStyle="#0e1524";ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="rgba(231,236,246,.10)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+    ctx.fillStyle="#5d6b85";ctx.font="11px ui-monospace,monospace";
+    ctx.fillText("v=0",6,H/2-5);ctx.fillText("x",W-14,H/2+14);
+    const dt=RM?0:0.05;
+    for(const p of P){
+      p.x+=p.v*dt; if(p.x>L)p.x-=L; if(p.x<0)p.x+=L;
+      if(fieldOn){const E=Math.sin(p.x); p.v+=-0.9*E*dt;}
+      const s=toScreen(p.x,p.v,W,H);
+      ctx.fillStyle = p.col? "rgba(255,154,98,.95)" : "rgba(155,140,255,.35)";
+      ctx.fillRect(s[0],s[1],p.col?2.4:1.6,p.col?2.4:1.6);
+    }
+  }
+  if(RM){for(let s=0;s<60;s++)for(const p of P){p.x+=p.v*0.05;if(p.x>L)p.x-=L;}frame();}
+  else gate(S.c,frame);
+  document.getElementById("streamField").onclick=e=>{fieldOn=!fieldOn;
+    e.target.textContent=fieldOn?"Turn field off":"Turn field on";
+    document.getElementById("streamMode").textContent="mode: "+(fieldOn?"streaming + field (trapping)":"free streaming");};
+  document.getElementById("streamReset").onclick=()=>{init();if(RM)frame();};
+})();
+
+/* 02 Landau */
+(function(){
+  const S=setup("landauCanvas");const k=0.5,th=landauAt(0.5);let t=RM?2:0;
+  const surfers=[];for(let i=0;i<26;i++)surfers.push({x:Math.random()*2*Math.PI/k,e:0});
+  function frame(){
+    const ctx=S.ctx,W=S.w,H=S.h,L=2*Math.PI/k;
+    ctx.fillStyle="#0e1524";ctx.fillRect(0,0,W,H);
+    const mid=H*0.42, amp=H*0.30*Math.exp(th.g*t);
+    ctx.strokeStyle="rgba(155,140,255,.9)";ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=W;i++){const x=i/W*L;const y=mid-amp*Math.cos(k*x-th.wr*t);
+      i?ctx.lineTo(i,y):ctx.moveTo(i,y);}ctx.stroke();
+    ctx.strokeStyle="rgba(231,236,246,.10)";ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(W,mid);ctx.stroke();
+    const sy=H*0.84;
+    ctx.strokeStyle="rgba(47,224,198,.4)";ctx.setLineDash([4,4]);ctx.beginPath();
+    ctx.moveTo(0,sy);ctx.lineTo(W,sy);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="#5d6b85";ctx.font="11px ui-monospace,monospace";
+    ctx.fillText("resonant electrons  v ~ omega/k",10,sy-8);
+    const vph=th.wr/k, dt=RM?0:0.04;
+    for(const s of surfers){
+      s.x+=vph*dt*0.25; if(s.x>L)s.x-=L;
+      const phaseE=-Math.sin(k*s.x-th.wr*t);
+      s.e=0.6+0.4*Math.max(0,phaseE);
+      const px=s.x/L*W;
+      ctx.fillStyle="rgba(47,224,198,"+(0.35+0.6*s.e)+")";
+      const r=2+2.4*s.e;ctx.beginPath();ctx.arc(px,sy,r,0,7);ctx.fill();
+    }
+    ctx.fillStyle="#93a0b8";ctx.font="11px ui-monospace,monospace";
+    ctx.fillText("|E| ~ e^(gt),  g="+th.g.toFixed(3),W-170,20);
+    if(!RM){t+=0.045; if(amp<H*0.012){t=0;}}
+  }
+  if(RM)frame(); else gate(S.c,frame);
+})();
+
+/* 03 basis */
+(function(){
+  const S=setup("basisCanvas");
+  const M=260,vmax=5,vArr=[];for(let i=0;i<M;i++)vArr.push((i/(M-1)*2-1)*vmax);
+  const Psi=hermiteBasis(vArr,5);
+  const cols=["#e7ecf6","#9b8cff","#2fe0c6","#ff9a62","#6db3ff"];
+  function frame(){
+    const ctx=S.ctx,W=S.w,H=S.h;ctx.fillStyle="#0e1524";ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="rgba(231,236,246,.10)";ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+    let mx=0;for(let n=0;n<5;n++)for(let i=0;i<M;i++)mx=Math.max(mx,Math.abs(Psi[n][i]));
+    for(let n=0;n<5;n++){ctx.strokeStyle=cols[n];ctx.lineWidth=1.8;ctx.beginPath();
+      for(let i=0;i<M;i++){const x=i/(M-1)*W, y=H/2-(Psi[n][i]/mx)*(H*0.42);
+        i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+      ctx.fillStyle=cols[n];ctx.font="11px ui-monospace,monospace";
+      ctx.fillText("Psi"+n,8+n*42,18);}
+    ctx.fillStyle="#5d6b85";ctx.fillText("v",W-14,H/2+14);
+  }
+  frame();
+})();
+
+/* shared reduced solver */
+function makeSolver(N,k,nu){
+  let cr=new Float64Array(N), ci=new Float64Array(N), t=0;
+  const alpha=1e-2; cr[0]=alpha/2;
+  const sm=new Float64Array(N+1);for(let m=0;m<=N;m++)sm[m]=Math.sqrt(m);
+  function deriv(Cr,Ci,Dr,Di){
+    const Er=-Ci[0]/k, Ei=Cr[0]/k;
+    for(let m=0;m<N;m++){let dr=0,di=0;
+      if(m-1>=0){const a=k*sm[m]; dr+=a*Ci[m-1]; di+=-a*Cr[m-1];}
+      if(m+1<N){const b=k*sm[m+1]; dr+=b*Ci[m+1]; di+=-b*Cr[m+1];}
+      if(m===1){dr+=-Er; di+=-Ei;}
+      dr+=-nu*m*Cr[m]; di+=-nu*m*Ci[m];
+      Dr[m]=dr;Di[m]=di;}
+  }
+  const k1r=new Float64Array(N),k1i=new Float64Array(N),k2r=new Float64Array(N),k2i=new Float64Array(N),
+        k3r=new Float64Array(N),k3i=new Float64Array(N),k4r=new Float64Array(N),k4i=new Float64Array(N),
+        tr=new Float64Array(N),ti=new Float64Array(N);
+  function step(dt){
+    deriv(cr,ci,k1r,k1i);
+    for(let m=0;m<N;m++){tr[m]=cr[m]+0.5*dt*k1r[m];ti[m]=ci[m]+0.5*dt*k1i[m];}
+    deriv(tr,ti,k2r,k2i);
+    for(let m=0;m<N;m++){tr[m]=cr[m]+0.5*dt*k2r[m];ti[m]=ci[m]+0.5*dt*k2i[m];}
+    deriv(tr,ti,k3r,k3i);
+    for(let m=0;m<N;m++){tr[m]=cr[m]+dt*k3r[m];ti[m]=ci[m]+dt*k3i[m];}
+    deriv(tr,ti,k4r,k4i);
+    for(let m=0;m<N;m++){
+      cr[m]+=dt/6*(k1r[m]+2*k2r[m]+2*k3r[m]+k4r[m]);
+      ci[m]+=dt/6*(k1i[m]+2*k2i[m]+2*k3i[m]+k4i[m]);}
+    t+=dt;
+  }
+  return{
+    N,k,get t(){return t;}, cr,ci,
+    ampE:()=>Math.hypot(cr[0],ci[0])/k,
+    energy:()=>0.5*(cr[0]*cr[0]+ci[0]*ci[0])/(k*k),
+    step
+  };
+}
+
+/* 05 live solver */
+(function(){
+  const scope=setup("scopeCanvas"),ladder=setup("ladderCanvas"),phase=setup("phaseCanvas");
+  let k=0.5,N=80,nu=0,speed=2,playing=true;
+  const dt=0.02;
+  let sv, theory, hist, Psi, xcos, xsin, recurred, e0;
+  const NXI=120, NVI=110, vmax=5;
+  const vArr=[];for(let j=0;j<NVI;j++)vArr.push((j/(NVI-1)*2-1)*vmax);
+
+  function rebuild(){
+    sv=makeSolver(N,k,nu); theory=landauAt(k);
+    hist=[]; recurred=false; e0=sv.energy();
+    Psi=hermiteBasis(vArr,N);
+    xcos=new Float64Array(NXI);xsin=new Float64Array(NXI);
+    const L=2*Math.PI/k;
+    for(let i=0;i<NXI;i++){const x=i/NXI*L; xcos[i]=Math.cos(k*x); xsin[i]=Math.sin(k*x);}
+    document.getElementById("rGt").textContent=theory.g.toFixed(3);
+    document.getElementById("rW").textContent=theory.wr.toFixed(3);
+    document.getElementById("rRec").textContent="";
+    document.getElementById("rGm").textContent="\u2014";
+  }
+  rebuild();
+
+  function fitGamma(){
+    if(hist.length<8)return null;
+    const pk=[];
+    for(let i=2;i<hist.length-2;i++){
+      const a=hist[i].le;
+      if(a>hist[i-1].le&&a>hist[i+1].le)pk.push(hist[i]);
+    }
+    const use=pk.filter(p=>p.t>3);
+    if(use.length<2)return null;
+    let n=use.length,st=0,sl=0,st2=0,stl=0;
+    for(const p of use){st+=p.t;sl+=p.le;st2+=p.t*p.t;stl+=p.t*p.le;}
+    return (n*stl-st*sl)/(n*st2-st*st);
+  }
+
+  function drawScope(){
+    const ctx=scope.ctx,W=scope.w,H=scope.h;
+    ctx.fillStyle="#0e1524";ctx.fillRect(0,0,W,H);
+    const padL=42,padB=24,padT=12,padR=10;
+    const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+    const tmax=Math.max(40, sv.t);
+    const ymin=-14,ymax=0;
+    ctx.strokeStyle="rgba(231,236,246,.07)";ctx.lineWidth=1;ctx.font="10px ui-monospace,monospace";ctx.fillStyle="#5d6b85";
+    for(let d=0;d>=ymin;d-=2){const y=y1+(d-ymax)/(ymin-ymax)*(y0-y1);
+      ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();
+      ctx.fillText("1e"+d,4,y+3);}
+    ctx.fillText("t",x1-8,y1+18);ctx.fillText("0",x0-2,y1+16);ctx.fillText(tmax.toFixed(0),x1-16,y1+16);
+    const TX=t=>x0+(t/tmax)*(x1-x0);
+    const TY=l=>y1+(l-ymax)/(ymin-ymax)*(y0-y1);
+    ctx.strokeStyle="rgba(255,154,98,.7)";ctx.setLineDash([5,4]);ctx.lineWidth=1.4;ctx.beginPath();
+    for(let i=0;i<=60;i++){const t=i/60*tmax;const l=2*theory.g*t*Math.LOG10E;
+      const yy=TY(Math.max(ymin,l)); i?ctx.lineTo(TX(t),yy):ctx.moveTo(TX(t),yy);}
+    ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle="#2fe0c6";ctx.lineWidth=1.6;ctx.beginPath();let started=false;
+    for(const p of hist){let l=p.lE; if(l<ymin)l=ymin;
+      const xx=TX(p.t),yy=TY(l); started?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);started=true;}
+    ctx.stroke();
+    if(hist.length){const p=hist[hist.length-1];
+      ctx.fillStyle="#2fe0c6";ctx.beginPath();ctx.arc(TX(p.t),TY(Math.max(ymin,p.lE)),3,0,7);ctx.fill();}
+  }
+
+  function drawLadder(){
+    const ctx=ladder.ctx,W=ladder.w,H=ladder.h;
+    ctx.fillStyle="#0e1524";ctx.fillRect(0,0,W,H);
+    const padL=10,padB=20,padT=22,padR=10,x0=padL,x1=W-padR,y1=H-padB,y0=padT;
+    ctx.font="10px ui-monospace,monospace";ctx.fillStyle="#5d6b85";
+    ctx.fillText("n=0",x0,y1+15);ctx.fillText("n="+(N-1),x1-34,y1+15);
+    ctx.fillText("|Cn| (log)",x0,14);
+    const bw=(x1-x0)/N, floor=1e-16;
+    for(let n=0;n<N;n++){
+      const a=Math.hypot(sv.cr[n],sv.ci[n]);
+      const l=Math.log10(Math.max(floor,a));
+      const frac=Math.max(0,(l+16)/16);
+      const h=frac*(y1-y0);
+      const top=n===N-1;
+      ctx.fillStyle= top? "rgba(255,154,98,.95)":"rgba(47,224,198,"+(0.35+0.55*frac)+")";
+      ctx.fillRect(x0+n*bw, y1-h, Math.max(1,bw-0.5), h);
+    }
+    ctx.fillStyle="rgba(255,154,98,.9)";ctx.fillText("trunc.",x1-44,14);
+  }
+
+  function drawPhase(){
+    const ctx=phase.ctx,W=phase.w,H=phase.h;
+    const Ar=new Float64Array(NVI),Ai=new Float64Array(NVI);
+    let mx=1e-30;
+    for(let j=0;j<NVI;j++){let ar=0,ai=0;
+      for(let n=0;n<N;n++){const p=Psi[n][j];ar+=sv.cr[n]*p;ai+=sv.ci[n]*p;}
+      Ar[j]=ar;Ai[j]=ai;}
+    for(let j=0;j<NVI;j++)for(let i=0;i<NXI;i++){
+      const val=2*(Ar[j]*xcos[i]-Ai[j]*xsin[i]);
+      if(Math.abs(val)>mx)mx=Math.abs(val);}
+    blitField(ctx,W,H,NXI,NVI,(i,j)=>{
+      const val=2*(Ar[j]*xcos[i]-Ai[j]*xsin[i]);
+      return val/mx;});
+    ctx.fillStyle="#93a0b8";ctx.font="11px ui-monospace,monospace";
+    ctx.fillText("x",W-14,H-8);ctx.fillText("v",6,16);
+  }
+
+  function record(){
+    const Erat=sv.energy()/e0;
+    const lE=Math.log10(Math.max(1e-300,Erat));
+    const le=Math.log(Math.max(1e-300,sv.ampE()));
+    hist.push({t:sv.t,lE,le});
+    if(hist.length>4000)hist.shift();
+  }
+
+  let acc=0;
+  function frame(){
+    if(playing){
+      const sub=Math.max(1,Math.round(speed*1.5));
+      for(let s=0;s<sub;s++){sv.step(dt); acc+=dt; if(acc>=0.1){record();acc=0;}}
+      if(!recurred&&hist.length>20){
+        const last=hist[hist.length-1].lE;
+        let mn=1e9;for(let i=Math.max(0,hist.length-200);i<hist.length;i++)mn=Math.min(mn,hist[i].lE);
+        if(sv.t>8 && last>mn+0.8 && mn<-2){recurred=true;
+          document.getElementById("rRec").textContent="\u26A0 recurrence \u2014 numerical revival, not physics";}
+      }
+    }
+    drawScope();drawLadder();drawPhase();
+    document.getElementById("rT").textContent=sv.t.toFixed(1);
+    const gm=fitGamma();
+    if(gm!==null&&isFinite(gm)) document.getElementById("rGm").textContent=gm.toFixed(3);
+  }
+  gate(scope.c,frame);
+
+  const $=id=>document.getElementById(id);
+  $("kSlider").oninput=e=>{k=+e.target.value;$("kVal").textContent=k.toFixed(2);rebuild();};
+  $("nSlider").oninput=e=>{N=+e.target.value;$("nVal").textContent=N;rebuild();};
+  $("nuSlider").oninput=e=>{nu=+e.target.value;$("nuVal").textContent=nu.toFixed(2);rebuild();};
+  $("spSlider").oninput=e=>{speed=+e.target.value;$("spVal").textContent=speed+"x";};
+  $("run").onclick=e=>{playing=!playing;e.target.textContent=playing?"Pause":"Play";};
+  $("reset").onclick=()=>rebuild();
+  function setSliders(kk,NN,nn){
+    k=kk;N=NN;nu=nn;
+    $("kSlider").value=kk;$("kVal").textContent=kk.toFixed(2);
+    $("nSlider").value=NN;$("nVal").textContent=NN;
+    $("nuSlider").value=nn;$("nuVal").textContent=nn.toFixed(2);
+    rebuild();playing=true;$("run").textContent="Pause";
+  }
+  $("preset05").onclick=()=>setSliders(0.5,80,0);
+  $("presetRec").onclick=()=>setSliders(0.5,24,0);
+  $("presetColl").onclick=()=>setSliders(0.5,80,0.4);
+})();
+
+/* progress rail */
+(function(){
+  const fill=document.getElementById("railfill");
+  function upd(){const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight||1);
+    fill.style.height=(p*100).toFixed(2)+"%";}
+  document.addEventListener("scroll",upd,{passive:true});upd();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gradient numbers</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  yellow: "#fff176",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+};
+
+// Real-ish psi function
+function psi(R, Z) {
+  const r0 = 2.15, kappa = 1.6;
+  const dR = R - r0;
+  const dZ = Z / kappa;
+  return dR * dR + dZ * dZ;
+}
+
+function GradientWithNumbers() {
+  const [step, setStep] = useState(0);
+  const [pointR, setPointR] = useState(2.45);
+  const [pointZ, setPointZ] = useState(0.3);
+  const canvasRef = useRef(null);
+  const [anim, setAnim] = useState(0);
+  const animRef = useRef(null);
+
+  const h = 0.1; // grid spacing
+
+  // Compute everything
+  const psiCenter = psi(pointR, pointZ);
+  const psiRight = psi(pointR + h, pointZ);
+  const psiLeft = psi(pointR - h, pointZ);
+  const psiUp = psi(pointR, pointZ + h);
+  const psiDown = psi(pointR, pointZ - h);
+  const dPsidR = (psiRight - psiLeft) / (2 * h);
+  const dPsidZ = (psiUp - psiDown) / (2 * h);
+  const gradMag = Math.sqrt(dPsidR * dPsidR + dPsidZ * dPsidZ);
+  const gxx = dPsidR * dPsidR + dPsidZ * dPsidZ;
+
+  useEffect(() => {
+    const start = Date.now();
+    const tick = () => {
+      setAnim((Date.now() - start) / 1000);
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid view: show a chunk of the ψ grid
+    const gridRmin = 1.8, gridRmax = 2.8;
+    const gridZmin = -0.5, gridZmax = 0.8;
+    const pad = 40;
+
+    const toX = (R) => pad + ((R - gridRmin) / (gridRmax - gridRmin)) * (W - 2 * pad);
+    const toY = (Z) => (H - pad) - ((Z - gridZmin) / (gridZmax - gridZmin)) * (H - 2 * pad);
+
+    // Draw ψ color field
+    const res = 3;
+    for (let px = pad; px < W - pad; px += res) {
+      for (let py = pad; py < H - pad; py += res) {
+        const R = gridRmin + ((px - pad) / (W - 2 * pad)) * (gridRmax - gridRmin);
+        const Z = gridZmin + ((H - pad - py) / (H - 2 * pad)) * (gridZmax - gridZmin);
+        const v = psi(R, Z);
+        const t = Math.min(1, v / 0.5);
+        const r = Math.round(8 + 50 * t);
+        const g = Math.round(15 + 60 * (1 - t));
+        const b = Math.round(60 + 130 * (1 - t));
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(px, py, res, res);
+      }
+    }
+
+    // Draw contour lines
+    const nTh = 150;
+    for (let si = 1; si <= 6; si++) {
+      const psiVal = si * 0.06;
+      ctx.beginPath();
+      for (let j = 0; j <= nTh; j++) {
+        const th = (j / nTh) * 2 * Math.PI;
+        const r = Math.sqrt(psiVal);
+        const R = 2.15 + r * Math.cos(th);
+        const Z = 1.6 * r * Math.sin(th);
+        if (R < gridRmin || R > gridRmax || Z < gridZmin || Z > gridZmax) continue;
+        if (j === 0 || R < gridRmin || R > gridRmax) ctx.moveTo(toX(R), toY(Z));
+        else ctx.lineTo(toX(R), toY(Z));
+      }
+      ctx.strokeStyle = C.accent + "30";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Grid dots
+    const gridStep = 0.1;
+    for (let R = gridRmin; R <= gridRmax + 0.01; R += gridStep) {
+      for (let Z = gridZmin; Z <= gridZmax + 0.01; Z += gridStep) {
+        const x = toX(R), y = toY(Z);
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = C.border + "60";
+        ctx.fill();
+      }
+    }
+
+    // Axes
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim;
+    ctx.fillText("R →", W / 2 - 10, H - 8);
+    ctx.save();
+    ctx.translate(12, H / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("Z →", -10, 0);
+    ctx.restore();
+
+    // Axis tick labels
+    ctx.font = "8px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim;
+    for (let R = 1.9; R <= 2.7; R += 0.2) {
+      ctx.fillText(R.toFixed(1), toX(R) - 8, H - pad + 15);
+    }
+    for (let Z = -0.4; Z <= 0.7; Z += 0.2) {
+      ctx.fillText(Z.toFixed(1), 5, toY(Z) + 3);
+    }
+
+    // === HIGHLIGHT THE 5 POINTS ===
+    const ptX = toX(pointR), ptY = toY(pointZ);
+
+    const points = [
+      { R: pointR, Z: pointZ, label: "center", psiVal: psiCenter, color: C.highlight, size: 8 },
+    ];
+
+    if (step >= 1) {
+      points.push(
+        { R: pointR + h, Z: pointZ, label: "R+h", psiVal: psiRight, color: C.green, size: 6 },
+        { R: pointR - h, Z: pointZ, label: "R−h", psiVal: psiLeft, color: C.green, size: 6 },
+      );
+    }
+    if (step >= 2) {
+      points.push(
+        { R: pointR, Z: pointZ + h, label: "Z+h", psiVal: psiUp, color: C.orange, size: 6 },
+        { R: pointR, Z: pointZ - h, label: "Z−h", psiVal: psiDown, color: C.orange, size: 6 },
+      );
+    }
+
+    // Connection lines
+    if (step >= 1) {
+      ctx.beginPath();
+      ctx.moveTo(toX(pointR - h), toY(pointZ));
+      ctx.lineTo(toX(pointR + h), toY(pointZ));
+      ctx.strokeStyle = C.green + "50";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (step >= 2) {
+      ctx.beginPath();
+      ctx.moveTo(toX(pointR), toY(pointZ - h));
+      ctx.lineTo(toX(pointR), toY(pointZ + h));
+      ctx.strokeStyle = C.orange + "50";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Draw points with values
+    points.forEach((p) => {
+      const x = toX(p.R), y = toY(p.Z);
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // ψ value box
+      const boxW = 58, boxH = 28;
+      const bx = p.label === "R−h" ? x - boxW - 8 : p.label === "Z−h" ? x + 10 : x + 10;
+      const by = p.label === "Z+h" ? y - boxH - 5 : p.label === "Z−h" ? y - 5 : y - boxH / 2;
+
+      ctx.fillStyle = C.surface + "e0";
+      ctx.strokeStyle = p.color + "60";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, boxW, boxH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = "bold 9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.label, bx + 4, by + 11);
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textBright;
+      ctx.fillText(p.psiVal.toFixed(4), bx + 4, by + 23);
+    });
+
+    // Gradient arrow
+    if (step >= 3) {
+      const arrScale = 60 / gradMag;
+      const ax = dPsidR * arrScale;
+      const ay = -dPsidZ * arrScale; // flip for screen coords
+
+      ctx.beginPath();
+      ctx.moveTo(ptX, ptY);
+      ctx.lineTo(ptX + ax, ptY + ay);
+      ctx.strokeStyle = C.purple;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      const ang = Math.atan2(ay, ax);
+      ctx.beginPath();
+      ctx.moveTo(ptX + ax, ptY + ay);
+      ctx.lineTo(ptX + ax - 12 * Math.cos(ang - 0.35), ptY + ay - 12 * Math.sin(ang - 0.35));
+      ctx.moveTo(ptX + ax, ptY + ay);
+      ctx.lineTo(ptX + ax - 12 * Math.cos(ang + 0.35), ptY + ay - 12 * Math.sin(ang + 0.35));
+      ctx.strokeStyle = C.purple;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.font = "bold 13px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.purple;
+      ctx.fillText("∇ψ", ptX + ax + 8, ptY + ay - 5);
+    }
+
+  }, [step, pointR, pointZ, anim]);
+
+  const STEPS = [
+    {
+      title: "1. Pick a point on the grid",
+      desc: `We're at (R, Z) = (${pointR.toFixed(2)}, ${pointZ.toFixed(2)}). The ψ value here is ${psiCenter.toFixed(4)}. This is one cell in the eqdsk grid.`,
+    },
+    {
+      title: "2. Look at R neighbors",
+      desc: `Step h = ${h} in R both ways.\n\nψ(R+h) = ${psiRight.toFixed(4)}\nψ(R−h) = ${psiLeft.toFixed(4)}\n\n∂ψ/∂R = (${psiRight.toFixed(4)} − ${psiLeft.toFixed(4)}) / ${(2 * h).toFixed(2)}\n       = ${(psiRight - psiLeft).toFixed(4)} / ${(2 * h).toFixed(2)}\n       = ${dPsidR.toFixed(4)}`,
+    },
+    {
+      title: "3. Look at Z neighbors",
+      desc: `Step h = ${h} in Z both ways.\n\nψ(Z+h) = ${psiUp.toFixed(4)}\nψ(Z−h) = ${psiDown.toFixed(4)}\n\n∂ψ/∂Z = (${psiUp.toFixed(4)} − ${psiDown.toFixed(4)}) / ${(2 * h).toFixed(2)}\n       = ${(psiUp - psiDown).toFixed(4)} / ${(2 * h).toFixed(2)}\n       = ${dPsidZ.toFixed(4)}`,
+    },
+    {
+      title: "4. Build the gradient",
+      desc: `∇ψ = (∂ψ/∂R, ∂ψ/∂Z)\n     = (${dPsidR.toFixed(4)}, ${dPsidZ.toFixed(4)})\n\n|∇ψ| = √(${dPsidR.toFixed(4)}² + ${dPsidZ.toFixed(4)}²)\n      = ${gradMag.toFixed(4)}\n\ng_xx = |∇ψ|² = ${gxx.toFixed(4)}\n\nThat's it. Four grid lookups → one gradient → one metric coefficient.`,
+    },
+  ];
+
+  const current = STEPS[step];
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: C.textBright, margin: 0 }}>
+            Computing ∇ψ With Real Numbers
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            four grid lookups → one gradient
+          </div>
+        </div>
+
+        {/* Step bar */}
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 10 }}>
+          {STEPS.map((_, i) => (
+            <button key={i} onClick={() => setStep(i)} style={{
+              width: 44, height: 4, borderRadius: 2, border: "none",
+              background: i === step ? C.accent : i < step ? C.accentDim : C.surface,
+              cursor: "pointer",
+            }} />
+          ))}
+        </div>
+
+        {/* Canvas */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, overflow: "hidden", marginBottom: 10,
+        }}>
+          <canvas ref={canvasRef} width={500} height={400}
+            style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        {/* Point control */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 10, marginBottom: 10,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: C.textDim, width: 15 }}>R</div>
+            <input type="range" min="1.95" max="2.65" step="0.05" value={pointR}
+              onChange={(e) => setPointR(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: C.highlight }} />
+            <div style={{ fontSize: 10, color: C.highlight, width: 35 }}>{pointR.toFixed(2)}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 10, color: C.textDim, width: 15 }}>Z</div>
+            <input type="range" min="-0.3" max="0.6" step="0.05" value={pointZ}
+              onChange={(e) => setPointZ(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: C.highlight }} />
+            <div style={{ fontSize: 10, color: C.highlight, width: 35 }}>{pointZ.toFixed(2)}</div>
+          </div>
+          <div style={{ fontSize: 8, color: C.textDim, textAlign: "center", marginTop: 4 }}>
+            drag to move the point — watch all numbers update
+          </div>
+        </div>
+
+        {/* Info */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14, marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 6 }}>
+            {current.title}
+          </div>
+          <div style={{
+            fontSize: 11, color: C.text, lineHeight: 1.7,
+            whiteSpace: "pre-wrap", fontFamily: "'IBM Plex Mono', monospace",
+          }}>
+            {current.desc}
+          </div>
+        </div>
+
+        {/* Nav */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} style={{
+            padding: "8px 20px", borderRadius: 6, border: `1px solid ${C.border}`,
+            background: step === 0 ? C.surface : C.bgPanel,
+            color: step === 0 ? C.textDim : C.text,
+            cursor: step === 0 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>← Back</button>
+          <button onClick={() => setStep(Math.min(3, step + 1))} disabled={step === 3} style={{
+            padding: "8px 20px", borderRadius: 6,
+            border: `1px solid ${step === 3 ? C.border : C.accent}`,
+            background: step === 3 ? C.surface : C.accentDim,
+            color: step === 3 ? C.textDim : C.accent,
+            cursor: step === 3 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(GradientWithNumbers));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

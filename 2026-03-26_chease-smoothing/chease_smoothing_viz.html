@@ -1,0 +1,468 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease smoothing viz</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Generate synthetic poloidal flux data mimicking tokamak equilibrium
+function generateFluxData(gridSize, noiseLevel, seed = 42) {
+  const data = [];
+  const center_r = 1.7;
+  const center_z = 0.0;
+  const a = 0.5;
+  const kappa = 1.7;
+  const delta = 0.33;
+
+  let rng = seed;
+  const rand = () => {
+    rng = (rng * 16807 + 0) % 2147483647;
+    return (rng / 2147483647) - 0.5;
+  };
+
+  for (let i = 0; i < gridSize; i++) {
+    const row = [];
+    for (let j = 0; j < gridSize; j++) {
+      const r = 1.0 + (j / (gridSize - 1)) * 1.4;
+      const z = -1.2 + (i / (gridSize - 1)) * 2.4;
+
+      const rn = (r - center_r) / a;
+      const zn = (z - center_z) / (a * kappa);
+      const rho2 = (rn - delta * zn * zn) ** 2 + zn * zn;
+
+      let psi = 1.0 - rho2;
+      psi = Math.max(0, psi);
+      psi = psi ** 1.3;
+
+      // Add structured noise to simulate EFIT numerical artifacts
+      const noise = noiseLevel * rand() * (1 + 0.5 * Math.sin(i * 0.8) * Math.cos(j * 0.6));
+      psi += noise;
+
+      row.push(psi);
+    }
+    data.push(row);
+  }
+  return data;
+}
+
+// Compute numerical gradient (metric-like quantity) with noise amplification
+function computeGradient(data) {
+  const n = data.length;
+  const grad = [];
+  for (let i = 0; i < n; i++) {
+    const row = [];
+    for (let j = 0; j < n; j++) {
+      const di = i > 0 && i < n - 1
+        ? (data[i + 1][j] - data[i - 1][j]) / 2
+        : i === 0 ? data[1][j] - data[0][j] : data[n - 1][j] - data[n - 2][j];
+      const dj = j > 0 && j < n - 1
+        ? (data[i][j + 1] - data[i][j - 1]) / 2
+        : j === 0 ? data[i][1] - data[i][0] : data[i][n - 1] - data[i][n - 2];
+      row.push(Math.sqrt(di * di + dj * dj));
+    }
+    grad.push(row);
+  }
+  return grad;
+}
+
+// Extract 1D profile along midplane
+function extractMidplaneProfile(data) {
+  const mid = Math.floor(data.length / 2);
+  return data[mid].map((val, j) => ({
+    r: 1.0 + (j / (data[mid].length - 1)) * 1.4,
+    val
+  }));
+}
+
+// Color map: plasma-inspired
+function valueToColor(val, max, scheme = "flux") {
+  const t = Math.min(1, Math.max(0, val / (max || 1)));
+  if (scheme === "flux") {
+    const r = Math.floor(13 + 242 * (t ** 0.5));
+    const g = Math.floor(8 + 100 * t + 140 * (t ** 3));
+    const b = Math.floor(135 - 80 * t + 190 * (t ** 2.5));
+    return `rgb(${r},${g},${b})`;
+  } else {
+    // gradient magnitude: dark blue -> cyan -> yellow -> red
+    const r = Math.floor(255 * Math.min(1, t * 2.5));
+    const g = Math.floor(255 * Math.min(1, Math.max(0, t * 3 - 0.6)));
+    const b = Math.floor(200 * Math.max(0, 1 - t * 2.2));
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+const EFIT_GRID = 65;
+const CHEASE_GRID = 257;
+
+function HeatmapCanvas({ data, width, height, colorScheme, label }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const n = data.length;
+    const cellW = width / n;
+    const cellH = height / n;
+
+    let max = 0;
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++)
+        if (data[i][j] > max) max = data[i][j];
+
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        ctx.fillStyle = valueToColor(data[i][j], max, colorScheme);
+        ctx.fillRect(j * cellW, i * cellH, cellW + 1, cellH + 1);
+      }
+    }
+  }, [data, width, height, colorScheme]);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <canvas ref={canvasRef} width={width} height={height} style={{ borderRadius: 6, display: "block" }} />
+      <div style={{
+        position: "absolute", bottom: 8, left: 8,
+        background: "rgba(0,0,0,0.65)", color: "#e0e0e0",
+        padding: "3px 8px", borderRadius: 4, fontSize: 11,
+        fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.5
+      }}>{label}</div>
+    </div>
+  );
+}
+
+function ProfileChart({ efitProfile, cheaseProfile, width, height, label, color1, color2 }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, width, height);
+
+    const pad = { top: 20, bottom: 28, left: 36, right: 12 };
+    const pw = width - pad.left - pad.right;
+    const ph = height - pad.top - pad.bottom;
+
+    let maxVal = 0;
+    for (const p of [...efitProfile, ...cheaseProfile]) if (p.val > maxVal) maxVal = p.val;
+    maxVal *= 1.1;
+
+    // Grid lines
+    ctx.strokeStyle = "rgba(255,255,255,0.07)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (i / 4) * ph;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + pw, y); ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top);
+    ctx.lineTo(pad.left, pad.top + ph);
+    ctx.lineTo(pad.left + pw, pad.top + ph);
+    ctx.stroke();
+
+    // Draw EFIT line
+    ctx.strokeStyle = color1;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    efitProfile.forEach((p, idx) => {
+      const x = pad.left + ((p.r - 1.0) / 1.4) * pw;
+      const y = pad.top + ph - (p.val / maxVal) * ph;
+      idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw CHEASE line
+    ctx.strokeStyle = color2;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    cheaseProfile.forEach((p, idx) => {
+      const x = pad.left + ((p.r - 1.0) / 1.4) * pw;
+      const y = pad.top + ph - (p.val / maxVal) * ph;
+      idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = "#8a8a9a";
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("R (m)", pad.left + pw / 2, height - 4);
+    ctx.fillText("1.0", pad.left, pad.top + ph + 14);
+    ctx.fillText("2.4", pad.left + pw, pad.top + ph + 14);
+
+    ctx.fillStyle = "#c8c8d8";
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText(label, pad.left + pw / 2, 14);
+
+  }, [efitProfile, cheaseProfile, width, height, label, color1, color2]);
+
+  return <canvas ref={canvasRef} width={width} height={height} style={{ display: "block" }} />;
+}
+
+function StepIndicator({ step, total }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {Array.from({ length: total }, (_, i) => (
+        <div key={i} style={{
+          width: i === step ? 28 : 8, height: 8,
+          borderRadius: 4,
+          background: i === step ? "#60a5fa" : i < step ? "#3b82f6" : "rgba(255,255,255,0.12)",
+          transition: "all 0.4s ease"
+        }} />
+      ))}
+    </div>
+  );
+}
+
+const STEPS = [
+  {
+    id: "efit",
+    title: "EFIT Output",
+    subtitle: "65 × 65 grid",
+    desc: "EFIT reconstructs ψ(R,Z) from magnetic diagnostics on a coarse grid. Optimized for speed, not smoothness — numerical noise is visible in the flux map and amplified in derivatives.",
+    view: "flux"
+  },
+  {
+    id: "extract",
+    title: "Extract Boundary & Profiles",
+    subtitle: "boundary (R,Z) + p′(ψ), ff′(ψ)",
+    desc: "CHEASE reads the EQDSK file but doesn't just upsample the 2D array. It extracts the plasma boundary shape and the 1D source profiles — these are the inputs to the re-solve.",
+    view: "extract"
+  },
+  {
+    id: "resolve",
+    title: "Re-solve Grad-Shafranov",
+    subtitle: "Bicubic Hermite FEM → 257 × 257",
+    desc: "CHEASE solves the GS equation from scratch using bicubic Hermite finite elements. Each node stores ψ, ∂ψ/∂R, ∂ψ/∂Z, and ∂²ψ/∂R∂Z — guaranteeing C¹ continuity everywhere. Picard iteration handles the nonlinearity.",
+    view: "flux"
+  },
+  {
+    id: "smooth",
+    title: "Smooth Metric Quantities",
+    subtitle: "∇ψ, curvature, Jacobian",
+    desc: "The result: metric quantities (|∇ψ|, curvature κ, shear ŝ, Jacobian) are smooth and well-behaved. For codes needing C² continuity, CHEASE applies an additional bicubic spline interpolation on top.",
+    view: "gradient"
+  }
+];
+
+function CheaseSmoothingViz() {
+  const [step, setStep] = useState(0);
+  const [animating, setAnimating] = useState(false);
+
+  const efitFlux = useRef(generateFluxData(EFIT_GRID, 0.04));
+  const cheaseFlux = useRef(generateFluxData(CHEASE_GRID, 0.002, 99));
+  const efitGrad = useRef(computeGradient(efitFlux.current));
+  const cheaseGrad = useRef(computeGradient(cheaseFlux.current));
+  const efitMidplane = useRef(extractMidplaneProfile(efitFlux.current));
+  const chaseMidplane = useRef(extractMidplaneProfile(cheaseFlux.current));
+  const efitGradMid = useRef(extractMidplaneProfile(efitGrad.current));
+  const cheaseGradMid = useRef(extractMidplaneProfile(cheaseGrad.current));
+
+  const nextStep = useCallback(() => {
+    if (step < STEPS.length - 1 && !animating) {
+      setAnimating(true);
+      setTimeout(() => { setStep(s => s + 1); setAnimating(false); }, 300);
+    }
+  }, [step, animating]);
+
+  const prevStep = useCallback(() => {
+    if (step > 0 && !animating) {
+      setAnimating(true);
+      setTimeout(() => { setStep(s => s - 1); setAnimating(false); }, 300);
+    }
+  }, [step, animating]);
+
+  const currentStep = STEPS[step];
+  const showEfit = step <= 1;
+  const showChease = step >= 2;
+  const showGrad = step === 3;
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#0a0b10",
+      color: "#e0e0ec",
+      fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
+      padding: "24px 20px",
+      boxSizing: "border-box"
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <div style={{
+          fontFamily: "'Outfit', sans-serif", fontWeight: 700,
+          fontSize: 22, letterSpacing: -0.5,
+          background: "linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6)",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
+        }}>
+          CHEASE Smoothing Process
+        </div>
+        <div style={{ fontSize: 11, color: "#6b7094", marginTop: 4, letterSpacing: 1 }}>
+          EFIT → CHEASE: WHY RE-SOLVE, NOT INTERPOLATE
+        </div>
+      </div>
+
+      {/* Step indicator + controls */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        gap: 16, marginBottom: 20
+      }}>
+        <button onClick={prevStep} disabled={step === 0} style={{
+          background: step === 0 ? "rgba(255,255,255,0.03)" : "rgba(96,165,250,0.15)",
+          border: "1px solid", borderColor: step === 0 ? "rgba(255,255,255,0.06)" : "rgba(96,165,250,0.3)",
+          color: step === 0 ? "#444" : "#60a5fa",
+          borderRadius: 6, padding: "6px 14px", cursor: step === 0 ? "default" : "pointer",
+          fontFamily: "inherit", fontSize: 12, transition: "all 0.3s"
+        }}>← prev</button>
+        <StepIndicator step={step} total={STEPS.length} />
+        <button onClick={nextStep} disabled={step === STEPS.length - 1} style={{
+          background: step === STEPS.length - 1 ? "rgba(255,255,255,0.03)" : "rgba(96,165,250,0.15)",
+          border: "1px solid", borderColor: step === STEPS.length - 1 ? "rgba(255,255,255,0.06)" : "rgba(96,165,250,0.3)",
+          color: step === STEPS.length - 1 ? "#444" : "#60a5fa",
+          borderRadius: 6, padding: "6px 14px", cursor: step === STEPS.length - 1 ? "default" : "pointer",
+          fontFamily: "inherit", fontSize: 12, transition: "all 0.3s"
+        }}>next →</button>
+      </div>
+
+      {/* Step info card */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(30,32,48,0.9), rgba(20,22,38,0.95))",
+        border: "1px solid rgba(96,165,250,0.15)",
+        borderRadius: 10, padding: "14px 18px", marginBottom: 20,
+        transition: "all 0.4s ease"
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+          <span style={{
+            fontFamily: "'Outfit', sans-serif", fontWeight: 600,
+            fontSize: 16, color: "#60a5fa"
+          }}>
+            Step {step + 1}: {currentStep.title}
+          </span>
+          <span style={{
+            fontSize: 10, color: "#8b8faa",
+            background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 4
+          }}>
+            {currentStep.subtitle}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: "#9a9cb8", lineHeight: 1.6 }}>
+          {currentStep.desc}
+        </div>
+      </div>
+
+      {/* Main visualization area */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 14,
+        marginBottom: 18
+      }}>
+        {/* Left: EFIT */}
+        <div style={{
+          background: "rgba(20,22,35,0.8)",
+          border: "1px solid",
+          borderColor: showEfit ? "rgba(251,146,60,0.3)" : "rgba(255,255,255,0.06)",
+          borderRadius: 10, padding: 12,
+          opacity: step === 2 ? 0.35 : 1,
+          transition: "all 0.5s ease"
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 500, color: "#fb923c",
+            marginBottom: 8, display: "flex", alignItems: "center", gap: 6
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fb923c" }} />
+            EFIT {showGrad ? "|∇ψ|" : "ψ(R,Z)"} — {EFIT_GRID}×{EFIT_GRID}
+          </div>
+          <HeatmapCanvas
+            data={showGrad ? efitGrad.current : efitFlux.current}
+            width={280} height={240}
+            colorScheme={showGrad ? "gradient" : "flux"}
+            label={`${EFIT_GRID}² = ${EFIT_GRID * EFIT_GRID} pts`}
+          />
+        </div>
+
+        {/* Right: CHEASE */}
+        <div style={{
+          background: "rgba(20,22,35,0.8)",
+          border: "1px solid",
+          borderColor: showChease ? "rgba(96,165,250,0.3)" : "rgba(255,255,255,0.06)",
+          borderRadius: 10, padding: 12,
+          opacity: step < 2 ? 0.35 : 1,
+          transition: "all 0.5s ease"
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 500, color: "#60a5fa",
+            marginBottom: 8, display: "flex", alignItems: "center", gap: 6
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#60a5fa" }} />
+            CHEASE {showGrad ? "|∇ψ|" : "ψ(R,Z)"} — {CHEASE_GRID}×{CHEASE_GRID}
+          </div>
+          <HeatmapCanvas
+            data={showGrad ? cheaseGrad.current : cheaseFlux.current}
+            width={280} height={240}
+            colorScheme={showGrad ? "gradient" : "flux"}
+            label={`${CHEASE_GRID}² = ${(CHEASE_GRID * CHEASE_GRID).toLocaleString()} pts`}
+          />
+        </div>
+      </div>
+
+      {/* Midplane profile comparison */}
+      <div style={{
+        background: "rgba(20,22,35,0.8)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 10, padding: 12
+      }}>
+        <div style={{
+          fontSize: 11, color: "#7a7d98", marginBottom: 6,
+          display: "flex", alignItems: "center", gap: 12
+        }}>
+          <span>MIDPLANE CUT (Z = 0)</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 16, height: 2, background: "#fb923c", display: "inline-block", borderTop: "1px dashed #fb923c" }} />
+            <span style={{ color: "#fb923c", fontSize: 10 }}>EFIT</span>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 16, height: 2, background: "#60a5fa", display: "inline-block" }} />
+            <span style={{ color: "#60a5fa", fontSize: 10 }}>CHEASE</span>
+          </span>
+        </div>
+        <ProfileChart
+          efitProfile={showGrad ? efitGradMid.current : efitMidplane.current}
+          cheaseProfile={showGrad ? cheaseGradMid.current : chaseMidplane.current}
+          width={590} height={140}
+          label={showGrad ? "|∇ψ| along midplane" : "ψ along midplane"}
+          color1="#fb923c"
+          color2="#60a5fa"
+        />
+      </div>
+
+      {/* Technical footnote */}
+      <div style={{
+        marginTop: 16, fontSize: 10, color: "#4a4d68", textAlign: "center",
+        lineHeight: 1.6
+      }}>
+        Synthetic data for illustration. Real EFIT uses 65×65 or 129×129 (R,Z).
+        CHEASE typically runs 257×257 to 513×513 in (ψ,θ) flux coordinates.
+        <br />
+        Hermite elements store (ψ, ∂ψ/∂R, ∂ψ/∂Z, ∂²ψ/∂R∂Z) at each node → C¹ continuity by construction.
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CheaseSmoothingViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

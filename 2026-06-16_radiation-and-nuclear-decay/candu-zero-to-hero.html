@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CANDU — Zero to Hero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a0e;--ink:#eaf0f4;--muted:#7e8a99;--line:rgba(255,255,255,.09);
+    --u235:#5fe0a0;--neutron:#39c2ff;--rod:#ffd166;--heat:#ff6b4a;--d2o:#39c2ff;--violet:#c98bff;--hot:#ff4d6d;--steel:#aeb8c4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1100px 700px at 88% -10%, rgba(57,194,255,.12), transparent 60%),
+      radial-gradient(900px 600px at -10% 22%, rgba(95,224,160,.09), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.62;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .wrap{max-width:800px;margin:0 auto;padding:0 20px}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:70px 0 34px}
+  .kicker{color:var(--neutron);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:22px;background:rgba(57,194,255,.07)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.2rem,7.4vw,4rem);line-height:1;letter-spacing:-.02em;margin-bottom:18px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--neutron),var(--u235),var(--rod));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.15rem;color:#c2cad2;max-width:62ch}.lede b{color:var(--ink);font-weight:700}
+  .toc{margin-top:26px;display:flex;flex-wrap:wrap;gap:8px}
+  .toc a{font-family:"Space Mono",monospace;font-size:.66rem;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:100px;text-decoration:none;transition:.18s}
+  .toc a:hover{color:var(--ink);border-color:var(--neutron)}
+  section{padding:44px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.55rem,5.2vw,2.2rem);letter-spacing:-.01em;line-height:1.08;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.8rem;color:var(--neutron);display:block;margin-bottom:12px;font-weight:700;letter-spacing:.2em}
+  .sub{color:var(--muted);margin-bottom:18px;max-width:66ch}
+  .body{color:#c2cad2}.body b{color:var(--ink)}
+  p+p{margin-top:14px}
+  .callout{margin-top:18px;border-left:3px solid var(--neutron);background:rgba(57,194,255,.06);padding:14px 17px;border-radius:0 12px 12px 0;color:#c2cad2}
+  .callout b{color:var(--neutron)}
+  .callout.key{border-color:var(--rod);background:rgba(255,209,102,.07)}.callout.key b{color:var(--rod)}
+  .eq{font-family:"Fraunces",serif;font-size:clamp(1rem,3.6vw,1.3rem);text-align:center;padding:15px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;margin:14px 0}
+  .eq small{display:block;font-size:.62em;color:var(--muted);font-family:"Space Mono",monospace;margin-top:7px}
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(57,194,255,.07),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0 2px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.16s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.scram{border-color:var(--hot);color:var(--hot);font-weight:700}
+  button.scram:hover{background:var(--hot);color:#fff}
+  .rodlab{font-family:"Space Mono",monospace;font-size:.74rem;color:var(--muted);margin-top:12px;display:flex;justify-content:space-between}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.15);outline:none;margin:6px 0 2px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--rod);box-shadow:0 0 12px rgba(255,209,102,.5)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--rod)}
+  .readout{font-family:"Space Mono",monospace;font-size:.82rem;color:var(--muted)}
+  .readout b{color:var(--ink)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+  @media(max-width:600px){.cards{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:14px;padding:17px;background:rgba(255,255,255,.02);position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c,var(--neutron))}
+  .card h4{font-family:"Fraunces",serif;font-size:1.12rem;margin-bottom:4px}
+  .card .meta{font-family:"Space Mono",monospace;font-size:.66rem;color:var(--c,var(--neutron));margin-bottom:9px}
+  .card p{font-size:.85rem;color:var(--muted)}.card p b{color:var(--ink)}
+  .diagram{border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:8px;background:rgba(255,255,255,.02)}
+  .barrier{border-radius:12px;padding:13px 15px;margin:0 auto;text-align:center;font-family:"Space Mono",monospace;font-size:.78rem}
+  .barrier .bt{color:var(--ink);font-weight:700}.barrier .bd{color:var(--muted);font-size:.92em}
+  footer{padding:46px 0 90px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#9aa6b2;font-family:"Space Mono",monospace}
+  .pill{display:inline-block;font-family:"Space Mono",monospace;font-size:.6rem;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:100px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
+  .pill.live{color:var(--u235);border-color:rgba(95,224,160,.4)}
+  .pill.soon{color:var(--rod);border-color:rgba(255,209,102,.4)}
+  .pill.off{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Zero → hero · the Ontario CANDU reactor</span>
+  <h1>How Ontario <em>splits the atom.</em></h1>
+  <p class="lede">Most of the world's reactors run on enriched uranium cooled by ordinary water. Ontario's don't. The <b>CANDU</b> — CANada Deuterium Uranium — makes an unusual bet: burn <b>natural, unenriched uranium</b> by moderating it with <b>heavy water</b>. That one choice ripples into everything — the machine's shape, how it's refuelled, how it's shut down, and what its waste becomes. Here's the whole chain, with the reactor live in your hands.</p>
+  <nav class="toc">
+    <a href="#s1">1 · the split</a><a href="#s2">2 · the chain (live)</a><a href="#s3">3 · the heavy-water bet</a>
+    <a href="#s4">4 · inside the machine</a><a href="#s5">5 · how it's kept safe</a><a href="#s6">6 · the Ontario fleet</a>
+    <a href="#s7">7 · what the waste becomes</a><a href="#s8">8 · why we can't reuse it</a><a href="#s9">9 · where it ends up</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">01 / THE EVENT</span>The split — and where the energy comes from</h2>
+  <p class="sub body">A uranium-235 nucleus is barely holding together — huge, crammed with mutually-repelling protons. Fire a neutron at it and, because the neutron has no charge, it isn't repelled; it slips in and is swallowed, briefly becoming U-236. But to see <i>why</i> that releases energy, you need one idea first.</p>
+  <p class="body"><b>Binding energy</b> is how tightly a nucleus is held together — the energy you'd have to pour <i>in</i> to rip it back into loose protons and neutrons. Picture it as the <b>depth of a well</b>: a deeply-bound nucleus sits low, and climbing back out (taking it apart) is expensive. By the same token, when pieces <i>fall</i> into a deeper well, that drop in energy is <b>released</b>. And because a bound nucleus is lower in energy, it weighs slightly <i>less</i> than its separate parts — that missing mass, times c², <b>is</b> the binding energy (the mass-defect from the proton-weight panel, run in reverse).</p>
+  <p class="body">Now watch fission as <b>two drops</b> down the well:</p>
+  <div class="stage"><canvas id="bindCanvas"></canvas></div>
+  <p class="readout" id="bindCap" style="margin-top:10px"></p>
+  <p class="body" style="margin-top:14px"><b>Drop 1 — capture.</b> A free neutron sits "up high," unbound. When it falls into the uranium and binds, that fall <b>releases its binding energy — about 6.5 MeV</b>. The energy doesn't escape; it's dumped <i>into</i> the nucleus, leaving it sloshing and wobbling — the "excitation." And ~6.5 MeV of slosh is just past the ~6.2 MeV it takes to wobble to the breaking point, which is why even a <b>near-motionless</b> neutron sets off U-235.</p>
+  <p class="body"><b>Drop 2 — the split.</b> The wobbling nucleus stretches until proton repulsion beats the strong force and it <b>snaps in two</b>. The fragments are far <i>more</i> tightly bound than uranium was — they sit in a much deeper well. That big drop, the <b>difference</b> in binding between uranium and the fragments, is cashed out as ~<b>200 MeV of kinetic energy</b>: fragments and 2–3 fresh neutrons flying apart. When they slam to a stop in the fuel, that motion is simply <b>heat</b>.</p>
+  <div class="eq">n + ²³⁵U → ²³⁶U* → two fragments + 2–3 n + ~200 MeV<small>capture releases ~6.5 MeV as wobble · the split cashes the binding difference as ~200 MeV of motion</small></div>
+  <div class="callout key"><b>So binding energy isn't the kinetic energy — it's the well's depth.</b> What becomes the fragments' speed is the <i>change</i> in binding: they fall into a deeper well than uranium sat in, and the difference is released. A reactor is a machine for cashing that one drop, over and over, into heat.</div>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">02 / THE BALANCE</span>The chain reaction <span class="pill live">live</span></h2>
+  <p class="sub body">Each split releases 2–3 neutrons that can split more nuclei. If, on average, <b>exactly one</b> goes on to cause the next fission, the chain is steady — "critical" (k = 1). Below one it dies; above one it grows. Drive the <b>control rods</b> below: they're made of neutron-hungry material that drinks up free neutrons. Pull them out and the reaction runs away; push them in and it starves. Find the knife-edge in the middle.</p>
+  <div class="stage"><canvas id="chainCanvas"></canvas></div>
+  <div class="rodlab"><span>rods OUT — reaction grows</span><span id="rodPct">rods 45%</span><span>rods IN — reaction dies</span></div>
+  <input type="range" id="rodSlider" min="0" max="100" value="45">
+  <div class="controls">
+    <button class="toggle scram" id="scramBtn">⏺ SCRAM (drop all rods)</button>
+    <button class="toggle" id="pulseBtn">inject neutron</button>
+    <span class="readout" id="chainReadout"></span>
+  </div>
+  <div class="callout key"><b>Criticality is a knife-edge — and that's the danger and the trick.</b> Notice how narrow the "steady" band is. The only reason a reactor is controllable by humans is <b>delayed neutrons</b>: ~0.65% of fission neutrons don't appear instantly but trickle out seconds later from decaying fragments. That tiny lag is what gives operators (and the rods) time to react. Without it, the reaction would run faster than anything could catch.</div>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2><span class="num">03 / THE CANDU BET</span>Natural uranium &amp; heavy water</h2>
+  <p class="sub body">Here's the choice that makes a CANDU a CANDU. Fission-born neutrons come out fast, but uranium splits far more readily when hit by a <b>slow</b> neutron — so you need a <b>moderator</b>: light nuclei the neutrons bounce off, shedding speed each collision. The question is <i>which</i> light nuclei — and it comes down to neutron economy.</p>
+  <div class="stage"><canvas id="waterCanvas"></canvas></div>
+  <div class="readout" id="waterReadout" style="margin-top:12px"></div>
+  <p class="body" style="margin-top:14px">Ordinary "light" water (H₂O) slows neutrons beautifully, but its hydrogen nuclei (single protons) are also <b>hungry</b> — they frequently capture a passing neutron to become deuterium, eating neutrons the chain needs. So a light-water reactor must <b>enrich</b> its fuel to ~3–5% U-235 to have neutrons to spare.</p>
+  <p class="body"><b>Heavy water (D₂O)</b> is water whose hydrogen is deuterium — already carrying the extra neutron. So it almost never captures another; it slows neutrons without eating them. That superb neutron economy means a CANDU can sustain a chain on <b>natural uranium</b> straight out of the ground — 0.7% U-235, <b>no enrichment plant required.</b> The trade-off: deuterium is heavier, so it slows neutrons slightly less per bounce (more collisions needed), and heavy water is expensive to produce — but skipping enrichment is the prize.</p>
+  <div class="callout"><b>Why this matters strategically:</b> enrichment is the hard, sensitive, proliferation-relevant step. By designing around it, CANDU trades an enrichment plant for a heavy-water plant — and gains the ability to run on fuel that needs only mining and milling.</div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="num">04 / THE MACHINE</span>Inside a CANDU</h2>
+  <p class="sub body">Natural-uranium fuel and heavy water reshape the whole reactor. Three features set it apart from the single-pressure-vessel reactors used elsewhere:</p>
+  <div class="cards">
+    <div class="card" style="--c:var(--d2o)">
+      <h4>The calandria</h4>
+      <div class="meta">cool, low-pressure moderator tank</div>
+      <p>A big horizontal tank of <b>cool</b> heavy water at near-atmospheric pressure. Hundreds of fuel channels run through it. The moderator (which slows neutrons) is kept <b>separate</b> from the hot pressurised coolant — and being a large cool mass, it doubles as an emergency heat sink.</p>
+    </div>
+    <div class="card" style="--c:var(--steel)">
+      <h4>Pressure tubes</h4>
+      <div class="meta">~480 individual fuel channels</div>
+      <p>Instead of one giant pressure vessel, each fuel channel is its own pressure tube carrying hot, pressurised heavy-water coolant past the fuel. Fuel is bundled natural-uranium ceramic (UO₂) in zirconium-alloy cladding.</p>
+    </div>
+    <div class="card" style="--c:var(--u235)">
+      <h4>On-power refuelling</h4>
+      <div class="meta">refuel without shutting down</div>
+      <p>Natural-uranium fuel has little reactivity to spare, so it's refuelled often — and the channel design lets fuelling machines push fresh bundles in one end and spent ones out the other <b>while the reactor runs.</b> Light-water reactors must shut down to refuel.</p>
+    </div>
+    <div class="card" style="--c:var(--heat)">
+      <h4>Then: a steam plant</h4>
+      <div class="meta">the nuclear part just makes heat</div>
+      <p>Hot coolant boils ordinary water in steam generators; the steam spins a turbine; the turbine spins a generator. Everything past the core is a conventional thermal power station. A reactor is an exotic, very dense way to boil water.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="num">05 / THE PROTOCOLS</span>How Ontario keeps it safe</h2>
+  <p class="sub body">CANDU safety is built on <b>diversity and independence</b> — never relying on one system. The headline features:</p>
+  <div class="cards">
+    <div class="card" style="--c:var(--rod)">
+      <h4>Shutdown System 1</h4>
+      <div class="meta">SDS1 · shutoff rods</div>
+      <p>Neutron-absorbing rods held above the core by clutches. On a trip signal the clutches release and the rods <b>drop in by gravity</b> (spring-assisted), killing the chain reaction in well under a second.</p>
+    </div>
+    <div class="card" style="--c:var(--violet)">
+      <h4>Shutdown System 2</h4>
+      <div class="meta">SDS2 · liquid poison</div>
+      <p>A completely separate, independent system that injects <b>gadolinium nitrate</b> — a powerful neutron poison — straight into the moderator. Two diverse shutdown methods means no single failure can prevent shutdown.</p>
+    </div>
+    <div class="card" style="--c:var(--d2o)">
+      <h4>The vacuum building</h4>
+      <div class="meta">shared passive containment</div>
+      <p>A signature of Ontario's multi-unit stations: a huge building held under vacuum, ducted to every reactor's containment. If an accident over-pressurises a containment, the vacuum <b>sucks in and condenses the steam</b>, dousing the pressure — no power or operator action needed.</p>
+    </div>
+    <div class="card" style="--c:var(--u235)">
+      <h4>The cool moderator</h4>
+      <div class="meta">a built-in heat sink</div>
+      <p>Because the big calandria of heavy water sits cool and separate from the fuel, it can absorb decay heat in accident scenarios — a passive safety margin baked into the geometry. All of it runs under CNSC regulation.</p>
+    </div>
+  </div>
+  <div class="callout"><b>An honest caveat:</b> CANDU's coolant has a slightly <i>positive</i> void reactivity — if the coolant boils away, reactivity can briefly rise rather than fall. This is a known, regulated characteristic, which is exactly why the two fast, independent shutdown systems above are mandatory and why the separate cool moderator matters so much.</div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="num">06 / THE FLEET</span>Ontario's reactors, 2026</h2>
+  <p class="sub body">Nuclear supplies roughly half of Ontario's electricity, almost all of it from three CANDU stations. As of 2026 the fleet is in the middle of a generational wave of refurbishment — replacing pressure tubes, feeders and steam generators to add ~30 years of life per unit.</p>
+  <div class="cards">
+    <div class="card" style="--c:var(--u235)">
+      <h4>Bruce <span class="pill live">operating · refurbishing</span></h4>
+      <div class="meta">Tiverton, Lake Huron · 8 units</div>
+      <p>The largest operating nuclear station on Earth. A unit-by-unit mid-life refurbishment is underway — one unit returned to service in 2026, with the rest sequenced through the late 2020s.</p>
+    </div>
+    <div class="card" style="--c:var(--u235)">
+      <h4>Darlington <span class="pill live">refurbished</span></h4>
+      <div class="meta">Bowmanville, Lake Ontario · 4 units</div>
+      <p>Four CANDU units (~3,512 MW), enough for ~20% of Ontario's power. Its four-unit refurbishment finished in early 2026 — completed on budget and ahead of its original schedule.</p>
+    </div>
+    <div class="card" style="--c:var(--rod)">
+      <h4>Pickering <span class="pill soon">closing 2026 → refurb</span></h4>
+      <div class="meta">Pickering, Lake Ontario</div>
+      <p>The oldest station. Units 5–8 are slated to shut down at the end of 2026 and enter a major refurbishment (work ramping from 2027, back in service by the mid-2030s). The older A-side units have been retired.</p>
+    </div>
+    <div class="card" style="--c:var(--neutron)">
+      <h4>Darlington SMR <span class="pill soon">under construction</span></h4>
+      <div class="meta">a different beast — not a CANDU</div>
+      <p>Beside the CANDU station, Ontario is building the G7's first grid-scale small modular reactor — a GE Hitachi BWRX-300, a <b>boiling-water</b> design that uses enriched fuel and light water. Reactor-building construction is underway in 2026, targeting around 2030.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">07 / THE WASTE</span>What it becomes, and why <span class="pill live">live</span></h2>
+  <p class="sub body">Spent fuel is dangerous because of <i>what fission makes</i>. When a heavy nucleus splits, the two fragments inherit its <b>high neutron-to-proton ratio</b> — but a mid-sized nucleus needs far fewer neutrons to be stable. So the fragments are born deep in neutron-rich territory, far from the valley of stability, and they have to <b>beta-decay their way back</b> — converting neutrons to protons, firing off electrons and gammas — until they reach a stable nucleus. Watch one fall.</p>
+  <div class="stage"><canvas id="wasteCanvas"></canvas></div>
+  <p class="body" style="margin-top:14px">That's the whole reason spent fuel is radioactive: it's a soup of these neutron-rich fragments grinding down toward stability. Different ones take different times — <b>cesium-137 and strontium-90</b> (~30-year half-lives) dominate the heat and radioactivity for the first few centuries; <b>technetium-99 and iodine-129</b> (hundreds of thousands to millions of years) dominate the very-long-term hazard.</p>
+  <p class="body">There's a second source. U-238 (most of the fuel) doesn't fission easily but it does <b>capture</b> neutrons: U-238 + n → U-239, which beta-decays to neptunium, then to <b>plutonium-239</b>, and further captures breed Pu-240, americium, curium. These <b>transuranics</b> are long-lived alpha emitters and drive the radiotoxicity that lasts tens to hundreds of thousands of years — the reason deep, long-term isolation is needed.</p>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2><span class="num">08 / THE CATCH</span>Why we can't just reuse it</h2>
+  <p class="sub body">Here's the counterintuitive part: spent fuel is called "spent" even though <b>most of its energy is still there</b>. The uranium is barely touched and it has bred fresh plutonium. So why pull it out?</p>
+  <p class="body">Because the <b>neutron balance</b> can no longer be sustained. Two things choke it: the U-235 has depleted below what the reactor's neutron economy needs, and — crucially — the accumulating fission fragments include ferocious <b>neutron poisons</b>, above all <b>xenon-135</b>, the strongest neutron absorber known, and samarium-149. They soak up the very neutrons the chain depends on. Bred plutonium helps for a while (a CANDU burns some of its own), but eventually poisons plus depletion tip k below 1, and the chain can't hold. The energy isn't gone — the <i>neutrons</i> are being stolen.</p>
+  <p class="body">You <i>can</i> reclaim that energy, in principle. <b>Reprocessing</b> chemically separates the leftover uranium and plutonium to make fresh fuel (France does this); <b>fast/breeder reactors</b> use fast neutrons to fission U-238 and bred plutonium, unlocking many times more of uranium's energy. Canada chose a <b>once-through</b> cycle — no reprocessing — for reasons of proliferation risk, economics, and policy, and because CANDU spent fuel is already so lean in fissile material that reprocessing it is unattractive.</p>
+  <div class="callout"><b>The CANDU twist:</b> that same superb neutron economy means a CANDU can <i>eat other reactors' leftovers</i> — it can run on the recovered uranium from light-water spent fuel (still richer than natural uranium), on mixed-oxide fuel, even on thorium. CANDU is unusually good at burning what other designs throw away; it just can't easily re-burn its own already-lean fuel without reprocessing.</div>
+</section>
+
+<!-- 9 -->
+<section id="s9">
+  <h2><span class="num">09 / THE DESTINATION</span>Where it ends up</h2>
+  <p class="sub body">For now, every spent CANDU fuel bundle stays in Ontario. Fresh out of the reactor it's intensely radioactive and hot, so it cools for ~7–10 years in <b>water pools</b> (the water shields radiation and carries off decay heat), then moves to <b>dry storage</b> in robust concrete containers on the station site.</p>
+  <p class="body">The long-term plan is a <b>deep geological repository</b>. In November 2024, after a 14-year consent-based search, the Nuclear Waste Management Organization selected a site in northwestern Ontario — the <b>Wabigoon Lake Ojibway Nation–Ignace area</b> (the Revell rock formation, ~250 km northwest of Thunder Bay), with an Indigenous-led regulatory process as part of the approval. It's designed to hold roughly <b>5.9 million</b> used fuel bundles, 500–800 metres down in stable rock, with operations expected to begin around <b>2040–2045</b>.</p>
+  <div class="diagram">
+    <div style="font-family:'Space Mono',monospace;font-size:.7rem;color:var(--muted);text-align:center;margin-bottom:12px;letter-spacing:.1em">THE MULTIPLE-BARRIER SYSTEM — nested, each independent</div>
+    <div class="barrier" style="background:rgba(255,77,109,.14);border:1px solid rgba(255,77,109,.35);max-width:96%">
+      <div class="bt">① the fuel pellet itself</div><div class="bd">a stable ceramic (UO₂) that locks most isotopes in place</div>
+      <div class="barrier" style="background:rgba(255,209,102,.13);border:1px solid rgba(255,209,102,.35);max-width:90%;margin-top:11px">
+        <div class="bt">② sealed metal container</div><div class="bd">corrosion-resistant, copper-coated steel vessel</div>
+        <div class="barrier" style="background:rgba(201,139,255,.13);border:1px solid rgba(201,139,255,.35);max-width:86%;margin-top:11px">
+          <div class="bt">③ bentonite clay buffer</div><div class="bd">swells when wet, sealing out groundwater</div>
+          <div class="barrier" style="background:rgba(57,194,255,.13);border:1px solid rgba(57,194,255,.35);max-width:82%;margin-top:11px">
+            <div class="bt">④ 500+ m of stable host rock</div><div class="bd">geology unchanged for hundreds of millions of years</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="body" style="margin-top:14px">The logic is that no single barrier has to be perfect — the fuel form, the container, the clay, and half a kilometre of ancient rock each independently slow any escape, so that no harmful radiation reaches the surface even over the hundreds of thousands of years the transuranics need to decay away. It's the same defence-in-depth philosophy as the reactor's shutdown systems, stretched across geological time.</p>
+</section>
+
+<footer>
+  <p class="mono">CANDU · ZERO TO HERO</p>
+  <p style="margin-top:8px">One design choice — burn natural uranium by moderating it with heavy water — explains the whole machine: the calandria and pressure tubes, on-power refuelling, the twin shutdown systems and vacuum building, and a once-through waste cycle headed for a repository in northern Ontario. The atom-splitting is the easy part; the engineering is all about controlling a knife-edge and isolating what's left when it's done.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function dot(ctx,x,y,r,col,glow){ctx.fillStyle=col;if(glow){ctx.shadowColor=col;ctx.shadowBlur=glow;}ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowBlur=0;}
+
+/* ===== 02. CHAIN REACTION ===== */
+(function(){
+  const c=document.getElementById("chainCanvas");let S;
+  function size(){S=setup(c,Math.min(400,Math.max(320,c.clientWidth*0.74)));}
+  size();
+  const slider=document.getElementById("rodSlider"),rodPct=document.getElementById("rodPct"),readout=document.getElementById("chainReadout");
+  document.getElementById("scramBtn").onclick=()=>{slider.value="100";};
+  let neutrons=[],flashes=[],hist=[],births=0,deaths=0;
+  function spawn(x,y,n){for(let i=0;i<n;i++){const a=Math.random()*7,s=1.4+Math.random()*1.3;neutrons.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s});}}
+  document.getElementById("pulseBtn").onclick=()=>{const {w,h}=S;spawn(w/2,h/2,6);};
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    const rod=parseFloat(slider.value)/100;rodPct.textContent="rods "+Math.round(rod*100)+"%";
+    if(neutrons.length===0)spawn(w/2,h/2,5);
+    // fuel sites grid (always present)
+    const cols=7,rows=5,mx=46,my=34;
+    const fuel=[];
+    for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){fuel.push({x:mx+i*(w-2*mx)/(cols-1),y:my+j*(h-2*my)/(rows-1)});}
+    fuel.forEach(f=>dot(ctx,f.x,f.y,7,"rgba(95,224,160,.5)",0));
+    // control rods: vertical bars descending from top, depth ~ rod
+    const nRods=4;const rodDepth=rod*(h-20);
+    for(let r=0;r<nRods;r++){const rx=(w/(nRods+1))*(r+1);
+      ctx.fillStyle="rgba(255,209,102,.85)";ctx.fillRect(rx-5,0,10,rodDepth);
+      ctx.fillStyle="rgba(255,209,102,.25)";ctx.fillRect(rx-9,0,18,rodDepth);
+    }
+    births=0;deaths=0;
+    for(let i=neutrons.length-1;i>=0;i--){const p=neutrons[i];p.x+=p.vx;p.y+=p.vy;
+      if(p.x<4||p.x>w-4)p.vx*=-1;if(p.y<4||p.y>h-4)p.vy*=-1;
+      p.x=Math.max(4,Math.min(w-4,p.x));p.y=Math.max(4,Math.min(h-4,p.y));
+      // rod absorption: if inside a rod's column & depth
+      let absorbed=false;
+      for(let r=0;r<nRods;r++){const rx=(w/(nRods+1))*(r+1);
+        if(Math.abs(p.x-rx)<9&&p.y<rodDepth){if(Math.random()<0.18){absorbed=true;break;}}}
+      // background capture
+      if(!absorbed&&Math.random()<0.004)absorbed=true;
+      if(absorbed){flashes.push({x:p.x,y:p.y,r:3,c:"255,209,102",life:1});neutrons.splice(i,1);deaths++;continue;}
+      // fission on proximity
+      let fis=false;
+      for(let k=0;k<fuel.length;k++){const dx=p.x-fuel[k].x,dy=p.y-fuel[k].y;
+        if(dx*dx+dy*dy<150){if(Math.random()<0.05){fis=true;var fx=fuel[k].x,fy=fuel[k].y;break;}}}
+      if(fis){neutrons.splice(i,1);spawn(fx,fy,2);births++;
+        flashes.push({x:fx,y:fy,r:5,c:"255,107,74",life:1});}
+    }
+    if(neutrons.length>480){neutrons.splice(480);}
+    // flashes
+    for(let i=flashes.length-1;i>=0;i--){const f=flashes[i];f.life-=0.06;f.r+=1.4;
+      if(f.life<=0){flashes.splice(i,1);continue;}
+      ctx.globalAlpha=f.life;dot(ctx,f.x,f.y,f.r,"rgba("+f.c+",.7)",10);ctx.globalAlpha=1;}
+    // neutrons
+    neutrons.forEach(p=>dot(ctx,p.x,p.y,2.6,"#39c2ff",7));
+    // state
+    hist.push(neutrons.length);if(hist.length>40)hist.shift();
+    const recent=hist.slice(-12),old=hist.slice(0,12);
+    const ra=recent.reduce((a,b)=>a+b,0)/recent.length, oa=old.reduce((a,b)=>a+b,0)/(old.length||1);
+    let state,col;
+    if(neutrons.length>=480){state="SUPERCRITICAL — power surge";col="#ff4d6d";}
+    else if(neutrons.length<3){state="SUBCRITICAL — chain dying";col="#7e8a99";}
+    else if(ra>oa*1.25){state="SUPERCRITICAL — growing";col="#ff6b4a";}
+    else if(ra<oa*0.8){state="SUBCRITICAL — shrinking";col="#7e8a99";}
+    else {state="CRITICAL — steady (k ≈ 1)";col="#5fe0a0";}
+    ctx.fillStyle=col;ctx.font='bold 13px "Space Mono"';ctx.textAlign="center";ctx.fillText(state,w/2,h-10);
+    readout.innerHTML="free neutrons: <b>"+neutrons.length+"</b>";
+    requestAnimationFrame(draw);
+  }
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== 03. HEAVY VS LIGHT WATER ===== */
+(function(){
+  const c=document.getElementById("waterCanvas");let S;
+  function size(){S=setup(c,Math.min(360,Math.max(300,c.clientWidth*0.62)));}
+  size();
+  const readout=document.getElementById("waterReadout");
+  let parts=[],stats={light:{sent:0,reached:0,eaten:0},heavy:{sent:0,reached:0,eaten:0}},timer=0;
+  function spawn(side){const {w,h}=S;const x0=side==="light"?w*0.25:w*0.75;
+    parts.push({side,x:x0,y:18,vx:(Math.random()-0.5)*1.2,vy:1.8,speed:1});stats[side].sent++;}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);timer++;
+    // divider + labels + moderator nuclei + fuel
+    ctx.strokeStyle="rgba(255,255,255,.1)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.stroke();
+    ctx.textAlign="center";ctx.font='bold 12px "Space Mono"';
+    ctx.fillStyle="#ff6b4a";ctx.fillText("LIGHT WATER  H₂O",w*0.25,16);
+    ctx.fillStyle="#39c2ff";ctx.fillText("HEAVY WATER  D₂O",w*0.75,16);
+    // moderator nuclei (decorative fixed)
+    for(let s=0;s<2;s++){const cxr=s===0?w*0.25:w*0.75;const col=s===0?"rgba(255,107,74,.4)":"rgba(57,194,255,.4)";
+      for(let i=0;i<14;i++){const gx=cxr-w*0.18+ (i%5)*(w*0.09);const gy=46+Math.floor(i/5)*46;
+        if(gx>(s===0?6:w/2+6)&&gx<(s===0?w/2-6:w-6))dot(ctx,gx,gy,3.2,col,0);}}
+    // fuel strip at bottom
+    ctx.fillStyle="rgba(95,224,160,.5)";ctx.fillRect(8,h-22,w/2-16,8);ctx.fillRect(w/2+8,h-22,w/2-16,8);
+    ctx.fillStyle="rgba(95,224,160,.8)";ctx.font='9px "Space Mono"';ctx.fillText("uranium fuel",w*0.25,h-28);ctx.fillText("uranium fuel",w*0.75,h-28);
+    if(timer%26===0){spawn("light");spawn("heavy");}
+    for(let i=parts.length-1;i>=0;i--){const p=parts[i];
+      // bounce / slow on moderator collisions (random)
+      if(Math.random()<0.12){p.vx+=(Math.random()-0.5)*1.4;p.speed*=0.92;p.vy*=0.97;}
+      p.x+=p.vx;p.y+=p.vy* (0.5+p.speed);
+      const lo=p.side==="light"?6:w/2+6, hi=p.side==="light"?w/2-6:w-6;
+      if(p.x<lo||p.x>hi){p.vx*=-1;p.x=Math.max(lo,Math.min(hi,p.x));}
+      // light water eats neutrons
+      if(p.side==="light"&&Math.random()<0.020){stats.light.eaten++;
+        // capture flash
+        ctx.fillStyle="rgba(255,107,74,.9)";ctx.font='9px "Space Mono"';ctx.textAlign="center";ctx.fillText("captured ✗",p.x,p.y-6);
+        parts.splice(i,1);continue;}
+      if(p.side==="heavy"&&Math.random()<0.0015){stats.heavy.eaten++;parts.splice(i,1);continue;}
+      if(p.y>=h-24){stats[p.side].reached++;parts.splice(i,1);
+        continue;}
+      // color = speed (fast warm -> slow cool)
+      const sp=Math.max(0,Math.min(1,p.speed));
+      const col=p.side==="light"?"#ff8a5c":"#39c2ff";
+      dot(ctx,p.x,p.y,2.6,col,sp>0.6?2:7);
+    }
+    // running survival
+    const lp=stats.light.sent? Math.round(100*stats.light.reached/stats.light.sent):0;
+    const hp=stats.heavy.sent? Math.round(100*stats.heavy.reached/stats.heavy.sent):0;
+    ctx.textAlign="center";ctx.font='bold 11px "Space Mono"';
+    ctx.fillStyle="#ff6b4a";ctx.fillText("reached fuel: "+lp+"%",w*0.25,h-6);
+    ctx.fillStyle="#39c2ff";ctx.fillText("reached fuel: "+hp+"%",w*0.75,h-6);
+    readout.innerHTML="Heavy water lets <b style='color:#39c2ff'>"+hp+"%</b> of neutrons survive to the fuel; light water eats so many that only <b style='color:#ff8a5c'>"+lp+"%</b> get through — which is why light water needs enriched fuel and heavy water can run on natural uranium.";
+    requestAnimationFrame(draw);
+  }
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== 07. WASTE → VALLEY OF STABILITY ===== */
+(function(){
+  const c=document.getElementById("wasteCanvas");let S,frame=0;
+  function size(){S=setup(c,Math.min(380,Math.max(320,c.clientWidth*0.7)));}
+  size();
+  // chain along constant A: a neutron-rich fragment beta-decaying down to stability
+  // example isobar A=137 region simplified: each step N-1, Z+1
+  const chain=[
+    {el:"Xe-137",Z:54,N:83,stable:false},
+    {el:"Cs-137",Z:55,N:82,stable:false},
+    {el:"Ba-137",Z:56,N:81,stable:true},
+  ];
+  let step=0,t=0,emit=[];
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);frame++;t++;
+    const padL=44,padB=40,plotW=w-padL-20,plotH=h-padB-24;
+    // axes: x=Z (protons), y=N (neutrons)
+    const Zmin=52,Zmax=58,Nmin=78,Nmax=86;
+    const X=z=>padL+((z-Zmin)/(Zmax-Zmin))*plotW;
+    const Y=n=>(h-padB)-((n-Nmin)/(Nmax-Nmin))*plotH;
+    // axis labels
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(padL,24);ctx.lineTo(padL,h-padB);ctx.lineTo(w-20,h-padB);ctx.stroke();
+    ctx.fillStyle="rgba(234,240,244,.5)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    ctx.fillText("protons (Z) →",padL+plotW/2,h-12);
+    ctx.save();ctx.translate(14,24+plotH/2);ctx.rotate(-Math.PI/2);ctx.fillText("neutrons (N) →",0,0);ctx.restore();
+    // valley of stability band (stable line ~ where chain ends, drawn diagonally)
+    ctx.strokeStyle="rgba(95,224,160,.45)";ctx.lineWidth=14;ctx.lineCap="round";
+    ctx.beginPath();ctx.moveTo(X(56),Y(80.5));ctx.lineTo(X(58),Y(78.5));ctx.stroke();
+    ctx.beginPath();ctx.moveTo(X(53.6),Y(81.4));ctx.lineTo(X(56),Y(80.5));ctx.stroke();
+    ctx.fillStyle="rgba(95,224,160,.8)";ctx.font='9px "Space Mono"';ctx.textAlign="left";ctx.fillText("valley of stability",X(56.1),Y(79.3));
+    // draw chain path (faint)
+    ctx.strokeStyle="rgba(255,255,255,.14)";ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.beginPath();
+    chain.forEach((c2,i)=>{const x=X(c2.Z),y=Y(c2.N);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();ctx.setLineDash([]);
+    // past nodes
+    for(let i=0;i<=step&&i<chain.length;i++){const c2=chain[i];const x=X(c2.Z),y=Y(c2.N);
+      const isCur=i===step;const col=c2.stable?"#5fe0a0":(isCur?"#ff6b4a":"rgba(255,107,74,.5)");
+      dot(ctx,x,y,isCur?9:6,col,isCur?14:0);
+      ctx.fillStyle=c2.stable?"#5fe0a0":"#eaf0f4";ctx.font='bold 10px "Space Mono"';ctx.textAlign="center";
+      ctx.fillText(c2.el,x,y-13);
+      if(c2.stable&&isCur){ctx.fillStyle="#5fe0a0";ctx.font='9px "Space Mono"';ctx.fillText("STABLE — done",x,y+20);}
+    }
+    // beta emission particles
+    for(let i=emit.length-1;i>=0;i--){const e=emit[i];e.x+=e.vx;e.y+=e.vy;e.life-=0.02;
+      if(e.life<=0){emit.splice(i,1);continue;}
+      ctx.globalAlpha=e.life;dot(ctx,e.x,e.y,2,e.c,6);
+      ctx.fillStyle=e.c;ctx.font='8px "Space Mono"';ctx.textAlign="left";ctx.fillText(e.lab,e.x+4,e.y);ctx.globalAlpha=1;}
+    // advance
+    if(t>90){t=0;
+      if(step<chain.length-1){
+        const from=chain[step];const x=X(from.Z),y=Y(from.N);
+        emit.push({x,y,vx:-1.4,vy:-1.0,life:1,c:"#39c2ff",lab:"e⁻"});
+        emit.push({x,y,vx:-1.8,vy:0.4,life:1,c:"rgba(200,210,220,.8)",lab:"ν̄"});
+        step++;
+      } else { step=0; }
+    }
+    // caption
+    ctx.fillStyle="rgba(234,240,244,.55)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    const cur=chain[step];
+    ctx.fillText(cur.stable?"reached the valley — no more decay":"neutron-rich fragment · β⁻ decay: n → p + e⁻ + ν̄",padL+plotW/2,18);
+    requestAnimationFrame(draw);
+  }
+  draw();window.addEventListener("resize",size);
+})();
+
+/* ===== 01. BINDING ENERGY WELL ===== */
+(function(){
+  const c=document.getElementById("bindCanvas");let S;
+  function ez(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+  function size(){S=setup(c,Math.min(380,Math.max(300,c.clientWidth*0.66)));}
+  size();
+  const cap=document.getElementById("bindCap");
+  let phase=0,t=0,frag=[];
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);t++;
+    const xLad=64,xObj=w*0.50,yL1=44,yL2=104,yL3=h-56;
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(xLad,26);ctx.lineTo(xLad,h-28);ctx.stroke();
+    ctx.fillStyle="rgba(234,240,244,.5)";ctx.font='9px "Space Mono"';
+    ctx.save();ctx.translate(19,h/2);ctx.rotate(-Math.PI/2);ctx.textAlign="center";ctx.fillText("energy · down = more bound",0,0);ctx.restore();
+    function level(y,label,col){ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(xLad,y);ctx.lineTo(w-12,y);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=col;ctx.font='10px "Space Mono"';ctx.textAlign="right";ctx.fillText(label,w-14,y-6);}
+    level(yL1,"free n + ²³⁵U","rgba(57,194,255,.75)");
+    level(yL2,"²³⁶U* (excited, wobbling)","rgba(255,209,102,.85)");
+    level(yL3,"two fragments — far more bound","rgba(95,224,160,.85)");
+    ctx.textAlign="left";ctx.font='9px "Space Mono"';
+    ctx.fillStyle="rgba(255,209,102,.9)";ctx.fillText("↓ ≈6.5 MeV released → wobble",xLad+8,(yL1+yL2)/2+3);
+    ctx.fillStyle="rgba(95,224,160,.9)";ctx.fillText("↓ ≈200 MeV released → kinetic  (not to scale)",xLad+8,(yL2+yL3)/2+3);
+    let objY,capt;
+    if(phase===0){objY=yL1;if(t>60){phase=1;t=0;}}
+    else if(phase===1){objY=yL1+(yL2-yL1)*ez(Math.min(1,t/40));if(t>=40){phase=2;t=0;}}
+    else if(phase===2){objY=yL2;if(t>75){phase=3;t=0;}}
+    else if(phase===3){objY=yL2+(yL3-yL2)*ez(Math.min(1,t/40));if(t>=40){phase=4;t=0;frag=[{x:xObj,vx:-2.2},{x:xObj,vx:2.2}];}}
+    else {objY=yL3;if(t>95){phase=0;t=0;frag=[];}}
+    if(phase===0){
+      dot(ctx,xObj-19,objY,4,"#39c2ff",8);dot(ctx,xObj+9,objY,11,"#5fe0a0",6);
+      ctx.fillStyle="#06210f";ctx.font='bold 8px "Space Mono"';ctx.textAlign="center";ctx.fillText("²³⁵U",xObj+9,objY+3);
+      capt="A free neutron sits high and unbound, about to fall into the uranium.";
+    } else if(phase===1){dot(ctx,xObj,objY,12,"#ffd166",12);
+      capt="Drop 1 — capture. Falling into the well releases the neutron's binding energy, ~6.5 MeV.";
+    } else if(phase===2){const wob=Math.sin(t*0.32)*3;dot(ctx,xObj,objY,12+wob,"#ffd166",16);
+      ctx.fillStyle="#2a2206";ctx.font='bold 8px "Space Mono"';ctx.textAlign="center";ctx.fillText("²³⁶U*",xObj,objY+3);
+      capt="That 6.5 MeV stays inside as wobble — just past the ~6.2 MeV needed to break. A still neutron is enough.";
+    } else if(phase===3){dot(ctx,xObj,objY,12,"#ff6b4a",16);
+      capt="Drop 2 — it snaps in two, and the halves fall into a far deeper well.";
+    } else {
+      frag.forEach(fr=>{fr.x+=fr.vx;dot(ctx,fr.x,yL3,8,"#5fe0a0",8);});
+      dot(ctx,xObj-7,yL3-15,3,"#39c2ff",6);dot(ctx,xObj+11,yL3-17,3,"#39c2ff",6);
+      capt="The binding difference (~200 MeV) is cashed out as kinetic energy — fragments and neutrons flying apart. That motion is heat.";
+    }
+    cap.textContent=capt;
+    requestAnimationFrame(draw);
+  }
+  draw();window.addEventListener("resize",size);
+})();
+</script>
+</body>
+</html>

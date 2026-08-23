@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase-Space Viewer — seeing f(x,v)</title>
+<style>
+  :root{
+    --bg:#04070c;
+    --panel:#080d15;
+    --panel-2:#0b1018;
+    --ink:#cfe8e0;
+    --ink-dim:#5d7382;
+    --ink-faint:#33424d;
+    --cool:#50f0d2;
+    --warm:#ff966a;
+    --amber:#f2c14e;
+    --line:#13202b;
+    --rule:#1c2d39;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: "Helvetica Neue", Inter, system-ui, -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);}
+  body{
+    background:
+      radial-gradient(1200px 700px at 70% -10%, #0a1722 0%, transparent 55%),
+      radial-gradient(900px 600px at -10% 110%, #0a1a18 0%, transparent 50%),
+      var(--bg);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    padding:32px 20px 64px;
+  }
+  .wrap{max-width:940px;margin:0 auto;}
+
+  /* ---------- header ---------- */
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--ink-dim);margin:0 0 14px;
+  }
+  .eyebrow b{color:var(--cool);font-weight:600;}
+  h1{
+    font-family:var(--sans);
+    font-weight:300;font-size:clamp(28px,5.4vw,46px);line-height:1.02;
+    margin:0 0 16px;letter-spacing:-.015em;
+  }
+  h1 em{font-style:normal;color:var(--cool);font-weight:500;}
+  .thesis{
+    max-width:60ch;color:var(--ink-dim);font-size:15.5px;line-height:1.65;margin:0 0 26px;
+  }
+  .thesis b{color:var(--ink);font-weight:500;}
+
+  /* ---------- reduction chips ---------- */
+  .reduce{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:16px 18px;margin:0 0 26px;
+    border:1px solid var(--rule);border-radius:10px;background:var(--panel);
+  }
+  .reduce .rlabel{
+    font-family:var(--mono);font-size:10px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--ink-faint);width:100%;margin-bottom:2px;
+  }
+  .chips{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+  .chip{
+    font-family:var(--mono);font-size:13px;
+    padding:6px 11px;border-radius:7px;border:1px solid var(--rule);
+    color:var(--ink-faint);background:var(--panel-2);transition:.25s;
+    white-space:nowrap;
+  }
+  .chip.on{color:#04120f;background:var(--cool);border-color:var(--cool);font-weight:600;box-shadow:0 0 18px -4px var(--cool);}
+  .chip.muted{opacity:.5;text-decoration:line-through;text-decoration-color:var(--ink-faint);}
+  .arrow{color:var(--ink-faint);font-family:var(--mono);font-size:15px;}
+  .reduce .note{font-size:12.5px;color:var(--ink-dim);line-height:1.5;width:100%;margin-top:4px;}
+
+  /* ---------- instrument ---------- */
+  .scope{
+    position:relative;border:1px solid var(--rule);border-radius:14px;
+    background:linear-gradient(180deg,#0a121b,#070c12);
+    padding:14px;overflow:hidden;
+    box-shadow:0 30px 80px -40px #000, inset 0 1px 0 #ffffff08;
+  }
+  .scope::after{ /* CRT vignette + scanlines */
+    content:"";position:absolute;inset:0;pointer-events:none;border-radius:14px;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 2px, #00000022 2px 3px),
+      radial-gradient(120% 120% at 50% 50%, transparent 62%, #000a 100%);
+    mix-blend-mode:multiply;opacity:.55;
+  }
+  canvas{display:block;width:100%;height:auto;border-radius:8px;image-rendering:pixelated;}
+  .badge{
+    position:absolute;top:22px;left:24px;z-index:3;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-dim);
+  }
+  .badge b{color:var(--cool);}
+
+  /* ---------- controls ---------- */
+  .deck{display:grid;grid-template-columns:1fr;gap:14px;margin-top:16px;}
+  @media(min-width:680px){.deck{grid-template-columns:1.3fr .9fr;}}
+
+  .card{border:1px solid var(--rule);border-radius:11px;background:var(--panel);padding:15px 16px;}
+  .card h3{
+    font-family:var(--mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;
+    color:var(--ink-faint);margin:0 0 13px;font-weight:600;
+  }
+  .scen{display:flex;flex-direction:column;gap:7px;}
+  .scen button{
+    text-align:left;cursor:pointer;
+    border:1px solid var(--rule);border-radius:8px;background:var(--panel-2);
+    color:var(--ink-dim);padding:10px 12px;transition:.18s;font-family:var(--sans);
+  }
+  .scen button .t{display:block;font-size:14px;color:var(--ink);font-weight:500;}
+  .scen button .d{display:block;font-size:11.5px;color:var(--ink-dim);margin-top:3px;line-height:1.4;}
+  .scen button:hover{border-color:var(--ink-faint);}
+  .scen button.active{border-color:var(--cool);background:#0c1a1d;box-shadow:0 0 22px -10px var(--cool);}
+  .scen button.active .t{color:var(--cool);}
+
+  .row{display:flex;gap:9px;align-items:center;margin-bottom:13px;}
+  .row:last-child{margin-bottom:0;}
+  .btn{
+    cursor:pointer;border:1px solid var(--rule);border-radius:8px;background:var(--panel-2);
+    color:var(--ink);font-family:var(--mono);font-size:12.5px;padding:9px 14px;transition:.18s;flex:0 0 auto;
+  }
+  .btn:hover{border-color:var(--ink-faint);}
+  .btn.primary{background:var(--cool);color:#04120f;border-color:var(--cool);font-weight:600;}
+  .slider-wrap{flex:1;display:flex;align-items:center;gap:10px;}
+  .slider-wrap label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--ink-faint);text-transform:uppercase;}
+  input[type=range]{flex:1;accent-color:var(--cool);background:transparent;}
+
+  .readout{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border-radius:8px;overflow:hidden;margin-top:4px;}
+  .ro{background:var(--panel-2);padding:10px 12px;}
+  .ro .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);}
+  .ro .v{font-family:var(--mono);font-size:16px;color:var(--ink);margin-top:3px;}
+  .ro .v.good{color:var(--cool);}
+  .ro .v small{color:var(--ink-dim);font-size:11px;}
+
+  .caption{
+    margin-top:22px;border-left:2px solid var(--rule);padding:2px 0 2px 18px;
+    color:var(--ink-dim);font-size:14px;line-height:1.7;max-width:72ch;
+  }
+  .caption b{color:var(--ink);font-weight:500;}
+  .caption .cool{color:var(--cool);}
+  .caption .warm{color:var(--warm);}
+  .legend{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-family:var(--mono);font-size:11.5px;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+
+  @media (prefers-reduced-motion: reduce){
+    .scope::after{background:radial-gradient(120% 120% at 50% 50%, transparent 62%, #000a 100%);}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow"><b>Kinetic theory</b> · the distribution function</p>
+  <h1>You can't see six dimensions.<br>So you watch <em>one plane</em> of it.</h1>
+  <p class="thesis">
+    The Vlasov <b>f(x, y, z, vₓ, v_y, v_z)</b> lives on a 6D phase space — three positions, three velocities.
+    No screen shows that. The trick physicists use is to <b>hold most coordinates fixed</b> (or integrate them out)
+    and look at a single 2D slice: one position against its own velocity. Below is that slice, rendered as a glowing
+    density of sample particles. Each obeys the exact dynamics, so what you see <b>is</b> f being carried by the flow —
+    and you can watch <b>df/dt = 0</b> stretch it without ever destroying a drop.
+  </p>
+
+  <div class="reduce">
+    <span class="rlabel">The slice you are watching</span>
+    <div class="chips">
+      <span class="chip on">x</span>
+      <span class="chip muted">y</span>
+      <span class="chip muted">z</span>
+      <span class="arrow">·</span>
+      <span class="chip on">vₓ</span>
+      <span class="chip muted">v_y</span>
+      <span class="chip muted">v_z</span>
+      <span class="arrow">&rarr;</span>
+      <span class="chip on">f(x, vₓ)</span>
+    </div>
+    <p class="note">Greyed axes are frozen. Keep one and integrate the rest away and you get a <em>marginal</em> — the density bumps drawn along the top and right edges of the screen.</p>
+  </div>
+
+  <div class="scope">
+    <div class="badge">PHASE&nbsp;PLANE · <b id="scname">free streaming</b></div>
+    <canvas id="screen" width="900" height="900"></canvas>
+  </div>
+
+  <div class="deck">
+    <div class="card">
+      <h3>Field / potential</h3>
+      <div class="scen" id="scen">
+        <button data-s="stream" class="active">
+          <span class="t">Free streaming</span>
+          <span class="d">No force. Fast particles outrun slow ones — the blob shears into diagonal sheets, then wraps into fine vertical filaments.</span>
+        </button>
+        <button data-s="harmonic">
+          <span class="t">Harmonic well</span>
+          <span class="d">a = −x. Every orbit has the same period, so the blob rotates rigidly. No mixing — the picture is reversible.</span>
+        </button>
+        <button data-s="pendulum">
+          <span class="t">Anharmonic well (pendulum)</span>
+          <span class="d">a = −sin x. Period depends on amplitude, so layers wind around the cat's-eye into a spiral — phase mixing.</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Transport</h3>
+      <div class="row">
+        <button class="btn primary" id="play">Pause</button>
+        <button class="btn" id="reset">Reset</button>
+      </div>
+      <div class="row slider-wrap">
+        <label>Rate</label>
+        <input type="range" id="speed" min="1" max="8" value="3" step="1">
+      </div>
+      <div class="readout">
+        <div class="ro"><div class="k">flow time</div><div class="v" id="ro-t">0.00</div></div>
+        <div class="ro"><div class="k">samples</div><div class="v good" id="ro-n">—</div></div>
+        <div class="ro"><div class="k">fine-grained area</div><div class="v good">conserved</div></div>
+        <div class="ro"><div class="k">df/dt along orbit</div><div class="v good">0</div></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    <span class="legend"><span class="dot" style="background:var(--cool)"></span>inner layer</span>
+    <span class="legend"><span class="dot" style="background:var(--warm)"></span>outer layer</span>
+    <br><br>
+    The two colors tag where each particle <b>started</b>. Watch them: the density gets pulled into ever-thinner
+    <span class="cool">threads</span> and <span class="warm">sheets</span>, but the threads never merge and never tear.
+    That's Liouville's theorem made visible — phase-space volume is incompressible, so f stays constant along every orbit
+    even as its shape becomes infinitely intricate. If the structure <em>looks</em> like it's smearing into a smooth blur,
+    that's only because your eye (and any real measurement) <b>coarse-grains</b> over the filaments. The true f never loses
+    information; the apparent relaxation is the resolution of your instrument giving up — which is exactly how a collisionless
+    plasma "relaxes" without collisions.
+  </p>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const cv = document.getElementById('screen');
+  const ctx = cv.getContext('2d', { alpha:false });
+
+  // ---- offscreen low-res density grid (gets upscaled for natural phosphor bloom) ----
+  const GW = 300, GH = 300;
+  const grid = document.createElement('canvas');
+  grid.width = GW; grid.height = GH;
+  const gctx = grid.getContext('2d');
+  const img = gctx.createImageData(GW, GH);
+  const cnt = new Float32Array(GW*GH);     // particle count per cell
+  const tag = new Float32Array(GW*GH);     // tag-weighted sum (0=outer,1=inner)
+
+  // ---- particles ----
+  const N = 46000;
+  const px = new Float32Array(N), pv = new Float32Array(N);
+  const px0 = new Float32Array(N), pv0 = new Float32Array(N), pt = new Float32Array(N);
+
+  // gaussian
+  let spare=null;
+  function gauss(){ if(spare!==null){const s=spare;spare=null;return s;}
+    let u=0,v=0,s=0; do{u=Math.random()*2-1; v=Math.random()*2-1; s=u*u+v*v;}while(s>=1||s===0);
+    const m=Math.sqrt(-2*Math.log(s)/s); spare=v*m; return u*m; }
+
+  // ---- scenarios ----
+  // each: domain half-ranges Lx,Lv ; force(x) ; wrap (periodic x) ; seed() ; dt
+  const SCN = {
+    stream: {
+      Lx:3, Lv:3, wrap:true, dt:0.020,
+      force: ()=>0,
+      seed(i){ const x=gauss()*0.42, v=gauss()*0.9;
+               px0[i]=x; pv0[i]=v; pt[i]= Math.abs(v)<0.9?1:0; }
+    },
+    harmonic: {
+      Lx:3, Lv:3, wrap:false, dt:0.022,
+      force: (x)=>-x,
+      seed(i){ const r=Math.sqrt(Math.random())*0.95, a=Math.random()*6.2831853;
+               const x=1.45 + r*Math.cos(a), v=r*Math.sin(a);
+               px0[i]=x; pv0[i]=v; pt[i]= r<0.5?1:0; }
+    },
+    pendulum: {
+      Lx:Math.PI, Lv:3, wrap:true, dt:0.022,
+      force: (x)=>-Math.sin(x),
+      seed(i){ const x=gauss()*0.85, v=gauss()*0.95;
+               px0[i]=x; pv0[i]=v;
+               const E = 0.5*v*v - Math.cos(x);          // tag by orbit energy
+               pt[i]= E < -0.15 ? 1 : 0; }
+    }
+  };
+
+  let key='stream', S=SCN[key], t=0;
+
+  function seedAll(){
+    for(let i=0;i<N;i++){ S.seed(i); px[i]=px0[i]; pv[i]=pv0[i]; }
+    t=0;
+  }
+  function wrap(x,L){ const W=2*L; x=((x+L)%W+W)%W - L; return x; }
+
+  function step(){
+    const dt=S.dt, L=S.Lx, f=S.force, w=S.wrap;
+    for(let i=0;i<N;i++){
+      let x=px[i], v=pv[i];
+      v += 0.5*f(x)*dt;
+      x += v*dt;
+      if(w) x = wrap(x,L);
+      v += 0.5*f(x)*dt;
+      px[i]=x; pv[i]=v;
+    }
+    t += dt;
+  }
+
+  // ---- render density to grid, upscale to screen ----
+  const colA=[80,240,210], colB=[255,150,106];   // inner / outer phosphor
+  function render(){
+    cnt.fill(0); tag.fill(0);
+    const Lx=S.Lx, Lv=S.Lv;
+    const sx=(GW-1)/(2*Lx), sv=(GH-1)/(2*Lv);
+    for(let i=0;i<N;i++){
+      const gx=(px[i]+Lx)*sx;
+      const gy=(Lv-pv[i])*sv;                      // v up
+      if(gx<0||gx>=GW||gy<0||gy>=GH) continue;
+      const ix=gx|0, iy=gy|0, k=iy*GW+ix;
+      cnt[k]+=1; tag[k]+=pt[i];
+    }
+    const d=img.data, gain=0.30, g=1/1.9;
+    for(let k=0,p=0;k<cnt.length;k++,p+=4){
+      const c=cnt[k];
+      if(c===0){ d[p]=4; d[p+1]=7; d[p+2]=12; d[p+3]=255; continue; }
+      let lum=1-Math.exp(-c*gain); lum=Math.pow(lum,g);
+      const f=tag[k]/c;                            // 0..1 blend
+      const r=colB[0]+(colA[0]-colB[0])*f;
+      const gg=colB[1]+(colA[1]-colB[1])*f;
+      const b=colB[2]+(colA[2]-colB[2])*f;
+      d[p]   = 4  + r*lum;
+      d[p+1] = 7  + gg*lum;
+      d[p+2] = 12 + b*lum;
+      d[p+3] = 255;
+    }
+    gctx.putImageData(img,0,0);
+
+    // blit with bloom
+    const W=cv.width, H=cv.height;
+    ctx.fillStyle='#04070c'; ctx.fillRect(0,0,W,H);
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+    const PAD=Math.round(W*0.012);
+    const TOP=Math.round(H*0.085);   // strip for n(x)
+    const RIGHT=Math.round(W*0.085); // strip for g(v)
+    const plotX=PAD, plotY=TOP, plotW=W-PAD-RIGHT, plotH=H-TOP-PAD;
+
+    ctx.globalCompositeOperation='source-over';
+    ctx.drawImage(grid, plotX, plotY, plotW, plotH);
+    ctx.globalCompositeOperation='lighter';
+    ctx.globalAlpha=0.35;
+    ctx.drawImage(grid, plotX-2, plotY-2, plotW+4, plotH+4);
+    ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+
+    drawGraticule(plotX,plotY,plotW,plotH);
+    drawMarginals(plotX,plotY,plotW,plotH,TOP,RIGHT,PAD);
+  }
+
+  function drawGraticule(x,y,w,h){
+    ctx.strokeStyle='rgba(80,240,210,0.10)'; ctx.lineWidth=1;
+    for(let i=1;i<8;i++){ const gx=x+w*i/8;
+      ctx.beginPath();ctx.moveTo(gx,y);ctx.lineTo(gx,y+h);ctx.stroke(); }
+    for(let i=1;i<8;i++){ const gy=y+h*i/8;
+      ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x+w,gy);ctx.stroke(); }
+    // axes
+    ctx.strokeStyle='rgba(80,240,210,0.32)';
+    ctx.beginPath();ctx.moveTo(x+w/2,y);ctx.lineTo(x+w/2,y+h);
+    ctx.moveTo(x,y+h/2);ctx.lineTo(x+w,y+h/2);ctx.stroke();
+    ctx.strokeStyle='rgba(120,180,200,0.25)';
+    ctx.strokeRect(x,y,w,h);
+    // labels
+    ctx.fillStyle='rgba(150,200,210,0.6)';
+    ctx.font='600 22px ui-monospace, monospace';
+    ctx.textBaseline='bottom';
+    ctx.fillText('x  →  position', x+10, y+h-10);
+    ctx.save();
+    ctx.translate(x+24,y+24); ctx.rotate(-Math.PI/2);
+    ctx.textBaseline='top';
+    ctx.fillText('vₓ  →  velocity', -h+30, 0);
+    ctx.restore();
+  }
+
+  // marginals: n(x)=column sums (top strip), g(v)=row sums (right strip)
+  const nx=new Float32Array(GW), gv=new Float32Array(GH);
+  function drawMarginals(px_,py,pw,ph,TOP,RIGHT,PAD){
+    nx.fill(0); gv.fill(0);
+    let nmax=0,gmax=0;
+    for(let yy=0;yy<GH;yy++){ for(let xx=0;xx<GW;xx++){ const c=cnt[yy*GW+xx]; nx[xx]+=c; gv[yy]+=c; } }
+    for(let i=0;i<GW;i++) if(nx[i]>nmax)nmax=nx[i];
+    for(let i=0;i<GH;i++) if(gv[i]>gmax)gmax=gv[i];
+    if(nmax<=0)nmax=1; if(gmax<=0)gmax=1;
+
+    // n(x) along top
+    ctx.beginPath();
+    for(let i=0;i<GW;i++){ const X=px_+pw*i/(GW-1); const Y=py - 6 - (TOP-14)*(nx[i]/nmax);
+      i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y); }
+    ctx.strokeStyle='rgba(242,193,78,0.9)'; ctx.lineWidth=2;
+    ctx.shadowColor='rgba(242,193,78,0.6)'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(150,170,180,0.55)'; ctx.font='600 17px ui-monospace, monospace';
+    ctx.textBaseline='top'; ctx.fillText('n(x) = ∫ f dvₓ', px_+8, 8);
+
+    // g(v) along right
+    const rx=px_+pw;
+    ctx.beginPath();
+    for(let i=0;i<GH;i++){ const Y=py+ph*i/(GH-1); const X=rx + 6 + (RIGHT-14)*(gv[i]/gmax);
+      i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y); }
+    ctx.strokeStyle='rgba(242,193,78,0.9)'; ctx.lineWidth=2;
+    ctx.shadowColor='rgba(242,193,78,0.6)'; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+    ctx.save();
+    ctx.translate(rx+RIGHT-6, py+8); ctx.rotate(Math.PI/2);
+    ctx.fillStyle='rgba(150,170,180,0.55)'; ctx.fillText('g(vₓ) = ∫ f dx', 0,0);
+    ctx.restore();
+  }
+
+  // ---- loop ----
+  let running=true, speed=3;
+  function frame(){
+    if(running){ for(let s=0;s<speed;s++) step(); }
+    render();
+    document.getElementById('ro-t').textContent = t.toFixed(2);
+    requestAnimationFrame(frame);
+  }
+
+  // ---- UI ----
+  function setScenario(k){
+    key=k; S=SCN[k]; seedAll();
+    document.querySelectorAll('#scen button').forEach(b=>b.classList.toggle('active', b.dataset.s===k));
+    document.getElementById('scname').textContent =
+      k==='stream'?'free streaming':k==='harmonic'?'harmonic well':'anharmonic well';
+  }
+  document.querySelectorAll('#scen button').forEach(b=>{
+    b.addEventListener('click',()=>setScenario(b.dataset.s));
+  });
+  const playBtn=document.getElementById('play');
+  playBtn.addEventListener('click',()=>{ running=!running; playBtn.textContent=running?'Pause':'Play'; });
+  document.getElementById('reset').addEventListener('click',()=>seedAll());
+  document.getElementById('speed').addEventListener('input',e=>speed=+e.target.value);
+
+  // respect reduced motion: start paused
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    running=false; playBtn.textContent='Play';
+  }
+
+  document.getElementById('ro-n').innerHTML = (N/1000)+'k <small>fixed</small>';
+  seedAll();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

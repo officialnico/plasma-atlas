@@ -1,0 +1,420 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eqdsk labels</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function EQDSKLabeled() {
+  const [showLabels, setShowLabels] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showFlux, setShowFlux] = useState(true);
+  const [hoveredLabel, setHoveredLabel] = useState(null);
+
+  const svgW = 700, svgH = 700;
+  const pad = { l: 70, r: 40, t: 40, b: 50 };
+  const plotW = svgW - pad.l - pad.r;
+  const plotH = svgH - pad.t - pad.b;
+
+  // Physical coordinates
+  const Rmin_world = 0.0; // Show from R=0 (the central axis)
+  const Rmax_world = 2.2;
+  const Zmin_world = -1.3;
+  const Zmax_world = 1.3;
+
+  const toX = (R) => pad.l + ((R - Rmin_world) / (Rmax_world - Rmin_world)) * plotW;
+  const toY = (Z) => pad.t + ((Zmax_world - Z) / (Zmax_world - Zmin_world)) * plotH;
+
+  // EQDSK header values
+  const rgrid1 = 0.60;
+  const rdim = 1.20;
+  const zmid = 0.0;
+  const zdim = 2.0;
+  const rcentr = 1.15;
+  const bcentr = 12.2; // Tesla
+  const rmagx = 1.18; // Shifted outward from geometric center
+  const zmagx = 0.0;
+  const R0_geo = rgrid1 + rdim / 2; // geometric center = 1.2
+
+  // Grid boundaries
+  const gridRmin = rgrid1;         // 0.60
+  const gridRmax = rgrid1 + rdim;  // 1.80
+  const gridZmin = zmid - zdim / 2; // -1.0
+  const gridZmax = zmid + zdim / 2; //  1.0
+
+  // Plasma shape parameters
+  const a = 0.42, kappa = 1.75, delta = 0.40;
+  const asin_d = Math.asin(delta);
+
+  // Generate flux surface contours
+  function getContour(psiVal, nPts = 200) {
+    const pts = [];
+    for (let t = 0; t < nPts; t++) {
+      const theta = (2 * Math.PI * t) / nPts;
+      const r = a * psiVal;
+      const R = rmagx + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Z = kappa * r * Math.sin(theta);
+      pts.push({ R, Z });
+    }
+    return pts;
+  }
+
+  // Wall contour
+  const wallPts = [];
+  for (let t = 0; t <= 200; t++) {
+    const theta = (2 * Math.PI * t) / 200;
+    const R = rmagx + 0.55 * Math.cos(theta + asin_d * Math.sin(theta));
+    const Z = 0.95 * Math.sin(theta);
+    wallPts.push(`${toX(R)},${toY(Z)}`);
+  }
+
+  // Central solenoid
+  const csR = 0.15;
+  const csW = 0.25;
+
+  // Toroidal field coil cross-sections (simplified)
+  const tfCoils = [
+    { R: 0.45, Z: 0.0, w: 0.08, h: 2.2 },
+  ];
+
+  const labels = [
+    {
+      id: "R0",
+      name: "R = 0",
+      val: "Central axis",
+      desc: "The vertical axis of symmetry. The whole donut wraps around this line. The central solenoid sits here. There is NO plasma at R=0.",
+      x: toX(0), y: toY(0.6),
+      pointX: toX(0), pointY: toY(0),
+      color: "#ff6b6b",
+    },
+    {
+      id: "rgrid1",
+      name: "rgrid1",
+      val: "= 0.60 m",
+      desc: "Left edge of the computational grid. The grid doesn't start at R=0 because there's nothing to simulate between the central axis and here. Just empty space and the solenoid.",
+      x: toX(rgrid1) - 5, y: toY(1.15),
+      pointX: toX(rgrid1), pointY: toY(gridZmax),
+      color: "#c9b87c",
+    },
+    {
+      id: "rgrid1_rdim",
+      name: "rgrid1 + rdim",
+      val: "= 1.80 m",
+      desc: "Right edge of the computational grid. rdim = 1.20m is the grid width. So the grid spans R = 0.60 to 1.80.",
+      x: toX(gridRmax) + 5, y: toY(1.15),
+      pointX: toX(gridRmax), pointY: toY(gridZmax),
+      color: "#c9b87c",
+    },
+    {
+      id: "zmid",
+      name: "zmid",
+      val: "= 0.00 m",
+      desc: "Z at the center of the grid. Usually zero — the tokamak midplane. The grid extends from zmid - zdim/2 to zmid + zdim/2, so from -1.0 to +1.0.",
+      x: toX(2.05), y: toY(zmid),
+      pointX: toX(gridRmax), pointY: toY(zmid),
+      color: "#c9b87c",
+    },
+    {
+      id: "rcentr",
+      name: "rcentr",
+      val: "= 1.15 m",
+      desc: "Reference R where the vacuum toroidal field bcentr is measured. The toroidal field varies as 1/R, so you need a reference point. bcentr = 12.2 T applies at this location.",
+      x: toX(rcentr), y: toY(-1.18),
+      pointX: toX(rcentr), pointY: toY(-0.95),
+      color: "#8ab4f8",
+    },
+    {
+      id: "rmagx",
+      name: "rmagx, zmagx",
+      val: "= (1.18, 0.00) m",
+      desc: "The magnetic axis — the single point at the center of the nested flux surfaces. Note it's at R=1.18, slightly outward from the geometric center (R=1.20). That outward shift is the Shafranov shift, caused by plasma pressure pushing the core outward.",
+      x: toX(rmagx) + 10, y: toY(zmagx) - 30,
+      pointX: toX(rmagx), pointY: toY(zmagx),
+      color: "#ff6b6b",
+    },
+    {
+      id: "simagx",
+      name: "simagx",
+      val: "= 0.00 Wb/rad",
+      desc: "The value of ψ at the magnetic axis. This is defined as zero (or near zero) — it's the reference point. All other ψ values are measured relative to this.",
+      x: toX(rmagx) + 100, y: toY(zmagx) + 20,
+      pointX: toX(rmagx), pointY: toY(zmagx),
+      color: "#4ecdc4",
+    },
+    {
+      id: "sibdry",
+      name: "sibdry",
+      val: "= 0.85 Wb/rad",
+      desc: "The value of ψ at the plasma boundary (the last closed flux surface). Any point where ψ = 0.85 is on the boundary. ψ < 0.85 = inside plasma. ψ > 0.85 = outside.",
+      x: toX(1.65), y: toY(0.35),
+      pointX: toX(1.58), pointY: toY(0.15),
+      color: "#ff6b6b",
+    },
+    {
+      id: "cpasma",
+      name: "cpasma",
+      val: "= 8.7 MA",
+      desc: "Total plasma current in amps. This is the current flowing the long way around the donut inside the plasma. It creates the poloidal field that twists the field lines and provides confinement.",
+      x: toX(0.85), y: toY(-0.65),
+      pointX: toX(1.1), pointY: toY(-0.3),
+      color: "#c9a3f5",
+    },
+  ];
+
+  const activeLabel = labels.find(l => l.id === hoveredLabel);
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          EQDSK HEADER VALUES ON THE CROSS-SECTION
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          WHERE EACH NUMBER PHYSICALLY SITS — HOVER LABELS FOR DETAILS
+        </p>
+
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {[
+            { key: "showLabels", label: "Labels", val: showLabels, set: setShowLabels },
+            { key: "showGrid", label: "EQDSK Grid", val: showGrid, set: setShowGrid },
+            { key: "showFlux", label: "Flux surfaces", val: showFlux, set: setShowFlux },
+          ].map(b => (
+            <button
+              key={b.key}
+              onClick={() => b.set(!b.val)}
+              style={{
+                padding: "8px 14px",
+                background: b.val ? "#1a2a3a" : "#12171f",
+                border: b.val ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: b.val ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 11, fontFamily: "inherit", cursor: "pointer",
+              }}
+            >
+              {b.val ? "✓ " : ""}{b.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 5,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              {/* Background */}
+              <rect x={pad.l} y={pad.t} width={plotW} height={plotH} fill="#060a0e" stroke="#1e2630" />
+
+              {/* Central axis line at R=0 */}
+              <line x1={toX(0)} y1={pad.t} x2={toX(0)} y2={pad.t + plotH} stroke="#ff6b6b" strokeWidth={2} strokeDasharray="6,4" />
+              <text x={toX(0)} y={pad.t - 8} textAnchor="middle" fill="#ff6b6b" fontSize={10} fontWeight={700}>R = 0</text>
+              <text x={toX(0)} y={pad.t - 20} textAnchor="middle" fill="#5c6a7a" fontSize={9}>central axis</text>
+
+              {/* Central solenoid */}
+              <rect x={toX(0) - 8} y={toY(1.1)} width={16} height={toY(-1.1) - toY(1.1)} fill="#c97c4c" opacity={0.4} stroke="#c97c4c" rx={3} />
+              <text x={toX(0)} y={toY(1.15)} textAnchor="middle" fill="#c97c4c" fontSize={8}>CS</text>
+
+              {/* EQDSK grid rectangle */}
+              {showGrid && (
+                <>
+                  <rect
+                    x={toX(gridRmin)} y={toY(gridZmax)}
+                    width={toX(gridRmax) - toX(gridRmin)}
+                    height={toY(gridZmin) - toY(gridZmax)}
+                    fill="none" stroke="#c9b87c" strokeWidth={2} strokeDasharray="8,4"
+                  />
+                  {/* Grid lines - every 8th of 65 */}
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const R = gridRmin + (i / 8) * rdim;
+                    return <line key={`vg${i}`} x1={toX(R)} y1={toY(gridZmax)} x2={toX(R)} y2={toY(gridZmin)} stroke="#1e2630" strokeWidth={0.5} />;
+                  })}
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const Z = gridZmin + (i / 8) * zdim;
+                    return <line key={`hg${i}`} x1={toX(gridRmin)} y1={toY(Z)} x2={toX(gridRmax)} y2={toY(Z)} stroke="#1e2630" strokeWidth={0.5} />;
+                  })}
+                  <text x={toX(gridRmin + rdim / 2)} y={toY(gridZmax) - 6} textAnchor="middle" fill="#c9b87c" fontSize={10}>
+                    65 × 65 EQDSK grid
+                  </text>
+                </>
+              )}
+
+              {/* Wall */}
+              <polygon points={wallPts.join(" ")} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={2.5} />
+
+              {/* Flux surfaces */}
+              {showFlux && [0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.0].map(psiN => {
+                const pts = getContour(psiN);
+                const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`).join(" ") + " Z";
+                return (
+                  <path
+                    key={psiN}
+                    d={d}
+                    fill="none"
+                    stroke={psiN === 1.0 ? "#ff6b6b" : "rgba(78,205,196,0.4)"}
+                    strokeWidth={psiN === 1.0 ? 2 : 1}
+                  />
+                );
+              })}
+
+              {/* Magnetic axis marker */}
+              <circle cx={toX(rmagx)} cy={toY(zmagx)} r={6} fill="none" stroke="#ff6b6b" strokeWidth={2} />
+              <line x1={toX(rmagx) - 4} y1={toY(zmagx)} x2={toX(rmagx) + 4} y2={toY(zmagx)} stroke="#ff6b6b" strokeWidth={2} />
+              <line x1={toX(rmagx)} y1={toY(zmagx) - 4} x2={toX(rmagx)} y2={toY(zmagx) + 4} stroke="#ff6b6b" strokeWidth={2} />
+
+              {/* rcentr marker */}
+              <line x1={toX(rcentr)} y1={toY(-0.9)} x2={toX(rcentr)} y2={toY(-0.7)} stroke="#8ab4f8" strokeWidth={2} />
+              <circle cx={toX(rcentr)} cy={toY(-0.85)} r={3} fill="#8ab4f8" />
+
+              {/* rdim dimension line */}
+              {showGrid && (
+                <>
+                  <line x1={toX(gridRmin)} y1={toY(gridZmin) + 18} x2={toX(gridRmax)} y2={toY(gridZmin) + 18} stroke="#c9b87c" strokeWidth={1} markerStart="url(#arrowL)" markerEnd="url(#arrowR)" />
+                  <text x={toX(gridRmin + rdim / 2)} y={toY(gridZmin) + 32} textAnchor="middle" fill="#c9b87c" fontSize={10}>rdim = 1.20 m</text>
+                  {/* zdim */}
+                  <line x1={toX(gridRmax) + 15} y1={toY(gridZmax)} x2={toX(gridRmax) + 15} y2={toY(gridZmin)} stroke="#c9b87c" strokeWidth={1} />
+                  <text x={toX(gridRmax) + 22} y={toY(0) + 4} fill="#c9b87c" fontSize={10} transform={`rotate(90, ${toX(gridRmax) + 22}, ${toY(0)})`}>zdim = 2.00 m</text>
+                </>
+              )}
+
+              {/* Labels with hover */}
+              {showLabels && labels.map(l => (
+                <g key={l.id}
+                  onMouseEnter={() => setHoveredLabel(l.id)}
+                  onMouseLeave={() => setHoveredLabel(null)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {/* Connection line */}
+                  <line
+                    x1={l.x} y1={l.y}
+                    x2={l.pointX} y2={l.pointY}
+                    stroke={hoveredLabel === l.id ? l.color : "rgba(255,255,255,0.15)"}
+                    strokeWidth={1}
+                    strokeDasharray="3,3"
+                  />
+                  {/* Label background */}
+                  <rect
+                    x={l.x - (l.id === "rgrid1" || l.id === "cpasma" ? 85 : 0) - 4}
+                    y={l.y - 12}
+                    width={l.name.length * 8 + l.val.length * 6.5 + 16}
+                    height={18}
+                    fill={hoveredLabel === l.id ? "#1a2a3a" : "#0a0e14"}
+                    stroke={hoveredLabel === l.id ? l.color : "#1e2630"}
+                    rx={3}
+                    opacity={0.9}
+                  />
+                  <text
+                    x={l.x - (l.id === "rgrid1" || l.id === "cpasma" ? 85 : 0)}
+                    y={l.y + 1}
+                    fill={l.color}
+                    fontSize={10}
+                    fontWeight={700}
+                  >
+                    {l.name}
+                    <tspan fill="#8a95a5" fontWeight={400}> {l.val}</tspan>
+                  </text>
+                  {/* Point marker */}
+                  <circle cx={l.pointX} cy={l.pointY} r={hoveredLabel === l.id ? 5 : 3} fill={l.color} opacity={hoveredLabel === l.id ? 1 : 0.5} />
+                </g>
+              ))}
+
+              {/* Region labels */}
+              <text x={toX(0.30)} y={toY(0)} textAnchor="middle" fill="#3a4a5a" fontSize={11} fontStyle="italic">empty space</text>
+              <text x={toX(0.30)} y={toY(-0.1)} textAnchor="middle" fill="#3a4a5a" fontSize={9}>(no plasma here)</text>
+              <text x={toX(rmagx)} y={toY(0.55)} textAnchor="middle" fill="rgba(78,205,196,0.5)" fontSize={10}>confined plasma</text>
+              <text x={toX(1.72)} y={toY(0.55)} textAnchor="middle" fill="rgba(255,255,255,0.2)" fontSize={9}>scrape-off</text>
+              <text x={toX(1.72)} y={toY(0.45)} textAnchor="middle" fill="rgba(255,255,255,0.2)" fontSize={9}>layer</text>
+
+              {/* R axis labels */}
+              {[0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0].map(R => (
+                <text key={R} x={toX(R)} y={svgH - 10} textAnchor="middle" fill="#5c6a7a" fontSize={9}>
+                  {R.toFixed(1)}
+                </text>
+              ))}
+              <text x={svgW / 2} y={svgH - 0} textAnchor="middle" fill="#7a8a9a" fontSize={11}>R (meters from central axis) →</text>
+
+              {/* Z axis labels */}
+              {[-1.0, -0.5, 0.0, 0.5, 1.0].map(Z => (
+                <text key={Z} x={pad.l - 10} y={toY(Z) + 4} textAnchor="end" fill="#5c6a7a" fontSize={9}>
+                  {Z.toFixed(1)}
+                </text>
+              ))}
+              <text x={15} y={svgH / 2} textAnchor="middle" fill="#7a8a9a" fontSize={11} transform={`rotate(-90, 15, ${svgH / 2})`}>↑ Z (meters)</text>
+            </svg>
+          </div>
+
+          {/* Info panel */}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              minHeight: 200,
+            }}>
+              {activeLabel ? (
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: activeLabel.color, marginBottom: 4 }}>
+                    {activeLabel.name}
+                  </div>
+                  <div style={{ fontSize: 16, color: "#e6ecf2", marginBottom: 12 }}>
+                    {activeLabel.val}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.8 }}>
+                    {activeLabel.desc}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 12, color: "#5c6a7a", marginBottom: 12 }}>
+                    Hover over any label to see what it means
+                  </div>
+                  <div style={{ fontSize: 11, color: "#3a4a5a", lineHeight: 1.8 }}>
+                    The dashed yellow rectangle is the EQDSK computational grid — the 65×65 region where ψ values are stored.
+                    <br /><br />
+                    Notice: R=0 (the central axis) is far to the LEFT of the grid. The grid only covers the region where the plasma lives. There's a big gap between R=0 and the grid — that's where the central solenoid and empty space are.
+                    <br /><br />
+                    The red contour is the plasma boundary (ψ = sibdry). The teal contours are inner flux surfaces. The crosshair is the magnetic axis.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{
+              marginTop: 12,
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                Key insight
+              </div>
+              <div style={{ fontSize: 12, color: "#7a8a9a", lineHeight: 1.7 }}>
+                R is distance from the central axis, NOT from the plasma center. The plasma sits in a ring between roughly R=0.7 and R=1.6. The computational grid covers this ring plus some margin. Nobody wastes grid points on the empty space between R=0 and R=0.6.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EQDSKLabeled));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

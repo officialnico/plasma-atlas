@@ -1,0 +1,317 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jacobian grid</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function JacobianGrid() {
+  const [selectedCell, setSelectedCell] = useState({ si: 2, ti: 3 });
+
+  const nS = 6; // radial surfaces
+  const nT = 16; // poloidal angles
+  const R0 = 1.18, a = 0.42, kappa = 1.7, delta = 0.35;
+  const asd = Math.asin(delta);
+
+  function plasmaPoint(s, theta) {
+    const r = s * a, rZ = s * a * kappa;
+    return {
+      R: R0 + r * Math.cos(theta + asd * Math.sin(theta)),
+      Z: rZ * Math.sin(theta),
+    };
+  }
+
+  // Build all cells
+  const cells = [];
+  for (let si = 0; si < nS; si++) {
+    for (let ti = 0; ti < nT; ti++) {
+      const s1 = 0.15 + si * (0.85 / nS);
+      const s2 = 0.15 + (si + 1) * (0.85 / nS);
+      const t1 = (2 * Math.PI * ti) / nT;
+      const t2 = (2 * Math.PI * (ti + 1)) / nT;
+
+      // 4 corners in physical space
+      const corners = [
+        plasmaPoint(s1, t1), plasmaPoint(s1, t2),
+        plasmaPoint(s2, t2), plasmaPoint(s2, t1),
+      ];
+
+      // Approximate physical area using shoelace formula
+      const physArea = 0.5 * Math.abs(
+        (corners[0].R * corners[1].Z - corners[1].R * corners[0].Z) +
+        (corners[1].R * corners[2].Z - corners[2].R * corners[1].Z) +
+        (corners[2].R * corners[3].Z - corners[3].R * corners[2].Z) +
+        (corners[3].R * corners[0].Z - corners[0].R * corners[3].Z)
+      );
+
+      // Coordinate area (same for all cells)
+      const coordArea = (0.85 / nS) * (2 * Math.PI / nT);
+
+      // Jacobian ~ physical area / coordinate area
+      const jacobian = physArea / coordArea;
+
+      const midS = (s1 + s2) / 2;
+      const midT = (t1 + t2) / 2;
+      const midPhys = plasmaPoint(midS, midT);
+
+      cells.push({
+        si, ti, s1, s2, t1, t2,
+        corners, physArea, coordArea, jacobian,
+        midS, midT, midR: midPhys.R, midZ: midPhys.Z,
+        isOutboard: midPhys.R > R0,
+      });
+    }
+  }
+
+  const sc = selectedCell;
+  const selCell = cells.find(c => c.si === sc.si && c.ti === sc.ti);
+
+  // SVG dimensions
+  const svgW = 175, svgH = 175;
+
+  // Physical space view
+  const physPad = 8;
+  const physScale = 95;
+  const pToX = (R) => svgW / 2 + (R - R0) * physScale;
+  const pToY = (Z) => svgH / 2 - Z * physScale;
+
+  // Coordinate space view (s,θ rectangle)
+  const cPad = 20;
+  const cW = svgW - 2 * cPad;
+  const cH = svgH - 2 * cPad;
+  const cToX = (ti) => cPad + (ti / nT) * cW;
+  const cToY = (si) => cPad + (si / nS) * cH;
+
+  // Jacobian color
+  const allJ = cells.map(c => c.jacobian);
+  const minJ = Math.min(...allJ);
+  const maxJ = Math.max(...allJ);
+  function jColor(j, alpha = 1) {
+    const t = (j - minJ) / (maxJ - minJ);
+    const r = Math.round(50 + t * 200);
+    const g = Math.round(150 - t * 80);
+    const b = Math.round(80 + (1 - t) * 50);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          THE JACOBIAN — SAME GRID, DIFFERENT SIZES
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          LEFT: COORDINATE SPACE (ALL CELLS SAME SIZE) · RIGHT: PHYSICAL SPACE (CELLS VARY)
+        </p>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {/* Coordinate space */}
+          <div style={{
+            background: "#0d1117", borderRadius: 6,
+            border: "1px solid #1e2630", padding: 6,
+          }}>
+            <div style={{ fontSize: 9, color: "#8ab4f8", textAlign: "center", marginBottom: 4, fontWeight: 700 }}>
+              Coordinate space (s, θ)
+            </div>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={cPad} y={cPad} width={cW} height={cH} fill="#060a0e" stroke="#1e2630" />
+
+              {/* Cells */}
+              {cells.map((cell, idx) => {
+                const x = cToX(cell.ti);
+                const y = cToY(cell.si);
+                const w = cW / nT;
+                const h = cH / nS;
+                const isSel = cell.si === sc.si && cell.ti === sc.ti;
+                return (
+                  <g key={idx} onClick={() => setSelectedCell({ si: cell.si, ti: cell.ti })}
+                    style={{ cursor: "pointer" }}>
+                    <rect x={x} y={y} width={w} height={h}
+                      fill={jColor(cell.jacobian, 0.4)}
+                      stroke={isSel ? "#ffffff" : "#1e263044"}
+                      strokeWidth={isSel ? 2 : 0.5}
+                    />
+                  </g>
+                );
+              })}
+
+              {/* Axis labels */}
+              <text x={cPad + cW / 2} y={cPad - 4} textAnchor="middle" fill="#8ab4f8" fontSize={8}>
+                θ →
+              </text>
+              <text x={cPad - 4} y={cPad} textAnchor="end" fill="#c9b87c" fontSize={7}>0</text>
+              <text x={cPad - 4} y={cPad + cH} textAnchor="end" fill="#c9b87c" fontSize={7}>1</text>
+              <text x={cPad - 12} y={cPad + cH / 2} textAnchor="middle" fill="#c9b87c" fontSize={8}
+                transform={`rotate(-90, ${cPad - 12}, ${cPad + cH / 2})`}>s ↓</text>
+
+              <text x={svgW / 2} y={svgH - 2} textAnchor="middle" fill="#5c6a7a" fontSize={7}>
+                All cells the same size here
+              </text>
+            </svg>
+          </div>
+
+          {/* Arrow */}
+          <div style={{ display: "flex", alignItems: "center", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontSize: 9, color: "#5c6a7a", marginBottom: 4 }}>map to</div>
+            <div style={{ fontSize: 18, color: "#5c6a7a" }}>→</div>
+            <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 4 }}>real space</div>
+          </div>
+
+          {/* Physical space */}
+          <div style={{
+            background: "#0d1117", borderRadius: 6,
+            border: "1px solid #1e2630", padding: 6,
+          }}>
+            <div style={{ fontSize: 9, color: "#4ecdc4", textAlign: "center", marginBottom: 4, fontWeight: 700 }}>
+              Physical space (R, Z)
+            </div>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" rx={4} />
+
+              {/* Cells mapped to physical space */}
+              {cells.map((cell, idx) => {
+                const pts = cell.corners.map(c => `${pToX(c.R)},${pToY(c.Z)}`).join(" ");
+                const isSel = cell.si === sc.si && cell.ti === sc.ti;
+                return (
+                  <g key={idx} onClick={() => setSelectedCell({ si: cell.si, ti: cell.ti })}
+                    style={{ cursor: "pointer" }}>
+                    <polygon points={pts}
+                      fill={jColor(cell.jacobian, 0.4)}
+                      stroke={isSel ? "#ffffff" : jColor(cell.jacobian, 0.3)}
+                      strokeWidth={isSel ? 2 : 0.5}
+                    />
+                  </g>
+                );
+              })}
+
+              <text x={svgW / 2} y={svgH - 2} textAnchor="middle" fill="#5c6a7a" fontSize={7}>
+                Same cells — different physical sizes
+              </text>
+            </svg>
+          </div>
+        </div>
+
+        {/* Color legend */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          marginBottom: 12, padding: "6px 12px",
+          background: "#12171f", borderRadius: 4,
+        }}>
+          <span style={{ fontSize: 9, color: "#5c6a7a" }}>Jacobian:</span>
+          <div style={{ display: "flex", flex: 1, height: 12, borderRadius: 2, overflow: "hidden" }}>
+            {Array.from({ length: 20 }, (_, i) => {
+              const j = minJ + (i / 19) * (maxJ - minJ);
+              return <div key={i} style={{ flex: 1, background: jColor(j, 0.7) }} />;
+            })}
+          </div>
+          <span style={{ fontSize: 8, color: "#5c6a7a" }}>{minJ.toFixed(3)}</span>
+          <span style={{ fontSize: 8, color: "#5c6a7a" }}>→</span>
+          <span style={{ fontSize: 8, color: "#5c6a7a" }}>{maxJ.toFixed(3)}</span>
+          <span style={{ fontSize: 8, color: "#3a4a5a" }}>small→big</span>
+        </div>
+
+        {/* Selected cell detail */}
+        {selCell && (
+          <div style={{
+            padding: 12, background: "#12171f", borderRadius: 6,
+            border: "1px solid #1e2630", marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 10, color: "#4ecdc4", marginBottom: 8 }}>
+              Cell [{selCell.si}, {selCell.ti}] — {selCell.isOutboard ? "OUTBOARD" : "INBOARD"} side
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              {/* Coordinate info */}
+              <div style={{
+                flex: 1, padding: 8, background: "#0a0e14", borderRadius: 4,
+                border: "1px solid #8ab4f833",
+              }}>
+                <div style={{ fontSize: 9, color: "#8ab4f8", fontWeight: 700, marginBottom: 4 }}>
+                  In coordinate space
+                </div>
+                <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 1.8 }}>
+                  s: {selCell.s1.toFixed(3)} → {selCell.s2.toFixed(3)}
+                  <br />
+                  θ: {selCell.t1.toFixed(3)} → {selCell.t2.toFixed(3)}
+                  <br />
+                  Δs × Δθ = <span style={{ color: "#e6ecf2", fontWeight: 700 }}>{selCell.coordArea.toFixed(4)}</span>
+                  <br />
+                  <span style={{ color: "#5c6a7a", fontSize: 9 }}>Same for every cell</span>
+                </div>
+              </div>
+
+              {/* Physical info */}
+              <div style={{
+                flex: 1, padding: 8, background: "#0a0e14", borderRadius: 4,
+                border: "1px solid #4ecdc433",
+              }}>
+                <div style={{ fontSize: 9, color: "#4ecdc4", fontWeight: 700, marginBottom: 4 }}>
+                  In physical space
+                </div>
+                <div style={{ fontSize: 10, color: "#8a95a5", lineHeight: 1.8 }}>
+                  Center: R={selCell.midR.toFixed(3)}, Z={selCell.midZ.toFixed(3)}
+                  <br />
+                  Physical area = <span style={{ color: "#e6ecf2", fontWeight: 700 }}>{selCell.physArea.toFixed(5)} m²</span>
+                  <br />
+                  <span style={{ color: "#5c6a7a", fontSize: 9 }}>Different for every cell</span>
+                </div>
+              </div>
+            </div>
+
+            {/* The Jacobian calculation */}
+            <div style={{
+              padding: 10, background: "#0a0e14", borderRadius: 4,
+              border: "1px solid #c9b87c33",
+            }}>
+              <div style={{ fontSize: 10, color: "#c9b87c", fontWeight: 700, marginBottom: 6 }}>
+                Jacobian = physical area ÷ coordinate area
+              </div>
+              <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 2.0 }}>
+                J = {selCell.physArea.toFixed(5)} / {selCell.coordArea.toFixed(4)}
+                <br />
+                <span style={{ fontSize: 16, color: "#e6ecf2", fontWeight: 700 }}>J = {selCell.jacobian.toFixed(4)}</span>
+              </div>
+              <div style={{ fontSize: 9, color: "#5c6a7a", marginTop: 6, lineHeight: 1.7 }}>
+                {selCell.jacobian > (minJ + maxJ) / 2
+                  ? "This cell is physically large — it's on the outboard side where R is big. When GENE integrates over this cell, it multiplies by this J to get the correct physical volume."
+                  : "This cell is physically small — it's on the inboard side where R is small. Same coordinate size as the outboard cells, but less real-world volume."}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* The point */}
+        <div style={{
+          padding: 12, background: "rgba(201,184,124,0.05)",
+          borderRadius: 6, border: "1px solid rgba(201,184,124,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#c9b87c", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            The point
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            CHEASE computes J at every grid point. GENE reads it. When GENE does math on its grid — integrating the gyrokinetic equation, computing fluxes, summing up transport — it multiplies by J at each point to convert from coordinate volume to real volume.
+            <br /><br />
+            Without J, GENE would treat every cell as the same size. The outboard side (where most turbulence happens) would be underweighted. The transport prediction would be wrong. J is the correction factor that makes the math work on a curved grid.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(JacobianGrid));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

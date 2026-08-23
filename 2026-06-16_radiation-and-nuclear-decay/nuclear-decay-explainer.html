@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Nuclei Decay — and the Math of When</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f;--ink:#eef0fb;--muted:#8a90b4;--line:rgba(255,255,255,.09);
+    --proton:#ff5d73;--neutron:#39c2ff;--strong:#5fe0a0;--coulomb:#ff5d73;
+    --beta-minus:#39c2ff;--beta-plus:#ff5d73;--alpha:#ff9d5c;--stable:#5fe0a0;--gold:#ffd166;--hot:#ff4d6d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1100px 700px at 85% -10%, rgba(255,209,102,.12), transparent 60%),
+      radial-gradient(900px 600px at -10% 25%, rgba(95,224,160,.10), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:70px 0 38px}
+  .kicker{color:var(--gold);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:24px;background:rgba(255,209,102,.06)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.3rem,8vw,4.2rem);line-height:.99;letter-spacing:-.02em;margin-bottom:20px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--strong),var(--gold),var(--coulomb));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.16rem;color:#c7cbe6;max-width:56ch}.lede b{color:var(--ink);font-weight:700}
+  section{padding:46px 0;border-top:1px solid var(--line)}
+  h2{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(1.6rem,5.5vw,2.3rem);letter-spacing:-.01em;line-height:1.06;margin-bottom:8px}
+  h2 .num{font-family:"Space Mono",monospace;font-size:.82rem;color:var(--gold);display:block;margin-bottom:13px;font-weight:700;letter-spacing:.2em}
+  .sub{color:var(--muted);margin-bottom:24px;max-width:62ch}
+  p+p{margin-top:14px}.body{color:#c7cbe6}.body b{color:var(--ink)}
+  .stage{background:radial-gradient(120% 120% at 50% 0%,rgba(124,139,255,.08),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 4px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;letter-spacing:.04em;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:10px 16px;border-radius:100px;cursor:pointer;transition:.18s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle.on{background:var(--gold);color:#1a1405;border-color:var(--gold);font-weight:700}
+  .readout{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--muted)}
+  .cap{font-family:"Space Mono",monospace;font-size:.74rem;color:var(--muted);margin-top:12px;min-height:1.4em}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.15);outline:none;margin:10px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--gold);box-shadow:0 0 12px rgba(255,209,102,.55)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--gold)}
+  .callout{margin-top:18px;border-left:3px solid var(--gold);background:rgba(255,209,102,.06);padding:14px 18px;border-radius:0 12px 12px 0}
+  .callout b{color:var(--gold)}
+
+  /* force meters */
+  .meters{margin-top:16px;display:grid;gap:12px}
+  .meter .lbl{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:.74rem;margin-bottom:5px}
+  .meter .track{height:16px;border-radius:8px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--line)}
+  .meter .fill{height:100%;transition:width .25s ease;border-radius:8px}
+  .verdict{font-family:"Fraunces",serif;font-size:1.3rem;font-weight:600;margin-top:14px;transition:.2s}
+
+  /* equations */
+  .eq{font-family:"Fraunces",serif;font-size:clamp(1.15rem,4.4vw,1.5rem);text-align:center;padding:20px 14px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;margin:16px 0;line-height:1.5;overflow-x:auto}
+  .eq .v{font-style:italic}
+  .eq small{font-size:.62em;color:var(--muted);display:block;margin-top:8px;font-family:"Space Mono",monospace;font-style:normal}
+  .frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .25em}
+  .frac .n{border-bottom:1.5px solid currentColor;padding:0 .35em}
+  .frac .d{padding:2px .35em 0}
+  .steps{counter-reset:s;margin-top:8px}
+  .steps li{list-style:none;position:relative;padding:10px 0 10px 40px;border-bottom:1px dashed var(--line);font-size:.95rem;color:#c7cbe6}
+  .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:9px;width:26px;height:26px;border-radius:50%;background:rgba(255,209,102,.14);color:var(--gold);font-family:"Space Mono",monospace;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .steps li b{color:var(--ink)}
+  .key{font-family:"Space Mono",monospace;font-size:.72rem;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}
+  .key b{color:var(--ink)}
+
+  /* nz panel */
+  .nzinfo{margin-top:14px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:16px;min-height:84px;font-size:.95rem;color:#c7cbe6}
+  .nzinfo b{color:var(--ink)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:"Space Mono",monospace;font-size:.7rem;margin-top:10px}
+  .legend i{font-style:normal;display:inline-flex;align-items:center;gap:5px}
+  .legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  footer{padding:48px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce;font-family:"Space Mono",monospace}
+  .big{font-family:"Space Mono",monospace;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Deep dive · the engine behind every section so far</span>
+  <h1>Why a nucleus <em>falls apart</em> — and the math of when.</h1>
+  <p class="lede">Every alpha, beta, and gamma ray we've met came out of an unstable nucleus. But what makes one nucleus sit unchanged for billions of years and another vanish in microseconds? The answer is a <b>tug-of-war between two forces</b>, refereed by <b>energy</b> — and once you accept it's random, the timing collapses into one beautifully simple equation.</p>
+</header>
+
+<!-- A. TUG OF WAR -->
+<section>
+  <h2><span class="num">A / THE CAUSE</span>A tug-of-war inside every nucleus</h2>
+  <p class="sub body">Two forces fight over every nucleus. The <b style="color:var(--strong)">strong force</b> is the glue — ferociously powerful, but so short-ranged it only grabs nucleons that are practically touching, so its pull grows roughly with the <b>number</b> of nucleons. <b style="color:var(--coulomb)">Electromagnetic repulsion</b> pushes every proton away from every other proton — weaker, but long-range, so it piles up with the <b>square</b> of the proton count. Add nucleons and watch repulsion catch the glue.</p>
+  <div class="stage"><canvas id="nucCanvas"></canvas></div>
+  <input type="range" id="aSlider" min="4" max="260" value="56" step="1">
+  <span class="readout">mass number A = <b id="aVal" style="color:var(--ink)">56</b> (protons + neutrons)</span>
+  <div class="meters">
+    <div class="meter"><div class="lbl"><span style="color:var(--strong)">Strong glue · grows like A</span><span id="gVal">—</span></div><div class="track"><div class="fill" id="gFill" style="background:var(--strong)"></div></div></div>
+    <div class="meter"><div class="lbl"><span style="color:var(--coulomb)">Coulomb push · grows like Z²</span><span id="cVal">—</span></div><div class="track"><div class="fill" id="cFill" style="background:var(--coulomb)"></div></div></div>
+  </div>
+  <div class="verdict" id="verdict"></div>
+  <div class="callout body"><b>The real rule underneath:</b> a nucleus decays only if some other arrangement has <b>lower total energy</b> (equivalently, less mass). When repulsion strains the glue, splitting off a chunk or rearranging protons into neutrons drops the energy — so it happens. Stability isn't "the forces balance," it's "there's no cheaper place to fall."</div>
+</section>
+
+<!-- B. VALLEY OF STABILITY -->
+<section>
+  <h2><span class="num">B / WHICH WAY IT FALLS</span>The valley of stability</h2>
+  <p class="sub body">Plot every nucleus by its protons and neutrons and the stable ones trace a narrow <b>belt</b>. Stray off it and you're unstable — and the belt tells you <i>which</i> decay you'll use to get back. Too many neutrons? Convert one to a proton (<b style="color:var(--beta-minus)">β⁻</b>). Too many protons? The reverse (<b style="color:var(--beta-plus)">β⁺</b>). Too big entirely? Dump a whole chunk (<b style="color:var(--alpha)">α</b>). Tap anywhere on the chart.</p>
+  <div class="stage"><canvas id="nzCanvas"></canvas></div>
+  <div class="legend">
+    <i><span class="sw" style="background:var(--stable)"></span>stable belt</i>
+    <i><span class="sw" style="background:var(--beta-minus)"></span>β⁻ (neutron-rich)</i>
+    <i><span class="sw" style="background:var(--beta-plus)"></span>β⁺ / capture (proton-rich)</i>
+    <i><span class="sw" style="background:var(--alpha)"></span>α (too heavy)</i>
+  </div>
+  <div class="nzinfo" id="nzInfo">Tap the chart to drop a nucleus and see how it decays back toward the belt.</div>
+</section>
+
+<!-- C. BINDING ENERGY -->
+<section>
+  <h2><span class="num">C / THE REFEREE</span>Energy is the boss — the binding curve</h2>
+  <p class="sub body">Here's the master chart of all nuclear physics: <b>binding energy per nucleon</b>. Higher means more tightly bound, more stable. It climbs fast, peaks at <b>iron-56</b>, then gently falls. Everything rolls <i>downhill toward that peak.</i></p>
+  <div class="stage"><canvas id="beCanvas"></canvas></div>
+  <p class="body" style="margin-top:16px">That single hump explains the whole story we've built: light nuclei release energy by <b>fusing</b> upward toward iron; heavy nuclei release energy by <b>splitting</b> down toward it (fission); and an unstable nucleus decays because its products sit <b>higher on the curve</b> than it does. The energy released is just the mass that goes missing:</p>
+  <div class="eq"><span class="v">Q</span> = ( <span class="v">m</span><sub>parent</sub> − <span class="v">m</span><sub>products</sub> ) <span class="v">c</span>²<small>if Q is positive, the decay is allowed — and Q becomes the kinetic energy of what flies out</small></div>
+  <div class="callout body"><b>Why an alpha specifically?</b> Look at the curve's far left — helium-4 sits on a sharp spike, unusually tightly bound for its size. So when a heavy nucleus sheds mass, ejecting a ready-made, rock-solid alpha is the most energy-efficient package available. That's why alpha decay, not "proton drizzle," is the heavy-element exit.</div>
+</section>
+
+<!-- D. RANDOMNESS -->
+<section>
+  <h2><span class="num">D / THE STRANGE PART</span>It's pure dice — and ageless</h2>
+  <p class="sub body">You cannot predict when a <i>given</i> nucleus will go. Quantum mechanics only hands you a <b>constant probability per second</b>. A uranium atom that's waited 4 billion years is <b>no more "due"</b> than a fresh one — nuclei don't age, don't wear out, carry no memory. Each second is an independent coin flip with the same tiny bias.</p>
+  <p class="body">That single fact — constant probability, no memory — is enough to derive exactly how a whole population thins out. Watch.</p>
+</section>
+
+<!-- E. THE MATH -->
+<section>
+  <h2><span class="num">E / THE MATH</span>The decay law, from one assumption</h2>
+  <p class="sub body">Call the per-nucleus probability of decaying per unit time <b style="color:var(--gold)">λ</b> (the decay constant). For <span class="v">N</span> nuclei, the number that go in a sliver of time <span class="v">dt</span> is just λ times how many you have:</p>
+  <div class="eq"><frac><span class="n"><span class="v">dN</span></span><span class="d"><span class="v">dt</span></span></frac> = −<span class="v">λN</span><small>the more you have, the faster you lose them — the signature of exponential decay</small></div>
+  <p class="body">Solve that (it's the equation whose own derivative is itself) and you get the famous result:</p>
+  <div class="eq"><span class="v">N</span>(<span class="v">t</span>) = <span class="v">N</span><sub>0</sub> <span class="v">e</span><sup>−<span class="v">λt</span></sup><small>start with N₀, and the count melts away on an exponential curve</small></div>
+  <p class="body">"Half-life" <span class="v">t</span><sub>½</sub> is just the time for <span class="v">N</span> to halve. Set <span class="v">N</span> = <span class="v">N</span><sub>0</sub>/2 and solve — the N₀ cancels, which is why half-life never depends on how much you started with:</p>
+  <div class="eq"><span class="v">t</span><sub>½</sub> = <frac><span class="n">ln 2</span><span class="d"><span class="v">λ</span></span></frac> ≈ <frac><span class="n">0.693</span><span class="d"><span class="v">λ</span></span></frac><small>and the average lifetime is τ = 1/λ, so τ ≈ 1.44 × t½ — they're related but not equal</small></div>
+  <div class="key">
+    <span><b>λ</b> decay constant (per sec)</span><span><b>t½</b> half-life</span><span><b>τ = 1/λ</b> mean lifetime</span><span><b>A = λN</b> activity (becquerels)</span>
+  </div>
+  <div class="callout body"><b>Reconciling our neutron:</b> earlier I said a free neutron lasts "about 15 minutes." That's its <b>mean lifetime</b> τ ≈ 880 s ≈ 14.7 min. Its <b>half-life</b> is shorter — t½ = τ × ln2 ≈ 10.2 min. Same particle, two different (often-confused) numbers, now you can see exactly why they differ by that factor of 0.693.</div>
+</section>
+
+<!-- F. SIMULATOR -->
+<section>
+  <h2><span class="num">F / SEE IT</span>Half-life, made visible</h2>
+  <p class="sub body">A population of identical nuclei, each flipping its private coin every tick. No nucleus knows the plan — yet the crowd traces a perfect exponential. Set the half-life and watch the dots wink out as the live count (white) hugs the theoretical curve (gold). Notice the wobble: the law is <b>statistical</b>, exact only for large numbers.</p>
+  <div class="stage"><canvas id="simCanvas"></canvas></div>
+  <input type="range" id="hSlider" min="20" max="160" value="60" step="5">
+  <div class="controls" style="justify-content:space-between">
+    <span class="readout">half-life: <b id="hVal" style="color:var(--ink)">60</b> ticks</span>
+    <span class="readout">elapsed: <b id="thalf" style="color:var(--gold)">0.0</b> half-lives · alive: <b id="aliveN" style="color:var(--ink)">—</b></span>
+    <button class="toggle on" id="simReset">restart</button>
+  </div>
+</section>
+
+<!-- G. WORKED EXAMPLE -->
+<section>
+  <h2><span class="num">G / THE PAYOFF</span>Worked example: carbon-14 dating</h2>
+  <p class="sub body">This is the math earning its keep. Living things keep a fixed trace of radioactive <b>carbon-14</b> (t½ = <b class="big">5,730 years</b>) topped up from the air. The instant something dies, top-ups stop and the C-14 starts its exponential slide. Measure how much is left, run the equation backward, and you've dated it.</p>
+  <p class="body">Rearranging N(t) = N₀e<sup>−λt</sup> to solve for the time elapsed:</p>
+  <div class="eq"><span class="v">t</span> = <frac><span class="n">1</span><span class="d"><span class="v">λ</span></span></frac> · ln<frac><span class="n"><span class="v">N</span><sub>0</sub></span><span class="d"><span class="v">N</span></span></frac> = <frac><span class="n"><span class="v">t</span><sub>½</sub></span><span class="d">ln 2</span></frac> · ln<frac><span class="n">100%</span><span class="d">% left</span></frac></div>
+  <p class="body">Try it — slide to how much C-14 a bone still has:</p>
+  <div class="stage" style="padding:22px 18px;text-align:center">
+    <div style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--muted)">C-14 remaining</div>
+    <div style="font-family:'Fraunces',serif;font-size:2.4rem;font-weight:600;color:var(--neutron)" id="c14pct">25%</div>
+    <input type="range" id="c14Slider" min="1" max="99" value="25" step="1" style="max-width:420px;margin:6px auto 18px">
+    <div style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--muted)">estimated age</div>
+    <div style="font-family:'Fraunces',serif;font-size:2.4rem;font-weight:900;color:var(--gold)" id="c14age">—</div>
+  </div>
+  <ol class="steps">
+    <li>A bone has <b>25%</b> of its original C-14 left.</li>
+    <li>25% is one half (50%) then half again — that's <b>2 half-lives</b>.</li>
+    <li>2 × 5,730 = <b>≈ 11,460 years old.</b> The equation gives the same: (5730/ln2)·ln(100/25) ≈ 11,460 yr.</li>
+  </ol>
+  <div class="callout body"><b>The catch built into the curve:</b> after about 10 half-lives (~57,000 years) less than 0.1% of the C-14 survives — too little to measure reliably. That's literally why radiocarbon dating runs out around 50,000 years, and why older things need slower clocks like uranium-238 (t½ = 4.5 <i>billion</i> years), the very nucleus from where this whole conversation started.</div>
+</section>
+
+<footer>
+  <p class="mono">WHY NUCLEI DECAY · THE MATH OF WHEN</p>
+  <p style="margin-top:8px">Full chain of reasoning: two forces compete → energy decides whether a cheaper configuration exists → if so, the nucleus decays, but only on quantum dice with a fixed per-second odds → those odds, applied to a crowd, give N₀e^(−λt) and a half-life of ln2/λ. From a uranium atom outlasting the Earth to a free neutron gone in ten minutes, it's all the same single equation with a different λ.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function dot(ctx,x,y,r,col,glow){ctx.fillStyle=col;if(glow){ctx.shadowColor=col;ctx.shadowBlur=glow;}ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowBlur=0;}
+
+/* ===== A. NUCLEUS TUG OF WAR ===== */
+(function(){
+  const c=document.getElementById("nucCanvas");let S,t=0,A=56,nucleons=[];
+  function size(){S=setup(c,Math.min(260,Math.max(210,c.clientWidth*0.5)));build();}
+  const sl=document.getElementById("aSlider"),aVal=document.getElementById("aVal"),verdict=document.getElementById("verdict");
+  const gFill=document.getElementById("gFill"),cFill=document.getElementById("cFill"),gValEl=document.getElementById("gVal"),cValEl=document.getElementById("cVal");
+  function ZforA(A){ // realistic-ish proton count along stability: solve N≈Z+0.006Z^2 with A=Z+N
+    let Z=A/2;for(let i=0;i<20;i++){const N=Z+0.006*Z*Z;Z=A-N>0?(Z+(A-(Z+N)+Z))/1:Z; }
+    // simpler stable Z: invert A = 2Z+0.006Z^2
+    Z=(-2+Math.sqrt(4+4*0.006*A))/(2*0.006);return Math.max(1,Math.round(Z));
+  }
+  function build(){nucleons=[];const Z=ZforA(A);const {w,h}=S;const cx=w/2,cy=h/2;
+    const R=Math.min(w,h)*0.32*Math.cbrt(A/56); // nuclear radius ~ A^(1/3)
+    for(let i=0;i<A;i++){const ang=Math.random()*7,rad=Math.sqrt(Math.random())*R;
+      nucleons.push({bx:cx+Math.cos(ang)*rad,by:cy+Math.sin(ang)*rad,ph:Math.random()*7,proton:i<Z});}
+  }
+  function metrics(){const Z=ZforA(A);const glue=A;const push=Z*Z/Math.cbrt(A); // ∝A vs ∝Z²/A^⅓
+    return {Z,glue,push};}
+  function refresh(){A=parseInt(sl.value);aVal.textContent=A;build();
+    const {Z,glue,push}=metrics();
+    const gN=glue, cN=push;
+    // normalize to a reference (uranium-ish) for the bars
+    const gMax=260, cMax=92*92/Math.cbrt(238);
+    gFill.style.width=Math.min(100,gN/gMax*100)+"%";
+    cFill.style.width=Math.min(100,cN/cMax*100)+"%";
+    gValEl.textContent="Z="+Z+", A="+A; cValEl.textContent="∝ "+Math.round(push);
+    const ratio=push/glue; // higher -> less stable
+    if(A<=20){verdict.textContent="● Rock solid — glue dominates easily";verdict.style.color="var(--stable)";}
+    else if(ratio<0.78){verdict.textContent="● Stable — glue still ahead";verdict.style.color="var(--stable)";}
+    else if(ratio<0.95){verdict.textContent="◐ Strained — likely radioactive";verdict.style.color="var(--gold)";}
+    else{verdict.textContent="☢ Unstable — repulsion is winning, it decays";verdict.style.color="var(--hot)";}
+  }
+  sl.oninput=refresh;
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    // repulsion lines between a sample of protons (avoid O(Z^2) overdraw)
+    const protons=nucleons.filter(n=>n.proton);
+    ctx.strokeStyle="rgba(255,93,115,.06)";ctx.lineWidth=1;
+    const step=Math.max(1,Math.floor(protons.length/14));
+    for(let i=0;i<protons.length;i+=step)for(let j=i+step;j<protons.length;j+=step){
+      ctx.beginPath();ctx.moveTo(protons[i].bx,protons[i].by);ctx.lineTo(protons[j].bx,protons[j].by);ctx.stroke();}
+    nucleons.forEach(n=>{const jx=Math.sin(t*0.04+n.ph)*1.5,jy=Math.cos(t*0.05+n.ph)*1.5;
+      dot(ctx,n.bx+jx,n.by+jy,Math.max(2.4,Math.min(6, 90/Math.sqrt(A)+1)),n.proton?"#ff5d73":"#39c2ff",0);});
+    t++;requestAnimationFrame(draw);}
+  size();refresh();draw();window.addEventListener("resize",()=>{size();refresh();});
+})();
+
+/* ===== B. VALLEY OF STABILITY ===== */
+(function(){
+  const c=document.getElementById("nzCanvas");let S;
+  function size(){S=setup(c,Math.min(360,Math.max(300,c.clientWidth*0.72)));draw();}
+  const info=document.getElementById("nzInfo");
+  const pad={l:44,r:14,t:14,b:38};
+  const Zmax=100,Nmax=150;
+  function stableN(Z){return Z+0.006*Z*Z;} // schematic belt
+  let marker=null;
+  function toXY(Z,N,w,h){const x=pad.l+(Z/Zmax)*(w-pad.l-pad.r);const y=h-pad.b-(N/Nmax)*(h-pad.t-pad.b);return [x,y];}
+  function fromXY(px,py,w,h){const Z=(px-pad.l)/(w-pad.l-pad.r)*Zmax;const N=(h-pad.b-py)/(h-pad.t-pad.b)*Nmax;return [Z,N];}
+  function classify(Z,N){
+    if(Z>83||N>140){return ["α","var(--alpha)","Too heavy. It ejects an α (2p+2n), stepping down toward the belt."];}
+    const sN=stableN(Z),band=4+Z*0.12;
+    if(N>sN+band)return ["β⁻","var(--beta-minus)","Neutron-rich. A neutron turns into a proton (n→p + e⁻ + ν̄), sliding down toward the belt."];
+    if(N<sN-band)return ["β⁺","var(--beta-plus)","Proton-rich. A proton turns into a neutron (p→n + e⁺ + ν), climbing toward the belt."];
+    return ["stable","var(--stable)","On the belt — this one is stable, no decay needed."];
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    // axes
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,h-pad.b);ctx.lineTo(w-pad.r,h-pad.b);ctx.stroke();
+    ctx.fillStyle="rgba(238,240,251,.6)";ctx.font='11px "Space Mono"';ctx.textAlign="center";
+    ctx.fillText("protons  Z →",(pad.l+(w-pad.r))/2,h-10);
+    ctx.save();ctx.translate(14,(pad.t+(h-pad.b))/2);ctx.rotate(-Math.PI/2);ctx.fillText("neutrons  N →",0,0);ctx.restore();
+    // N=Z reference line
+    ctx.strokeStyle="rgba(255,255,255,.12)";ctx.setLineDash([4,4]);
+    let [x0,y0]=toXY(0,0,w,h),[x1,y1]=toXY(Math.min(Zmax,Nmax),Math.min(Zmax,Nmax),w,h);
+    ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(255,255,255,.3)";ctx.textAlign="left";ctx.fillText("N = Z",x1-44,y1+14);
+    // stable belt
+    ctx.strokeStyle="rgba(95,224,160,.9)";ctx.lineWidth=7;ctx.lineCap="round";ctx.globalAlpha=.85;ctx.beginPath();
+    for(let Z=1;Z<=83;Z++){const [x,y]=toXY(Z,stableN(Z),w,h);Z===1?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=1;
+    // marker + arrow
+    if(marker){const [mx,my]=toXY(marker.Z,marker.N,w,h);
+      dot(ctx,mx,my,6,marker.col,12);
+      if(marker.mode!=="stable"){
+        let tN=marker.N,tZ=marker.Z;
+        if(marker.mode==="β⁻"){tN-=8;tZ+=8;}else if(marker.mode==="β⁺"){tN+=8;tZ-=8;}else{tN-=2*5;tZ-=2*5;}
+        const [tx,ty]=toXY(tZ,tN,w,h);
+        ctx.strokeStyle=marker.col;ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);
+        const ang=Math.atan2(ty-my,tx-mx);ctx.fillStyle=marker.col;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx-9*Math.cos(ang-0.4),ty-9*Math.sin(ang-0.4));ctx.lineTo(tx-9*Math.cos(ang+0.4),ty-9*Math.sin(ang+0.4));ctx.fill();
+      }
+    }
+  }
+  function handle(ev){const r=c.getBoundingClientRect();const px=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;const py=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
+    const {w,h}=S;let [Z,N]=fromXY(px,py,w,h);Z=Math.max(1,Math.min(Zmax,Math.round(Z)));N=Math.max(0,Math.min(Nmax,Math.round(N)));
+    const [mode,col,desc]=classify(Z,N);marker={Z,N,mode,col};
+    info.innerHTML=`<b>Z = ${Z} protons, N = ${N} neutrons</b> &nbsp;→&nbsp; <b style="color:${col}">${mode==="stable"?"STABLE":mode+" decay"}</b><br>${desc}`;
+    draw();}
+  c.addEventListener("click",handle);c.addEventListener("touchstart",e=>{e.preventDefault();handle(e);},{passive:false});
+  size();window.addEventListener("resize",size);
+})();
+
+/* ===== C. BINDING ENERGY CURVE ===== */
+(function(){
+  const c=document.getElementById("beCanvas");let S;
+  function size(){S=setup(c,Math.min(300,Math.max(240,c.clientWidth*0.58)));draw();}
+  const pts=[[2,1.11],[3,2.83],[4,7.07],[6,5.33],[7,5.61],[9,6.46],[12,7.68],[16,7.98],[20,8.03],[24,8.26],[40,8.55],[56,8.79],[62,8.79],[75,8.7],[90,8.7],[107,8.55],[120,8.5],[140,8.33],[160,8.21],[180,8.05],[200,7.87],[220,7.7],[238,7.57]];
+  const pad={l:42,r:14,t:18,b:34};const Amax=240,Bmax=9;
+  function toXY(A,B,w,h){return [pad.l+(A/Amax)*(w-pad.l-pad.r), h-pad.b-(B/Bmax)*(h-pad.t-pad.b)];}
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,h-pad.b);ctx.lineTo(w-pad.r,h-pad.b);ctx.stroke();
+    ctx.fillStyle="rgba(238,240,251,.55)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    ctx.fillText("mass number A →",(pad.l+w-pad.r)/2,h-8);
+    ctx.save();ctx.translate(13,(pad.t+h-pad.b)/2);ctx.rotate(-Math.PI/2);ctx.fillText("binding E / nucleon (MeV)",0,0);ctx.restore();
+    // curve
+    ctx.strokeStyle="var(--gold)";ctx.lineWidth=2.5;ctx.beginPath();
+    pts.forEach((p,i)=>{const [x,y]=toXY(p[0],p[1],w,h);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
+    // fill under
+    ctx.lineTo(...toXY(238,0,w,h));ctx.lineTo(...toXY(2,0,w,h));ctx.closePath();ctx.fillStyle="rgba(255,209,102,.07)";ctx.fill();
+    // markers: He-4 and Fe-56
+    function mark(A,B,lab,col){const [x,y]=toXY(A,B,w,h);dot(c.getContext("2d"),x,y,4,col,8);ctx.fillStyle=col;ctx.font='bold 10px "Space Mono"';ctx.textAlign="left";ctx.fillText(lab,x+7,y+(lab.includes("Fe")?-6:14));}
+    mark(4,7.07,"He-4","#39c2ff");mark(56,8.79,"Fe-56 ▲ peak","#5fe0a0");mark(238,7.57,"U-238","#ff5d73");
+    // arrows fusion/fission
+    ctx.fillStyle="rgba(238,240,251,.5)";ctx.font='10px "Space Mono"';ctx.textAlign="center";
+    let [fx]=toXY(28,0,w,h);ctx.fillText("fusion →",fx,pad.t+12);
+    let [gx]=toXY(150,0,w,h);ctx.fillText("← fission",gx,pad.t+12);
+  }
+  size();window.addEventListener("resize",size);
+})();
+
+/* ===== F. HALF-LIFE SIMULATOR ===== */
+(function(){
+  const c=document.getElementById("simCanvas");let S;
+  function size(){S=setup(c,Math.min(380,Math.max(320,c.clientWidth*0.78)));layout();}
+  const hSlider=document.getElementById("hSlider"),hVal=document.getElementById("hVal"),thalf=document.getElementById("thalf"),aliveN=document.getElementById("aliveN"),resetBtn=document.getElementById("simReset");
+  let cols,rows,N0,nuclei,t,history,H,lambda,flashes,gridH,paused,pauseTimer;
+  function layout(){const {w,h}=S;gridH=h*0.5;cols=Math.max(16,Math.floor((w-20)/13));rows=Math.max(8,Math.floor((gridH-16)/13));N0=cols*rows;reset();}
+  function reset(){nuclei=new Array(N0).fill(0);t=0;history=[];flashes=[];paused=false;
+    H=parseInt(hSlider.value);lambda=Math.LN2/H;}
+  hSlider.oninput=()=>{hVal.textContent=hSlider.value;reset();};
+  resetBtn.onclick=reset;
+  function alive(){let a=0;for(const v of nuclei)if(v===0)a++;return a;}
+  function step(){if(paused)return;const p=1-Math.exp(-lambda);
+    for(let i=0;i<N0;i++){if(nuclei[i]===0&&Math.random()<p){nuclei[i]=1;flashes.push({i:i,a:1});}}
+    history.push(alive());t++;
+    if(t>=5*H){paused=true;clearTimeout(pauseTimer);pauseTimer=setTimeout(reset,1400);}
+  }
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);
+    step();
+    const gx0=12,gy0=12,cw=(w-24)/cols,ch=(gridH-16)/rows;
+    // nuclei grid
+    for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){const i=r*cols+col;const x=gx0+col*cw+cw/2,y=gy0+r*ch+ch/2;
+      if(nuclei[i]===0)dot(ctx,x,y,Math.min(4,cw*0.32),"#ffffff",4);
+      else{ctx.fillStyle="rgba(255,255,255,.10)";ctx.beginPath();ctx.arc(x,y,Math.min(3,cw*0.25),0,7);ctx.fill();}}
+    // flashes
+    for(let k=flashes.length-1;k>=0;k--){const f=flashes[k];const r=Math.floor(f.i/cols),col=f.i%cols;const x=gx0+col*cw+cw/2,y=gy0+r*ch+ch/2;
+      ctx.strokeStyle=`rgba(255,209,102,${f.a})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,(1-f.a)*9+3,0,7);ctx.stroke();f.a-=0.08;if(f.a<=0)flashes.splice(k,1);}
+    // graph
+    const px0=44,py0=gridH+14,pw=w-px0-14,ph=h-py0-26;
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px0,py0+ph);ctx.lineTo(px0+pw,py0+ph);ctx.stroke();
+    const Tmax=5*H;
+    const X=tt=>px0+(tt/Tmax)*pw, Y=nn=>py0+ph-(nn/N0)*ph;
+    // half-life gridlines
+    ctx.font='9px "Space Mono"';ctx.textAlign="center";
+    for(let k=1;k<=5;k++){const x=X(k*H);ctx.strokeStyle="rgba(255,255,255,.07)";ctx.beginPath();ctx.moveTo(x,py0);ctx.lineTo(x,py0+ph);ctx.stroke();
+      ctx.fillStyle="rgba(238,240,251,.4)";ctx.fillText(k+"·t½",x,py0+ph+14);}
+    // horizontal halves
+    ctx.textAlign="right";for(let k=1;k<=3;k++){const frac=Math.pow(0.5,k);const y=Y(N0*frac);ctx.strokeStyle="rgba(255,255,255,.05)";ctx.beginPath();ctx.moveTo(px0,y);ctx.lineTo(px0+pw,y);ctx.stroke();
+      ctx.fillStyle="rgba(238,240,251,.35)";ctx.fillText(Math.round(frac*100)+"%",px0-4,y+3);}
+    // theoretical curve
+    ctx.strokeStyle="var(--gold)";ctx.lineWidth=2;ctx.beginPath();
+    for(let tt=0;tt<=Math.min(t,Tmax);tt+=2){const x=X(tt),y=Y(N0*Math.exp(-lambda*tt));tt===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+    // actual data
+    ctx.strokeStyle="rgba(255,255,255,.85)";ctx.lineWidth=1.5;ctx.beginPath();
+    history.forEach((nn,tt)=>{const x=X(tt),y=Y(nn);tt===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
+    // labels
+    ctx.fillStyle="var(--gold)";ctx.textAlign="left";ctx.fillText("— theory  N₀e^(−λt)",px0+6,py0+12);
+    ctx.fillStyle="rgba(255,255,255,.85)";ctx.fillText("— actual count",px0+6,py0+24);
+    // readouts
+    thalf.textContent=(t/H).toFixed(1);aliveN.textContent=alive()+" / "+N0;
+    requestAnimationFrame(draw);
+  }
+  hVal.textContent=hSlider.value;size();draw();window.addEventListener("resize",size);
+})();
+
+/* ===== G. CARBON-14 ===== */
+(function(){
+  const sl=document.getElementById("c14Slider"),pct=document.getElementById("c14pct"),age=document.getElementById("c14age");
+  const T=5730;
+  function up(){const p=parseInt(sl.value);pct.textContent=p+"%";
+    const yrs=(T/Math.LN2)*Math.log(100/p);
+    age.textContent=Math.round(yrs/10)*10>=10000?(yrs/1000).toFixed(1)+"k yr":Math.round(yrs/10)*10+" yr";}
+  sl.oninput=up;up();
+})();
+</script>
+</body>
+</html>

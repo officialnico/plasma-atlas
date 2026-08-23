@@ -1,0 +1,609 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>streaming knob</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function ParticleBoxStreamingKnob() {
+  const [running, setRunning] = useState(true);
+  const [velocity, setVelocity] = useState(0.6);
+  const [gradient, setGradient] = useState(-0.3);
+  const [showTrails, setShowTrails] = useState(false);
+  const [colorMode, setColorMode] = useState("density");
+
+  const W = 720;
+  const H = 360;
+  const xMin = 0;
+  const xMax = 10;
+  const xToPx = (x) => 30 + ((x - xMin) / (xMax - xMin)) * (W - 60);
+
+  const winX = 5;
+  const winHalf = 0.4;
+  const winLeftPx = xToPx(winX - winHalf);
+  const winRightPx = xToPx(winX + winHalf);
+  const winWidthPx = winRightPx - winLeftPx;
+
+  const gradientRef = useRef(gradient);
+  useEffect(() => { gradientRef.current = gradient; }, [gradient]);
+
+  const density = (x) => {
+    const g = gradientRef.current;
+    const raw = 0.5 + g * (x - winX) * 0.8;
+    return 0.5 + 0.42 * Math.tanh((raw - 0.5) / 0.42);
+  };
+
+  const dfdxAtWindow = (() => {
+    const h = 0.05;
+    return (density(winX + h) - density(winX - h)) / (2 * h);
+  })();
+  const streamingTerm = velocity * dfdxAtWindow;
+  const localChangeRate = -streamingTerm;
+
+  const particlesRef = useRef([]);
+  const trailsRef = useRef([]);
+  const timeRef = useRef(0);
+  const lastFrameRef = useRef(performance.now());
+  const countersRef = useRef({ inLeft: 0, outRight: 0, windowCount: 0, history: [] });
+
+  const [, setTick] = useState(0);
+  const [counters, setCounters] = useState({ inLeft: 0, outRight: 0, windowCount: 0, net: 0 });
+  const [windowHistory, setWindowHistory] = useState([]);
+
+  const N_PARTICLES = 320;
+
+  const sampleX = () => {
+    let x;
+    let attempts = 0;
+    while (attempts < 100) {
+      x = xMin + Math.random() * (xMax - xMin);
+      if (Math.random() < density(x) / 0.95) return x;
+      attempts++;
+    }
+    return x;
+  };
+
+  const initParticles = () => {
+    const parts = [];
+    for (let i = 0; i < N_PARTICLES; i++) {
+      const x = sampleX();
+      parts.push({
+        x,
+        y: 0.15 + Math.random() * 0.7,
+        id: i,
+        countedIn: false,
+        countedOut: false,
+        hue: (i * 137.5) % 360,
+      });
+    }
+    particlesRef.current = parts;
+    countersRef.current = { inLeft: 0, outRight: 0, windowCount: 0, history: [] };
+    timeRef.current = 0;
+    setCounters({ inLeft: 0, outRight: 0, windowCount: 0, net: 0 });
+    setWindowHistory([]);
+  };
+
+  useEffect(() => {
+    initParticles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced soft re-distribution when gradient changes — does NOT block slider
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const parts = particlesRef.current;
+      for (const p of parts) {
+        if (Math.random() < 0.5) p.x = sampleX();
+      }
+    }, 250);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gradient]);
+
+  useEffect(() => {
+    let raf;
+    const tickFn = (now) => {
+      const dt = Math.min(0.05, (now - lastFrameRef.current) / 1000);
+      lastFrameRef.current = now;
+      if (running) {
+        timeRef.current += dt;
+        const parts = particlesRef.current;
+        for (const p of parts) {
+          const prevX = p.x;
+          p.x += velocity * dt;
+
+          if (velocity > 0 && p.x > xMax) {
+            p.x = sampleX() * 0.2;
+            p.y = 0.15 + Math.random() * 0.7;
+            p.countedIn = false;
+            p.countedOut = false;
+          }
+          if (velocity < 0 && p.x < xMin) {
+            p.x = xMax - Math.random() * 1.5;
+            p.y = 0.15 + Math.random() * 0.7;
+            p.countedIn = false;
+            p.countedOut = false;
+          }
+
+          if (velocity > 0) {
+            if (!p.countedIn && prevX < winX - winHalf && p.x >= winX - winHalf) {
+              countersRef.current.inLeft += 1;
+              p.countedIn = true;
+            }
+            if (!p.countedOut && prevX < winX + winHalf && p.x >= winX + winHalf) {
+              countersRef.current.outRight += 1;
+              p.countedOut = true;
+            }
+          } else if (velocity < 0) {
+            if (!p.countedIn && prevX > winX + winHalf && p.x <= winX + winHalf) {
+              countersRef.current.inLeft += 1;
+              p.countedIn = true;
+            }
+            if (!p.countedOut && prevX > winX - winHalf && p.x <= winX - winHalf) {
+              countersRef.current.outRight += 1;
+              p.countedOut = true;
+            }
+          }
+
+          if (showTrails && Math.random() < 0.12) {
+            trailsRef.current.push({ x: p.x, y: p.y, age: 0, hue: p.hue });
+          }
+        }
+
+        let inside = 0;
+        for (const p of parts) {
+          if (p.x >= winX - winHalf && p.x <= winX + winHalf) inside++;
+        }
+        countersRef.current.windowCount = inside;
+
+        if (
+          countersRef.current.history.length === 0 ||
+          timeRef.current - countersRef.current.history[countersRef.current.history.length - 1].t > 0.1
+        ) {
+          countersRef.current.history.push({ t: timeRef.current, n: inside });
+          if (countersRef.current.history.length > 80) countersRef.current.history.shift();
+        }
+
+        if (showTrails) {
+          for (const tr of trailsRef.current) tr.age += dt;
+          trailsRef.current = trailsRef.current.filter((tr) => tr.age < 0.6);
+        }
+      }
+      setTick((t) => t + 1);
+      setCounters({
+        inLeft: countersRef.current.inLeft,
+        outRight: countersRef.current.outRight,
+        windowCount: countersRef.current.windowCount,
+        net: countersRef.current.inLeft - countersRef.current.outRight,
+      });
+      setWindowHistory([...countersRef.current.history]);
+      raf = requestAnimationFrame(tickFn);
+    };
+    raf = requestAnimationFrame(tickFn);
+    return () => cancelAnimationFrame(raf);
+  }, [running, velocity, showTrails]);
+
+  const reset = () => initParticles();
+
+  const densityPath = (() => {
+    let d = "";
+    for (let i = 0; i <= 100; i++) {
+      const x = xMin + (i / 100) * (xMax - xMin);
+      const px = xToPx(x);
+      const py = 30 - density(x) * 22;
+      d += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+    }
+    return d;
+  })();
+
+  const histW = 720, histH = 90;
+  const histPath = (() => {
+    if (windowHistory.length < 2) return "";
+    const minT = windowHistory[0].t;
+    const maxT = windowHistory[windowHistory.length - 1].t;
+    const minN = Math.min(...windowHistory.map((h) => h.n));
+    const maxN = Math.max(...windowHistory.map((h) => h.n));
+    const range = Math.max(2, maxN - minN);
+    let d = "";
+    windowHistory.forEach((h, i) => {
+      const px = 30 + ((h.t - minT) / Math.max(0.1, maxT - minT)) * (histW - 60);
+      const py = histH - 15 - ((h.n - minN) / range) * (histH - 30);
+      d += `${i === 0 ? "M" : "L"}${px.toFixed(2)},${py.toFixed(2)} `;
+    });
+    return d;
+  })();
+
+  const stMin = -0.6, stMax = 0.6;
+  const stClamp = Math.max(stMin, Math.min(stMax, streamingTerm));
+  const stGaugeW = 320;
+  const stGaugePos = ((stClamp - stMin) / (stMax - stMin)) * stGaugeW;
+  const stColor = streamingTerm > 0.01 ? "#5b8def" : streamingTerm < -0.01 ? "#ff5c3a" : "#888";
+
+  const particleColor = (p, inWindow) => {
+    if (inWindow) return "#ffd166";
+    if (colorMode === "density") {
+      const d = density(p.x);
+      const t = Math.max(0, Math.min(1, (d - 0.1) / 0.8));
+      const r = Math.round(62 + (255 - 62) * t);
+      const g = Math.round(198 + (122 - 198) * t);
+      const b = Math.round(194 + (156 - 194) * t);
+      return `rgb(${r},${g},${b})`;
+    }
+    if (colorMode === "speed") {
+      const v = velocity;
+      if (Math.abs(v) < 0.05) return "#888";
+      const mag = Math.min(1, Math.abs(v) / 1.5);
+      if (v > 0) {
+        const r = 255;
+        const g = Math.round(200 - 120 * mag);
+        const b = Math.round(120 - 60 * mag);
+        return `rgb(${r},${g},${b})`;
+      } else {
+        const r = Math.round(120 - 60 * mag);
+        const g = Math.round(180 - 60 * mag);
+        const b = 255;
+        return `rgb(${r},${g},${b})`;
+      }
+    }
+    return `hsl(${p.hue}, 70%, 65%)`;
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0a0a0f",
+        color: "#e8e8ee",
+        fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+        padding: "32px 24px",
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent;
+          border: 1px solid #2a2a35;
+          color: #e8e8ee;
+          padding: 8px 14px;
+          font-family: inherit;
+          font-size: 12px;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 20px; }
+
+        .smooth-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          background: transparent;
+          width: 100%;
+          height: 28px;
+          touch-action: none;
+        }
+        .smooth-slider:focus { outline: none; }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 6px;
+          background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px;
+          border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 6px;
+          background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px;
+          border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 22px;
+          width: 22px;
+          border-radius: 50%;
+          margin-top: -9px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5), inset 0 -2px 4px rgba(0,0,0,0.3);
+          border: 2px solid #0a0a0f;
+          transition: transform 0.1s ease, box-shadow 0.15s ease;
+        }
+        .smooth-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.1);
+          box-shadow: 0 4px 14px rgba(255,92,58,0.7), inset 0 -2px 4px rgba(0,0,0,0.3);
+        }
+        .smooth-slider:active::-webkit-slider-thumb {
+          cursor: grabbing;
+          transform: scale(1.05);
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 22px;
+          width: 22px;
+          border-radius: 50%;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #0a0a0f;
+          transition: transform 0.1s ease;
+        }
+        .smooth-slider::-moz-range-thumb:hover { transform: scale(1.1); }
+
+        .stat {
+          background: #0d0d18; border: 1px solid #1f1f2c;
+          padding: 12px 14px;
+        }
+        .stat .lbl { font-size: 10px; letter-spacing: 0.2em; color: #666; margin-bottom: 6px; }
+        .stat .val { font-size: 18px; font-family: 'Fraunces', serif; font-style: italic; color: #fff; }
+
+        .ticks {
+          display: flex;
+          justify-content: space-between;
+          font-size: 9px;
+          color: #555;
+          margin-top: 4px;
+          font-family: 'Fraunces', serif;
+          font-style: italic;
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 920, margin: "0 auto" }}>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 12 }}>
+            STREAMING TERM · TWO KNOBS, ONE PRODUCT
+          </div>
+          <h1 className="display" style={{ fontSize: 38, lineHeight: 1.05, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            v · ∂f/∂x is a product
+          </h1>
+        </div>
+
+        <div className="viz-card" style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666" }}>
+              STREAMING TERM v · ∂f/∂x
+            </div>
+            <div className="display" style={{ fontSize: 28, fontStyle: "italic", color: stColor, fontWeight: 600 }}>
+              {streamingTerm >= 0 ? "+" : ""}{streamingTerm.toFixed(3)}
+            </div>
+          </div>
+          <svg width="100%" viewBox={`0 0 ${stGaugeW} 50`} style={{ display: "block" }}>
+            <rect x="0" y="22" width={stGaugeW} height="6" fill="#1f1f2c" rx="3" />
+            <line x1={stGaugeW / 2} y1="14" x2={stGaugeW / 2} y2="36" stroke="#444" strokeWidth="1" />
+            <text x={stGaugeW / 2} y="48" fontSize="9" fill="#555" textAnchor="middle">0</text>
+            <rect
+              x={Math.min(stGaugeW / 2, stGaugePos)}
+              y="22"
+              width={Math.abs(stGaugePos - stGaugeW / 2)}
+              height="6"
+              fill={stColor}
+              rx="3"
+            />
+            <circle cx={stGaugePos} cy="25" r="8" fill={stColor} stroke="#0a0a0f" strokeWidth="2" />
+            <text x="0" y="48" fontSize="9" fill="#555">−0.6</text>
+            <text x={stGaugeW} y="48" fontSize="9" fill="#555" textAnchor="end">+0.6</text>
+          </svg>
+          <div style={{ fontSize: 12, color: "#888", marginTop: 8, lineHeight: 1.5 }}>
+            {streamingTerm > 0.01
+              ? `Positive: density would drop at the window over time (∂f/∂t = ${localChangeRate.toFixed(2)}).`
+              : streamingTerm < -0.01
+              ? `Negative: density would rise at the window over time (∂f/∂t = +${Math.abs(localChangeRate).toFixed(2)}).`
+              : "Zero: f at the window is steady."}
+          </div>
+        </div>
+
+        <div className="viz-card" style={{ marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666" }}>KNOB 1 · v</span>
+                <span style={{ fontSize: 14, color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+                  {velocity >= 0 ? "+" : ""}{velocity.toFixed(2)}
+                </span>
+              </div>
+              <input
+                className="smooth-slider"
+                type="range"
+                min="-1.5"
+                max="1.5"
+                step="0.001"
+                value={velocity}
+                onChange={(e) => setVelocity(parseFloat(e.target.value))}
+              />
+              <div className="ticks">
+                <span>−1.5</span><span>0</span><span>+1.5</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>
+                stream speed (negative = leftward)
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, letterSpacing: "0.2em", color: "#666" }}>KNOB 2 · ∂f/∂x at window</span>
+                <span style={{ fontSize: 14, color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>
+                  {dfdxAtWindow >= 0 ? "+" : ""}{dfdxAtWindow.toFixed(3)}
+                </span>
+              </div>
+              <input
+                className="smooth-slider"
+                type="range"
+                min="-0.5"
+                max="0.5"
+                step="0.001"
+                value={gradient}
+                onChange={(e) => setGradient(parseFloat(e.target.value))}
+              />
+              <div className="ticks">
+                <span>−0.5</span><span>0</span><span>+0.5</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>
+                density slope (negative = falling rightward)
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+            <button className="control-btn" onClick={() => setRunning((r) => !r)}>
+              {running ? "❚❚ Pause" : "▶ Play"}
+            </button>
+            <button className="control-btn" onClick={reset}>↺ Reset</button>
+            <button className={`control-btn ${showTrails ? "active" : ""}`} onClick={() => setShowTrails((s) => !s)}>
+              Trails
+            </button>
+            <div style={{ width: 1, background: "#2a2a35", margin: "0 6px" }} />
+            <button className="control-btn" onClick={() => { setVelocity(0); setGradient(-0.3); }}>v = 0</button>
+            <button className="control-btn" onClick={() => { setVelocity(0.6); setGradient(0); }}>gradient = 0</button>
+            <button className="control-btn" onClick={() => { setVelocity(0.3); setGradient(-0.4); }}>slow + steep</button>
+            <button className="control-btn" onClick={() => { setVelocity(1.2); setGradient(-0.1); }}>fast + gentle</button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666" }}>COLOR BY:</span>
+            <button className={`control-btn ${colorMode === "density" ? "active" : ""}`} onClick={() => setColorMode("density")}>
+              Local density
+            </button>
+            <button className={`control-btn ${colorMode === "speed" ? "active" : ""}`} onClick={() => setColorMode("speed")}>
+              Velocity
+            </button>
+            <button className={`control-btn ${colorMode === "lane" ? "active" : ""}`} onClick={() => setColorMode("lane")}>
+              Identity
+            </button>
+          </div>
+        </div>
+
+        <div className="viz-card" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 6 }}>
+            DENSITY f(x)
+          </div>
+          <svg width="100%" viewBox={`0 0 ${W} 36`} style={{ display: "block" }}>
+            <line x1="30" y1="32" x2={W - 30} y2="32" stroke="#2a2a35" />
+            <path d={densityPath} fill="none" stroke="#5b8def" strokeWidth="2" />
+            <line x1={winLeftPx} y1="0" x2={winLeftPx} y2="36" stroke="#ffd166" strokeDasharray="2,3" opacity="0.6" />
+            <line x1={winRightPx} y1="0" x2={winRightPx} y2="36" stroke="#ffd166" strokeDasharray="2,3" opacity="0.6" />
+          </svg>
+
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", marginTop: 4 }}>
+            <line x1="30" y1="30" x2={W - 30} y2="30" stroke="#1f1f2c" />
+            <line x1="30" y1={H - 40} x2={W - 30} y2={H - 40} stroke="#1f1f2c" />
+
+            {showTrails &&
+              trailsRef.current.map((tr, i) => (
+                <circle
+                  key={`tr-${i}`}
+                  cx={xToPx(tr.x)}
+                  cy={30 + tr.y * (H - 70)}
+                  r={1.5}
+                  fill={colorMode === "lane" ? `hsl(${tr.hue}, 70%, 65%)` : "#5b8def"}
+                  opacity={Math.max(0, 0.4 - tr.age * 0.6)}
+                />
+              ))}
+
+            {particlesRef.current.map((p) => {
+              const inWindow = p.x >= winX - winHalf && p.x <= winX + winHalf;
+              return (
+                <circle
+                  key={p.id}
+                  cx={xToPx(p.x)}
+                  cy={30 + p.y * (H - 70)}
+                  r={inWindow ? 3.8 : 2.6}
+                  fill={particleColor(p, inWindow)}
+                  opacity={inWindow ? 1 : 0.85}
+                />
+              );
+            })}
+
+            <rect
+              x={winLeftPx}
+              y={20}
+              width={winWidthPx}
+              height={H - 50}
+              fill="#ffd166"
+              fillOpacity="0.06"
+              stroke="#ffd166"
+              strokeWidth="2"
+            />
+
+            {velocity > 0 && (
+              <g>
+                <text x={winLeftPx - 10} y={50} fontSize="10" fill="#7af0a8" textAnchor="end">IN</text>
+                <line x1={winLeftPx - 35} y1={56} x2={winLeftPx - 5} y2={56} stroke="#7af0a8" strokeWidth="2" />
+                <polygon points={`${winLeftPx - 5},56 ${winLeftPx - 11},52 ${winLeftPx - 11},60`} fill="#7af0a8" />
+                <text x={winRightPx + 10} y={50} fontSize="10" fill="#ff7a7a">OUT</text>
+                <line x1={winRightPx + 5} y1={56} x2={winRightPx + 35} y2={56} stroke="#ff7a7a" strokeWidth="2" />
+                <polygon points={`${winRightPx + 35},56 ${winRightPx + 29},52 ${winRightPx + 29},60`} fill="#ff7a7a" />
+              </g>
+            )}
+            {velocity < 0 && (
+              <g>
+                <text x={winRightPx + 10} y={50} fontSize="10" fill="#7af0a8">IN</text>
+                <line x1={winRightPx + 35} y1={56} x2={winRightPx + 5} y2={56} stroke="#7af0a8" strokeWidth="2" />
+                <polygon points={`${winRightPx + 5},56 ${winRightPx + 11},52 ${winRightPx + 11},60`} fill="#7af0a8" />
+                <text x={winLeftPx - 10} y={50} fontSize="10" fill="#ff7a7a" textAnchor="end">OUT</text>
+                <line x1={winLeftPx - 5} y1={56} x2={winLeftPx - 35} y2={56} stroke="#ff7a7a" strokeWidth="2" />
+                <polygon points={`${winLeftPx - 35},56 ${winLeftPx - 29},52 ${winLeftPx - 29},60`} fill="#ff7a7a" />
+              </g>
+            )}
+
+            <text x={(winLeftPx + winRightPx) / 2} y={H - 18} fontSize="11" fill="#ffd166" textAnchor="middle" fontStyle="italic">
+              window at x = 5
+            </text>
+
+            {[0, 2, 4, 6, 8, 10].map((tx) => (
+              <text key={tx} x={xToPx(tx)} y={H - 5} fontSize="10" fill="#444" textAnchor="middle">
+                {tx}
+              </text>
+            ))}
+          </svg>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
+            <div className="stat">
+              <div className="lbl">FLOWED IN</div>
+              <div className="val" style={{ color: "#7af0a8" }}>{counters.inLeft}</div>
+            </div>
+            <div className="stat">
+              <div className="lbl">FLOWED OUT</div>
+              <div className="val" style={{ color: "#ff7a7a" }}>{counters.outRight}</div>
+            </div>
+            <div className="stat">
+              <div className="lbl">NET = IN − OUT</div>
+              <div className="val" style={{ color: counters.net > 0 ? "#7af0a8" : counters.net < 0 ? "#ff7a7a" : "#888" }}>
+                {counters.net > 0 ? "+" : ""}{counters.net}
+              </div>
+            </div>
+            <div className="stat">
+              <div className="lbl">IN WINDOW NOW</div>
+              <div className="val" style={{ color: "#ffd166" }}>{counters.windowCount}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="viz-card" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+            COUNT IN WINDOW OVER TIME
+          </div>
+          <svg width="100%" viewBox={`0 0 ${histW} ${histH}`} style={{ display: "block" }}>
+            <line x1="30" y1={histH - 15} x2={histW - 30} y2={histH - 15} stroke="#2a2a35" />
+            <path d={histPath} fill="none" stroke="#ffd166" strokeWidth="2" />
+          </svg>
+        </div>
+
+        <div style={{ fontSize: 12, color: "#555", textAlign: "center", marginTop: 24 }}>
+          Drag the slider thumb continuously — it now updates without resetting the simulation. Try the three color modes.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ParticleBoxStreamingKnob));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,689 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>psi to metrics</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  flux: "#2d5a8e",
+  fluxBright: "#4a90d9",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+  yellow: "#fff176",
+};
+
+// Equilibrium helpers
+function fluxSurface(psiNorm, theta) {
+  const r0 = 2.0, kappa = 1.6, delta = 0.35, shaf = 0.25;
+  const a = 0.7 * psiNorm;
+  const shift = shaf * (1 - psiNorm * psiNorm);
+  return {
+    R: r0 + shift + a * Math.cos(theta + delta * Math.sin(theta)),
+    Z: kappa * a * Math.sin(theta),
+  };
+}
+
+function psiValue(R, Z) {
+  const r0 = 2.15, kappa = 1.6, delta = 0.35;
+  // Approximate inverse: find psiNorm from (R,Z)
+  // Iterative is overkill for viz; use analytic approx
+  const dR = R - r0;
+  const dZ = Z / kappa;
+  const aEff = Math.sqrt(dR * dR + dZ * dZ);
+  return Math.min(1, aEff / 0.7);
+}
+
+function computeGrads(psiNorm, theta) {
+  const eps = 0.005;
+  const pp = fluxSurface(psiNorm + eps, theta);
+  const pm = fluxSurface(psiNorm - eps, theta);
+  const dRdpsi = (pp.R - pm.R) / (2 * eps);
+  const dZdpsi = (pp.Z - pm.Z) / (2 * eps);
+  const tp = fluxSurface(psiNorm, theta + eps);
+  const tm = fluxSurface(psiNorm, theta - eps);
+  const dRdth = (tp.R - tm.R) / (2 * eps);
+  const dZdth = (tp.Z - tm.Z) / (2 * eps);
+  const J = Math.abs(dRdpsi * dZdth - dZdpsi * dRdth);
+  const gradPsiMag = Math.sqrt(dRdpsi * dRdpsi + dZdpsi * dZdpsi);
+  return { dRdpsi, dZdpsi, dRdth, dZdth, J, gradPsiMag };
+}
+
+const STEPS = [
+  {
+    id: "psi-grid",
+    title: "1. The Raw ψ(R,Z) Grid",
+    desc: "This is what's in the eqdsk file — ψ values on a regular (R,Z) grid. It's just numbers on a rectangular mesh. No flux surfaces, no θ, no geometry yet.",
+  },
+  {
+    id: "contour",
+    title: "2. Trace a Contour (Pick ψ = 0.6)",
+    desc: "To find a flux surface, we trace where ψ = constant on the grid. This is like drawing contour lines on a topographic map. Now we have (R,Z) points forming a closed curve.",
+  },
+  {
+    id: "assign-theta",
+    title: "3. Assign θ Around the Contour",
+    desc: "We define θ ourselves — it's the poloidal angle measured from the magnetic axis. θ=0 at the outboard midplane, increasing counter-clockwise. Now every point on the contour has a (ψ, θ) label.",
+  },
+  {
+    id: "derivatives",
+    title: "4. Compute ∂ψ/∂R and ∂ψ/∂Z",
+    desc: "At each point on the contour, we go back to the ψ(R,Z) grid and compute partial derivatives using finite differences — just (ψ[i+1] - ψ[i-1]) / (2·dR). These give us ∇ψ, pointing radially across surfaces.",
+  },
+  {
+    id: "build-metrics",
+    title: "5. Build Metric Coefficients & J",
+    desc: "From ∇ψ and ∇θ at each point, we compute g_xx = |∇ψ|², g_yy = |∇θ|², g_xy = ∇ψ·∇θ, and J from the cross product. Sweep θ from 0 to 2π → out come the 1D arrays GENE needs.",
+  },
+];
+
+function PsiToMetrics() {
+  const [step, setStep] = useState(0);
+  const [anim, setAnim] = useState(0);
+  const [sweep, setSweep] = useState(0);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const startRef = useRef(Date.now());
+  const chosenPsi = 0.6;
+
+  useEffect(() => {
+    startRef.current = Date.now();
+    const tick = () => {
+      const t = (Date.now() - startRef.current) / 1000;
+      setAnim(t);
+      if (step === 2 || step === 4) setSweep((t * 0.6) % (2 * Math.PI));
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [step]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    const Rmin = 0.95, Rmax = 3.15, Zmin = -1.3, Zmax = 1.3;
+    const toX = (R) => 20 + ((R - Rmin) / (Rmax - Rmin)) * (W - 40);
+    const toY = (Z) => 20 + ((Zmax - Z) / (Zmax - Zmin)) * (H - 40);
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const nGrid = 25;
+    const dR = (Rmax - Rmin) / nGrid;
+    const dZ = (Zmax - Zmin) / nGrid;
+
+    // Step 0: Show ψ values on grid
+    if (step === 0) {
+      // Color each cell by psi value
+      for (let i = 0; i < nGrid; i++) {
+        for (let j = 0; j < nGrid; j++) {
+          const R = Rmin + (i + 0.5) * dR;
+          const Z = Zmin + (j + 0.5) * dZ;
+          const psi = psiValue(R, Z);
+          if (psi > 1.05) continue;
+
+          const t = Math.min(1, psi);
+          const r = Math.round(10 + 60 * t);
+          const g = Math.round(20 + 70 * (1 - t));
+          const b = Math.round(80 + 140 * (1 - t));
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+          const x = toX(Rmin + i * dR);
+          const y = toY(Zmin + (j + 1) * dZ);
+          const w = toX(Rmin + (i + 1) * dR) - x;
+          const h2 = toY(Zmin + j * dZ) - y;
+          ctx.fillRect(x, y, w, h2);
+
+          // Grid lines
+          ctx.strokeStyle = C.border + "40";
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(x, y, w, h2);
+        }
+      }
+
+      // Show some ψ values as text
+      const pulse = 0.5 + 0.5 * Math.sin(anim * 2);
+      ctx.font = "bold 9px 'IBM Plex Mono', monospace";
+      for (let i = 2; i < nGrid; i += 4) {
+        for (let j = 2; j < nGrid; j += 4) {
+          const R = Rmin + (i + 0.5) * dR;
+          const Z = Zmin + (j + 0.5) * dZ;
+          const psi = psiValue(R, Z);
+          if (psi > 1.0) continue;
+          const x = toX(R);
+          const y = toY(Z);
+          ctx.fillStyle = `rgba(200,212,232,${0.4 + 0.3 * pulse})`;
+          ctx.fillText(psi.toFixed(2), x - 10, y + 3);
+        }
+      }
+
+      // Axis labels
+      ctx.font = "11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      ctx.fillText("R →", W / 2 - 10, H - 4);
+      ctx.save();
+      ctx.translate(10, H / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("Z →", -10, 0);
+      ctx.restore();
+
+      // Label
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.yellow;
+      ctx.fillText("ψ values on (R,Z) grid", W / 2 - 60, 15);
+    }
+
+    // Steps 1+: show faint contours
+    if (step >= 1) {
+      // Background: faint psi coloring
+      for (let i = 0; i < nGrid; i++) {
+        for (let j = 0; j < nGrid; j++) {
+          const R = Rmin + (i + 0.5) * dR;
+          const Z = Zmin + (j + 0.5) * dZ;
+          const psi = psiValue(R, Z);
+          if (psi > 1.05) continue;
+          const t = Math.min(1, psi);
+          const r = Math.round(10 + 60 * t);
+          const g = Math.round(20 + 70 * (1 - t));
+          const b = Math.round(80 + 140 * (1 - t));
+          ctx.fillStyle = `rgba(${r},${g},${b},0.15)`;
+          const x = toX(Rmin + i * dR);
+          const y = toY(Zmin + (j + 1) * dZ);
+          const w = toX(Rmin + (i + 1) * dR) - x;
+          const h2 = toY(Zmin + j * dZ) - y;
+          ctx.fillRect(x, y, w, h2);
+        }
+      }
+
+      // Draw other contours faintly
+      const nTheta = 100;
+      for (let si = 1; si <= 8; si++) {
+        const psi = si / 8;
+        const isChosen = Math.abs(psi - chosenPsi) < 0.08;
+        ctx.beginPath();
+        for (let j = 0; j <= nTheta; j++) {
+          const th = (j / nTheta) * 2 * Math.PI;
+          const { R, Z } = fluxSurface(psi, th);
+          if (j === 0) ctx.moveTo(toX(R), toY(Z));
+          else ctx.lineTo(toX(R), toY(Z));
+        }
+        ctx.closePath();
+        if (isChosen) {
+          ctx.strokeStyle = C.accent;
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = C.accent;
+          ctx.shadowBlur = 10;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.strokeStyle = C.fluxBright + "30";
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Step 1: animate contour tracing
+    if (step === 1) {
+      const progress = Math.min(1, (anim % 4) / 3);
+      const nShow = Math.floor(progress * 100);
+      ctx.beginPath();
+      for (let j = 0; j <= nShow; j++) {
+        const th = (j / 100) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(chosenPsi, th);
+        if (j === 0) ctx.moveTo(toX(R), toY(Z));
+        else ctx.lineTo(toX(R), toY(Z));
+      }
+      ctx.strokeStyle = C.yellow;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = C.yellow;
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Leading dot
+      if (nShow > 0) {
+        const th = (nShow / 100) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(chosenPsi, th);
+        ctx.beginPath();
+        ctx.arc(toX(R), toY(Z), 5, 0, Math.PI * 2);
+        ctx.fillStyle = C.yellow;
+        ctx.shadowColor = C.yellow;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Label
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.yellow;
+      ctx.fillText("tracing ψ = 0.6 contour...", toX(2.6), toY(1.1));
+
+      // Show grid points near contour
+      for (let i = 0; i < nGrid; i++) {
+        for (let j = 0; j < nGrid; j++) {
+          const R = Rmin + (i + 0.5) * dR;
+          const Z = Zmin + (j + 0.5) * dZ;
+          const psi = psiValue(R, Z);
+          if (Math.abs(psi - chosenPsi) < 0.06) {
+            ctx.beginPath();
+            ctx.arc(toX(R), toY(Z), 2, 0, Math.PI * 2);
+            ctx.fillStyle = C.accent + "80";
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    // Step 2: assign theta
+    if (step === 2) {
+      // Magnetic axis
+      const { R: axR, Z: axZ } = fluxSurface(0, 0);
+      ctx.beginPath();
+      ctx.arc(toX(axR), toY(axZ), 5, 0, Math.PI * 2);
+      ctx.fillStyle = C.warm;
+      ctx.fill();
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.warm;
+      ctx.fillText("axis", toX(axR) + 8, toY(axZ) + 3);
+
+      // Draw theta markers
+      const nMarkers = 12;
+      for (let k = 0; k < nMarkers; k++) {
+        const th = (k / nMarkers) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(chosenPsi, th);
+        const cx = toX(R), cy = toY(Z);
+
+        // Line from axis to point
+        ctx.beginPath();
+        ctx.moveTo(toX(axR), toY(axZ));
+        ctx.lineTo(cx, cy);
+        ctx.strokeStyle = C.orange + "30";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+
+        // Dot
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = C.orange;
+        ctx.fill();
+
+        // Label some
+        if (k % 3 === 0) {
+          const label = k === 0 ? "θ=0" : k === 3 ? "π/2" : k === 6 ? "π" : "3π/2";
+          ctx.font = "bold 10px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = C.orange;
+          const offX = Math.cos(th) * 18;
+          const offY = -Math.sin(th) * 18;
+          ctx.fillText(label, cx + offX - 8, cy - offY + 3);
+        }
+      }
+
+      // Animated sweep
+      const { R: sR, Z: sZ } = fluxSurface(chosenPsi, sweep);
+      ctx.beginPath();
+      ctx.moveTo(toX(axR), toY(axZ));
+      ctx.lineTo(toX(sR), toY(sZ));
+      ctx.strokeStyle = C.highlight;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(toX(sR), toY(sZ), 5, 0, Math.PI * 2);
+      ctx.fillStyle = C.highlight;
+      ctx.shadowColor = C.highlight;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Arc showing theta
+      ctx.beginPath();
+      ctx.arc(toX(axR), toY(axZ), 30, -sweep, 0);
+      ctx.strokeStyle = C.highlight + "80";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Step 3: show derivatives / gradient arrows
+    if (step === 3) {
+      const pulse = 0.5 + 0.5 * Math.sin(anim * 2.5);
+      const nArrows = 8;
+
+      for (let k = 0; k < nArrows; k++) {
+        const th = (k / nArrows) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(chosenPsi, th);
+        const cx = toX(R), cy = toY(Z);
+        const { dRdpsi, dZdpsi, dRdth, dZdth } = computeGrads(chosenPsi, th);
+
+        // Show nearby grid points used for finite difference
+        const eps = dR * 1.5;
+        ctx.fillStyle = C.yellow + "60";
+        for (let di = -1; di <= 1; di += 2) {
+          ctx.beginPath();
+          ctx.arc(toX(R + di * eps), toY(Z), 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(toX(R), toY(Z + di * eps), 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // ∇ψ arrow
+        const sc = 28;
+        const mag = Math.sqrt(dRdpsi * dRdpsi + dZdpsi * dZdpsi);
+        const gpx = (dRdpsi / mag) * sc;
+        const gpy = -(dZdpsi / mag) * sc;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + gpx, cy + gpy);
+        ctx.strokeStyle = C.green;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        const a1 = Math.atan2(gpy, gpx);
+        ctx.beginPath();
+        ctx.moveTo(cx + gpx, cy + gpy);
+        ctx.lineTo(cx + gpx - 7 * Math.cos(a1 - 0.4), cy + gpy - 7 * Math.sin(a1 - 0.4));
+        ctx.moveTo(cx + gpx, cy + gpy);
+        ctx.lineTo(cx + gpx - 7 * Math.cos(a1 + 0.4), cy + gpy - 7 * Math.sin(a1 + 0.4));
+        ctx.stroke();
+
+        // Point
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = C.highlight;
+        ctx.fill();
+      }
+
+      // Annotation
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green;
+      ctx.fillText("∇ψ from ∂ψ/∂R, ∂ψ/∂Z", toX(2.5), toY(1.15));
+      ctx.fillStyle = C.yellow;
+      ctx.fillText("● nearby grid pts for", toX(2.5), toY(1.0));
+      ctx.fillText("  finite differences", toX(2.5), toY(0.88));
+    }
+
+    // Step 4: full metric extraction sweep
+    if (step === 4) {
+      const { R: sR, Z: sZ } = fluxSurface(chosenPsi, sweep);
+      const cx = toX(sR), cy = toY(sZ);
+      const g = computeGrads(chosenPsi, sweep);
+
+      // Parallelogram
+      const sc = 0.1;
+      const scW = (W - 40) / (Rmax - Rmin);
+      const scH = (H - 40) / (Zmax - Zmin);
+      const px = g.dRdpsi * sc * scW;
+      const py = -g.dZdpsi * sc * scH;
+      const qx = g.dRdth * sc * scW;
+      const qy = -g.dZdth * sc * scH;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + px, cy + py);
+      ctx.lineTo(cx + px + qx, cy + py + qy);
+      ctx.lineTo(cx + qx, cy + qy);
+      ctx.closePath();
+      ctx.fillStyle = C.purple + "50";
+      ctx.fill();
+      ctx.strokeStyle = C.purple;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Gradient arrows
+      const mag = Math.sqrt(g.dRdpsi * g.dRdpsi + g.dZdpsi * g.dZdpsi);
+      const gpx = (g.dRdpsi / mag) * 25;
+      const gpy = -(g.dZdpsi / mag) * 25;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + gpx, cy + gpy);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Point
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fillStyle = C.highlight;
+      ctx.shadowColor = C.highlight;
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Trail
+      ctx.beginPath();
+      const nTrail = 40;
+      for (let i = 0; i < nTrail; i++) {
+        const th = sweep - (i / nTrail) * 0.8;
+        const pt = fluxSurface(chosenPsi, th);
+        if (i === 0) ctx.moveTo(toX(pt.R), toY(pt.Z));
+        else ctx.lineTo(toX(pt.R), toY(pt.Z));
+      }
+      ctx.strokeStyle = C.highlight + "40";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Current J value
+      ctx.font = "bold 10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textBright;
+      ctx.fillText(`J = ${g.J.toFixed(3)}`, cx + 15, cy - 15);
+      ctx.fillStyle = C.green;
+      ctx.fillText(`g_xx = ${(g.gradPsiMag * g.gradPsiMag).toFixed(3)}`, cx + 15, cy - 3);
+    }
+
+    // R,Z axes for steps 1+
+    if (step >= 1) {
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      ctx.fillText("R →", W / 2 - 10, H - 4);
+      ctx.save();
+      ctx.translate(10, H / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("Z →", -10, 0);
+      ctx.restore();
+    }
+  }, [step, anim, sweep]);
+
+  // Output arrays chart for step 4
+  const renderOutputChart = () => {
+    if (step < 4) return null;
+    const nPts = 80;
+    const data = [];
+    for (let i = 0; i < nPts; i++) {
+      const th = (i / nPts) * 2 * Math.PI;
+      const g = computeGrads(chosenPsi, th);
+      data.push({
+        theta: th,
+        J: g.J,
+        gxx: g.gradPsiMag * g.gradPsiMag,
+      });
+    }
+
+    const w = 280, h = 100, pad = 28;
+    const maxJ = Math.max(...data.map(d => d.J));
+    const minJ = Math.min(...data.map(d => d.J));
+    const maxG = Math.max(...data.map(d => d.gxx));
+    const minG = Math.min(...data.map(d => d.gxx));
+    const scYJ = (v) => pad + (h / 2 - pad) * (1 - (v - minJ) / (maxJ - minJ || 1));
+    const scYG = (v) => h / 2 + 4 + (h / 2 - pad) * (1 - (v - minG) / (maxG - minG || 1));
+    const scX = (i) => pad + ((w - 2 * pad) * i) / (nPts - 1);
+
+    const sweepIdx = Math.floor((sweep / (2 * Math.PI)) * nPts) % nPts;
+
+    const pathJ = data.map((d, i) => `${i === 0 ? "M" : "L"}${scX(i).toFixed(1)},${scYJ(d.J).toFixed(1)}`).join(" ");
+    const pathG = data.map((d, i) => `${i === 0 ? "M" : "L"}${scX(i).toFixed(1)},${scYG(d.gxx).toFixed(1)}`).join(" ");
+
+    return (
+      <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 4px", marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", marginBottom: 2 }}>
+          output → 1D arrays for GENE
+        </div>
+        <svg width={w} height={h} style={{ display: "block", margin: "0 auto" }}>
+          {/* J curve */}
+          <path d={pathJ} fill="none" stroke={C.accent} strokeWidth={1.5} />
+          <text x={pad + 2} y={12} fill={C.accent} fontSize={9} fontFamily="'IBM Plex Mono', monospace">J(θ)</text>
+          {/* g_xx curve */}
+          <path d={pathG} fill="none" stroke={C.green} strokeWidth={1.5} />
+          <text x={pad + 2} y={h / 2 + 12} fill={C.green} fontSize={9} fontFamily="'IBM Plex Mono', monospace">g_xx(θ)</text>
+          {/* Sweep line */}
+          <line x1={scX(sweepIdx)} x2={scX(sweepIdx)} y1={0} y2={h} stroke={C.highlight} strokeWidth={1} strokeDasharray="3,3" />
+          {/* Theta axis */}
+          <text x={pad} y={h - 2} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">0</text>
+          <text x={w - pad - 8} y={h - 2} fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">2π</text>
+        </svg>
+        <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", textAlign: "center", marginTop: 4, lineHeight: 1.5 }}>
+          these arrays are what GENE receives.<br />
+          all derived from the ψ(R,Z) grid + derivatives.
+        </div>
+      </div>
+    );
+  };
+
+  // Pipeline diagram
+  const renderPipeline = () => {
+    const stages = [
+      { label: "ψ(R,Z)", sub: "eqdsk file", color: C.yellow },
+      { label: "contour", sub: "trace ψ=const", color: C.accent },
+      { label: "assign θ", sub: "define coords", color: C.orange },
+      { label: "∂ψ/∂R,∂Z", sub: "finite diff", color: C.green },
+      { label: "g, J", sub: "→ GENE", color: C.purple },
+    ];
+
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 2,
+        padding: "8px 4px", marginBottom: 8, overflowX: "auto",
+      }}>
+        {stages.map((s, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center" }}>
+            <div style={{
+              padding: "4px 6px", borderRadius: 4,
+              background: i === step ? s.color + "25" : "transparent",
+              border: `1px solid ${i === step ? s.color : C.border + "60"}`,
+              textAlign: "center", minWidth: 48, transition: "all 0.3s",
+            }}>
+              <div style={{ fontSize: 9, color: i === step ? s.color : C.textDim, fontWeight: i === step ? 700 : 400, fontFamily: "'IBM Plex Mono', monospace" }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 7, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+                {s.sub}
+              </div>
+            </div>
+            {i < stages.length - 1 && (
+              <span style={{ color: i < step ? C.textDim : C.border, fontSize: 10, margin: "0 1px" }}>→</span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const currentStep = STEPS[step];
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <h1 style={{ fontSize: 17, fontWeight: 700, color: C.textBright, margin: 0, letterSpacing: "0.04em" }}>
+            From ψ(R,Z) Grid → Metric Coefficients
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            how the eqdsk data becomes GENE geometry
+          </div>
+        </div>
+
+        {renderPipeline()}
+
+        {/* Step bar */}
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 10 }}>
+          {STEPS.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)} style={{
+              width: 36, height: 4, borderRadius: 2, border: "none",
+              background: i === step ? C.accent : i < step ? C.accentDim : C.surface,
+              cursor: "pointer", transition: "all 0.3s",
+            }} />
+          ))}
+        </div>
+
+        {/* Canvas */}
+        <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 10 }}>
+          <canvas ref={canvasRef} width={500} height={420} style={{ width: "100%", height: "auto", display: "block" }} />
+        </div>
+
+        {/* Info */}
+        <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 6 }}>
+            {currentStep.title}
+          </div>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.6 }}>
+            {currentStep.desc}
+          </div>
+
+          {step === 0 && (
+            <div style={{ marginTop: 8, padding: "6px 10px", background: C.surface, borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
+              This grid is literally what's in the file — a 2D array of numbers. No surfaces, no angles, no geometry. Just ψ sampled at regular (R,Z) points.
+            </div>
+          )}
+
+          {step === 3 && (
+            <div style={{ marginTop: 8, padding: "6px 10px", background: C.surface, borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
+              <span style={{ color: C.yellow }}>●</span> Yellow dots = neighboring grid points used for finite differences
+              <br />
+              <span style={{ color: C.green }}>→</span> Green arrows = ∇ψ computed from those differences
+              <br />
+              No new data needed — everything comes from the original ψ(R,Z) grid
+            </div>
+          )}
+
+          {renderOutputChart()}
+        </div>
+
+        {/* Nav */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} style={{
+            padding: "8px 20px", borderRadius: 6, border: `1px solid ${C.border}`,
+            background: step === 0 ? C.surface : C.bgPanel,
+            color: step === 0 ? C.textDim : C.text,
+            cursor: step === 0 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>← Back</button>
+          <button onClick={() => setStep(Math.min(STEPS.length - 1, step + 1))} disabled={step === STEPS.length - 1} style={{
+            padding: "8px 20px", borderRadius: 6,
+            border: `1px solid ${step === STEPS.length - 1 ? C.border : C.accent}`,
+            background: step === STEPS.length - 1 ? C.surface : C.accentDim,
+            color: step === STEPS.length - 1 ? C.textDim : C.accent,
+            cursor: step === STEPS.length - 1 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PsiToMetrics));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,478 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>reactor startup</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const phases = [
+  {
+    id: 0,
+    name: "Everything off",
+    desc: "No coils energized. No field. No plasma. Just an empty vacuum vessel.",
+    plasmaCurrent: 0,
+    coilsOn: false,
+    plasmaOn: false,
+    bMultiplier: 0,
+  },
+  {
+    id: 1,
+    name: "TF coils energize",
+    desc: "Toroidal field coils ramp up. The strong toroidal field fills the vessel. fpol = 14.03 everywhere. Perfectly flat — no plasma to disturb it.",
+    plasmaCurrent: 0,
+    coilsOn: true,
+    plasmaOn: false,
+    bMultiplier: 1,
+  },
+  {
+    id: 2,
+    name: "Gas injected + breakdown",
+    desc: "Neutral gas (deuterium) is puffed into the vessel. The central solenoid ramps current, inducing a voltage that ionizes the gas. A tiny plasma forms. Almost no plasma current yet. fpol still basically flat.",
+    plasmaCurrent: 0.05,
+    coilsOn: true,
+    plasmaOn: true,
+    bMultiplier: 1,
+  },
+  {
+    id: 3,
+    name: "Current ramp — 2 MA",
+    desc: "The central solenoid continues ramping, driving more current through the plasma. The plasma heats up and the current grows. fpol starts to deviate very slightly from flat.",
+    plasmaCurrent: 0.23,
+    coilsOn: true,
+    plasmaOn: true,
+    bMultiplier: 1,
+  },
+  {
+    id: 4,
+    name: "Current ramp — 5 MA",
+    desc: "Plasma current is now substantial. The plasma's own magnetic field is starting to noticeably modify the toroidal field. fpol shows a clear droop from center to edge.",
+    plasmaCurrent: 0.57,
+    coilsOn: true,
+    plasmaOn: true,
+    bMultiplier: 1,
+  },
+  {
+    id: 5,
+    name: "Full current — 8.7 MA",
+    desc: "Flat top. Full plasma current achieved. Heating systems (NBI, ICRH) at full power. Pressure is high. fpol shows its full deviation — about 2-3% droop from center to edge. This is the equilibrium that EFIT solves for and writes to the EQDSK file.",
+    plasmaCurrent: 1.0,
+    coilsOn: true,
+    plasmaOn: true,
+    bMultiplier: 1,
+  },
+];
+
+function ReactorStartup() {
+  const [phaseIdx, setPhaseIdx] = useState(0);
+  const [animProgress, setAnimProgress] = useState(1);
+  const animRef = useRef(null);
+
+  const phase = phases[phaseIdx];
+
+  // Animate transition between phases
+  useEffect(() => {
+    setAnimProgress(0);
+    const start = Date.now();
+    const duration = 600;
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const t = Math.min(1, elapsed / duration);
+      setAnimProgress(t);
+      if (t < 1) animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [phaseIdx]);
+
+  const bcentr = 12.2;
+  const rcentr = 1.15;
+  const constant = bcentr * rcentr;
+
+  // Generate fpol profile based on plasma current level
+  function getFpol(plasmaCurrent) {
+    const n = 65;
+    const arr = [];
+    for (let i = 0; i < n; i++) {
+      const psiN = i / (n - 1);
+      // Vacuum: flat at 14.03
+      // With plasma: droops slightly, more at edge
+      const vacuumVal = constant;
+      const plasmaEffect = -0.4 * plasmaCurrent * psiN * psiN;
+      arr.push(vacuumVal + plasmaEffect);
+    }
+    return arr;
+  }
+
+  const fpol = getFpol(phase.plasmaCurrent);
+  const fpolMin = Math.min(...fpol);
+  const fpolMax = Math.max(...fpol);
+
+  // Cross section params
+  const svgW = 360, svgH = 360;
+  const csCx = svgW / 2, csCy = svgH / 2;
+  const csScale = 100;
+  const R0 = 1.18, a = 0.42, kappa = 1.75, delta = 0.40;
+  const asin_d = Math.asin(delta);
+
+  // Plasma size scales with current
+  const plasmaScale = phase.plasmaOn ? 0.3 + phase.plasmaCurrent * 0.7 : 0;
+
+  function getContour(scale, nPts = 100) {
+    const pts = [];
+    for (let t = 0; t <= nPts; t++) {
+      const theta = (2 * Math.PI * t) / nPts;
+      const r = a * scale;
+      const R = R0 + r * Math.cos(theta + asin_d * Math.sin(theta));
+      const Z = kappa * r * Math.sin(theta);
+      const x = csCx + (R - R0) * csScale * 2.2;
+      const y = csCy - Z * csScale * 1.3;
+      pts.push(`${x},${y}`);
+    }
+    return pts.join(" ");
+  }
+
+  // fpol chart params
+  const chartW = 380, chartH = 200;
+  const chartPad = { l: 60, r: 20, t: 25, b: 35 };
+  const cpW = chartW - chartPad.l - chartPad.r;
+  const cpH = chartH - chartPad.t - chartPad.b;
+
+  // Fixed Y range to show the deviation clearly
+  const yMin = 13.4;
+  const yMax = 14.2;
+  const chartToX = (psiN) => chartPad.l + psiN * cpW;
+  const chartToY = (v) => chartPad.t + cpH - ((v - yMin) / (yMax - yMin)) * cpH;
+
+  const fpolPath = fpol.map((v, i) => {
+    const psiN = i / (fpol.length - 1);
+    return `${i === 0 ? "M" : "L"} ${chartToX(psiN)} ${chartToY(v)}`;
+  }).join(" ");
+
+  // Vacuum line
+  const vacuumY = chartToY(constant);
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          TURNING ON THE REACTOR
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          WATCH fpol CHANGE AS THE PLASMA FORMS AND CURRENT BUILDS
+        </p>
+
+        {/* Phase buttons */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 16, flexWrap: "wrap" }}>
+          {phases.map((p, i) => (
+            <button
+              key={i}
+              onClick={() => setPhaseIdx(i)}
+              style={{
+                padding: "8px 10px",
+                background: phaseIdx === i ? "#1a2a3a" : "#12171f",
+                border: phaseIdx === i ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: phaseIdx === i ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 10, fontFamily: "inherit", cursor: "pointer",
+                fontWeight: phaseIdx === i ? 700 : 400,
+              }}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Description */}
+        <div style={{
+          padding: "12px 16px",
+          background: "#1a2a3a",
+          borderRadius: 6,
+          borderLeft: "3px solid #4ecdc4",
+          marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ecdc4", marginBottom: 4 }}>
+            {phase.name}
+          </div>
+          <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.7 }}>{phase.desc}</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {/* Cross section */}
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 8,
+            flexShrink: 0,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" rx={4} />
+
+              {/* Vessel wall */}
+              <ellipse cx={csCx} cy={csCy} rx={120} ry={145}
+                fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={4} />
+
+              {/* TF coil field indicators */}
+              {phase.coilsOn && (
+                <>
+                  {Array.from({ length: 6 }, (_, i) => {
+                    return Array.from({ length: 5 }, (_, j) => {
+                      const x = 40 + i * 55;
+                      const y = 50 + j * 70;
+                      const distFromCenter = Math.sqrt((x - csCx) ** 2 + (y - csCy) ** 2);
+                      if (distFromCenter > 140) return null;
+                      const R = 0.6 + (x / svgW) * 1.2;
+                      const B = constant / R;
+                      const dotSize = Math.max(1, (B / 20) * 3);
+                      return (
+                        <g key={`${i}-${j}`}>
+                          <circle cx={x} cy={y} r={dotSize + 3}
+                            fill="none" stroke="rgba(78,205,196,0.15)" strokeWidth={1} />
+                          <circle cx={x} cy={y} r={dotSize}
+                            fill="rgba(78,205,196,0.3)" />
+                        </g>
+                      );
+                    });
+                  })}
+                  <text x={svgW - 10} y={20} textAnchor="end" fill="#4ecdc4" fontSize={9} opacity={0.5}>
+                    ⊙ B_toroidal (into screen)
+                  </text>
+                </>
+              )}
+
+              {/* Plasma */}
+              {phase.plasmaOn && plasmaScale > 0 && (
+                <>
+                  {/* Filled plasma region */}
+                  <polygon points={getContour(plasmaScale)}
+                    fill={`rgba(78,205,196,${0.03 + phase.plasmaCurrent * 0.08})`}
+                    stroke="#4ecdc4"
+                    strokeWidth={1.5}
+                    opacity={0.8}
+                  />
+                  {/* Inner surfaces */}
+                  {[0.25, 0.5, 0.75].map(s => (
+                    plasmaScale * s > 0.05 && (
+                      <polygon key={s} points={getContour(plasmaScale * s)}
+                        fill="none"
+                        stroke={`rgba(78,205,196,${0.1 + phase.plasmaCurrent * 0.2})`}
+                        strokeWidth={0.5}
+                      />
+                    )
+                  ))}
+                  {/* Magnetic axis */}
+                  <circle cx={csCx} cy={csCy} r={3}
+                    fill="rgba(78,205,196,0.8)" />
+                </>
+              )}
+
+              {/* Status indicators */}
+              <text x={15} y={svgH - 40} fill="#5c6a7a" fontSize={10}>
+                TF coils: <tspan fill={phase.coilsOn ? "#4ecdc4" : "#ff6b6b"} fontWeight={700}>
+                  {phase.coilsOn ? "ON" : "OFF"}
+                </tspan>
+              </text>
+              <text x={15} y={svgH - 25} fill="#5c6a7a" fontSize={10}>
+                Plasma: <tspan fill={phase.plasmaOn ? "#4ecdc4" : "#ff6b6b"} fontWeight={700}>
+                  {phase.plasmaOn ? "ON" : "OFF"}
+                </tspan>
+              </text>
+              <text x={15} y={svgH - 10} fill="#5c6a7a" fontSize={10}>
+                I_p: <tspan fill="#e6ecf2" fontWeight={700}>
+                  {(phase.plasmaCurrent * 8.7).toFixed(1)} MA
+                </tspan>
+                <tspan fill="#5c6a7a"> / 8.7 MA</tspan>
+              </text>
+            </svg>
+          </div>
+
+          {/* Right side: fpol chart + meters */}
+          <div style={{ flex: 1, minWidth: 280 }}>
+            {/* fpol chart */}
+            <div style={{
+              background: "#0d1117",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              padding: 10,
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                fpol = R × B_toroidal at each flux surface
+              </div>
+              <svg width={chartW} height={chartH} style={{ display: "block", maxWidth: "100%" }}>
+                <rect x={chartPad.l} y={chartPad.t} width={cpW} height={cpH} fill="#080c12" stroke="#1e2630" />
+
+                {/* Y grid lines */}
+                {[13.5, 13.75, 14.0, 14.03, 14.25].map(v => {
+                  if (v < yMin || v > yMax) return null;
+                  return (
+                    <g key={v}>
+                      <line x1={chartPad.l} y1={chartToY(v)} x2={chartPad.l + cpW} y2={chartToY(v)}
+                        stroke={Math.abs(v - constant) < 0.01 ? "rgba(201,184,124,0.4)" : "#1a2030"}
+                        strokeWidth={Math.abs(v - constant) < 0.01 ? 1.5 : 0.5}
+                        strokeDasharray={Math.abs(v - constant) < 0.01 ? "6,3" : "none"}
+                      />
+                      <text x={chartPad.l - 5} y={chartToY(v) + 3} textAnchor="end" fill="#5c6a7a" fontSize={8}>
+                        {v.toFixed(2)}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Vacuum reference line label */}
+                <text x={chartPad.l + cpW - 2} y={chartToY(constant) - 5} textAnchor="end" fill="#c9b87c" fontSize={9}>
+                  vacuum = {constant.toFixed(2)}
+                </text>
+
+                {/* fpol line */}
+                {phase.coilsOn && (
+                  <path d={fpolPath} fill="none" stroke="#c9a3f5" strokeWidth={2.5} />
+                )}
+
+                {/* Deviation shading */}
+                {phase.plasmaCurrent > 0.1 && (
+                  <path
+                    d={`${fpolPath} L ${chartToX(1)} ${chartToY(constant)} L ${chartToX(0)} ${chartToY(constant)} Z`}
+                    fill="rgba(201,163,245,0.1)"
+                  />
+                )}
+
+                {/* Deviation label */}
+                {phase.plasmaCurrent > 0.1 && (
+                  <>
+                    <line
+                      x1={chartToX(0.85)} y1={chartToY(fpol[55])}
+                      x2={chartToX(0.85)} y2={chartToY(constant)}
+                      stroke="#c9a3f5" strokeWidth={1} strokeDasharray="3,2"
+                    />
+                    <text x={chartToX(0.85) + 5} y={(chartToY(fpol[55]) + chartToY(constant)) / 2 + 3}
+                      fill="#c9a3f5" fontSize={9}>
+                      {((constant - fpol[55]) / constant * 100).toFixed(1)}%
+                    </text>
+                  </>
+                )}
+
+                {/* No field yet */}
+                {!phase.coilsOn && (
+                  <text x={chartPad.l + cpW / 2} y={chartPad.t + cpH / 2 + 4}
+                    textAnchor="middle" fill="#3a4a5a" fontSize={12}>
+                    No field yet
+                  </text>
+                )}
+
+                {/* Axes */}
+                <text x={chartPad.l} y={chartH - 8} fill="#5c6a7a" fontSize={9}>ψ=0 (center)</text>
+                <text x={chartPad.l + cpW} y={chartH - 8} textAnchor="end" fill="#5c6a7a" fontSize={9}>ψ=1 (edge)</text>
+                <text x={chartPad.l - 5} y={chartPad.t + 5} textAnchor="end" fill="#5c6a7a" fontSize={8}>T·m</text>
+              </svg>
+            </div>
+
+            {/* Values readout */}
+            <div style={{
+              padding: 12,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                Key values right now
+              </div>
+              {[
+                { label: "bcentr (coil field at rcentr)", val: phase.coilsOn ? `${bcentr} T` : "0 T", color: phase.coilsOn ? "#e6ecf2" : "#3a4a5a" },
+                { label: "Vacuum R×B", val: phase.coilsOn ? `${constant.toFixed(2)} T·m (constant)` : "0", color: phase.coilsOn ? "#c9b87c" : "#3a4a5a" },
+                { label: "fpol at center (ψ=0)", val: phase.coilsOn ? `${fpol[0].toFixed(3)} T·m` : "—", color: "#c9a3f5" },
+                { label: "fpol at edge (ψ=1)", val: phase.coilsOn ? `${fpol[64].toFixed(3)} T·m` : "—", color: "#c9a3f5" },
+                { label: "Deviation center→edge", val: phase.coilsOn ? `${((fpol[0] - fpol[64]) / fpol[0] * 100).toFixed(2)}%` : "—", color: phase.plasmaCurrent > 0.1 ? "#ff6b6b" : "#3a4a5a" },
+                { label: "Plasma current", val: `${(phase.plasmaCurrent * 8.7).toFixed(1)} MA`, color: phase.plasmaOn ? "#4ecdc4" : "#3a4a5a" },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "4px 0",
+                  borderBottom: i < 5 ? "1px solid #1a2030" : "none",
+                  fontSize: 11,
+                }}>
+                  <span style={{ color: "#5c6a7a" }}>{item.label}</span>
+                  <span style={{ color: item.color, fontWeight: 600 }}>{item.val}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* What's happening to fpol */}
+            <div style={{
+              padding: 12,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                What's happening to fpol
+              </div>
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.7 }}>
+                {phaseIdx === 0 && "Nothing. No field, no fpol."}
+                {phaseIdx === 1 && "Coils are on. fpol = 14.03 everywhere. Perfectly flat line. This is the vacuum value — R × B is constant because B falls as 1/R and multiplying by R cancels it out."}
+                {phaseIdx === 2 && "Tiny plasma forming. Almost no current yet. fpol is still essentially flat — the plasma is too weak to affect the toroidal field."}
+                {phaseIdx === 3 && "2 MA of plasma current. fpol starts to droop at the edge. The plasma current creates its own field that slightly reduces B_toroidal on the outboard side."}
+                {phaseIdx === 4 && "5 MA now. The droop is clearly visible. fpol at the edge is noticeably below the vacuum value. EFIT is iterating to find the self-consistent solution."}
+                {phaseIdx === 5 && "Full 8.7 MA. Maximum deviation. fpol droops about 2-3% from center to edge. This is the final answer that goes into the EQDSK file. The deviation looks small on this chart, but it matters for getting the equilibrium exactly right."}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
+          <button
+            onClick={() => setPhaseIdx(Math.max(0, phaseIdx - 1))}
+            disabled={phaseIdx === 0}
+            style={{
+              padding: "8px 20px",
+              background: phaseIdx === 0 ? "#12171f" : "#1a2a3a",
+              border: "1px solid #1e2630",
+              borderRadius: 4,
+              color: phaseIdx === 0 ? "#3a4550" : "#4ecdc4",
+              fontFamily: "inherit", fontSize: 12, cursor: phaseIdx === 0 ? "default" : "pointer",
+            }}
+          >
+            ← Previous
+          </button>
+          <span style={{ fontSize: 11, color: "#3a4550", alignSelf: "center" }}>
+            Phase {phaseIdx + 1} / {phases.length}
+          </span>
+          <button
+            onClick={() => setPhaseIdx(Math.min(phases.length - 1, phaseIdx + 1))}
+            disabled={phaseIdx === phases.length - 1}
+            style={{
+              padding: "8px 20px",
+              background: phaseIdx === phases.length - 1 ? "#12171f" : "#1a2a3a",
+              border: "1px solid #1e2630",
+              borderRadius: 4,
+              color: phaseIdx === phases.length - 1 ? "#3a4550" : "#4ecdc4",
+              fontFamily: "inherit", fontSize: 12, cursor: phaseIdx === phases.length - 1 ? "default" : "pointer",
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ReactorStartup));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

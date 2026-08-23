@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Particles — A Guide to Neutrinos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#06080F;
+  --ink-2:#0A0E1B;
+  --panel:rgba(18,26,48,.62);
+  --panel-solid:#0F1628;
+  --line:rgba(125,150,200,.14);
+  --line-strong:rgba(125,150,200,.28);
+  --cher:#33D6FF;          /* Cherenkov blue — the signature */
+  --cher-soft:#86E9FF;
+  --e:#4FB4FF;             /* electron flavor */
+  --mu:#B98BFF;            /* muon flavor */
+  --tau:#FFB04D;           /* tau flavor */
+  --text:#E9EEF9;
+  --muted:#8C97B0;
+  --muted-dim:#5C6781;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --body:'Inter',system-ui,sans-serif;
+  --mono:'Space Mono','SFMono-Regular',monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:var(--body);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+/* ambient neutrino field behind everything */
+#field{
+  position:fixed;inset:0;width:100%;height:100%;
+  z-index:0;pointer-events:none;
+}
+.vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 80% at 50% -10%, rgba(51,214,255,.10), transparent 55%),
+             radial-gradient(100% 60% at 50% 120%, rgba(185,139,255,.07), transparent 60%);
+}
+.wrap{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* ---------- type scale ---------- */
+.eyebrow{
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--cher);font-weight:700;
+}
+h1{font-family:var(--display);font-weight:700;line-height:1.02;letter-spacing:-.02em}
+h2{font-family:var(--display);font-weight:600;font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.08;letter-spacing:-.015em;margin-bottom:.6rem}
+h3{font-family:var(--display);font-weight:600;font-size:1.2rem;letter-spacing:-.01em}
+p{color:#C7D0E2;font-size:1.04rem}
+.lead{font-size:1.18rem;color:#D6DEEE}
+.dim{color:var(--muted)}
+b,strong{color:var(--text);font-weight:600}
+
+/* ---------- hero ---------- */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 0 80px}
+.hero h1{font-size:clamp(2.8rem,9vw,6.4rem)}
+.hero .sub{font-size:clamp(1.6rem,5vw,3rem);font-weight:400;color:var(--cher-soft);letter-spacing:-.02em}
+.hero-lead{max-width:560px;margin-top:1.8rem}
+.counter-card{
+  margin-top:2.6rem;display:inline-flex;flex-direction:column;gap:.2rem;
+  padding:18px 26px;border:1px solid var(--line-strong);border-radius:14px;
+  background:var(--panel);backdrop-filter:blur(8px);
+}
+.counter-num{font-family:var(--mono);font-size:clamp(1.8rem,5vw,2.6rem);font-weight:700;color:var(--cher);letter-spacing:.01em}
+.counter-label{font-family:var(--mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.scroll-hint{margin-top:3.5rem;font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-dim);display:flex;align-items:center;gap:10px}
+.scroll-hint .dot{width:6px;height:6px;border-radius:50%;background:var(--cher);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* ---------- sections ---------- */
+section{padding:88px 0;position:relative}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:1.4rem;flex-wrap:wrap}
+.sec-num{font-family:var(--mono);font-size:.8rem;color:var(--cher);font-weight:700;border:1px solid var(--line-strong);border-radius:6px;padding:3px 8px;flex:none}
+.divider{height:1px;background:linear-gradient(90deg,var(--line-strong),transparent);margin:0 0 2.4rem}
+
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  padding:26px;backdrop-filter:blur(10px);
+}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* property chips */
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:1.4rem}
+.chip{font-family:var(--mono);font-size:.78rem;padding:8px 14px;border:1px solid var(--line-strong);border-radius:999px;color:var(--cher-soft);background:rgba(51,214,255,.05)}
+
+/* ---------- beta decay widget ---------- */
+.beta-stage{position:relative;height:200px;border-radius:12px;border:1px solid var(--line);background:radial-gradient(circle at 50% 50%,rgba(51,214,255,.05),transparent 70%),var(--ink-2);overflow:hidden;margin-bottom:18px}
+.ledger{font-family:var(--mono);font-size:.92rem;display:flex;flex-direction:column;gap:8px}
+.ledger-row{display:flex;justify-content:space-between;padding:9px 14px;border-radius:8px;background:rgba(125,150,200,.05);border:1px solid var(--line)}
+.ledger-row .v{color:var(--cher)}
+.ledger-row.bad .v{color:#FF6B6B}
+.ledger-row.good .v{color:#6BFFB0}
+.btn{
+  font-family:var(--mono);font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--cher);color:#04121A;border:none;border-radius:9px;padding:11px 20px;
+  cursor:pointer;font-weight:700;transition:transform .12s ease,box-shadow .2s ease;
+}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(51,214,255,.3)}
+.btn:active{transform:translateY(0)}
+.btn.ghost{background:transparent;color:var(--cher);border:1px solid var(--line-strong)}
+.btn.ghost:hover{box-shadow:none;background:rgba(51,214,255,.08)}
+.toggle-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.switch{display:inline-flex;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+.switch button{font-family:var(--mono);font-size:.78rem;background:transparent;color:var(--muted);border:none;padding:9px 16px;cursor:pointer;transition:.15s}
+.switch button.on{background:rgba(51,214,255,.14);color:var(--cher)}
+
+/* ---------- flavor cards ---------- */
+.flavor{border:1px solid var(--line);border-radius:14px;padding:22px;background:var(--panel);transition:.2s;cursor:default}
+.flavor:hover{transform:translateY(-3px);border-color:var(--fc)}
+.flavor .orb{width:46px;height:46px;border-radius:50%;margin-bottom:14px;box-shadow:0 0 28px var(--fc);background:var(--fc)}
+.flavor .name{font-family:var(--display);font-weight:600;font-size:1.15rem;color:var(--fc)}
+.flavor .sym{font-family:var(--mono);color:var(--muted);font-size:.8rem;margin-bottom:10px}
+.flavor p{font-size:.92rem}
+
+/* ---------- oscillation simulator (signature) ---------- */
+.sim{border:1px solid var(--line-strong);border-radius:18px;padding:22px;background:linear-gradient(180deg,rgba(18,26,48,.7),rgba(10,14,27,.7));backdrop-filter:blur(10px)}
+.sim-canvas-wrap{position:relative;width:100%}
+#oscPlot{width:100%;height:auto;display:block;border-radius:10px}
+.readouts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.readout{border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+.readout .rl{font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}
+.readout .rv{font-family:var(--mono);font-size:1.5rem;font-weight:700;margin-top:4px}
+.sim-controls{display:flex;flex-direction:column;gap:16px;margin-top:8px}
+.slider-block label{font-family:var(--mono);font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px}
+.slider-block label .val{color:var(--cher)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;background:var(--line-strong);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--cher);cursor:pointer;box-shadow:0 0 12px rgba(51,214,255,.6);border:2px solid #04121A}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--cher);cursor:pointer;border:2px solid #04121A}
+.sim-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.sim-row .slider-block{flex:1;min-width:200px}
+
+/* ---------- cherenkov detection ---------- */
+.cone-stage{position:relative;height:240px;border-radius:12px;background:var(--ink-2);border:1px solid var(--line);overflow:hidden}
+
+/* ---------- source chart ---------- */
+.src-row{display:grid;grid-template-columns:130px 1fr 86px;gap:14px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.src-row:last-child{border-bottom:none}
+.src-name{font-family:var(--mono);font-size:.82rem}
+.src-bar-track{height:10px;border-radius:6px;background:rgba(125,150,200,.08);position:relative;overflow:hidden}
+.src-bar{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--mu),var(--cher));width:0;transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+.src-energy{font-family:var(--mono);font-size:.76rem;color:var(--muted);text-align:right}
+
+/* ---------- frontier cards ---------- */
+.frontier{border:1px solid var(--line);border-left:2px solid var(--cher);border-radius:0 12px 12px 0;padding:18px 20px;background:var(--panel);margin-bottom:14px}
+.frontier h3{margin-bottom:6px}
+.frontier .q{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--tau);margin-bottom:10px}
+
+/* ---------- footer ---------- */
+footer{padding:70px 0 90px;text-align:center;border-top:1px solid var(--line);margin-top:60px}
+footer .big{font-family:var(--display);font-size:clamp(1.4rem,4vw,2.2rem);font-weight:600;color:var(--cher-soft);letter-spacing:-.01em}
+
+/* progress bar */
+#progress{position:fixed;top:0;left:0;height:2px;background:var(--cher);width:0;z-index:50;box-shadow:0 0 10px var(--cher)}
+
+/* reveal on scroll */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+
+@media(max-width:720px){
+  .grid-2,.grid-3,.readouts{grid-template-columns:1fr}
+  .readouts{grid-template-columns:repeat(3,1fr)}
+  section{padding:64px 0}
+  .src-row{grid-template-columns:96px 1fr 64px;gap:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<canvas id="field"></canvas>
+<div class="vignette"></div>
+
+<!-- ============ HERO ============ -->
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow reveal">A field guide to the universe's shyest particle</div>
+  <h1 class="reveal" style="margin-top:18px">The Ghost<br><span class="sub">that flies through everything.</span></h1>
+  <p class="lead hero-lead reveal">Trillions are streaming through your body right now — through the floor, the planet, and out the other side — and you will never feel a single one. This is the neutrino: the particle that almost isn't there. Let's go from <span style="color:var(--cher)">"what's a lepton?"</span> to the open questions physicists are losing sleep over.</p>
+
+  <div class="counter-card reveal">
+    <span class="counter-num" id="bodyCount">0</span>
+    <span class="counter-label">neutrinos through you since you opened this page</span>
+  </div>
+
+  <div class="scroll-hint reveal"><span class="dot"></span> scroll to begin</div>
+</header>
+</div>
+
+<!-- ============ 1 · THE MISSING ENERGY ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">01</span><h2>A particle invented out of desperation</h2></div>
+  <div class="divider"></div>
+  <div class="grid-2" style="align-items:start">
+    <div>
+      <p>In the 1920s, physicists studying <b>beta decay</b> — where a neutron turns into a proton and spits out an electron — found something alarming. Energy didn't add up. The electron flew out with <em>less</em> energy than the books said it should, and a different amount every time.</p>
+      <p style="margin-top:1rem">Energy can't just vanish. So in 1930 Wolfgang Pauli proposed a "desperate remedy": an invisible particle carrying off the missing energy. Neutral, nearly massless, almost impossible to detect. He famously apologized for predicting something he thought no one could ever find. Run the decay below and watch the energy ledger.</p>
+      <div class="toggle-row" style="margin-top:1.4rem">
+        <div class="switch" id="betaSwitch">
+          <button data-mode="without" class="on">Pauli's headache</button>
+          <button data-mode="with">With neutrino</button>
+        </div>
+        <button class="btn" id="decayBtn">Trigger decay →</button>
+      </div>
+    </div>
+    <div>
+      <div class="beta-stage"><canvas id="betaCanvas"></canvas></div>
+      <div class="ledger" id="betaLedger">
+        <div class="ledger-row"><span>Energy before</span><span class="v">100.0 keV</span></div>
+        <div class="ledger-row" id="ledgerElectron"><span>Electron carried away</span><span class="v">—</span></div>
+        <div class="ledger-row bad" id="ledgerMissing"><span>Unaccounted for</span><span class="v">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 2 · WHAT IT IS ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">02</span><h2>So what <em>is</em> a neutrino?</h2></div>
+  <div class="divider"></div>
+  <p class="lead" style="max-width:760px">It's a <b>fundamental particle</b> — not made of anything smaller, as far as we know. It belongs to the <b>lepton</b> family, the same family as the electron. But it carries no electric charge, has a mass so tiny we still can't measure it, and ignores almost every force in nature.</p>
+  <div class="chips">
+    <span class="chip">charge: 0</span>
+    <span class="chip">spin: ½ (a fermion)</span>
+    <span class="chip">mass: &lt; 0.000001 × electron</span>
+    <span class="chip">feels: only the weak force + gravity</span>
+    <span class="chip">family: lepton</span>
+  </div>
+  <div class="panel" style="margin-top:1.8rem">
+    <h3 style="color:var(--cher)">Why it's a ghost</h3>
+    <p style="margin-top:.6rem">Most particles interact through electromagnetism — that's why your hand doesn't pass through a table. Neutrinos are blind to it. They only respond to the <b>weak nuclear force</b>, which only acts across distances smaller than an atomic nucleus. So a neutrino has to score a nearly direct hit on a particle to do anything at all. A neutrino could fly through a wall of solid lead <b>one light-year thick</b> with roughly a 50/50 chance of getting through untouched.</p>
+  </div>
+</div>
+</section>
+
+<!-- ============ 3 · THREE FLAVORS ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">03</span><h2>It comes in three flavors</h2></div>
+  <div class="divider"></div>
+  <p style="max-width:740px;margin-bottom:1.8rem">Each neutrino is paired with a charged lepton. The flavor tells you which partner it was born alongside. Hold this idea — flavor seems fixed and obvious, but it's about to betray us.</p>
+  <div class="grid-3">
+    <div class="flavor" style="--fc:var(--e)">
+      <div class="orb"></div>
+      <div class="name">Electron neutrino</div>
+      <div class="sym">ν<sub>e</sub> · partner: electron</div>
+      <p class="dim">The kind streaming out of the Sun's core and from nuclear reactors. The most common one you'll meet.</p>
+    </div>
+    <div class="flavor" style="--fc:var(--mu)">
+      <div class="orb"></div>
+      <div class="name">Muon neutrino</div>
+      <div class="sym">ν<sub>μ</sub> · partner: muon</div>
+      <p class="dim">Born when cosmic rays smash into the upper atmosphere. Also made by the bucketload in particle accelerators.</p>
+    </div>
+    <div class="flavor" style="--fc:var(--tau)">
+      <div class="orb"></div>
+      <div class="name">Tau neutrino</div>
+      <div class="sym">ν<sub>τ</sub> · partner: tau</div>
+      <p class="dim">The rarest and hardest to spot. Its partner, the tau, is heavy and decays almost instantly. First seen directly in 2000.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 4 · OSCILLATION (SIGNATURE) ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">04</span><h2>The twist: they change identity in flight</h2></div>
+  <div class="divider"></div>
+  <p class="lead" style="max-width:780px;margin-bottom:.4rem">Here's the discovery that won the <b>2015 Nobel Prize</b>. A neutrino born as one flavor can morph into another as it travels — then back again, oscillating like a slow heartbeat across cosmic distances. Make a beam, then watch it scramble.</p>
+  <p class="dim" style="max-width:780px;margin-bottom:1.8rem;font-size:.95rem">The curves below are computed live from the real three-flavor mixing equation — the same physics measured in detectors like Super-Kamiokande. Drag the slider to travel along the beam, or hit play.</p>
+
+  <div class="sim">
+    <div class="toggle-row">
+      <span style="font-family:var(--mono);font-size:.78rem;color:var(--muted);letter-spacing:.06em">BORN AS:</span>
+      <div class="switch" id="flavorSwitch">
+        <button data-flavor="0" class="on" style="color:var(--e)">ν<sub>e</sub></button>
+        <button data-flavor="1">ν<sub>μ</sub></button>
+      </div>
+      <button class="btn ghost" id="playBtn">▶ Travel the beam</button>
+    </div>
+
+    <div class="sim-canvas-wrap"><canvas id="oscPlot"></canvas></div>
+
+    <div class="readouts">
+      <div class="readout" style="border-color:rgba(79,180,255,.4)">
+        <div class="rl" style="color:var(--e)">ν<sub>e</sub> chance</div>
+        <div class="rv" id="pe" style="color:var(--e)">100%</div>
+      </div>
+      <div class="readout" style="border-color:rgba(185,139,255,.4)">
+        <div class="rl" style="color:var(--mu)">ν<sub>μ</sub> chance</div>
+        <div class="rv" id="pmu" style="color:var(--mu)">0%</div>
+      </div>
+      <div class="readout" style="border-color:rgba(255,176,77,.4)">
+        <div class="rl" style="color:var(--tau)">ν<sub>τ</sub> chance</div>
+        <div class="rv" id="ptau" style="color:var(--tau)">0%</div>
+      </div>
+    </div>
+
+    <div class="sim-controls">
+      <div class="slider-block">
+        <label>Distance travelled ÷ energy (L/E, km/GeV) <span class="val" id="leVal">0</span></label>
+        <input type="range" id="leSlider" min="0" max="35000" value="0" step="50">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:1.8rem">
+    <h3 style="color:var(--cher)">Why this is a big deal</h3>
+    <p style="margin-top:.6rem">A particle can only oscillate between identities if those identities have <b>different masses</b>. The plain fact that flavors mix is, by itself, proof that neutrinos are <b>not massless</b> — overturning the original Standard Model, which assumed they weighed exactly nothing. It also solved a 40-year mystery: detectors kept finding only a third of the electron neutrinos the Sun should produce. They weren't missing. They'd just changed flavor on the way here.</p>
+  </div>
+</div>
+</section>
+
+<!-- ============ 5 · MASS STATES ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Flavor and mass are two different alphabets</h2></div>
+  <div class="divider"></div>
+  <div class="grid-2" style="align-items:start">
+    <div>
+      <p>Here's the subtle, beautiful part. A neutrino's <b>flavor</b> (e, μ, τ) and its <b>mass</b> (call them 1, 2, 3) are <em>not the same labels</em>. Each flavor is a blend — a quantum superposition — of all three mass states at once.</p>
+      <p style="margin-top:1rem">The three mass states travel at very slightly different rates, so the way they overlap drifts as the neutrino flies. Sample it as a flavor at point A, and the blend reads "electron." Sample the same particle further on, and the blend now reads "muon." Nothing was added. The mixture just rotated.</p>
+      <p style="margin-top:1rem" class="dim">It's like three guitar strings tuned to slightly different pitches. Pluck them together and the combined tone swells and fades — a beat — even though no single string changed. Flavor is that beat.</p>
+    </div>
+    <div class="panel">
+      <h3 style="color:var(--cher);margin-bottom:1rem">The blend, by mass state</h3>
+      <canvas id="mixBars" style="width:100%;height:200px;display:block"></canvas>
+      <p class="dim" style="font-size:.85rem;margin-top:.8rem">Each flavor is built from all three mass states (ν₁ blue, ν₂ violet, ν₃ amber) in fixed proportions set by the mixing angles. This is the PMNS matrix — the neutrino's recipe book.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 6 · DETECTION ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Catching a ghost</h2></div>
+  <div class="divider"></div>
+  <p style="max-width:780px;margin-bottom:1.6rem">If neutrinos almost never interact, how do we see any? Brute force: build something <b>enormous</b>, bury it deep to block other particles, and wait. With trillions passing through every second, a tiny handful do collide — and that collision leaves a signature flash.</p>
+  <div class="grid-2" style="align-items:start">
+    <div>
+      <div class="cone-stage"><canvas id="coneCanvas"></canvas></div>
+      <p class="dim" style="font-size:.9rem;margin-top:.8rem">A rare collision kicks out a charged particle moving faster than light moves <em>in water</em>. It can't outrun light in a vacuum — but in water it can, and that produces an optical "sonic boom": a cone of blue <b>Cherenkov light</b>. Thousands of sensors clock the ring.</p>
+    </div>
+    <div>
+      <div class="panel">
+        <h3 style="color:var(--cher)">The great ghost traps</h3>
+        <p style="margin-top:.8rem"><b>Super-Kamiokande</b> — 50,000 tonnes of ultra-pure water, a kilometre under a Japanese mountain, lined with 11,000 light sensors.</p>
+        <p style="margin-top:.8rem"><b>IceCube</b> — a full cubic kilometre of <em>Antarctic ice</em> at the South Pole, instrumented with sensors frozen deep into the cap. It hunts the highest-energy neutrinos from across the cosmos.</p>
+        <p style="margin-top:.8rem"><b>SNO</b> — the Canadian detector that nailed the solar-neutrino case by counting all three flavors and proving none had truly gone missing.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 7 · SOURCES ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Where they come from</h2></div>
+  <div class="divider"></div>
+  <p style="max-width:780px;margin-bottom:1.8rem">Neutrinos pour out of almost every violent or nuclear process in the universe, across a staggering range of energies. The bar shows roughly how energetic each source's neutrinos are, on a vast scale.</p>
+  <div class="panel" id="srcChart">
+    <div class="src-row" data-w="6"><span class="src-name" style="color:var(--cher)">Big Bang relics</span><div class="src-bar-track"><div class="src-bar"></div></div><span class="src-energy">~0.0002 eV</span></div>
+    <div class="src-row" data-w="22"><span class="src-name" style="color:var(--cher)">The Sun's core</span><div class="src-bar-track"><div class="src-bar"></div></div><span class="src-energy">~0.4 MeV</span></div>
+    <div class="src-row" data-w="30"><span class="src-name" style="color:var(--cher)">Nuclear reactors</span><div class="src-bar-track"><div class="src-bar"></div></div><span class="src-energy">~few MeV</span></div>
+    <div class="src-row" data-w="42"><span class="src-name" style="color:var(--cher)">Supernovae</span><div class="src-bar-track"><div class="src-bar"></div></div><span class="src-energy">~10 MeV</span></div>
+    <div class="src-row" data-w="62"><span class="src-name" style="color:var(--cher)">Earth's atmosphere</span><div class="src-bar-track"><div class="src-bar"></div></div><span class="src-energy">~GeV</span></div>
+    <div class="src-row" data-w="100"><span class="src-name" style="color:var(--cher)">Cosmic accelerators</span><div class="src-bar-track"><div class="src-bar"></div></div><span class="src-energy">&gt; PeV</span></div>
+  </div>
+  <p class="dim" style="font-size:.9rem;margin-top:1rem">Astonishing detail: the relic neutrinos from the Big Bang still fill all of space at about 336 per cubic centimetre — the oldest, faintest particles we know of, and we still can't directly detect them.</p>
+</div>
+</section>
+
+<!-- ============ 8 · FRONTIERS (HERO LEVEL) ============ -->
+<section>
+<div class="wrap reveal">
+  <div class="sec-head"><span class="sec-num">08</span><h2>The hero level: what we still don't know</h2></div>
+  <div class="divider"></div>
+  <p style="max-width:780px;margin-bottom:1.8rem">You now know more about neutrinos than most physics graduates did a generation ago. Here's the live edge — the questions whole experiments are being built around right now.</p>
+
+  <div class="frontier">
+    <div class="q">Open question</div>
+    <h3>How heavy is it, exactly?</h3>
+    <p>We know neutrinos have mass (oscillation proves it) and we know the <em>differences</em> between the three masses. But we've never measured the actual weight of even one. We only know it's at least a million times lighter than an electron.</p>
+  </div>
+  <div class="frontier">
+    <div class="q">Open question</div>
+    <h3>Which mass state is heaviest? (The ordering)</h3>
+    <p>Is the lightest state mostly electron-flavored, with a heavy outlier on top — or is it the other way around? Called the "mass hierarchy," and experiments like DUNE are being built to settle it.</p>
+  </div>
+  <div class="frontier">
+    <div class="q">Open question</div>
+    <h3>Is the neutrino its own antiparticle?</h3>
+    <p>Because it's neutral, the neutrino might be a "Majorana" particle — identical to its own antimatter twin. If a rare process called neutrinoless double beta decay is ever seen, it's true. That would reshape our picture of matter itself.</p>
+  </div>
+  <div class="frontier">
+    <div class="q">Open question</div>
+    <h3>Do neutrinos and antineutrinos oscillate differently?</h3>
+    <p>If they do (CP violation), it could help explain the deepest puzzle in physics: why the universe is made of matter at all, instead of being annihilated into nothing right after the Big Bang.</p>
+  </div>
+  <div class="frontier">
+    <div class="q">Open question</div>
+    <h3>Is there a fourth, "sterile" neutrino?</h3>
+    <p>A few stubborn anomalies hint at a flavor that ignores even the weak force — interacting only through gravity and mixing. It would be a true ghost among ghosts. The jury is very much out.</p>
+  </div>
+</div>
+</section>
+
+<footer>
+<div class="wrap">
+  <p class="big">You started at beta decay.<br>You ended at the matter–antimatter asymmetry of the universe.</p>
+  <p class="dim" style="margin-top:1.4rem;max-width:560px;margin-left:auto;margin-right:auto">Roughly <span id="footCount" style="font-family:var(--mono);color:var(--cher)">0</span> neutrinos passed through you while you read this — and you're still here, unbothered. That's the ghost.</p>
+</div>
+</footer>
+
+<script>
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DPR = Math.min(window.devicePixelRatio||1, 2);
+
+/* ---------- helpers ---------- */
+function fitCanvas(c){
+  const r = c.getBoundingClientRect();
+  c.width = r.width*DPR; c.height = r.height*DPR;
+  const ctx = c.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0);
+  return ctx;
+}
+
+/* ======================================================
+   AMBIENT NEUTRINO FIELD
+   ====================================================== */
+(function(){
+  const c = document.getElementById('field');
+  let ctx, W, H, streaks=[];
+  function resize(){
+    W = c.width = innerWidth*DPR; H = c.height = innerHeight*DPR;
+    c.style.width=innerWidth+'px'; c.style.height=innerHeight+'px';
+    ctx = c.getContext('2d');
+  }
+  resize(); addEventListener('resize', resize);
+  const N = innerWidth < 700 ? 60 : 120;
+  for(let i=0;i<N;i++){
+    streaks.push({
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()*0.6+0.4)*(Math.random()<.5?-1:1),
+      vy:(Math.random()*0.6+0.4),
+      len:Math.random()*40+20, r:Math.random()*0.9+0.3,
+      a:Math.random()*0.4+0.08
+    });
+  }
+  function frame(){
+    ctx.clearRect(0,0,W,H);
+    for(const s of streaks){
+      s.x += s.vx*1.6; s.y += s.vy*1.6;
+      if(s.y>H+s.len){s.y=-s.len;s.x=Math.random()*W;}
+      if(s.x<-s.len){s.x=W+s.len;} if(s.x>W+s.len){s.x=-s.len;}
+      ctx.strokeStyle = `rgba(120,210,255,${s.a})`;
+      ctx.lineWidth = s.r*DPR;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.vx*s.len, s.y - s.vy*s.len);
+      ctx.stroke();
+    }
+    requestAnimationFrame(frame);
+  }
+  if(reduceMotion){
+    // static sprinkle
+    ctx.clearRect(0,0,W,H);
+    for(const s of streaks){ctx.fillStyle=`rgba(120,210,255,${s.a})`;ctx.fillRect(s.x,s.y,1.4*DPR,1.4*DPR);}
+  } else frame();
+})();
+
+/* ======================================================
+   HERO COUNTER  (~1e14 / sec through a human body)
+   ====================================================== */
+(function(){
+  const el = document.getElementById('bodyCount');
+  const foot = document.getElementById('footCount');
+  const rate = 1e14;
+  const start = performance.now();
+  function fmt(n){
+    if(n>=1e15) return (n/1e15).toFixed(2)+' quadrillion';
+    if(n>=1e12) return (n/1e12).toFixed(2)+' trillion';
+    if(n>=1e9) return (n/1e9).toFixed(2)+' billion';
+    return Math.floor(n).toLocaleString();
+  }
+  function tick(){
+    const secs = (performance.now()-start)/1000;
+    const n = secs*rate;
+    el.textContent = fmt(n);
+    if(foot) foot.textContent = fmt(n);
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+/* ======================================================
+   BETA DECAY WIDGET
+   ====================================================== */
+(function(){
+  const canvas = document.getElementById('betaCanvas');
+  let ctx = fitCanvas(canvas);
+  let mode='without';
+  let particles=[];
+  let t=0, running=false;
+  const W=()=>canvas.getBoundingClientRect().width;
+  const H=()=>canvas.getBoundingClientRect().height;
+
+  addEventListener('resize',()=>{ctx=fitCanvas(canvas);});
+
+  document.querySelectorAll('#betaSwitch button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#betaSwitch button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); mode=b.dataset.mode; updateLedger(null);
+    });
+  });
+
+  function updateLedger(eEnergy){
+    const er = document.getElementById('ledgerElectron');
+    const mr = document.getElementById('ledgerMissing');
+    if(eEnergy===null){ er.querySelector('.v').textContent='—'; mr.querySelector('.v').textContent='—'; mr.className='ledger-row bad'; return;}
+    er.querySelector('.v').textContent = eEnergy.toFixed(1)+' keV';
+    const missing = 100-eEnergy;
+    if(mode==='without'){
+      mr.className='ledger-row bad';
+      mr.querySelector('span:first-child').textContent='Unaccounted for ⚠';
+      mr.querySelector('.v').textContent = missing.toFixed(1)+' keV';
+    } else {
+      mr.className='ledger-row good';
+      mr.querySelector('span:first-child').textContent='Carried by neutrino ✓';
+      mr.querySelector('.v').textContent = missing.toFixed(1)+' keV';
+    }
+  }
+
+  function decay(){
+    const eEnergy = 35 + Math.random()*55; // variable electron energy
+    updateLedger(eEnergy);
+    const speed = 1 + eEnergy/40;
+    particles = [
+      {x:W()/2,y:H()/2,vx:-1.1,vy:0.4,c:'#FF6B6B',r:5,label:'p'}, // proton recoil (stays-ish)
+      {x:W()/2,y:H()/2,vx:speed,vy:-0.9,c:'#86E9FF',r:4,label:'e⁻'},
+    ];
+    if(mode==='with'){
+      particles.push({x:W()/2,y:H()/2,vx:-0.5,vy:-1.6,c:'#B98BFF',r:3,label:'ν',ghost:true});
+    }
+    t=0; running=true;
+  }
+  document.getElementById('decayBtn').addEventListener('click',decay);
+
+  function frame(){
+    ctx.clearRect(0,0,W(),H());
+    // nucleus glow at center
+    const cx=W()/2, cy=H()/2;
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,40);
+    g.addColorStop(0,'rgba(51,214,255,.22)');g.addColorStop(1,'rgba(51,214,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,40,0,7); ctx.fill();
+    if(!running){
+      ctx.fillStyle='rgba(140,151,176,.6)'; ctx.font='13px "Space Mono", monospace';
+      ctx.textAlign='center'; ctx.fillText('neutron at rest — trigger a decay', cx, cy+5);
+      ctx.beginPath();ctx.arc(cx,cy,7,0,7);ctx.fillStyle='#8C97B0';ctx.fill();
+    } else {
+      t++;
+      for(const p of particles){
+        p.x += p.vx*2.2; p.y += p.vy*2.2;
+        if(p.ghost){
+          ctx.globalAlpha = Math.max(0,1 - t/60);
+          ctx.setLineDash([3,5]);
+        } else { ctx.globalAlpha=1; ctx.setLineDash([]); }
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fillStyle=p.c;
+        ctx.shadowColor=p.c;ctx.shadowBlur=12;ctx.fill();ctx.shadowBlur=0;
+        ctx.fillStyle=p.c;ctx.font='11px "Space Mono", monospace';ctx.textAlign='left';
+        ctx.fillText(p.label,p.x+8,p.y-6);
+        ctx.globalAlpha=1; ctx.setLineDash([]);
+      }
+      if(t>90) running=false;
+    }
+    requestAnimationFrame(frame);
+  }
+  if(reduceMotion){
+    // draw static result
+    decay(); running=false;
+    ctx.clearRect(0,0,W(),H());
+    ctx.fillStyle='rgba(140,151,176,.7)';ctx.font='13px monospace';ctx.textAlign='center';
+    ctx.fillText('press "Trigger decay" to view the ledger',W()/2,H()/2);
+  } else frame();
+})();
+
+/* ======================================================
+   OSCILLATION SIMULATOR — real 3-flavor PMNS (δ=0)
+   ====================================================== */
+const OSC = (function(){
+  // Mixing angles (radians) — measured global-fit values
+  const t12=33.4*Math.PI/180, t13=8.6*Math.PI/180, t23=49*Math.PI/180;
+  const s12=Math.sin(t12),c12=Math.cos(t12);
+  const s13=Math.sin(t13),c13=Math.cos(t13);
+  const s23=Math.sin(t23),c23=Math.cos(t23);
+  // Real PMNS matrix (CP phase = 0). Rows = flavor (e,mu,tau), cols = mass (1,2,3)
+  const U=[
+    [c12*c13,            s12*c13,            s13           ],
+    [-s12*c23-c12*s23*s13, c12*c23-s12*s23*s13, s23*c13     ],
+    [s12*s23-c12*c23*s13, -c12*s23-s12*c23*s13, c23*c13     ]
+  ];
+  // mass-squared values (eV^2), m1=0 baseline (normal ordering)
+  const m2=[0, 7.5e-5, 2.5e-3];
+  // P(alpha->beta) for given L/E (km/GeV)
+  function prob(alpha, LE){
+    const out=[0,0,0];
+    for(let beta=0;beta<3;beta++){
+      let re=0, im=0;
+      for(let i=0;i<3;i++){
+        const phase = -2*1.27*m2[i]*LE; // 1.27 * dm2 * L/E convention
+        const amp = U[alpha][i]*U[beta][i];
+        re += amp*Math.cos(phase);
+        im += amp*Math.sin(phase);
+      }
+      out[beta]=re*re+im*im;
+    }
+    return out; // [Pe, Pmu, Ptau]
+  }
+  return {prob, U};
+})();
+
+(function(){
+  const canvas=document.getElementById('oscPlot');
+  function size(){canvas.style.height=(canvas.getBoundingClientRect().width*0.5)+'px';}
+  size();
+  let ctx=fitCanvas(canvas);
+  addEventListener('resize',()=>{size();ctx=fitCanvas(canvas);draw();});
+
+  const slider=document.getElementById('leSlider');
+  const leVal=document.getElementById('leVal');
+  const peEl=document.getElementById('pe'), pmuEl=document.getElementById('pmu'), ptauEl=document.getElementById('ptau');
+  let flavor=0; // 0=e,1=mu
+  const MAXLE=35000;
+  const colors=['#4FB4FF','#B98BFF','#FFB04D'];
+
+  document.querySelectorAll('#flavorSwitch button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#flavorSwitch button').forEach(x=>{x.classList.remove('on');x.style.color='var(--muted)';});
+      b.classList.add('on');
+      flavor=+b.dataset.flavor;
+      b.style.color = flavor===0?'var(--e)':'var(--mu)';
+      draw();
+    });
+  });
+  // set initial colors
+  document.querySelector('#flavorSwitch button[data-flavor="0"]').style.color='var(--e)';
+
+  function draw(){
+    const w=canvas.getBoundingClientRect().width, h=canvas.getBoundingClientRect().height;
+    const padL=42,padR=14,padT=16,padB=30;
+    const pw=w-padL-padR, ph=h-padT-padB;
+    ctx.clearRect(0,0,w,h);
+
+    // grid
+    ctx.strokeStyle='rgba(125,150,200,.12)';ctx.lineWidth=1;
+    ctx.fillStyle='rgba(140,151,176,.7)';ctx.font='10px "Space Mono", monospace';
+    for(let p=0;p<=1.0001;p+=0.25){
+      const y=padT+ph*(1-p);
+      ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();
+      ctx.textAlign='right';ctx.fillText((p*100)+'%',padL-6,y+3);
+    }
+    ctx.textAlign='center';
+    for(let i=0;i<=4;i++){
+      const x=padL+pw*i/4;
+      ctx.fillText(Math.round(MAXLE*i/4/1000)+'k',x,h-8);
+    }
+    ctx.fillStyle='rgba(140,151,176,.55)';
+    ctx.fillText('distance / energy  (L/E, km/GeV)  →', padL+pw/2, h+2-2);
+
+    // curves
+    const steps=300;
+    for(let beta=0;beta<3;beta++){
+      ctx.beginPath();
+      for(let s=0;s<=steps;s++){
+        const LE=MAXLE*s/steps;
+        const p=OSC.prob(flavor,LE)[beta];
+        const x=padL+pw*s/steps, y=padT+ph*(1-p);
+        s===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle=colors[beta];ctx.lineWidth=2.2;
+      ctx.shadowColor=colors[beta];ctx.shadowBlur=6;ctx.stroke();ctx.shadowBlur=0;
+    }
+
+    // marker at slider
+    const LE=+slider.value;
+    const mx=padL+pw*(LE/MAXLE);
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(mx,padT);ctx.lineTo(mx,padT+ph);ctx.stroke();ctx.setLineDash([]);
+    const ps=OSC.prob(flavor,LE);
+    for(let beta=0;beta<3;beta++){
+      const y=padT+ph*(1-ps[beta]);
+      ctx.beginPath();ctx.arc(mx,y,4,0,7);ctx.fillStyle=colors[beta];
+      ctx.shadowColor=colors[beta];ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+    }
+    // readouts
+    leVal.textContent=Math.round(LE).toLocaleString();
+    peEl.textContent=(ps[0]*100).toFixed(0)+'%';
+    pmuEl.textContent=(ps[1]*100).toFixed(0)+'%';
+    ptauEl.textContent=(ps[2]*100).toFixed(0)+'%';
+  }
+
+  slider.addEventListener('input',draw);
+
+  // play / travel
+  let playing=false, raf;
+  const playBtn=document.getElementById('playBtn');
+  playBtn.addEventListener('click',()=>{
+    if(reduceMotion){return;}
+    playing=!playing;
+    playBtn.textContent = playing?'❚❚ Pause':'▶ Travel the beam';
+    if(playing) animate();
+    else cancelAnimationFrame(raf);
+  });
+  function animate(){
+    let v=+slider.value + 140;
+    if(v>MAXLE) v=0;
+    slider.value=v; draw();
+    if(playing) raf=requestAnimationFrame(animate);
+  }
+  draw();
+})();
+
+/* ======================================================
+   MIX BARS (flavor composition by mass state)
+   ====================================================== */
+(function(){
+  const canvas=document.getElementById('mixBars');
+  function size(){const r=canvas.parentElement.getBoundingClientRect();canvas.style.height='200px';}
+  size();
+  let ctx=fitCanvas(canvas);
+  addEventListener('resize',()=>{ctx=fitCanvas(canvas);draw();});
+  const U=OSC.U;
+  const massColors=['#4FB4FF','#B98BFF','#FFB04D'];
+  const flavorLabels=['ν e','ν μ','ν τ'];
+  function draw(){
+    const w=canvas.getBoundingClientRect().width,h=canvas.getBoundingClientRect().height;
+    ctx.clearRect(0,0,w,h);
+    const n=3, gap=18, bw=(w-gap*(n-1)-10)/n;
+    for(let f=0;f<3;f++){
+      // |U_fi|^2 = fraction of mass state i in flavor f
+      const frac=[U[f][0]**2,U[f][1]**2,U[f][2]**2];
+      const x=5+f*(bw+gap);
+      let y=h-22;
+      const barH=h-40;
+      for(let i=0;i<3;i++){
+        const seg=frac[i]*barH;
+        ctx.fillStyle=massColors[i];
+        ctx.globalAlpha=0.88;
+        ctx.fillRect(x,y-seg,bw,seg-2);
+        ctx.globalAlpha=1;
+        y-=seg;
+      }
+      ctx.fillStyle='#C7D0E2';ctx.font='12px "Space Mono", monospace';ctx.textAlign='center';
+      ctx.fillText(flavorLabels[f],x+bw/2,h-6);
+    }
+  }
+  draw();
+})();
+
+/* ======================================================
+   CHERENKOV CONE
+   ====================================================== */
+(function(){
+  const canvas=document.getElementById('coneCanvas');
+  let ctx=fitCanvas(canvas);
+  const W=()=>canvas.getBoundingClientRect().width;
+  const H=()=>canvas.getBoundingClientRect().height;
+  addEventListener('resize',()=>{ctx=fitCanvas(canvas);});
+  let t=0, rings=[];
+  function spawn(){ rings=[]; t=0; }
+  spawn();
+  setInterval(spawn, 3200);
+  function frame(){
+    const w=W(),h=H();
+    ctx.clearRect(0,0,w,h);
+    t++;
+    const px = (t*3)%(w+120) - 60; // particle traveling left→right
+    const py = h/2;
+    // emit ring periodically
+    if(t%4===0 && px<w) rings.push({x:px,y:py,r:0,a:.6});
+    // draw water sensors ring around edge
+    ctx.fillStyle='rgba(125,150,200,.12)';
+    for(let i=0;i<28;i++){
+      const ang=i/28*Math.PI*2;
+      ctx.beginPath();ctx.arc(w/2+Math.cos(ang)*(w*0.42), h/2+Math.sin(ang)*(h*0.38),2.5,0,7);ctx.fill();
+    }
+    // cherenkov rings
+    rings.forEach(rg=>{
+      rg.r+=2.4; rg.a*=0.965;
+      ctx.strokeStyle=`rgba(80,200,255,${rg.a})`;
+      ctx.lineWidth=2;ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,7);ctx.stroke();
+    });
+    rings=rings.filter(r=>r.a>0.03);
+    // the particle
+    if(px<w && px>-50){
+      ctx.fillStyle='#fff';ctx.shadowColor='#86E9FF';ctx.shadowBlur=14;
+      ctx.beginPath();ctx.arc(px,py,3.5,0,7);ctx.fill();ctx.shadowBlur=0;
+    }
+    ctx.fillStyle='rgba(140,151,176,.65)';ctx.font='11px "Space Mono", monospace';ctx.textAlign='center';
+    ctx.fillText('charged particle outruns light-in-water → blue cone', w/2, h-12);
+    requestAnimationFrame(frame);
+  }
+  if(reduceMotion){
+    ctx.clearRect(0,0,W(),H());
+    ctx.fillStyle='rgba(80,200,255,.5)';ctx.beginPath();ctx.arc(W()/2,H()/2,40,0,7);ctx.stroke?ctx.stroke():null;
+    ctx.strokeStyle='rgba(80,200,255,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(W()/2,H()/2,40,0,7);ctx.stroke();
+    ctx.fillStyle='rgba(140,151,176,.7)';ctx.font='12px monospace';ctx.textAlign='center';
+    ctx.fillText('Cherenkov ring',W()/2,H()/2+70);
+  } else frame();
+})();
+
+/* ======================================================
+   SOURCE CHART — animate bars on reveal
+   ====================================================== */
+(function(){
+  const chart=document.getElementById('srcChart');
+  const io=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        chart.querySelectorAll('.src-row').forEach((row,i)=>{
+          const w=row.dataset.w;
+          setTimeout(()=>{row.querySelector('.src-bar').style.width=w+'%';}, i*90);
+        });
+        io.unobserve(chart);
+      }
+    });
+  },{threshold:.3});
+  io.observe(chart);
+})();
+
+/* ======================================================
+   SCROLL REVEAL + PROGRESS
+   ====================================================== */
+(function(){
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  const prog=document.getElementById('progress');
+  addEventListener('scroll',()=>{
+    const sc=document.documentElement.scrollTop;
+    const max=document.documentElement.scrollHeight-innerHeight;
+    prog.style.width=(sc/max*100)+'%';
+  });
+})();
+</script>
+</body>
+</html>

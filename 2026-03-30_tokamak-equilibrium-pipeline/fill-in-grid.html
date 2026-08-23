@@ -1,0 +1,383 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fill in grid</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function FillInGrid() {
+  const [step, setStep] = useState(0);
+  const [selectedGap, setSelectedGap] = useState(2);
+
+  // 1D slice for clarity - 5 EFIT points along R
+  const efitN = 5;
+  const Rmin = 0.8, Rmax = 1.6;
+  const dR = (Rmax - Rmin) / (efitN - 1);
+  const R0 = 1.18, a = 0.35;
+
+  function psiExact(R) {
+    return ((R - R0) / a) ** 2 * 0.85;
+  }
+  function dPsiExact(R) {
+    return 2 * (R - R0) / (a * a) * 0.85;
+  }
+
+  // EFIT points: value + derivative at each
+  const efitPoints = Array.from({ length: efitN }, (_, i) => {
+    const R = Rmin + i * dR;
+    return { R, psi: psiExact(R), dPsi: dPsiExact(R), idx: i };
+  });
+
+  // Hermite interpolation between two points
+  function hermiteInterp(p0, p1, t) {
+    const h = p1.R - p0.R;
+    const m0 = p0.dPsi * h;
+    const m1 = p1.dPsi * h;
+    const h00 = 2*t*t*t - 3*t*t + 1;
+    const h10 = t*t*t - 2*t*t + t;
+    const h01 = -2*t*t*t + 3*t*t;
+    const h11 = t*t*t - t*t;
+    return h00 * p0.psi + h10 * m0 + h01 * p1.psi + h11 * m1;
+  }
+
+  // How many points to fill between each pair
+  const fillCounts = [0, 1, 3, 7, 15]; // steps 0-4
+  const fillCount = fillCounts[Math.min(step, 4)];
+  const totalFilledPerGap = fillCount;
+
+  // Generate filled points for all gaps
+  const allFilledPoints = [];
+  for (let gap = 0; gap < efitN - 1; gap++) {
+    const p0 = efitPoints[gap];
+    const p1 = efitPoints[gap + 1];
+    for (let k = 1; k <= totalFilledPerGap; k++) {
+      const t = k / (totalFilledPerGap + 1);
+      const R = p0.R + t * (p1.R - p0.R);
+      const psi = hermiteInterp(p0, p1, t);
+      allFilledPoints.push({ R, psi, gap, t });
+    }
+  }
+
+  // Chart dimensions
+  const chartW = 500, chartH = 240;
+  const pad = { l: 55, r: 20, t: 30, b: 35 };
+  const pw = chartW - pad.l - pad.r;
+  const ph = chartH - pad.t - pad.b;
+
+  const allPsi = efitPoints.map(p => p.psi);
+  const yMin = Math.min(...allPsi) - 0.1;
+  const yMax = Math.max(...allPsi) + 0.1;
+  const yRange = yMax - yMin;
+
+  const toX = (R) => pad.l + ((R - Rmin) / (Rmax - Rmin)) * pw;
+  const toY = (psi) => pad.t + ph - ((psi - yMin) / yRange) * ph;
+
+  // Exact curve
+  const exactN = 200;
+  const exactPath = Array.from({ length: exactN }, (_, k) => {
+    const R = Rmin + (k / (exactN - 1)) * (Rmax - Rmin);
+    return `${k === 0 ? "M" : "L"} ${toX(R)} ${toY(psiExact(R))}`;
+  }).join(" ");
+
+  // Selected gap detail
+  const sg = selectedGap < efitN - 1 ? selectedGap : 0;
+  const p0 = efitPoints[sg];
+  const p1 = efitPoints[sg + 1];
+
+  const steps = [
+    {
+      title: "Step 0: EFIT points only",
+      desc: "5 grid points from EFIT. Each stores ψ and ∂ψ/∂R. Big gaps between them — if you connect with straight lines, you get kinks.",
+    },
+    {
+      title: "Step 1: Fill 1 point per gap",
+      desc: "Hermite interpolation adds 1 point between each pair. Uses the values AND slopes at both endpoints to place the new point on a smooth curve. 5→9 points.",
+    },
+    {
+      title: "Step 2: Fill 3 points per gap",
+      desc: "3 points between each pair. The curve is getting smoother. Each new point is computed from the same Hermite formula — no new information needed, just more evaluations. 5→17 points.",
+    },
+    {
+      title: "Step 3: Fill 7 points per gap",
+      desc: "7 points between each pair. Starting to look like a smooth curve. 5→37 points. This is like going from EFIT's 65 grid to about 500.",
+    },
+    {
+      title: "Step 4: Fill 15 points per gap",
+      desc: "15 points between each pair. Nearly indistinguishable from the exact curve. 5→77 points. The Hermite formula perfectly reconstructs the curve between the original points.",
+    },
+  ];
+
+  const currentStep = steps[Math.min(step, 4)];
+  const totalPoints = efitN + allFilledPoints.length;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          FILLING IN THE GRID — STEP BY STEP
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          EFIT GIVES 5 POINTS WITH SLOPES — HERMITE FILLS IN THE REST
+        </p>
+
+        {/* Step buttons */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 12, flexWrap: "wrap" }}>
+          {steps.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)}
+              style={{
+                padding: "6px 10px", fontSize: 9, fontFamily: "inherit",
+                background: step === i ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${step === i ? "#4ecdc4" : "#1e2630"}`,
+                color: step === i ? "#4ecdc4" : "#5c6a7a",
+                borderRadius: 4, cursor: "pointer",
+                fontWeight: step === i ? 700 : 400,
+              }}
+            >
+              Step {i}
+            </button>
+          ))}
+        </div>
+
+        {/* Description */}
+        <div style={{
+          padding: "10px 14px", marginBottom: 12,
+          background: "#1a2a3a", borderRadius: 6,
+          borderLeft: "3px solid #4ecdc4",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#4ecdc4" }}>{currentStep.title}</div>
+          <div style={{ fontSize: 11, color: "#8a95a5", marginTop: 4, lineHeight: 1.7 }}>{currentStep.desc}</div>
+          <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 4 }}>
+            Total points: <span style={{ color: "#e6ecf2", fontWeight: 700 }}>{totalPoints}</span>
+            {" "}({efitN} original + {allFilledPoints.length} filled)
+          </div>
+        </div>
+
+        {/* Main chart */}
+        <div style={{
+          background: "#0d1117", borderRadius: 6,
+          border: "1px solid #1e2630", padding: 10, marginBottom: 12,
+        }}>
+          <svg width={chartW} height={chartH} style={{ display: "block", maxWidth: "100%" }}>
+            <rect x={pad.l} y={pad.t} width={pw} height={ph} fill="#060a0e" stroke="#1e2630" />
+
+            {/* Exact curve (faint reference) */}
+            <path d={exactPath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={1} strokeDasharray="4,3" />
+
+            {/* Clickable gap regions */}
+            {Array.from({ length: efitN - 1 }, (_, gap) => {
+              const isSelected = gap === sg;
+              return (
+                <rect key={`gap${gap}`}
+                  x={toX(efitPoints[gap].R)} y={pad.t}
+                  width={toX(efitPoints[gap + 1].R) - toX(efitPoints[gap].R)}
+                  height={ph}
+                  fill={isSelected ? "rgba(78,205,196,0.08)" : "transparent"}
+                  stroke={isSelected ? "#4ecdc433" : "transparent"}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedGap(gap)}
+                />
+              );
+            })}
+
+            {/* Slope indicators at EFIT points */}
+            {efitPoints.map((p, i) => {
+              const slopeLen = 15;
+              const angle = Math.atan(p.dPsi * (Rmax - Rmin) / yRange * ph / pw);
+              const dx = Math.cos(angle) * slopeLen;
+              const dy = -Math.sin(angle) * slopeLen;
+              return (
+                <g key={`slope${i}`}>
+                  <line x1={toX(p.R) - dx} y1={toY(p.psi) + dy}
+                    x2={toX(p.R) + dx} y2={toY(p.psi) - dy}
+                    stroke="#c9b87c" strokeWidth={1.5} opacity={0.5} />
+                </g>
+              );
+            })}
+
+            {/* Filled points */}
+            {allFilledPoints.map((fp, i) => (
+              <circle key={`f${i}`} cx={toX(fp.R)} cy={toY(fp.psi)} r={3}
+                fill="#4ecdc4" opacity={fp.gap === sg ? 1 : 0.4} />
+            ))}
+
+            {/* EFIT original points (on top) */}
+            {efitPoints.map((p, i) => (
+              <g key={`e${i}`}>
+                <circle cx={toX(p.R)} cy={toY(p.psi)} r={6}
+                  fill="#0d1117" stroke="#ff6b6b" strokeWidth={2} />
+                <circle cx={toX(p.R)} cy={toY(p.psi)} r={2.5}
+                  fill="#ff6b6b" />
+              </g>
+            ))}
+
+            {/* Labels */}
+            <text x={pad.l + 5} y={pad.t + 14} fill="#5c6a7a" fontSize={9}>
+              <tspan fill="#ff6b6b">●</tspan> EFIT points (stored)
+              {"  "}
+              <tspan fill="#4ecdc4">●</tspan> Filled by Hermite
+              {"  "}
+              <tspan fill="rgba(255,255,255,0.3)">---</tspan> exact
+            </text>
+
+            {/* Y axis */}
+            <text x={pad.l - 5} y={pad.t + 10} textAnchor="end" fill="#3a4a5a" fontSize={7}>{yMax.toFixed(2)}</text>
+            <text x={pad.l - 5} y={pad.t + ph} textAnchor="end" fill="#3a4a5a" fontSize={7}>{yMin.toFixed(2)}</text>
+            <text x={pad.l - 5} y={pad.t + ph / 2 + 3} textAnchor="end" fill="#5c6a7a" fontSize={8}>ψ</text>
+
+            {/* X axis */}
+            {efitPoints.map((p, i) => (
+              <text key={`xl${i}`} x={toX(p.R)} y={chartH - 8}
+                textAnchor="middle" fill="#5c6a7a" fontSize={8}>
+                {p.R.toFixed(2)}
+              </text>
+            ))}
+            <text x={pad.l + pw / 2} y={chartH - 0} textAnchor="middle" fill="#3a4a5a" fontSize={8}>R (meters)</text>
+
+            {/* Selected gap highlight label */}
+            <text x={(toX(p0.R) + toX(p1.R)) / 2} y={pad.t + ph + 12}
+              textAnchor="middle" fill="#4ecdc4" fontSize={8}>
+              ▲ selected gap
+            </text>
+          </svg>
+        </div>
+
+        {/* Selected gap detail */}
+        <div style={{
+          padding: 12, background: "#12171f", borderRadius: 6,
+          border: "1px solid #1e2630", marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+            Gap between point {sg} and point {sg + 1} — tap the chart to select a different gap
+          </div>
+
+          {/* The two endpoint values */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <div style={{
+              flex: 1, padding: 8, background: "#0a0e14", borderRadius: 4,
+              border: "1px solid #ff6b6b33",
+            }}>
+              <div style={{ fontSize: 9, color: "#ff6b6b", fontWeight: 700 }}>Left point (P₀)</div>
+              <div style={{ fontSize: 10, color: "#e6ecf2", marginTop: 2 }}>R = {p0.R.toFixed(3)}</div>
+              <div style={{ fontSize: 10, color: "#e6ecf2" }}>ψ₀ = {p0.psi.toFixed(6)}</div>
+              <div style={{ fontSize: 10, color: "#c9b87c" }}>slope = {p0.dPsi.toFixed(4)}</div>
+              <div style={{ fontSize: 10, color: "#5c6a7a" }}>m₀ = slope × ΔR</div>
+              <div style={{ fontSize: 10, color: "#c9b87c" }}>= {p0.dPsi.toFixed(4)} × {dR.toFixed(3)} = {(p0.dPsi * dR).toFixed(4)}</div>
+            </div>
+            <div style={{
+              flex: 1, padding: 8, background: "#0a0e14", borderRadius: 4,
+              border: "1px solid #ff6b6b33",
+            }}>
+              <div style={{ fontSize: 9, color: "#ff6b6b", fontWeight: 700 }}>Right point (P₁)</div>
+              <div style={{ fontSize: 10, color: "#e6ecf2", marginTop: 2 }}>R = {p1.R.toFixed(3)}</div>
+              <div style={{ fontSize: 10, color: "#e6ecf2" }}>ψ₁ = {p1.psi.toFixed(6)}</div>
+              <div style={{ fontSize: 10, color: "#c9b87c" }}>slope = {p1.dPsi.toFixed(4)}</div>
+              <div style={{ fontSize: 10, color: "#5c6a7a" }}>m₁ = slope × ΔR</div>
+              <div style={{ fontSize: 10, color: "#c9b87c" }}>= {p1.dPsi.toFixed(4)} × {dR.toFixed(3)} = {(p1.dPsi * dR).toFixed(4)}</div>
+            </div>
+          </div>
+
+          {/* Filled point calculations */}
+          {fillCount > 0 ? (
+            <div>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>
+                Hermite formula applied at {fillCount} positions between them:
+              </div>
+              <div style={{
+                padding: 8, background: "#060a0e", borderRadius: 4,
+                marginBottom: 8, fontSize: 9, color: "#5c6a7a", lineHeight: 1.5,
+              }}>
+                ψ(t) = (2t³−3t²+1)·<span style={{ color: "#e6ecf2" }}>ψ₀</span> + (t³−2t²+t)·<span style={{ color: "#c9b87c" }}>m₀</span> + (−2t³+3t²)·<span style={{ color: "#e6ecf2" }}>ψ₁</span> + (t³−t²)·<span style={{ color: "#c9b87c" }}>m₁</span>
+              </div>
+
+              <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                {Array.from({ length: fillCount }, (_, k) => {
+                  const t = (k + 1) / (fillCount + 1);
+                  const R = p0.R + t * (p1.R - p0.R);
+                  const m0 = p0.dPsi * dR;
+                  const m1 = p1.dPsi * dR;
+                  const h00 = 2*t*t*t - 3*t*t + 1;
+                  const h10 = t*t*t - 2*t*t + t;
+                  const h01 = -2*t*t*t + 3*t*t;
+                  const h11 = t*t*t - t*t;
+                  const psi = h00 * p0.psi + h10 * m0 + h01 * p1.psi + h11 * m1;
+                  const exact = psiExact(R);
+                  const error = Math.abs(psi - exact);
+
+                  return (
+                    <div key={k} style={{
+                      padding: "6px 8px", marginBottom: 3,
+                      background: "#0a0e14", borderRadius: 3,
+                      border: "1px solid #1e2630",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700 }}>t = {t.toFixed(3)}</span>
+                        <span style={{ fontSize: 9, color: "#5c6a7a" }}>R = {R.toFixed(4)}</span>
+                      </div>
+                      <div style={{ fontSize: 9, color: "#8a95a5", lineHeight: 1.6 }}>
+                        h₀₀={h00.toFixed(3)} · h₁₀={h10.toFixed(3)} · h₀₁={h01.toFixed(3)} · h₁₁={h11.toFixed(3)}
+                      </div>
+                      <div style={{ fontSize: 9, color: "#8a95a5", lineHeight: 1.6 }}>
+                        = {h00.toFixed(3)}×<span style={{ color: "#e6ecf2" }}>{p0.psi.toFixed(3)}</span>
+                        {" + "}{h10.toFixed(3)}×<span style={{ color: "#c9b87c" }}>{m0.toFixed(3)}</span>
+                        {" + "}{h01.toFixed(3)}×<span style={{ color: "#e6ecf2" }}>{p1.psi.toFixed(3)}</span>
+                        {" + "}{h11.toFixed(3)}×<span style={{ color: "#c9b87c" }}>{m1.toFixed(3)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+                        <span style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>ψ = {psi.toFixed(6)}</span>
+                        <span style={{ fontSize: 9, color: error < 0.0001 ? "#4ecdc4" : "#ff9f43" }}>
+                          exact: {exact.toFixed(6)} (err: {error.toExponential(1)})
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              padding: 10, background: "#0a0e14", borderRadius: 4,
+              fontSize: 11, color: "#5c6a7a", textAlign: "center",
+            }}>
+              No filled points yet. Click "Step 1" to start filling in.
+            </div>
+          )}
+        </div>
+
+        {/* Summary */}
+        <div style={{
+          padding: 12, background: "rgba(78,205,196,0.05)",
+          borderRadius: 6, border: "1px solid rgba(78,205,196,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            The whole trick
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            EFIT gives you {efitN} points, each with a value and a slope (the yellow lines on the chart).
+            The Hermite formula uses those values and slopes to compute ψ at any position between them — as many points as you want.
+            The slopes are the key. Without them (plain linear interpolation), you get kinks.
+            With them (Hermite), you get a smooth curve that matches the exact solution almost perfectly.
+            <br /><br />
+            That's CHEASE. Take EFIT's sparse grid with derivatives. Fill in a dense grid using Hermite interpolation. Output the dense grid. Done.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FillInGrid));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flux Tube — what GENE actually simulates</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; color: #e8e6e0; font-family: 'Fraunces', serif; }
+
+  #c { position: fixed; inset: 0; }
+
+  .panel {
+    position: fixed;
+    background: rgba(15, 15, 22, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    z-index: 10;
+  }
+
+  #title { top: 16px; left: 16px; max-width: 320px; }
+  #title h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 18px; letter-spacing: -0.02em; margin-bottom: 4px; color: #fff; }
+  #title p { font-size: 10.5px; color: #a8a59c; line-height: 1.5; }
+
+  #controls { bottom: 16px; left: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .row label { color: #d4cfc0; font-size: 10.5px; }
+  .toggle {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e8e6e0; padding: 4px 10px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .toggle:hover { background: rgba(255,255,255,0.12); }
+  .toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+
+  #legend { top: 16px; right: 16px; min-width: 180px; }
+  .leg { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 10.5px; }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; }
+
+  #explainer { bottom: 16px; right: 16px; max-width: 280px; font-family: 'Fraunces', serif; font-size: 12.5px; line-height: 1.6; color: #d4cfc0; }
+  #explainer .step { color: #d4a04a; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; margin-bottom: 6px; }
+  #explainer .nav { display: flex; gap: 8px; margin-top: 10px; }
+
+  .hint { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #555; font-size: 11px; pointer-events: none; opacity: 0.6; animation: fade 4s ease-out forwards; }
+  @keyframes fade { 0%, 70% { opacity: 0.6; } 100% { opacity: 0; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="title" class="panel">
+  <h1>The flux tube, demystified</h1>
+  <p>Drag to rotate. Scroll to zoom. The flux tube is the small rectangular box GENE actually simulates — not the whole donut.</p>
+</div>
+
+<div id="legend" class="panel">
+  <div class="leg"><div class="swatch" style="background:#6b7d8f"></div><span>flux surface (the donut)</span></div>
+  <div class="leg"><div class="swatch" style="background:#d4a04a"></div><span>field line</span></div>
+  <div class="leg"><div class="swatch" style="background:#c44545"></div><span>x — radial</span></div>
+  <div class="leg"><div class="swatch" style="background:#4a9d6e"></div><span>y — binormal</span></div>
+  <div class="leg"><div class="swatch" style="background:#5b8dbf"></div><span>z — parallel (along B)</span></div>
+</div>
+
+<div id="controls" class="panel">
+  <div class="row"><label>flux surface</label><button class="toggle on" data-key="surface">on</button></div>
+  <div class="row"><label>field lines</label><button class="toggle on" data-key="fieldlines">on</button></div>
+  <div class="row"><label>flux tube box</label><button class="toggle on" data-key="tube">on</button></div>
+  <div class="row"><label>x,y,z arrows</label><button class="toggle on" data-key="axes">on</button></div>
+  <div class="row"><label>turbulent eddies</label><button class="toggle" data-key="eddies">off</button></div>
+  <div class="row"><label>auto-rotate</label><button class="toggle on" data-key="spin">on</button></div>
+</div>
+
+<div id="explainer" class="panel">
+  <div class="step" id="stepLabel">STEP 1 / 5</div>
+  <div id="stepText">The tokamak's plasma sits on nested toroidal <em>flux surfaces</em>. Think of them as the layers of an onion, but donut-shaped. The grey donut here is one such surface.</div>
+  <div class="nav">
+    <button class="toggle" id="prev">← prev</button>
+    <button class="toggle" id="next">next →</button>
+  </div>
+</div>
+
+<div class="hint">drag to rotate</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" } }
+</script>
+<script>
+  // Use r128 globally — load via classic script since importmap+min.js can be flaky
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0a0f, 0.035);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 200);
+camera.position.set(14, 9, 14);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(5,10,7); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xd4a04a, 0.3); dl2.position.set(-5,-3,-5); scene.add(dl2);
+
+// ---------- Geometry parameters ----------
+const R = 6;       // major radius
+const a = 2.5;     // minor radius (flux surface radius)
+const safetyQ = 3; // field-line twist: q field lines wrap toroidally for each poloidal wrap
+
+// ---------- Flux surface (the donut) ----------
+const torusGeo = new THREE.TorusGeometry(R, a, 48, 96);
+const torusMat = new THREE.MeshStandardMaterial({
+  color: 0x6b7d8f, transparent: true, opacity: 0.18,
+  wireframe: false, side: THREE.DoubleSide, roughness: 0.7
+});
+const torus = new THREE.Mesh(torusGeo, torusMat);
+torus.rotation.x = Math.PI/2;
+scene.add(torus);
+
+// inner translucent surface for "stack of surfaces" hint
+const torus2 = new THREE.Mesh(
+  new THREE.TorusGeometry(R, a*0.7, 32, 64),
+  new THREE.MeshStandardMaterial({ color: 0x4a5868, transparent: true, opacity: 0.08, side: THREE.DoubleSide })
+);
+torus2.rotation.x = Math.PI/2;
+scene.add(torus2);
+
+// wireframe for the surface
+const wire = new THREE.Mesh(torusGeo, new THREE.MeshBasicMaterial({ color: 0x6b7d8f, wireframe: true, transparent: true, opacity: 0.12 }));
+wire.rotation.x = Math.PI/2;
+scene.add(wire);
+
+const surfaceGroup = new THREE.Group();
+surfaceGroup.add(torus); surfaceGroup.add(torus2); surfaceGroup.add(wire);
+scene.add(surfaceGroup);
+
+// ---------- Field lines on the surface ----------
+// A field line wraps toroidally (around big circle) and poloidally (around small circle)
+function fieldLinePoint(theta, phi0, q) {
+  // theta = poloidal angle, phi = toroidal angle = q*theta + phi0
+  const phi = q * theta + phi0;
+  const r = R + a * Math.cos(theta);
+  const x = r * Math.cos(phi);
+  const y = r * Math.sin(phi);
+  const z = a * Math.sin(theta);
+  return new THREE.Vector3(x, y, z);
+}
+
+const fieldGroup = new THREE.Group();
+const numLines = 6;
+for (let i = 0; i < numLines; i++) {
+  const phi0 = (i / numLines) * Math.PI * 2;
+  const pts = [];
+  // a couple full poloidal wraps
+  for (let t = 0; t <= Math.PI * 4; t += 0.05) {
+    pts.push(fieldLinePoint(t, phi0, 1/safetyQ));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0xd4a04a, transparent: true, opacity: 0.35 });
+  fieldGroup.add(new THREE.Line(geo, mat));
+}
+fieldGroup.rotation.x = Math.PI/2;
+scene.add(fieldGroup);
+
+// ---------- The flux tube — highlighted field line + box around it ----------
+const tubeGroup = new THREE.Group();
+
+// the highlighted field line itself
+// Keep theta range small so we trace ONE poloidal wrap that stays on the surface.
+// (Earlier I went theta = -1.5pi to 1.5pi which wraps 1.5x and visually looks like
+// it leaves the donut.)
+const T_MAX = Math.PI * 0.9; // a bit less than one full poloidal wrap
+const tubeLinePts = [];
+for (let t = -T_MAX; t <= T_MAX; t += 0.02) {
+  tubeLinePts.push(fieldLinePoint(t, 0, 1/safetyQ));
+}
+const tubeLineGeo = new THREE.BufferGeometry().setFromPoints(tubeLinePts);
+const tubeLine = new THREE.Line(tubeLineGeo, new THREE.LineBasicMaterial({ color: 0xffcc66, linewidth: 2 }));
+tubeGroup.add(tubeLine);
+
+// build a thin box (tube) around that field line
+// at each point along the line, define local frame: tangent (z), radial (x), binormal (y)
+function localFrame(theta, phi0, q) {
+  const center = fieldLinePoint(theta, phi0, q);
+  // tangent = derivative wrt theta
+  const eps = 0.001;
+  const next = fieldLinePoint(theta + eps, phi0, q);
+  const tangent = next.clone().sub(center).normalize();
+  // radial: outward from torus tube center (towards the major circle's outside)
+  const phi = q*theta + phi0;
+  const torusAxisPoint = new THREE.Vector3(R*Math.cos(phi), R*Math.sin(phi), 0);
+  const radial = center.clone().sub(torusAxisPoint).normalize();
+  // binormal = tangent x radial (perpendicular to both)
+  const binormal = new THREE.Vector3().crossVectors(tangent, radial).normalize();
+  // re-orthogonalize radial
+  const radialFixed = new THREE.Vector3().crossVectors(binormal, tangent).normalize();
+  return { center, tangent, radial: radialFixed, binormal };
+}
+
+// thin tube: small in radial (x) and binormal (y), long in z
+const dx = 0.25; // radial half-width
+const dy = 0.35; // binormal half-width
+
+// build 4 edge curves of the box
+function buildTubeBox() {
+  const corners = [[+1,+1],[+1,-1],[-1,-1],[-1,+1]];
+  const edgeLines = [];
+  for (let c = 0; c < 4; c++) {
+    const pts = [];
+    for (let t = -T_MAX; t <= T_MAX; t += 0.03) {
+      const f = localFrame(t, 0, 1/safetyQ);
+      const p = f.center.clone()
+        .add(f.radial.clone().multiplyScalar(corners[c][0]*dx))
+        .add(f.binormal.clone().multiplyScalar(corners[c][1]*dy));
+      pts.push(p);
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    edgeLines.push(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })));
+  }
+  return edgeLines;
+}
+buildTubeBox().forEach(l => tubeGroup.add(l));
+
+// faces of the tube (translucent) so it reads as a box
+function buildTubeFaces() {
+  const segments = [];
+  const tParams = [];
+  for (let t = -T_MAX; t <= T_MAX; t += 0.05) tParams.push(t);
+
+  const verts = []; // 4 corner points per t
+  tParams.forEach(t => {
+    const f = localFrame(t, 0, 1/safetyQ);
+    const corners = [[+1,+1],[+1,-1],[-1,-1],[-1,+1]];
+    corners.forEach(c => {
+      const p = f.center.clone()
+        .add(f.radial.clone().multiplyScalar(c[0]*dx))
+        .add(f.binormal.clone().multiplyScalar(c[1]*dy));
+      verts.push(p);
+    });
+  });
+
+  const positions = [];
+  const N = tParams.length;
+  for (let i = 0; i < N-1; i++) {
+    for (let c = 0; c < 4; c++) {
+      const a1 = verts[i*4 + c];
+      const b1 = verts[i*4 + ((c+1)%4)];
+      const a2 = verts[(i+1)*4 + c];
+      const b2 = verts[(i+1)*4 + ((c+1)%4)];
+      positions.push(a1.x,a1.y,a1.z, b1.x,b1.y,b1.z, a2.x,a2.y,a2.z);
+      positions.push(b1.x,b1.y,b1.z, b2.x,b2.y,b2.z, a2.x,a2.y,a2.z);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffd17a, transparent: true, opacity: 0.13, side: THREE.DoubleSide, roughness: 0.5 });
+  return new THREE.Mesh(geo, mat);
+}
+tubeGroup.add(buildTubeFaces());
+scene.add(tubeGroup);
+
+// ---------- x, y, z arrows at midpoint of tube ----------
+const axisGroup = new THREE.Group();
+const midFrame = localFrame(0, 0, 1/safetyQ);
+
+function makeArrow(dir, color, length, label) {
+  const arrow = new THREE.ArrowHelper(dir, midFrame.center, length, color, length*0.25, length*0.15);
+  return arrow;
+}
+axisGroup.add(makeArrow(midFrame.radial,   0xc44545, 1.4)); // x radial
+axisGroup.add(makeArrow(midFrame.binormal, 0x4a9d6e, 1.4)); // y binormal
+axisGroup.add(makeArrow(midFrame.tangent,  0x5b8dbf, 1.6)); // z parallel
+
+// labels via sprites
+function makeLabel(text, color, pos) {
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 64;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 44px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sp = new THREE.Sprite(mat);
+  sp.position.copy(pos);
+  sp.scale.set(0.9, 0.45, 1);
+  return sp;
+}
+axisGroup.add(makeLabel('x', '#ff6b6b', midFrame.center.clone().add(midFrame.radial.clone().multiplyScalar(1.7))));
+axisGroup.add(makeLabel('y', '#5fc28e', midFrame.center.clone().add(midFrame.binormal.clone().multiplyScalar(1.7))));
+axisGroup.add(makeLabel('z', '#7badd6', midFrame.center.clone().add(midFrame.tangent.clone().multiplyScalar(1.9))));
+scene.add(axisGroup);
+
+// ---------- Eddies (turbulent blobs in the tube, elongated along z) ----------
+const eddyGroup = new THREE.Group();
+eddyGroup.visible = false;
+const eddyCount = 14;
+const eddyMeshes = [];
+for (let i = 0; i < eddyCount; i++) {
+  const t0 = -T_MAX*0.9 + (i/eddyCount)*T_MAX*1.8;
+  const f = localFrame(t0, 0, 1/safetyQ);
+  const offX = (Math.random()-0.5) * dx*1.4;
+  const offY = (Math.random()-0.5) * dy*1.4;
+  const center = f.center.clone()
+    .add(f.radial.clone().multiplyScalar(offX))
+    .add(f.binormal.clone().multiplyScalar(offY));
+  const geo = new THREE.SphereGeometry(0.13, 16, 16);
+  const sign = Math.random() > 0.5 ? 1 : -1;
+  const mat = new THREE.MeshStandardMaterial({
+    color: sign>0 ? 0xff7a7a : 0x6ab0ff,
+    transparent: true, opacity: 0.7, emissive: sign>0 ? 0x331111 : 0x111133
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.copy(center);
+  // stretch along tangent
+  const q = new THREE.Quaternion();
+  q.setFromUnitVectors(new THREE.Vector3(0,0,1), f.tangent);
+  m.quaternion.copy(q);
+  m.scale.set(0.6, 0.6, 4 + Math.random()*3);
+  eddyGroup.add(m);
+  eddyMeshes.push({ mesh: m, base: center.clone(), bin: f.binormal.clone(), phase: Math.random()*Math.PI*2 });
+}
+scene.add(eddyGroup);
+
+// ---------- Interaction ----------
+let isDragging = false, prevX=0, prevY=0;
+let rotY = 0.6, rotX = 0.85;
+let autoSpin = true;
+let zoom = 1;
+
+const cv = document.getElementById('c');
+cv.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  rotY += (e.clientX - prevX) * 0.005;
+  rotX += (e.clientY - prevY) * 0.005;
+  rotX = Math.max(-1.4, Math.min(1.4, rotX));
+  prevX = e.clientX; prevY = e.clientY;
+});
+cv.addEventListener('touchstart', e => { isDragging = true; prevX = e.touches[0].clientX; prevY = e.touches[0].clientY; });
+window.addEventListener('touchend', () => isDragging = false);
+window.addEventListener('touchmove', e => {
+  if (!isDragging) return;
+  rotY += (e.touches[0].clientX - prevX) * 0.005;
+  rotX += (e.touches[0].clientY - prevY) * 0.005;
+  rotX = Math.max(-1.4, Math.min(1.4, rotX));
+  prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
+}, { passive: true });
+window.addEventListener('wheel', e => {
+  zoom *= (1 + e.deltaY * 0.001);
+  zoom = Math.max(0.4, Math.min(3, zoom));
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// toggles
+const visibility = { surface: true, fieldlines: true, tube: true, axes: true, eddies: false, spin: true };
+document.querySelectorAll('.toggle[data-key]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.key;
+    visibility[k] = !visibility[k];
+    btn.classList.toggle('on', visibility[k]);
+    btn.textContent = visibility[k] ? 'on' : 'off';
+    if (k === 'surface') surfaceGroup.visible = visibility[k];
+    if (k === 'fieldlines') fieldGroup.visible = visibility[k];
+    if (k === 'tube') tubeGroup.visible = visibility[k];
+    if (k === 'axes') axisGroup.visible = visibility[k];
+    if (k === 'eddies') eddyGroup.visible = visibility[k];
+    if (k === 'spin') autoSpin = visibility[k];
+  });
+});
+
+// ---------- Step explainer ----------
+const steps = [
+  { title: 'STEP 1 / 5 — flux surfaces', text: 'The tokamak plasma sits on nested toroidal <em>flux surfaces</em> — like layers of an onion, but donut-shaped. The grey donut is one such surface. Density, temperature, and pressure are constant on each surface.' },
+  { title: 'STEP 2 / 5 — field lines', text: 'Magnetic field lines (gold) live <em>on</em> the surface. They never cross to a different surface. They wrap around twice — the long way (toroidally) and the short way (poloidally) — spiralling like a barber pole.' },
+  { title: 'STEP 3 / 5 — the flux tube', text: 'Pick one field line. Wrap a thin rectangular box around it: tiny in the radial direction, tiny across, long along the field. <em>That</em> is the flux tube. GENE simulates only inside this box, not the whole donut.' },
+  { title: 'STEP 4 / 5 — x, y, z', text: 'Inside the box: <span style="color:#ff6b6b">x</span> = radial (across surfaces). <span style="color:#5fc28e">y</span> = binormal (perpendicular to B, but staying on the surface). <span style="color:#7badd6">z</span> = parallel (along the field line).' },
+  { title: 'STEP 5 / 5 — eddies & y', text: 'Toggle "turbulent eddies" on. They\'re long along z, narrow across x and y. The interesting turbulence dynamics live in the x–y plane. Equilibrium doesn\'t change in y → that\'s why GENE Fourier-transforms in y.' }
+];
+let stepI = 0;
+const stepLabel = document.getElementById('stepLabel');
+const stepText = document.getElementById('stepText');
+function setStep(i) {
+  stepI = (i + steps.length) % steps.length;
+  stepLabel.textContent = steps[stepI].title;
+  stepText.innerHTML = steps[stepI].text;
+  // auto-toggle eddies on step 5
+  if (stepI === 4 && !visibility.eddies) document.querySelector('[data-key="eddies"]').click();
+}
+document.getElementById('next').addEventListener('click', () => setStep(stepI+1));
+document.getElementById('prev').addEventListener('click', () => setStep(stepI-1));
+
+// ---------- Animate ----------
+function animate(time) {
+  if (autoSpin && !isDragging) rotY += 0.0015;
+
+  const camDist = 22 * zoom;
+  camera.position.set(
+    camDist * Math.cos(rotX) * Math.sin(rotY),
+    camDist * Math.sin(rotX),
+    camDist * Math.cos(rotX) * Math.cos(rotY)
+  );
+  camera.lookAt(0,0,0);
+
+  // wobble eddies
+  if (eddyGroup.visible) {
+    eddyMeshes.forEach((e, i) => {
+      const ph = e.phase + time * 0.0015;
+      e.mesh.position.copy(e.base).add(e.bin.clone().multiplyScalar(Math.sin(ph) * 0.08));
+    });
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

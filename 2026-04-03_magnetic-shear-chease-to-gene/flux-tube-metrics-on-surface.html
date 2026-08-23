@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flux Tube With Metric Cells</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:860px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#9b7ff0;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:14px;line-height:1.5;max-width:540px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:120px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;color:#9b7ff0;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#9b7ff0;cursor:pointer;}
+h2{font-size:16px;font-weight:700;color:#9b7ff0;margin:20px 0 10px;padding-top:12px;border-top:1px solid #17253f;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>The <span>Flux Tube</span> on the Surface</h1>
+<p class="sub">Each grid cell is transformed by its local metric coefficients and placed where it actually sits on the tokamak cross-section.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Shear</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.1" value="1.5"><span class="cg-v" id="vShat">1.5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Tube width</div>
+    <div class="cg-r"><input type="range" id="sW" min="0.5" max="3" step="0.1" value="1.5"><span class="cg-v" id="vW">1.5</span></div>
+  </div>
+</div>
+
+<!-- Main viz: cross-section with tube cells -->
+<div class="panel">
+  <div class="plbl"><span>FLUX TUBE — METRIC-TRANSFORMED CELLS ON THE SURFACE</span></div>
+  <canvas id="cMain" style="height:520px;"></canvas>
+</div>
+
+<div class="box">
+  <p>The purple parallelograms are GENE's grid cells placed on the actual flux surface. Each cell is transformed by the <b class="p">local metric values at that poloidal position</b>.</p>
+  <p style="margin-top:6px;">At the <b class="r">outboard side</b> (right), g^xy ≈ 0, so cells are upright rectangles. Moving toward the <b class="g">inboard side</b> (left), g^xy grows and tilts them into parallelograms. The further from the outboard midplane, the more tilted. That tilt is shear distorting the grid.</p>
+  <p style="margin-top:6px;">Set <b>shear to 0</b> — all cells become upright. Crank it to 3 — cells near the top/bottom/inboard get heavily skewed. That's exactly what the metric coefficients encode.</p>
+</div>
+
+<!-- Zoomed view of a few cells -->
+<h2>Zoomed: 3 Cells at Different Positions</h2>
+
+<div class="panel">
+  <div class="plbl"><span>OUTBOARD vs TOP vs INBOARD — SAME GENE CELL, DIFFERENT METRICS</span></div>
+  <canvas id="cZoom" style="height:320px;"></canvas>
+</div>
+
+<div class="box">
+  <p>Same cell in GENE's coordinates (<span class="g">green square</span>), but the metrics at each position produce a different real shape (<span class="p">purple</span>).</p>
+  <p style="margin-top:6px;"><b>Outboard (z=0):</b> g^xy=0, cell is nearly square. This is the only place GENE's coordinates match reality.</p>
+  <p style="margin-top:6px;"><b>Top (z=π/2):</b> g^xy has grown, cell is tilted. Shear is stretching things.</p>
+  <p style="margin-top:6px;"><b>Inboard (z=π):</b> g^xy is at maximum, cell is heavily skewed. Plus g^yy has grown so it's taller. The metrics capture all of this distortion.</p>
+</div>
+
+</div>
+
+<script>
+let shat=1.5, tubeW=1.5;
+const elong=1.35, tri=0.2, selRho=0.6;
+
+function getMetrics(z){
+  return{
+    gxx:1+0.18*Math.cos(z),
+    gxy:shat*z,
+    gyy:1+0.5*shat*shat*z*z*0.15+0.08*Math.cos(z)
+  };
+}
+
+function surfPt(theta,rFrac,maxR){
+  const r=maxR*rFrac;
+  return{x:r*Math.cos(theta+tri*Math.sin(theta)),y:r*elong*Math.sin(theta)};
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+function drawMain(){
+  const s=setupCanvas('cMain');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const cx=w/2, cy=h/2, maxR=Math.min(w,h)*0.39;
+
+  // Background curvature tint
+  const bg=ctx.createLinearGradient(cx-maxR*1.5,cy,cx+maxR*1.5,cy);
+  bg.addColorStop(0,'rgba(62,232,134,0.012)');bg.addColorStop(0.5,'transparent');bg.addColorStop(1,'rgba(239,100,97,0.012)');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+
+  // Ghost flux surfaces
+  for(let i=1;i<=7;i++){
+    const f=i/7;
+    ctx.beginPath();
+    for(let j=0;j<=64;j++){
+      const th=(j/64)*Math.PI*2;
+      const sp=surfPt(th,f,maxR);
+      j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle=`rgba(31,214,232,${0.025+0.01*f})`;ctx.lineWidth=0.5;ctx.stroke();
+  }
+
+  // Draw flux tube cells
+  const nZ=36;
+  const nR=4; // radial cells
+  const drho=0.01*tubeW;
+
+  for(let iz=0;iz<nZ;iz++){
+    const theta0=(iz/nZ)*Math.PI*2;
+    const theta1=((iz+1)/nZ)*Math.PI*2;
+    const thetaMid=(theta0+theta1)/2;
+
+    // z coordinate: theta measured from outboard (theta=0)
+    // z = theta - 0 for outboard start, but wraps
+    const z=thetaMid>Math.PI?thetaMid-2*Math.PI:thetaMid;
+    const m=getMetrics(z);
+
+    for(let ir=-nR/2;ir<nR/2;ir++){
+      // Base radial position
+      const rhoBase=selRho+(ir+0.5)*drho;
+
+      // The shear tilt: shift the poloidal position based on radial offset and g^xy
+      const radialOffset=(ir+0.5)*drho;
+      const shearShift=radialOffset*m.gxy*3.0;
+
+      // Four corners of the cell on the surface
+      const r0=selRho+ir*drho;
+      const r1=selRho+(ir+1)*drho;
+      const t0=theta0+shearShift;
+      const t1=theta1+shearShift;
+
+      // Scale radial width by sqrt(gxx)
+      const gxxScale=Math.sqrt(Math.abs(m.gxx));
+      const r0s=selRho+(ir*drho)*gxxScale;
+      const r1s=selRho+((ir+1)*drho)*gxxScale;
+
+      const p00=surfPt(t0,r0s,maxR);
+      const p10=surfPt(t1,r0s,maxR);
+      const p11=surfPt(t1,r1s,maxR);
+      const p01=surfPt(t0,r1s,maxR);
+
+      ctx.beginPath();
+      ctx.moveTo(cx+p00.x,cy-p00.y);
+      ctx.lineTo(cx+p10.x,cy-p10.y);
+      ctx.lineTo(cx+p11.x,cy-p11.y);
+      ctx.lineTo(cx+p01.x,cy-p01.y);
+      ctx.closePath();
+
+      // Color: purple with curvature-based intensity
+      const k=Math.cos(thetaMid);
+      const alpha=0.08+Math.abs(k)*0.12;
+      ctx.fillStyle=`rgba(155,127,240,${alpha})`;
+      ctx.fill();
+      ctx.strokeStyle='rgba(155,127,240,0.22)';
+      ctx.lineWidth=0.7;ctx.stroke();
+    }
+  }
+
+  // Labels with pointers
+  ctx.font='bold 10px monospace';ctx.textAlign='center';
+
+  // Outboard
+  ctx.fillStyle='rgba(239,100,97,0.5)';
+  ctx.fillText('OUTBOARD',cx+maxR*selRho+50,cy-14);
+  ctx.font='8px monospace';ctx.fillStyle='rgba(239,100,97,0.3)';
+  ctx.fillText('g^xy ≈ 0',cx+maxR*selRho+50,cy);
+  ctx.fillText('cells upright',cx+maxR*selRho+50,cy+12);
+
+  // Inboard
+  ctx.font='bold 10px monospace';ctx.fillStyle='rgba(62,232,134,0.5)';
+  ctx.fillText('INBOARD',cx-maxR*selRho-50,cy-14);
+  ctx.font='8px monospace';ctx.fillStyle='rgba(62,232,134,0.3)';
+  const mInboard=getMetrics(Math.PI);
+  ctx.fillText(`g^xy ≈ ${mInboard.gxy.toFixed(1)}`,cx-maxR*selRho-50,cy);
+  ctx.fillText('cells tilted',cx-maxR*selRho-50,cy+12);
+
+  // Top
+  ctx.font='8px monospace';ctx.fillStyle='rgba(196,168,255,0.35)';
+  const topSp=surfPt(Math.PI/2,selRho,maxR);
+  const mTop=getMetrics(Math.PI/2);
+  ctx.fillText(`g^xy ≈ ${mTop.gxy.toFixed(1)}`,cx+topSp.x,cy-topSp.y-16);
+
+  // Axis
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';
+  ctx.fillText('AXIS',cx,cy);
+}
+
+function drawZoom(){
+  const s=setupCanvas('cZoom');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const positions=[
+    {z:0,label:'Outboard',sublabel:'z = 0',color:'#ef6461'},
+    {z:Math.PI/2,label:'Top',sublabel:'z = π/2',color:'#f5c042'},
+    {z:Math.PI,label:'Inboard',sublabel:'z = π',color:'#3ee886'},
+  ];
+
+  const cellW=w/3;
+  const cellScale=Math.min(cellW*0.35, h*0.3);
+
+  positions.forEach((pos,i)=>{
+    const cx=cellW*i+cellW/2;
+    const cy=h*0.45;
+    const m=getMetrics(pos.z);
+
+    // GENE's square (green outline)
+    const sq=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]].map(([x,y])=>[cx+x*cellScale,cy-y*cellScale]);
+    ctx.beginPath();sq.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+    ctx.strokeStyle='rgba(62,232,134,0.2)';ctx.lineWidth=1;ctx.stroke();
+
+    // Transformed cell (purple)
+    const transformed=[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]].map(([x,y])=>{
+      const rx=x*Math.sqrt(Math.abs(m.gxx))+y*m.gxy*0.22;
+      const ry=y*Math.sqrt(Math.abs(m.gyy));
+      return[cx+rx*cellScale,cy-ry*cellScale];
+    });
+    ctx.beginPath();transformed.forEach(([x,y],k)=>k===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.closePath();
+    ctx.fillStyle='rgba(155,127,240,0.12)';ctx.fill();
+    ctx.strokeStyle='rgba(155,127,240,0.6)';ctx.lineWidth=2;ctx.stroke();
+
+    // Label
+    ctx.font='bold 12px -apple-system,sans-serif';ctx.fillStyle=pos.color;
+    ctx.textAlign='center';ctx.fillText(pos.label,cx,h*0.78);
+    ctx.font='10px monospace';ctx.fillStyle='rgba(100,116,139,0.4)';
+    ctx.fillText(pos.sublabel,cx,h*0.78+16);
+
+    // Metric values
+    ctx.font='9px monospace';ctx.textAlign='center';
+    ctx.fillStyle='rgba(167,139,250,0.45)';
+    ctx.fillText(`gxx=${m.gxx.toFixed(2)}`,cx,h*0.78+32);
+    ctx.fillStyle=Math.abs(m.gxy)>0.3?'rgba(245,192,66,0.6)':'rgba(196,168,255,0.35)';
+    ctx.fillText(`gxy=${m.gxy.toFixed(2)}`,cx,h*0.78+44);
+    ctx.fillStyle='rgba(124,95,207,0.45)';
+    ctx.fillText(`gyy=${m.gyy.toFixed(2)}`,cx,h*0.78+56);
+
+    // Arrow showing tilt direction
+    if(Math.abs(m.gxy)>0.3){
+      const tiltDir=m.gxy>0?1:-1;
+      ctx.strokeStyle='rgba(245,192,66,0.25)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(cx,cy-cellScale*0.6);ctx.lineTo(cx+tiltDir*15,cy-cellScale*0.6);ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx+tiltDir*15,cy-cellScale*0.6);
+      ctx.lineTo(cx+tiltDir*10,cy-cellScale*0.6-3);
+      ctx.lineTo(cx+tiltDir*10,cy-cellScale*0.6+3);
+      ctx.closePath();ctx.fillStyle='rgba(245,192,66,0.25)';ctx.fill();
+      ctx.font='7px monospace';ctx.fillStyle='rgba(245,192,66,0.3)';
+      ctx.fillText('tilt',cx+tiltDir*20,cy-cellScale*0.6+3);
+    }
+  });
+
+  // "same cell in GENE" label
+  ctx.font='9px monospace';ctx.fillStyle='rgba(62,232,134,0.25)';ctx.textAlign='center';
+  ctx.fillText('green = same GENE cell everywhere    purple = real shape at each position',w/2,16);
+}
+
+function drawAll(){drawMain();drawZoom();}
+
+document.getElementById('sShat').addEventListener('input',function(e){
+  shat=parseFloat(e.target.value);document.getElementById('vShat').textContent=shat.toFixed(1);drawAll();
+});
+document.getElementById('sW').addEventListener('input',function(e){
+  tubeW=parseFloat(e.target.value);document.getElementById('vW').textContent=tubeW.toFixed(1);drawAll();
+});
+
+window.addEventListener('load',function(){setTimeout(drawAll,150);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

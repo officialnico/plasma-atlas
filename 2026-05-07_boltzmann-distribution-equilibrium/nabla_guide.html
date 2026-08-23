@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The ∇ Operator · Decoded From Scratch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f1e8;
+  --bg-2: #ebe4d2;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --scalar: #2e6f9c;
+  --vector: #c8482e;
+  --gradient: #6b8e23;
+  --divergence: #d4a017;
+  --curl: #8b5fbf;
+  --highlight: #c8482e;
+  --paper-line: rgba(26, 20, 16, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(46, 111, 156, 0.06), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(212, 160, 23, 0.05), transparent 50%),
+    var(--bg);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 56px 32px 100px;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 32px;
+  margin-bottom: 56px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--highlight);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 80px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(40px, 6.5vw, 72px);
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+  margin-bottom: 22px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--highlight);
+}
+
+.deck {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 60ch;
+  font-style: italic;
+}
+.deck strong { color: var(--ink); font-style: normal; font-weight: 400; }
+
+/* ---------- TOC ---------- */
+.toc {
+  position: sticky;
+  top: 0;
+  background: rgba(245, 241, 232, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  border-bottom: 1px solid var(--rule-soft);
+  padding: 12px 32px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  margin: 0 -32px 56px;
+}
+.toc-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-right: 8px;
+}
+.toc a {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  font-weight: 500;
+}
+.toc a:hover { color: var(--ink); border-color: var(--rule-soft); }
+
+/* ---------- SECTION ---------- */
+.section {
+  margin-bottom: 80px;
+  position: relative;
+}
+
+.section-head {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 24px;
+  align-items: baseline;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.section-num {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 56px;
+  line-height: 0.9;
+  color: var(--highlight);
+  letter-spacing: -0.02em;
+}
+
+.section-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kicker {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: clamp(26px, 3.4vw, 36px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+.section-title em {
+  font-style: italic;
+  color: var(--highlight);
+}
+
+.section-lead {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 70ch;
+  margin-bottom: 28px;
+  margin-left: 104px;
+}
+.section-lead strong { color: var(--ink); font-weight: 400; }
+.section-lead em { font-style: italic; color: var(--highlight); }
+.section-lead code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  background: rgba(26, 20, 16, 0.06);
+  padding: 1px 5px;
+  color: var(--ink);
+  border-radius: 2px;
+}
+
+@media (max-width: 700px) {
+  .section-head { grid-template-columns: 50px 1fr; gap: 16px; }
+  .section-num { font-size: 36px; }
+  .section-lead { margin-left: 0; }
+}
+
+/* ---------- DEMO ---------- */
+.demo {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  position: relative;
+  box-shadow: 6px 6px 0 var(--rule);
+  overflow: hidden;
+}
+
+.demo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 22px;
+  border-bottom: 1px dashed var(--rule-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.demo-header .label-tag { color: var(--highlight); font-weight: 600; }
+
+canvas { width: 100%; display: block; background: transparent; }
+.demo-canvas { height: 360px; }
+
+.demo-footer {
+  padding: 16px 22px;
+  border-top: 1px dashed var(--rule-soft);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--bg-2);
+}
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  padding: 9px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.active { background: var(--ink); color: var(--paper); }
+
+.shape-pills {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+}
+.shape-pills .btn {
+  border: none;
+  border-right: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 9px 13px;
+}
+.shape-pills .btn:last-child { border-right: none; }
+
+/* ---------- INSIGHT ---------- */
+.insight {
+  margin-top: 24px;
+  padding: 22px 26px;
+  border-left: 4px solid var(--highlight);
+  background: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.insight strong { color: var(--ink); font-weight: 400; }
+.insight em { color: var(--highlight); font-style: italic; }
+.insight code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: rgba(26, 20, 16, 0.06);
+  padding: 1px 5px;
+  color: var(--ink);
+  border-radius: 2px;
+}
+.insight .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 10px;
+  display: block;
+}
+
+/* readout strip */
+.readout-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  border: 1.5px solid var(--rule);
+  border-top: none;
+  background: var(--paper);
+}
+.r-cell {
+  padding: 14px 18px;
+  border-right: 1px solid var(--rule);
+}
+.r-cell:last-child { border-right: none; }
+.r-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+.r-val {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.r-cell.scalar .r-val { color: var(--scalar); }
+.r-cell.vector .r-val { color: var(--vector); }
+.r-cell.div .r-val { color: var(--divergence); }
+.r-cell.grad .r-val { color: var(--gradient); }
+
+/* ---------- COMPARE ---------- */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 24px 0;
+}
+@media (max-width: 700px) { .compare { grid-template-columns: 1fr; } }
+
+.compare-box {
+  border: 1.5px solid var(--rule);
+  padding: 18px 20px;
+  background: var(--paper);
+}
+.compare-box h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: var(--scalar);
+}
+.compare-box.vector h4 { color: var(--vector); }
+.compare-box p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.compare-box strong { color: var(--ink); font-weight: 400; }
+
+/* ---------- BIG QUOTE ---------- */
+.pullquote {
+  margin: 56px 0;
+  padding: 32px 24px;
+  border-top: 2px solid var(--rule);
+  border-bottom: 2px solid var(--rule);
+  text-align: center;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(22px, 3.2vw, 30px);
+  line-height: 1.3;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  max-width: 70ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+.pullquote em { color: var(--highlight); }
+.pullquote .attrib {
+  margin-top: 16px;
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* ---------- FORMULA BOX ---------- */
+.formula-box {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  padding: 22px;
+  margin: 16px 0;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  text-align: center;
+}
+.formula-box .eq {
+  font-size: 22px;
+  font-weight: 400;
+  margin-bottom: 10px;
+}
+.formula-box .eq .scalar-c { color: var(--scalar); font-weight: 500; }
+.formula-box .eq .vector-c { color: var(--vector); font-weight: 500; }
+.formula-box .eq .grad-c { color: var(--gradient); font-weight: 500; }
+.formula-box .eq .div-c { color: var(--divergence); font-weight: 500; }
+.formula-box .desc {
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  letter-spacing: 0.05em;
+  line-height: 1.7;
+}
+
+/* ---------- FINAL ---------- */
+.final {
+  text-align: center;
+  padding: 56px 24px 0;
+  border-top: 2px solid var(--rule);
+  margin-top: 80px;
+}
+.final-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 20px;
+}
+.final h2 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 38px);
+  margin-bottom: 18px;
+}
+.final p {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 60ch;
+  margin: 0 auto 12px;
+  font-style: italic;
+}
+.final em { color: var(--highlight); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">vector calculus · for plasma physics</div>
+    <h1>The <em>∇</em> operator,<br>decoded.</h1>
+    <p class="deck">
+      That weird upside-down triangle <strong>∇</strong> shows up everywhere in physics.
+      It's not "the gradient of nothing" — it's an <strong>operator</strong>, a tool waiting to act on something.
+      What it does depends on what you put after it. This guide walks through it from scratch,
+      with no assumed background. Five sections, five interactive scenes, all the math made visible.
+    </p>
+  </header>
+
+  <nav class="toc">
+    <span class="toc-label">jump to:</span>
+    <a href="#s1">I · scalar fields</a>
+    <a href="#s2">II · vector fields</a>
+    <a href="#s3">III · gradient</a>
+    <a href="#s4">IV · divergence</a>
+    <a href="#s5">V · putting it together</a>
+  </nav>
+
+  <!-- ============ SECTION 1: SCALAR FIELDS ============ -->
+  <section id="s1" class="section">
+    <div class="section-head">
+      <div class="section-num">I</div>
+      <div class="section-titles">
+        <div class="kicker">— foundation</div>
+        <h2 class="section-title">A <em>scalar field</em> is just a number at every point.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Imagine a room. Stand anywhere — at every spot you can stand, there's a temperature.
+      It's just one number per spot. <strong>That's a scalar field.</strong>
+      Temperature, altitude, pressure, density, electric potential — all scalar fields.
+      One number, anywhere you stand. <em>Hover over the demo to see it.</em>
+    </p>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 01</span> &nbsp; · &nbsp; scalar field — hover anywhere</span>
+        <span id="s1Stat">value at cursor: —</span>
+      </div>
+      <canvas id="canvas1" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="shape-pills" id="s1Shapes">
+          <button class="btn active" data-shape="bump">single bump</button>
+          <button class="btn" data-shape="hill-valley">hill + valley</button>
+          <button class="btn" data-shape="ramp">linear ramp</button>
+          <button class="btn" data-shape="bowl">bowl</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— what to notice</span>
+      The colormap shows the value of the scalar at every point: <em>blue = low, red = high</em>.
+      <strong>It's just one number per location.</strong> The cursor readout above shows the exact value at any spot.
+      Notice the <em>contour lines</em> — they connect points with equal value. Each ring is "everyone with the same number."
+      <h4 style="margin-top: 14px; font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: 16px;">In the Boltzmann formula:</h4>
+      The <strong>electric potential φ(r)</strong> is a scalar field — one number at every point. That's why it's so manageable.
+      And the <strong>density n(r)</strong> is also a scalar field — just count electrons per volume, get a number.
+    </div>
+  </section>
+
+  <!-- ============ SECTION 2: VECTOR FIELDS ============ -->
+  <section id="s2" class="section">
+    <div class="section-head">
+      <div class="section-num">II</div>
+      <div class="section-titles">
+        <div class="kicker">— foundation</div>
+        <h2 class="section-title">A <em>vector field</em> is an arrow at every point.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      A scalar field is one number per point. A <strong>vector field</strong> is one <em>arrow</em> per point —
+      something with both magnitude (how big) and direction (which way). Think of wind blowing across a map:
+      every spot has a wind vector showing strength and direction. <strong>The electric field E is a vector field.</strong>
+      So is fluid velocity, magnetic field, gravity, force.
+    </p>
+
+    <div class="compare">
+      <div class="compare-box">
+        <h4>scalar field</h4>
+        <p>
+          <strong>One number per point.</strong> Like temperature, altitude, density, electric potential φ.
+          A "heatmap." Has no direction. You can ask "what's the value here?" and get a number.
+        </p>
+      </div>
+      <div class="compare-box vector">
+        <h4>vector field</h4>
+        <p>
+          <strong>One arrow per point.</strong> Like wind velocity, fluid flow, electric field E, force.
+          You can ask "what's the magnitude here?" and "which direction here?" — both answers needed.
+        </p>
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 02</span> &nbsp; · &nbsp; vector field — arrows at every point</span>
+        <span id="s2Stat">vector at cursor: —</span>
+      </div>
+      <canvas id="canvas2" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="shape-pills" id="s2Shapes">
+          <button class="btn active" data-shape="outward">outward flow</button>
+          <button class="btn" data-shape="inward">inward flow</button>
+          <button class="btn" data-shape="uniform">uniform wind</button>
+          <button class="btn" data-shape="circulation">swirl</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— how to read the picture</span>
+      Each little arrow tells you the vector at that location. Longer arrow = bigger magnitude.
+      The arrow direction = the direction of the vector.
+      Try the four presets to see common patterns: <strong>outward flow</strong> (like fluid coming out of a faucet),
+      <strong>inward flow</strong> (like a drain), <strong>uniform wind</strong> (same vector everywhere), and <strong>swirl</strong> (rotation).
+    </div>
+  </section>
+
+  <!-- ============ SECTION 3: GRADIENT ============ -->
+  <section id="s3" class="section">
+    <div class="section-head">
+      <div class="section-num">III</div>
+      <div class="section-titles">
+        <div class="kicker">— first use of ∇</div>
+        <h2 class="section-title">The <em>gradient</em> turns a scalar field into a vector field.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Start with a scalar field — a heatmap of values. The <strong>gradient</strong> at any point answers:
+      "if I'm standing here and want to walk uphill as fast as possible, which way should I go and how steep is it?"
+      The answer is a vector — direction (uphill) and magnitude (steepness). <em>That's gradient.</em>
+      The notation is <code>∇f</code> for "gradient of f."
+    </p>
+
+    <div class="formula-box">
+      <div class="eq">
+        <span class="grad-c">∇f</span> = vector pointing in the direction <span class="scalar-c">f</span> increases fastest
+      </div>
+      <div class="desc">
+        ∇ acting on a scalar produces a vector. Magnitude = steepness. Direction = uphill.
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 03</span> &nbsp; · &nbsp; gradient = scalar field → vector field</span>
+        <span id="s3Stat">gradient at cursor: —</span>
+      </div>
+      <canvas id="canvas3" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="shape-pills" id="s3Shapes">
+          <button class="btn active" data-shape="bump">single bump</button>
+          <button class="btn" data-shape="hill-valley">hill + valley</button>
+          <button class="btn" data-shape="ramp">linear ramp</button>
+          <button class="btn" data-shape="saddle">saddle</button>
+        </div>
+        <button class="btn" id="s3Toggle">show gradient arrows</button>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— the key picture</span>
+      The gradient arrows always point <em>uphill</em> on the heatmap (toward higher values). At the top of a hill, the gradient is zero (no uphill direction).
+      At the bottom of a valley, it's also zero. On a slope, it points up the slope, with bigger arrows for steeper slopes.
+      <h4 style="margin-top: 14px; font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: 16px;">The plasma connection</h4>
+      The relationship <code>E = −∇φ</code> says: <strong>the electric field at any point is the gradient of φ, pointing the OTHER way</strong>
+      (because of the minus sign). That's why field lines go from high φ to low φ — field arrows point downhill on the φ heatmap.
+      <em>That's the entire content of E = −∇φ.</em>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 4: DIVERGENCE ============ -->
+  <section id="s4" class="section">
+    <div class="section-head">
+      <div class="section-num">IV</div>
+      <div class="section-titles">
+        <div class="kicker">— second use of ∇</div>
+        <h2 class="section-title">The <em>divergence</em> measures spread or pile-up.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      Now flip it. Start with a vector field (arrows everywhere). The <strong>divergence</strong> at any point asks:
+      <em>"is stuff spreading OUT from here, piling IN, or just passing through?"</em>
+      The answer is a single number — positive (spreading out, like a faucet),
+      negative (piling in, like a drain), or zero (passing through).
+      Notation is <code>∇·v</code> — "del DOT v." The dot is a dot product, turning the operator into a scalar output.
+    </p>
+
+    <div class="formula-box">
+      <div class="eq">
+        <span class="div-c">∇·v</span> = scalar that says how much the vector field <span class="vector-c">v</span> spreads out
+      </div>
+      <div class="desc">
+        ∇· acting on a vector produces a scalar. Positive = source. Negative = sink. Zero = pass-through.
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 04</span> &nbsp; · &nbsp; divergence — sources and sinks</span>
+        <span id="s4Stat">divergence at cursor: —</span>
+      </div>
+      <canvas id="canvas4" class="demo-canvas"></canvas>
+      <div class="demo-footer">
+        <div class="shape-pills" id="s4Shapes">
+          <button class="btn active" data-shape="source">single source (+div)</button>
+          <button class="btn" data-shape="sink">single sink (−div)</button>
+          <button class="btn" data-shape="source-sink">source + sink</button>
+          <button class="btn" data-shape="uniform">uniform (zero div)</button>
+          <button class="btn" data-shape="swirl">swirl (zero div)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— what to look for</span>
+      The colored regions show divergence at each point: <em>red = positive (source)</em>, <em>blue = negative (sink)</em>, <em>yellow = zero (no net spread)</em>.
+      Notice the <strong>swirl</strong> case: arrows rotate around but don't pile up or spread out — divergence is zero everywhere even though the field is doing something.
+      Also try <strong>uniform wind</strong>: same arrow everywhere, divergence zero — stuff flows through, but in equals out.
+      <h4 style="margin-top: 14px; font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: 16px;">The plasma connection</h4>
+      The equation <code>∇·E = ρ/ε₀</code> (Gauss's law) says: <strong>the divergence of the electric field at any point equals the charge density there</strong>.
+      Positive charges are sources (field spreads outward — positive divergence). Negative charges are sinks (field flows inward — negative divergence).
+      Empty space has zero divergence. <em>That's how electromagnetism encodes "charges create fields."</em>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 5: PUTTING IT TOGETHER ============ -->
+  <section id="s5" class="section">
+    <div class="section-head">
+      <div class="section-num">V</div>
+      <div class="section-titles">
+        <div class="kicker">— combining the operators</div>
+        <h2 class="section-title">Stack ∇ on ∇ to get <em>Poisson's equation</em>.</h2>
+      </div>
+    </div>
+
+    <p class="section-lead">
+      In plasma physics you'll see this:
+      <code>∇²φ = −ρ/ε₀</code> — Poisson's equation. Looks intimidating. It's actually just the two operators stacked.
+      <strong>∇²</strong> means "divergence of gradient." Apply gradient to φ to get a vector (the field).
+      Then apply divergence to that vector to get back a scalar (the local source strength).
+      The result connects φ to charge density.
+    </p>
+
+    <div class="formula-box">
+      <div class="eq">
+        <span class="div-c">∇</span>·<span class="grad-c">∇</span><span class="scalar-c">φ</span> = <span class="div-c">∇²</span><span class="scalar-c">φ</span> = −ρ/ε₀
+      </div>
+      <div class="desc">
+        scalar → (gradient) → vector → (divergence) → scalar<br>
+        The scalar at the end equals the local charge density.
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-header">
+        <span><span class="label-tag">scene 05</span> &nbsp; · &nbsp; the full chain</span>
+        <span id="s5Stat">click a point to see the chain</span>
+      </div>
+      <canvas id="canvas5" class="demo-canvas" style="height: 420px;"></canvas>
+      <div class="demo-footer">
+        <div class="shape-pills" id="s5Shapes">
+          <button class="btn active" data-shape="bump">positive charge</button>
+          <button class="btn" data-shape="dip">negative charge</button>
+          <button class="btn" data-shape="dipole">+ and −</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="label">— putting it all together</span>
+      The scene shows the same physics three different ways: as <strong>scalar φ</strong> (heatmap on left),
+      as <strong>vector E = −∇φ</strong> (arrows in middle), as <strong>scalar ρ = −ε₀∇²φ</strong> (heatmap on right).
+      Hover over any point to see the values at that point in all three views.
+      <h4 style="margin-top: 14px; font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: 16px;">Why this matters</h4>
+      The same physical scene has three equivalent descriptions: as a potential field, as a force field, or as a charge distribution.
+      The ∇ operators let you translate between them. <strong>Plasma physics is fluent in all three views</strong>,
+      switching between them depending on what's easiest. That's why ∇ is everywhere.
+    </div>
+  </section>
+
+  <div class="pullquote">
+    "The ∇ operator is just a translator. It moves between scalar fields and vector fields, picking up information about <em>how things change in space</em> as it goes."
+  </div>
+
+  <div class="final">
+    <div class="final-label">— summary card · pin this somewhere</div>
+    <h2>Three operators. One symbol.</h2>
+    <p>
+      <strong>∇f</strong> (gradient): scalar → vector. <em>"which way is uphill?"</em><br><br>
+      <strong>∇·v</strong> (divergence): vector → scalar. <em>"how much is this point a source?"</em><br><br>
+      <strong>∇²f</strong> (Laplacian): scalar → scalar. <em>"how much does the value here differ from the average around it?"</em><br><br>
+      That's all. The notation is dense but the ideas are concrete: rates of change, spreading, and curvature in space.
+    </p>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const COLORS = {
+  ink: '#1a1410',
+  paper: '#fdfaf2',
+  scalar: '#2e6f9c',
+  vector: '#c8482e',
+  gradient: '#6b8e23',
+  divergence: '#d4a017',
+  highlight: '#c8482e',
+  dim: '#8a7a66'
+};
+
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: rect.width, h: rect.height, ctx: canvas.getContext('2d') };
+}
+
+// Helper: scalar→color
+function scalarColor(v, vMin, vMax) {
+  const t = Math.max(0, Math.min(1, (v - vMin) / (vMax - vMin || 1)));
+  // Blue (low) → yellow (mid) → red (high)
+  if (t < 0.5) {
+    const k = t / 0.5;
+    const r = Math.round(46 + (212 - 46) * k);
+    const g = Math.round(111 + (160 - 111) * k);
+    const b = Math.round(156 + (60 - 156) * k);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    const k = (t - 0.5) / 0.5;
+    const r = Math.round(212 + (200 - 212) * k);
+    const g = Math.round(160 + (72 - 160) * k);
+    const b = Math.round(60 + (46 - 60) * k);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+// Generic scalar field functions
+function scalarField(name, x, y, w, h) {
+  const cx = w / 2, cy = h / 2;
+  const dx = (x - cx) / (w / 2);
+  const dy = (y - cy) / (h / 2);
+  if (name === 'bump') {
+    return Math.exp(-(dx * dx + dy * dy) * 2) * 100;
+  }
+  if (name === 'hill-valley') {
+    const dxL = (x - w * 0.3) / (w / 4);
+    const dyL = (y - cy) / (h / 4);
+    const dxR = (x - w * 0.7) / (w / 4);
+    const dyR = (y - cy) / (h / 4);
+    return Math.exp(-(dxL * dxL + dyL * dyL) * 1.5) * 100
+         - Math.exp(-(dxR * dxR + dyR * dyR) * 1.5) * 100;
+  }
+  if (name === 'ramp') {
+    return ((x / w) - 0.5) * 100;
+  }
+  if (name === 'bowl') {
+    return -(dx * dx + dy * dy) * 60 + 80;
+  }
+  if (name === 'saddle') {
+    return (dx * dx - dy * dy) * 50;
+  }
+  if (name === 'dip') {
+    return -Math.exp(-(dx * dx + dy * dy) * 2) * 100;
+  }
+  if (name === 'dipole') {
+    const dxL = (x - w * 0.32) / (w / 5);
+    const dyL = (y - cy) / (h / 5);
+    const dxR = (x - w * 0.68) / (w / 5);
+    const dyR = (y - cy) / (h / 5);
+    return Math.exp(-(dxL * dxL + dyL * dyL) * 2) * 80
+         - Math.exp(-(dxR * dxR + dyR * dyR) * 2) * 80;
+  }
+  return 0;
+}
+
+// Generic vector field functions
+function vectorField(name, x, y, w, h) {
+  const cx = w / 2, cy = h / 2;
+  const dx = x - cx, dy = y - cy;
+  const r = Math.sqrt(dx * dx + dy * dy + 100);
+  if (name === 'outward') {
+    return { vx: dx / r * 50, vy: dy / r * 50 };
+  }
+  if (name === 'inward') {
+    return { vx: -dx / r * 50, vy: -dy / r * 50 };
+  }
+  if (name === 'uniform') {
+    return { vx: 30, vy: 0 };
+  }
+  if (name === 'circulation') {
+    return { vx: -dy / r * 40, vy: dx / r * 40 };
+  }
+  if (name === 'source') {
+    return { vx: dx / r * 50, vy: dy / r * 50 };
+  }
+  if (name === 'sink') {
+    return { vx: -dx / r * 50, vy: -dy / r * 50 };
+  }
+  if (name === 'source-sink') {
+    const cx1 = w * 0.32, cy1 = h / 2;
+    const cx2 = w * 0.68, cy2 = h / 2;
+    const dx1 = x - cx1, dy1 = y - cy1;
+    const dx2 = x - cx2, dy2 = y - cy2;
+    const r1 = Math.sqrt(dx1 * dx1 + dy1 * dy1 + 100);
+    const r2 = Math.sqrt(dx2 * dx2 + dy2 * dy2 + 100);
+    return {
+      vx: dx1 / (r1 * r1) * 1500 - dx2 / (r2 * r2) * 1500,
+      vy: dy1 / (r1 * r1) * 1500 - dy2 / (r2 * r2) * 1500
+    };
+  }
+  if (name === 'swirl') {
+    return { vx: -dy / r * 40, vy: dx / r * 40 };
+  }
+  return { vx: 0, vy: 0 };
+}
+
+// Numerical gradient of a scalar field
+function gradF(scalarName, x, y, w, h) {
+  const eps = 1;
+  const dfdx = (scalarField(scalarName, x + eps, y, w, h) - scalarField(scalarName, x - eps, y, w, h)) / (2 * eps);
+  const dfdy = (scalarField(scalarName, x, y + eps, w, h) - scalarField(scalarName, x, y - eps, w, h)) / (2 * eps);
+  return { vx: dfdx, vy: dfdy };
+}
+
+// Numerical divergence of a vector field
+function divV(vectorName, x, y, w, h) {
+  const eps = 1;
+  const v_xp = vectorField(vectorName, x + eps, y, w, h);
+  const v_xm = vectorField(vectorName, x - eps, y, w, h);
+  const v_yp = vectorField(vectorName, x, y + eps, w, h);
+  const v_ym = vectorField(vectorName, x, y - eps, w, h);
+  const dvxdx = (v_xp.vx - v_xm.vx) / (2 * eps);
+  const dvydy = (v_yp.vy - v_ym.vy) / (2 * eps);
+  return dvxdx + dvydy;
+}
+
+// Numerical Laplacian (∇²) of a scalar field
+function laplacianF(scalarName, x, y, w, h) {
+  const eps = 2;
+  const center = scalarField(scalarName, x, y, w, h);
+  const xp = scalarField(scalarName, x + eps, y, w, h);
+  const xm = scalarField(scalarName, x - eps, y, w, h);
+  const yp = scalarField(scalarName, x, y + eps, w, h);
+  const ym = scalarField(scalarName, x, y - eps, w, h);
+  return (xp + xm + yp + ym - 4 * center) / (eps * eps);
+}
+
+// ============ SCENE 1: SCALAR FIELD ============
+(function scene1() {
+  const canvas = document.getElementById('canvas1');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let shape = 'bump';
+  let cursor = null;
+
+  document.querySelectorAll('#s1Shapes .btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#s1Shapes .btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      shape = btn.dataset.shape;
+    });
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
+  });
+  canvas.addEventListener('mouseleave', () => cursor = null);
+
+  window.addEventListener('resize', () => dim = setupCanvas(canvas));
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    // Find min/max for color scaling
+    let vMin = Infinity, vMax = -Infinity;
+    for (let y = 0; y < dim.h; y += 4) {
+      for (let x = 0; x < dim.w; x += 4) {
+        const v = scalarField(shape, x, y, dim.w, dim.h);
+        if (v < vMin) vMin = v;
+        if (v > vMax) vMax = v;
+      }
+    }
+
+    // Draw colormap
+    const cellSize = 4;
+    for (let y = 0; y < dim.h; y += cellSize) {
+      for (let x = 0; x < dim.w; x += cellSize) {
+        const v = scalarField(shape, x + cellSize / 2, y + cellSize / 2, dim.w, dim.h);
+        ctx.fillStyle = scalarColor(v, vMin, vMax);
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    // Contour lines
+    drawContours(ctx, dim, (x, y) => scalarField(shape, x, y, dim.w, dim.h), vMin, vMax, 8);
+
+    // Cursor
+    if (cursor) {
+      ctx.strokeStyle = 'rgba(26, 20, 16, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      const v = scalarField(shape, cursor.x, cursor.y, dim.w, dim.h);
+      document.getElementById('s1Stat').textContent = `value at cursor: ${v.toFixed(1)}`;
+    } else {
+      document.getElementById('s1Stat').textContent = 'value at cursor: —';
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// Contour drawing helper
+function drawContours(ctx, dim, fn, vMin, vMax, nLevels) {
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.18)';
+  ctx.lineWidth = 0.7;
+  const step = 8;
+  const levels = [];
+  for (let i = 1; i < nLevels; i++) {
+    levels.push(vMin + (i / nLevels) * (vMax - vMin));
+  }
+  for (const level of levels) {
+    for (let y = 0; y < dim.h - step; y += step) {
+      for (let x = 0; x < dim.w - step; x += step) {
+        const v00 = fn(x, y);
+        const v10 = fn(x + step, y);
+        const v01 = fn(x, y + step);
+        const v11 = fn(x + step, y + step);
+        const minV = Math.min(v00, v10, v01, v11);
+        const maxV = Math.max(v00, v10, v01, v11);
+        if (level < minV || level > maxV) continue;
+        const points = [];
+        function check(va, vb, xa, ya, xb, yb) {
+          if ((va - level) * (vb - level) > 0) return;
+          const t = (level - va) / (vb - va);
+          points.push({ x: xa + t * (xb - xa), y: ya + t * (yb - ya) });
+        }
+        check(v00, v10, x, y, x + step, y);
+        check(v10, v11, x + step, y, x + step, y + step);
+        check(v11, v01, x + step, y + step, x, y + step);
+        check(v01, v00, x, y + step, x, y);
+        if (points.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          ctx.lineTo(points[1].x, points[1].y);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+}
+
+// Draw arrow helper
+function drawArrow(ctx, x1, y1, x2, y2, color, lw = 1.5) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  const headSize = 5;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headSize * Math.cos(ang - 0.4), y2 - headSize * Math.sin(ang - 0.4));
+  ctx.lineTo(x2 - headSize * Math.cos(ang + 0.4), y2 - headSize * Math.sin(ang + 0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// ============ SCENE 2: VECTOR FIELD ============
+(function scene2() {
+  const canvas = document.getElementById('canvas2');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let shape = 'outward';
+  let cursor = null;
+
+  document.querySelectorAll('#s2Shapes .btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#s2Shapes .btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      shape = btn.dataset.shape;
+    });
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
+  });
+  canvas.addEventListener('mouseleave', () => cursor = null);
+
+  window.addEventListener('resize', () => dim = setupCanvas(canvas));
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+    ctx.fillStyle = 'rgba(232, 224, 208, 0.4)';
+    ctx.fillRect(0, 0, dim.w, dim.h);
+
+    const spacing = 28;
+    for (let y = spacing / 2; y < dim.h; y += spacing) {
+      for (let x = spacing / 2; x < dim.w; x += spacing) {
+        const v = vectorField(shape, x, y, dim.w, dim.h);
+        const mag = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
+        const scale = Math.min(spacing * 0.45, mag * 0.3);
+        if (mag < 0.5) continue;
+        const dx = (v.vx / mag) * scale;
+        const dy = (v.vy / mag) * scale;
+        const intensity = Math.min(1, mag / 60);
+        const color = `rgba(200, 72, 46, ${0.4 + intensity * 0.5})`;
+        drawArrow(ctx, x - dx / 2, y - dy / 2, x + dx / 2, y + dy / 2, color, 1 + intensity);
+      }
+    }
+
+    if (cursor) {
+      ctx.strokeStyle = 'rgba(26, 20, 16, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      const v = vectorField(shape, cursor.x, cursor.y, dim.w, dim.h);
+      const mag = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
+      const ang = Math.atan2(v.vy, v.vx) * 180 / Math.PI;
+      document.getElementById('s2Stat').textContent =
+        `vector at cursor: magnitude ${mag.toFixed(1)} · angle ${ang.toFixed(0)}°`;
+    } else {
+      document.getElementById('s2Stat').textContent = 'vector at cursor: —';
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 3: GRADIENT ============
+(function scene3() {
+  const canvas = document.getElementById('canvas3');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let shape = 'bump';
+  let cursor = null;
+  let showArrows = true;
+
+  document.querySelectorAll('#s3Shapes .btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#s3Shapes .btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      shape = btn.dataset.shape;
+    });
+  });
+
+  document.getElementById('s3Toggle').addEventListener('click', e => {
+    showArrows = !showArrows;
+    e.target.textContent = showArrows ? 'hide gradient arrows' : 'show gradient arrows';
+    e.target.classList.toggle('active', showArrows);
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
+  });
+  canvas.addEventListener('mouseleave', () => cursor = null);
+
+  window.addEventListener('resize', () => dim = setupCanvas(canvas));
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    let vMin = Infinity, vMax = -Infinity;
+    for (let y = 0; y < dim.h; y += 4) {
+      for (let x = 0; x < dim.w; x += 4) {
+        const v = scalarField(shape, x, y, dim.w, dim.h);
+        if (v < vMin) vMin = v;
+        if (v > vMax) vMax = v;
+      }
+    }
+
+    // Colormap
+    const cellSize = 4;
+    for (let y = 0; y < dim.h; y += cellSize) {
+      for (let x = 0; x < dim.w; x += cellSize) {
+        const v = scalarField(shape, x + cellSize / 2, y + cellSize / 2, dim.w, dim.h);
+        ctx.fillStyle = scalarColor(v, vMin, vMax);
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    drawContours(ctx, dim, (x, y) => scalarField(shape, x, y, dim.w, dim.h), vMin, vMax, 8);
+
+    // Gradient arrows
+    if (showArrows) {
+      const spacing = 36;
+      for (let y = spacing / 2; y < dim.h; y += spacing) {
+        for (let x = spacing / 2; x < dim.w; x += spacing) {
+          const g = gradF(shape, x, y, dim.w, dim.h);
+          const mag = Math.sqrt(g.vx * g.vx + g.vy * g.vy);
+          if (mag < 0.05) continue;
+          const scale = Math.min(spacing * 0.45, mag * 80);
+          const dx = (g.vx / mag) * scale;
+          const dy = (g.vy / mag) * scale;
+          drawArrow(ctx, x - dx / 2, y - dy / 2, x + dx / 2, y + dy / 2, 'rgba(107, 142, 35, 0.95)', 1.5);
+        }
+      }
+    }
+
+    if (cursor) {
+      ctx.strokeStyle = 'rgba(26, 20, 16, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      const f = scalarField(shape, cursor.x, cursor.y, dim.w, dim.h);
+      const g = gradF(shape, cursor.x, cursor.y, dim.w, dim.h);
+      const gMag = Math.sqrt(g.vx * g.vx + g.vy * g.vy);
+      document.getElementById('s3Stat').textContent =
+        `f = ${f.toFixed(1)} · |∇f| = ${(gMag * 100).toFixed(2)}`;
+
+      // Show local gradient as a clear arrow
+      if (gMag > 0.05) {
+        const arrowLen = 40;
+        const ax = (g.vx / gMag) * arrowLen;
+        const ay = (g.vy / gMag) * arrowLen;
+        drawArrow(ctx, cursor.x, cursor.y, cursor.x + ax, cursor.y + ay, '#1a1410', 3);
+      }
+    } else {
+      document.getElementById('s3Stat').textContent = 'gradient at cursor: —';
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 4: DIVERGENCE ============
+(function scene4() {
+  const canvas = document.getElementById('canvas4');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let shape = 'source';
+  let cursor = null;
+
+  document.querySelectorAll('#s4Shapes .btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#s4Shapes .btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      shape = btn.dataset.shape;
+    });
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
+  });
+  canvas.addEventListener('mouseleave', () => cursor = null);
+
+  window.addEventListener('resize', () => dim = setupCanvas(canvas));
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    // Background — divergence colormap
+    let dMin = Infinity, dMax = -Infinity;
+    for (let y = 0; y < dim.h; y += 8) {
+      for (let x = 0; x < dim.w; x += 8) {
+        const d = divV(shape, x, y, dim.w, dim.h);
+        if (d < dMin) dMin = d;
+        if (d > dMax) dMax = d;
+      }
+    }
+    const dAbsMax = Math.max(Math.abs(dMin), Math.abs(dMax)) || 1;
+
+    const cellSize = 6;
+    for (let y = 0; y < dim.h; y += cellSize) {
+      for (let x = 0; x < dim.w; x += cellSize) {
+        const d = divV(shape, x + cellSize / 2, y + cellSize / 2, dim.w, dim.h);
+        const t = d / dAbsMax; // -1 to 1
+        let color;
+        if (t > 0.05) {
+          const a = Math.min(0.6, t * 0.8);
+          color = `rgba(200, 72, 46, ${a})`;
+        } else if (t < -0.05) {
+          const a = Math.min(0.6, -t * 0.8);
+          color = `rgba(46, 111, 156, ${a})`;
+        } else {
+          color = 'rgba(212, 160, 23, 0.08)';
+        }
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    // Vector field arrows
+    const spacing = 32;
+    for (let y = spacing / 2; y < dim.h; y += spacing) {
+      for (let x = spacing / 2; x < dim.w; x += spacing) {
+        const v = vectorField(shape, x, y, dim.w, dim.h);
+        const mag = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
+        if (mag < 0.5) continue;
+        const scale = Math.min(spacing * 0.42, mag * 0.3);
+        const dx = (v.vx / mag) * scale;
+        const dy = (v.vy / mag) * scale;
+        drawArrow(ctx, x - dx / 2, y - dy / 2, x + dx / 2, y + dy / 2, 'rgba(26, 20, 16, 0.7)', 1);
+      }
+    }
+
+    // Legend
+    ctx.fillStyle = 'rgba(26, 20, 16, 0.5)';
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'left';
+    ctx.fillText('▼ red bg = positive divergence (source)', 12, dim.h - 28);
+    ctx.fillText('▼ blue bg = negative divergence (sink)', 12, dim.h - 14);
+
+    if (cursor) {
+      ctx.strokeStyle = 'rgba(26, 20, 16, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cursor.x, cursor.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      const d = divV(shape, cursor.x, cursor.y, dim.w, dim.h);
+      const verdict = d > 0.5 ? 'SOURCE (spreading out)' : d < -0.5 ? 'SINK (piling in)' : 'NEUTRAL (passing through)';
+      document.getElementById('s4Stat').textContent =
+        `∇·v at cursor: ${d.toFixed(2)} · ${verdict}`;
+    } else {
+      document.getElementById('s4Stat').textContent = 'divergence at cursor: —';
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ============ SCENE 5: PUTTING IT TOGETHER ============
+(function scene5() {
+  const canvas = document.getElementById('canvas5');
+  let dim = setupCanvas(canvas);
+  const ctx = dim.ctx;
+
+  let shape = 'bump';
+  let cursor = null;
+
+  document.querySelectorAll('#s5Shapes .btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#s5Shapes .btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      shape = btn.dataset.shape;
+    });
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
+  });
+  canvas.addEventListener('mouseleave', () => cursor = null);
+
+  window.addEventListener('resize', () => dim = setupCanvas(canvas));
+
+  function draw() {
+    ctx.clearRect(0, 0, dim.w, dim.h);
+
+    // Three vertical panels
+    const padding = 8;
+    const labelH = 28;
+    const panelW = (dim.w - padding * 4) / 3;
+    const panelH = dim.h - labelH - padding * 2;
+    const panelY = labelH + padding;
+
+    // For each panel: shift x coordinate to its local frame
+    const xShift1 = padding;
+    const xShift2 = padding * 2 + panelW;
+    const xShift3 = padding * 3 + panelW * 2;
+
+    // PANEL 1: Scalar φ
+    let vMin = Infinity, vMax = -Infinity;
+    for (let y = 0; y < panelH; y += 6) {
+      for (let x = 0; x < panelW; x += 6) {
+        const v = scalarField(shape, x, y, panelW, panelH);
+        if (v < vMin) vMin = v;
+        if (v > vMax) vMax = v;
+      }
+    }
+
+    const cellSize = 5;
+    for (let y = 0; y < panelH; y += cellSize) {
+      for (let x = 0; x < panelW; x += cellSize) {
+        const v = scalarField(shape, x + cellSize / 2, y + cellSize / 2, panelW, panelH);
+        ctx.fillStyle = scalarColor(v, vMin, vMax);
+        ctx.fillRect(xShift1 + x, panelY + y, cellSize, cellSize);
+      }
+    }
+
+    // PANEL 2: Vector E = -gradient
+    ctx.fillStyle = 'rgba(232, 224, 208, 0.6)';
+    ctx.fillRect(xShift2, panelY, panelW, panelH);
+    const spacing = 24;
+    for (let y = spacing / 2; y < panelH; y += spacing) {
+      for (let x = spacing / 2; x < panelW; x += spacing) {
+        const g = gradF(shape, x, y, panelW, panelH);
+        // E = -gradient
+        const ex = -g.vx;
+        const ey = -g.vy;
+        const mag = Math.sqrt(ex * ex + ey * ey);
+        if (mag < 0.05) continue;
+        const scale = Math.min(spacing * 0.45, mag * 80);
+        const dx = (ex / mag) * scale;
+        const dy = (ey / mag) * scale;
+        const intensity = Math.min(1, mag * 5);
+        drawArrow(ctx, xShift2 + x - dx / 2, panelY + y - dy / 2,
+                  xShift2 + x + dx / 2, panelY + y + dy / 2,
+                  `rgba(200, 72, 46, ${0.4 + intensity * 0.5})`, 1 + intensity * 0.5);
+      }
+    }
+
+    // PANEL 3: Divergence (charge density)
+    let lMin = Infinity, lMax = -Infinity;
+    for (let y = 0; y < panelH; y += 6) {
+      for (let x = 0; x < panelW; x += 6) {
+        const lap = laplacianF(shape, x, y, panelW, panelH);
+        if (lap < lMin) lMin = lap;
+        if (lap > lMax) lMax = lap;
+      }
+    }
+    const lAbs = Math.max(Math.abs(lMin), Math.abs(lMax)) || 1;
+    for (let y = 0; y < panelH; y += cellSize) {
+      for (let x = 0; x < panelW; x += cellSize) {
+        // ρ = -ε₀ ∇²φ — sign flip
+        const lap = -laplacianF(shape, x + cellSize / 2, y + cellSize / 2, panelW, panelH);
+        const t = lap / lAbs;
+        let color;
+        if (t > 0.05) {
+          const a = Math.min(0.7, t * 0.9);
+          color = `rgba(200, 72, 46, ${a})`;
+        } else if (t < -0.05) {
+          const a = Math.min(0.7, -t * 0.9);
+          color = `rgba(46, 111, 156, ${a})`;
+        } else {
+          color = 'rgba(212, 160, 23, 0.06)';
+        }
+        ctx.fillStyle = color;
+        ctx.fillRect(xShift3 + x, panelY + y, cellSize, cellSize);
+      }
+    }
+
+    // Borders
+    ctx.strokeStyle = 'rgba(26, 20, 16, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(xShift1, panelY, panelW, panelH);
+    ctx.strokeRect(xShift2, panelY, panelW, panelH);
+    ctx.strokeRect(xShift3, panelY, panelW, panelH);
+
+    // Labels above each panel
+    ctx.fillStyle = COLORS.scalar;
+    ctx.font = "italic 14px 'Fraunces', serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('φ — scalar potential', xShift1 + panelW / 2, labelH - 8);
+    ctx.fillStyle = COLORS.vector;
+    ctx.fillText('E = −∇φ — vector field', xShift2 + panelW / 2, labelH - 8);
+    ctx.fillStyle = COLORS.divergence;
+    ctx.fillText('ρ = −ε₀∇²φ — charge density', xShift3 + panelW / 2, labelH - 8);
+
+    // Cursor — show in all three panels at corresponding location
+    if (cursor) {
+      let panel = -1, lx = 0, ly = 0;
+      if (cursor.x >= xShift1 && cursor.x < xShift1 + panelW &&
+          cursor.y >= panelY && cursor.y < panelY + panelH) {
+        panel = 0; lx = cursor.x - xShift1; ly = cursor.y - panelY;
+      } else if (cursor.x >= xShift2 && cursor.x < xShift2 + panelW &&
+                 cursor.y >= panelY && cursor.y < panelY + panelH) {
+        panel = 1; lx = cursor.x - xShift2; ly = cursor.y - panelY;
+      } else if (cursor.x >= xShift3 && cursor.x < xShift3 + panelW &&
+                 cursor.y >= panelY && cursor.y < panelY + panelH) {
+        panel = 2; lx = cursor.x - xShift3; ly = cursor.y - panelY;
+      }
+      if (panel >= 0) {
+        const xShifts = [xShift1, xShift2, xShift3];
+        // Draw cursor circle in all three panels at the corresponding local position
+        for (let i = 0; i < 3; i++) {
+          ctx.strokeStyle = i === panel ? 'rgba(26, 20, 16, 0.9)' : 'rgba(26, 20, 16, 0.5)';
+          ctx.lineWidth = i === panel ? 2.5 : 1.5;
+          ctx.beginPath();
+          ctx.arc(xShifts[i] + lx, panelY + ly, 10, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        const phi = scalarField(shape, lx, ly, panelW, panelH);
+        const g = gradF(shape, lx, ly, panelW, panelH);
+        const eMag = Math.sqrt(g.vx * g.vx + g.vy * g.vy);
+        const lap = -laplacianF(shape, lx, ly, panelW, panelH);
+        document.getElementById('s5Stat').textContent =
+          `φ = ${phi.toFixed(1)} · |E| = ${(eMag * 100).toFixed(2)} · ρ ∝ ${lap.toFixed(2)}`;
+      }
+    } else {
+      document.getElementById('s5Stat').textContent = 'hover to inspect all three views';
+    }
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+</body>
+</html>

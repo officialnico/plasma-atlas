@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metric Coefficients - What They Look Like</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:900px;margin:0 auto;}
+h1{font-size:24px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#9b7ff0;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:20px;line-height:1.5;max-width:560px;margin-left:auto;margin-right:auto;}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+@media(max-width:550px){.pair{grid-template-columns:1fr;}}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:10px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center;}
+canvas{display:block;width:100%;height:320px;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:130px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:14px;font-weight:700;min-width:36px;text-align:right;color:#9b7ff0;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#9b7ff0;cursor:pointer;}
+
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}
+.box p .p{color:#9b7ff0;font-weight:600;}
+.box p .a{color:#f5c042;font-weight:600;}
+.box p .c{color:#1fd6e8;font-weight:600;}
+.box p .r{color:#ef6461;font-weight:600;}
+.box p .g{color:#3ee886;font-weight:600;}
+h2{font-size:16px;font-weight:700;color:#9b7ff0;margin:24px 0 10px;padding-top:14px;border-top:1px solid #17253f;}
+
+.arrow-label{text-align:center;font-size:20px;color:#2f4468;margin:4px 0;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>What the <span>Metrics</span> Actually Look Like</h1>
+<p class="sub">Left: GENE's coordinate grid (uniform squares). Right: what those same squares look like in real space after the metrics warp them. Drag the sliders to see the distortion.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Shear (s-hat)</div>
+    <div class="cg-r"><input type="range" id="sShat" min="0" max="3" step="0.1" value="1.5"><span class="cg-v" id="vShat">1.5</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">z position (along field line)</div>
+    <div class="cg-r"><input type="range" id="sZ" min="-3.14" max="3.14" step="0.1" value="0"><span class="cg-v" id="vZ">0.0</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Surface (rho)</div>
+    <div class="cg-r"><input type="range" id="sRho" min="0.2" max="0.9" step="0.05" value="0.6"><span class="cg-v" id="vRho">0.60</span></div>
+  </div>
+</div>
+
+<!-- Side by side grids -->
+<div class="pair">
+  <div class="panel">
+    <div class="plbl"><span>GENE'S COORDINATES (x, y)</span><span style="color:#3ee886">UNIFORM GRID</span></div>
+    <canvas id="cGene"></canvas>
+  </div>
+  <div class="panel">
+    <div class="plbl"><span>REAL SPACE (after metrics)</span><span style="color:#ef6461">WARPED GRID</span></div>
+    <canvas id="cReal"></canvas>
+  </div>
+</div>
+
+<div class="box">
+  <p>The left grid is what GENE "thinks" the world looks like — uniform squares where x (radial) and y (binormal) are nice and even. The right grid is what those same squares actually map to in real physical space, after applying the metric coefficients. The <b class="p">warping, shearing, and stretching</b> you see on the right is exactly what g^xx, g^xy, and g^yy encode.</p>
+</div>
+
+<!-- What each metric does -->
+<h2>What each coefficient does to the grid</h2>
+
+<div class="pair">
+  <div class="panel">
+    <div class="plbl"><span>g^xx EFFECT</span><span style="color:#a78bfa">RADIAL STRETCH</span></div>
+    <canvas id="cGxx"></canvas>
+  </div>
+  <div class="panel">
+    <div class="plbl"><span>g^yy EFFECT</span><span style="color:#7c5fcf">BINORMAL STRETCH</span></div>
+    <canvas id="cGyy"></canvas>
+  </div>
+</div>
+<div class="panel" style="margin-bottom:12px;">
+  <div class="plbl"><span>g^xy EFFECT — THE SHEAR ONE</span><span style="color:#c4a8ff">SKEW / TILT</span></div>
+  <canvas id="cGxy" style="height:280px;"></canvas>
+</div>
+
+<div class="box">
+  <p><b class="p">g^xx</b> stretches or compresses the grid <b>radially</b> (horizontally). On the outboard side, flux surfaces are closer together, so g^xx is larger — 1 unit of GENE's x maps to more real distance.</p>
+  <p style="margin-top:6px;"><b class="p">g^yy</b> stretches the grid in the <b>binormal</b> (vertical) direction. It grows along the field line, partly because of shear.</p>
+  <p style="margin-top:6px;"><b class="p">g^xy</b> is the one that <b>tilts/skews</b> the grid. This is magnetic shear showing up geometrically. At the outboard midplane (z=0) it's zero — the grid is upright. As you move along z, the grid tilts more and more. Crank the shear slider and watch the tilt grow. This is literally why shear tears apart turbulent eddies — it distorts them.</p>
+</div>
+
+<!-- Along the field line -->
+<h2>Watch it change along the field line</h2>
+
+<div class="box">
+  <p>Drag the <b class="p">z position</b> slider above and watch ALL the grids change. At z = 0 (outboard midplane), the real-space grid is relatively square. As you move toward z = ±π (inboard), g^xy kicks in and tilts everything. The grid gets progressively more sheared — that's the field lines on neighboring surfaces twisting apart from each other.</p>
+</div>
+
+<div class="panel" style="margin-bottom:12px;">
+  <div class="plbl"><span>REAL-SPACE GRID AT 5 POSITIONS ALONG z</span><span style="color:#f5c042">OUTBOARD → INBOARD</span></div>
+  <canvas id="cSequence" style="height:240px;"></canvas>
+</div>
+
+<div class="box">
+  <p><b class="a">Summary:</b> The metrics are a lookup table that says "at this z-position along the field line, here's how distorted GENE's nice uniform grid is relative to reality." GENE needs this to compute every spatial derivative correctly. Without it, a turbulent eddy that's circular in GENE-coordinates would actually be stretched and tilted in real space — and GENE wouldn't know.</p>
+</div>
+
+</div>
+
+<script>
+let shat=1.5, zPos=0, rho=0.6;
+
+function setupCanvas(id){
+  const c=document.getElementById(id);
+  if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{c,ctx,w:r.width,h:r.height};
+}
+
+// Metric values at given z
+function getMetrics(z,s,r){
+  const gxxV=1+0.3*r*Math.cos(z);        // radial stretching
+  const gxyV=s*z;                          // cross-term, grows linearly with z
+  const gyyV=1+s*s*z*z+0.1*Math.cos(z);  // binormal, grows quadratically
+  return{gxx:gxxV,gxy:gxyV,gyy:gyyV};
+}
+
+// Transform a point from GENE coords to real space using metrics
+function transform(gx,gy,metrics){
+  // The metric tensor tells us how to convert coordinate displacements to real distances
+  // For visualization: apply the inverse square root of the metric as a linear transform
+  // Simplified: just apply the shearing directly
+  const rx=gx*Math.sqrt(Math.abs(metrics.gxx))+gy*metrics.gxy*0.15;
+  const ry=gy*Math.sqrt(Math.abs(metrics.gyy));
+  return{x:rx,y:ry};
+}
+
+function drawGrid(ctx,W,H,applyMetrics,metricsOverride,opts){
+  const cx=W/2,cy=H/2;
+  const nX=8,nY=8;
+  const spacing=Math.min(W,H)*0.04;
+  const m=metricsOverride||getMetrics(zPos,shat,rho);
+
+  // Draw grid lines
+  for(let i=-nX;i<=nX;i++){
+    ctx.beginPath();
+    for(let j=-nY;j<=nY;j++){
+      let px=i*spacing, py=j*spacing;
+      if(applyMetrics){
+        const t=transform(i*spacing,j*spacing,m);
+        px=t.x; py=t.y;
+      }
+      const sx=cx+px, sy=cy-py;
+      if(j===-nY)ctx.moveTo(sx,sy);
+      else ctx.lineTo(sx,sy);
+    }
+    const isCenter=i===0;
+    ctx.strokeStyle=isCenter?'rgba(155,127,240,0.3)':'rgba(100,116,139,0.12)';
+    ctx.lineWidth=isCenter?1.5:0.8;
+    ctx.stroke();
+  }
+
+  for(let j=-nY;j<=nY;j++){
+    ctx.beginPath();
+    for(let i=-nX;i<=nX;i++){
+      let px=i*spacing, py=j*spacing;
+      if(applyMetrics){
+        const t=transform(i*spacing,j*spacing,m);
+        px=t.x; py=t.y;
+      }
+      const sx=cx+px, sy=cy-py;
+      if(i===-nX)ctx.moveTo(sx,sy);
+      else ctx.lineTo(sx,sy);
+    }
+    const isCenter=j===0;
+    ctx.strokeStyle=isCenter?'rgba(155,127,240,0.3)':'rgba(100,116,139,0.12)';
+    ctx.lineWidth=isCenter?1.5:0.8;
+    ctx.stroke();
+  }
+
+  // Highlight one cell to show distortion
+  const ci=1,cj=1;
+  ctx.beginPath();
+  const corners=[[ci,cj],[ci+1,cj],[ci+1,cj+1],[ci,cj+1]];
+  corners.forEach(([i,j],k)=>{
+    let px=i*spacing,py=j*spacing;
+    if(applyMetrics){const t=transform(px,py,m);px=t.x;py=t.y;}
+    k===0?ctx.moveTo(cx+px,cy-py):ctx.lineTo(cx+px,cy-py);
+  });
+  ctx.closePath();
+  ctx.fillStyle=applyMetrics?'rgba(239,100,97,0.15)':'rgba(62,232,134,0.1)';
+  ctx.fill();
+  ctx.strokeStyle=applyMetrics?'rgba(239,100,97,0.5)':'rgba(62,232,134,0.3)';
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+
+  // Axes labels
+  ctx.font='bold 10px monospace';
+  ctx.fillStyle='rgba(100,116,139,0.3)';
+  ctx.textAlign='center';
+  ctx.fillText(applyMetrics?'radial (real)':'x (GENE)',cx,H-6);
+  ctx.save();ctx.translate(8,cy);ctx.rotate(-Math.PI/2);
+  ctx.fillText(applyMetrics?'binormal (real)':'y (GENE)',0,0);
+  ctx.restore();
+
+  // Metric values
+  if(opts&&opts.showValues){
+    ctx.font='10px monospace';ctx.textAlign='left';ctx.fillStyle='rgba(155,127,240,0.5)';
+    ctx.fillText(`g^xx=${m.gxx.toFixed(2)}`,8,16);
+    ctx.fillText(`g^xy=${m.gxy.toFixed(2)}`,8,30);
+    ctx.fillText(`g^yy=${m.gyy.toFixed(2)}`,8,44);
+    ctx.fillStyle='rgba(100,116,139,0.3)';
+    ctx.fillText(`z=${zPos.toFixed(1)}`,8,58);
+  }
+}
+
+// Individual metric effects
+function drawSingleMetric(id,which){
+  const s=setupCanvas(id);if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  let m;
+  if(which==='gxx')m={gxx:getMetrics(zPos,shat,rho).gxx,gxy:0,gyy:1};
+  else if(which==='gyy')m={gxx:1,gxy:0,gyy:getMetrics(zPos,shat,rho).gyy};
+  else m={gxx:1,gxy:getMetrics(zPos,shat,rho).gxy,gyy:1};
+
+  drawGrid(ctx,w,h,true,m,{showValues:false});
+
+  // Label which metric
+  ctx.font='bold 11px monospace';
+  ctx.fillStyle=which==='gxx'?'#a78bfa':which==='gyy'?'#7c5fcf':'#c4a8ff';
+  ctx.textAlign='left';
+  const labels={gxx:'g^xx only: radial stretch',gyy:'g^yy only: binormal stretch',gxy:'g^xy only: shear tilt'};
+  ctx.fillText(labels[which],8,16);
+
+  const val=which==='gxx'?m.gxx:which==='gyy'?m.gyy:m.gxy;
+  ctx.font='10px monospace';ctx.fillStyle='rgba(100,116,139,0.4)';
+  ctx.fillText(`value = ${val.toFixed(2)}`,8,30);
+}
+
+// Sequence along z
+function drawSequence(){
+  const s=setupCanvas('cSequence');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  const positions=[-2.8,-1.4,0,1.4,2.8];
+  const labels=['z=-π','z=-π/2','z=0\n(outboard)','z=+π/2','z=+π'];
+  const cellW=w/positions.length;
+
+  positions.forEach((z,i)=>{
+    const cx=cellW*i+cellW/2;
+    const cy=h/2;
+    const m=getMetrics(z,shat,rho);
+    const nG=4;
+    const sp=Math.min(cellW,h)*0.055;
+
+    // Mini grid
+    for(let gi=-nG;gi<=nG;gi++){
+      ctx.beginPath();
+      for(let gj=-nG;gj<=nG;gj++){
+        const t=transform(gi*sp,gj*sp,m);
+        const sx=cx+t.x,sy=cy-t.y;
+        gj===-nG?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);
+      }
+      ctx.strokeStyle=gi===0?'rgba(155,127,240,0.25)':'rgba(100,116,139,0.1)';
+      ctx.lineWidth=gi===0?1:0.6;ctx.stroke();
+    }
+    for(let gj=-nG;gj<=nG;gj++){
+      ctx.beginPath();
+      for(let gi=-nG;gi<=nG;gi++){
+        const t=transform(gi*sp,gj*sp,m);
+        const sx=cx+t.x,sy=cy-t.y;
+        gi===-nG?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);
+      }
+      ctx.strokeStyle=gj===0?'rgba(155,127,240,0.25)':'rgba(100,116,139,0.1)';
+      ctx.lineWidth=gj===0?1:0.6;ctx.stroke();
+    }
+
+    // Label
+    ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.35)';ctx.textAlign='center';
+    const lns=labels[i].split('\n');
+    lns.forEach((ln,li)=>ctx.fillText(ln,cx,h-16+li*12));
+
+    // g^xy value
+    ctx.font='bold 9px monospace';ctx.fillStyle='rgba(196,168,255,0.4)';
+    ctx.fillText(`g^xy=${m.gxy.toFixed(1)}`,cx,14);
+  });
+}
+
+function drawAll(){
+  // Main pair
+  let s=setupCanvas('cGene');
+  if(s){s.ctx.fillStyle='#080c14';s.ctx.fillRect(0,0,s.w,s.h);drawGrid(s.ctx,s.w,s.h,false);}
+
+  s=setupCanvas('cReal');
+  if(s){s.ctx.fillStyle='#080c14';s.ctx.fillRect(0,0,s.w,s.h);drawGrid(s.ctx,s.w,s.h,true,null,{showValues:true});}
+
+  // Individual metrics
+  drawSingleMetric('cGxx','gxx');
+  drawSingleMetric('cGyy','gyy');
+  drawSingleMetric('cGxy','gxy');
+
+  // Sequence
+  drawSequence();
+}
+
+// Controls
+document.getElementById('sShat').addEventListener('input',function(e){
+  shat=parseFloat(e.target.value);
+  document.getElementById('vShat').textContent=shat.toFixed(1);
+  drawAll();
+});
+document.getElementById('sZ').addEventListener('input',function(e){
+  zPos=parseFloat(e.target.value);
+  document.getElementById('vZ').textContent=zPos.toFixed(1);
+  drawAll();
+});
+document.getElementById('sRho').addEventListener('input',function(e){
+  rho=parseFloat(e.target.value);
+  document.getElementById('vRho').textContent=rho.toFixed(2);
+  drawAll();
+});
+
+window.addEventListener('load',function(){setTimeout(drawAll,100);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

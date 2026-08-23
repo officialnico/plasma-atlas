@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Clock and the Map — time series vs phase space</title>
+<style>
+  :root{
+    --ink:#0a0e17;
+    --panel:#0d1320;
+    --panel-edge:#1a2336;
+    --grid:#161f33;
+    --grid-axis:#26324d;
+    --text:#9fb0cc;
+    --text-dim:#5d6b87;
+    --text-bright:#e6edf7;
+    --amber:#ffb86b;
+    --prey:#7ee787;
+    --pred:#ff7b72;
+    --violet:#bc8cff;
+    --cyan:#56d4dd;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);}
+  body{
+    padding:clamp(16px,4vw,48px);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #111a2e 0%, transparent 60%),
+      var(--ink);
+    min-height:100vh;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  header.masthead{margin-bottom:8px;}
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--text-dim);margin-bottom:14px;
+  }
+  h1{
+    font-family:var(--sans);
+    font-weight:700;
+    font-size:clamp(28px,5.5vw,52px);
+    line-height:1.02;letter-spacing:-.02em;
+    margin:0 0 16px;color:var(--text-bright);
+  }
+  h1 .slash{color:var(--text-dim);font-weight:300;margin:0 .15em;}
+  .lede{
+    max-width:62ch;font-size:clamp(14px,1.6vw,16px);line-height:1.6;
+    color:var(--text);margin:0 0 4px;
+  }
+  .lede b{color:var(--text-bright);font-weight:600;}
+
+  /* control bar */
+  .controls{
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    margin:28px 0 12px;padding:14px 18px;
+    background:var(--panel);border:1px solid var(--panel-edge);
+    border-radius:2px;
+    font-family:var(--mono);font-size:13px;
+  }
+  button.ctl{
+    font-family:var(--mono);font-size:13px;letter-spacing:.04em;
+    color:var(--ink);background:var(--text-bright);
+    border:none;border-radius:2px;padding:9px 18px;cursor:pointer;
+    transition:opacity .15s;
+  }
+  button.ctl:hover{opacity:.82;}
+  button.ctl.ghost{background:transparent;color:var(--text);border:1px solid var(--panel-edge);}
+  button.ctl.ghost:hover{border-color:var(--text-dim);opacity:1;}
+  button.ctl:focus-visible, input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+  .spd{display:flex;align-items:center;gap:10px;color:var(--text-dim);}
+  .spd input[type=range]{accent-color:var(--cyan);width:130px;cursor:pointer;}
+  .spd .val{color:var(--text);min-width:3.2em;display:inline-block;}
+  .legend-key{margin-left:auto;color:var(--text-dim);display:flex;align-items:center;gap:8px;}
+  .legend-key .dot{width:9px;height:9px;border-radius:50%;background:var(--text-bright);box-shadow:0 0 8px currentColor;color:var(--text-bright);}
+
+  /* module */
+  .module{
+    margin-top:26px;border:1px solid var(--panel-edge);border-radius:2px;
+    background:var(--panel);overflow:hidden;
+  }
+  .module .head{
+    display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+    padding:16px 20px 14px;border-bottom:1px solid var(--panel-edge);
+  }
+  .module .num{
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    letter-spacing:.1em;
+  }
+  .module .name{font-weight:650;font-size:18px;color:var(--text-bright);letter-spacing:-.01em;}
+  .module .kind{
+    font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);border:1px solid var(--accent);border-radius:999px;
+    padding:3px 10px;opacity:.85;
+  }
+  .module .desc{font-size:13.5px;color:var(--text);line-height:1.55;flex-basis:100%;max-width:74ch;margin-top:2px;}
+  .module .eqn{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);flex-basis:100%;margin-top:2px;letter-spacing:.01em;}
+
+  .panes{display:grid;grid-template-columns:1fr 1fr;}
+  .pane{position:relative;padding:14px 16px 18px;}
+  .pane + .pane{border-left:1px solid var(--panel-edge);}
+  .pane .plabel{
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--text-dim);margin-bottom:10px;display:flex;justify-content:space-between;
+  }
+  .pane .plabel .mode{color:var(--accent);}
+  canvas{display:block;width:100%;height:230px;border-radius:1px;}
+  .readout{
+    font-family:var(--mono);font-size:11.5px;color:var(--text-dim);
+    margin-top:8px;display:flex;gap:18px;flex-wrap:wrap;
+  }
+  .readout b{color:var(--text);font-weight:500;}
+
+  footer{margin-top:40px;font-size:13px;color:var(--text-dim);line-height:1.6;max-width:70ch;}
+  footer code{font-family:var(--mono);color:var(--text);background:var(--panel);padding:1px 5px;border-radius:2px;}
+
+  @media (max-width:720px){
+    .panes{grid-template-columns:1fr;}
+    .pane + .pane{border-left:none;border-top:1px solid var(--panel-edge);}
+    .legend-key{margin-left:0;flex-basis:100%;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">Dynamical systems · two views of one motion</div>
+    <h1>The Clock <span class="slash">/</span> The Map</h1>
+    <p class="lede">Every system below is animated <b>once</b>. On the left it's plotted the ordinary way — a quantity ticking along against <b>time</b>, the way an oscilloscope or a chart draws it. On the right is the same motion in <b>phase space</b>: no time axis at all, just the state plotted against itself. The glowing point is a single shared instant. Watch how a tangled, repeating, or chaotic time trace becomes a clean shape once you stop plotting against the clock.</p>
+  </header>
+
+  <div class="controls">
+    <button class="ctl" id="playBtn">Pause</button>
+    <button class="ctl ghost" id="resetBtn">Reset</button>
+    <label class="spd">speed
+      <input type="range" id="speed" min="0.15" max="2.5" step="0.05" value="1">
+      <span class="val" id="spdVal">1.0×</span>
+    </label>
+    <span class="legend-key"><span class="dot"></span>the bright point is "now" — it's the same instant in both panels</span>
+  </div>
+
+  <div id="mods"></div>
+
+  <footer>
+    Integrated live in your browser with 4th-order Runge–Kutta. The phase panels for the pendulum, predator–prey, and neuron are the system's full state space; the Lorenz panel is a 2-D projection (<code>x</code> vs <code>z</code>) of a 3-D attractor, which is why its time trace looks random while the shape stays organized. Reduce-motion settings start it paused.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+// ---------- small math ----------
+function rk4(state, dt, f){
+  const k1=f(state);
+  const s2=state.map((v,i)=>v+0.5*dt*k1[i]);
+  const k2=f(s2);
+  const s3=state.map((v,i)=>v+0.5*dt*k2[i]);
+  const k3=f(s3);
+  const s4=state.map((v,i)=>v+dt*k3[i]);
+  const k4=f(s4);
+  return state.map((v,i)=>v+(dt/6)*(k1[i]+2*k2[i]+2*k3[i]+k4[i]));
+}
+
+// ---------- system definitions ----------
+const COL = {
+  amber:'#ffb86b', prey:'#7ee787', pred:'#ff7b72', violet:'#bc8cff', cyan:'#56d4dd'
+};
+
+const systems = [
+  {
+    num:'01', name:'Pendulum', kind:'Mechanics', accent:COL.amber,
+    desc:'A pendulum swinging with a wide arc (no friction). In time it oscillates back and forth forever; in phase space — angle versus angular velocity — that endless swinging collapses to a single closed loop it retraces every period.',
+    eqn:'θ̇ = ω      ω̇ = −(g/L)·sin θ',
+    init:[2.2, 0.0],            // [theta, omega]
+    dt:0.012, sub:4,
+    f:s=>{const gL=9; return [ s[1], -gL*Math.sin(s[0]) ];},
+    time:{ series:[{i:0,label:'θ',color:COL.amber}], min:-2.6, max:2.6, ylabel:'θ (angle)' },
+    phase:{ xi:0, yi:1, xmin:-2.6,xmax:2.6, ymin:-7,ymax:7, xlabel:'θ  angle', ylabel:'ω  angular velocity', trail:1600 },
+    readout:s=>`θ = ${s[0].toFixed(2)} rad   ω = ${s[1].toFixed(2)} rad/s`
+  },
+  {
+    num:'02', name:'Predator & Prey', kind:'Ecology', accent:COL.prey, accent2:COL.pred,
+    desc:'Lotka–Volterra: rabbits breed, foxes eat rabbits and then starve. The two populations rise and fall out of step, chasing each other in time. Plot prey against predator instead and the chase becomes one orbit — the ecosystem circling the same cycle.',
+    eqn:'ẋ = αx − βxy      ẏ = δxy − γy',
+    init:[1.6, 0.9],            // [prey, pred]
+    dt:0.006, sub:6,
+    f:s=>{const a=2/3,b=4/3,d=1,g=1; return [ a*s[0]-b*s[0]*s[1], d*s[0]*s[1]-g*s[1] ];},
+    time:{ series:[{i:0,label:'prey',color:COL.prey},{i:1,label:'predator',color:COL.pred}], min:0, max:3.0, ylabel:'population' },
+    phase:{ xi:0, yi:1, xmin:0,xmax:3.0, ymin:0,ymax:2.4, xlabel:'prey', ylabel:'predators', trail:2200 },
+    readout:s=>`prey = ${s[0].toFixed(2)}   predators = ${s[1].toFixed(2)}`
+  },
+  {
+    num:'03', name:'Spiking Neuron', kind:'Neuroscience', accent:COL.violet,
+    desc:'FitzHugh–Nagumo, a stripped-down neuron under steady stimulation. Its voltage charges slowly then fires a sharp spike, again and again. In phase space — voltage versus a recovery variable — every spike traces the same loop: a self-sustaining limit cycle the system is pulled back onto.',
+    eqn:'v̇ = v − v³/3 − w + I      ẇ = (v + a − b·w)/τ',
+    init:[-1.0, -0.5],          // [v, w]
+    dt:0.02, sub:4,
+    f:s=>{const a=0.7,b=0.8,tau=12.5,I=0.5; return [ s[0]-s[0]**3/3 - s[1] + I, (s[0]+a-b*s[1])/tau ];},
+    time:{ series:[{i:0,label:'v',color:COL.violet}], min:-2.4, max:2.4, ylabel:'v (membrane voltage)' },
+    phase:{ xi:0, yi:1, xmin:-2.4,xmax:2.4, ymin:-0.8,ymax:1.8, xlabel:'v  voltage', ylabel:'w  recovery', trail:1500 },
+    readout:s=>`v = ${s[0].toFixed(2)}   w = ${s[1].toFixed(2)}`
+  },
+  {
+    num:'04', name:'Lorenz System', kind:'Chaos', accent:COL.cyan,
+    desc:'The Lorenz equations — a toy of atmospheric convection, and the birthplace of "the butterfly effect." Its time trace flips between two states with no pattern you could ever predict. Yet plotted in phase space the chaos is anything but formless: it forever winds around two wings of a strange attractor.',
+    eqn:'ẋ = σ(y−x)   ẏ = x(ρ−z)−y   ż = xy−βz',
+    init:[0.9, 0.0, 0.0],       // [x,y,z]
+    dt:0.005, sub:5,
+    f:s=>{const sig=10,rho=28,bet=8/3; return [ sig*(s[1]-s[0]), s[0]*(rho-s[2])-s[1], s[0]*s[1]-bet*s[2] ];},
+    time:{ series:[{i:0,label:'x',color:COL.cyan}], min:-22, max:22, ylabel:'x' },
+    phase:{ xi:0, yi:2, xmin:-24,xmax:24, ymin:0,ymax:52, xlabel:'x', ylabel:'z   (x–z projection)', trail:3200 },
+    readout:s=>`x = ${s[0].toFixed(1)}   y = ${s[1].toFixed(1)}   z = ${s[2].toFixed(1)}`
+  }
+];
+
+// ---------- build DOM ----------
+const css = getComputedStyle(document.documentElement);
+const C = {
+  panel: css.getPropertyValue('--panel').trim(),
+  grid: css.getPropertyValue('--grid').trim(),
+  axis: css.getPropertyValue('--grid-axis').trim(),
+  textDim: css.getPropertyValue('--text-dim').trim(),
+};
+
+const modsEl = document.getElementById('mods');
+const mods = [];
+
+systems.forEach(sys=>{
+  const el = document.createElement('section');
+  el.className='module';
+  el.style.setProperty('--accent', sys.accent);
+  const seriesLegend = sys.time.series.map(s=>`<span style="color:${s.color}">■ ${s.label}</span>`).join('  ');
+  el.innerHTML = `
+    <div class="head">
+      <span class="num">${sys.num}</span>
+      <span class="name">${sys.name}</span>
+      <span class="kind">${sys.kind}</span>
+      <p class="desc">${sys.desc}</p>
+      <div class="eqn">${sys.eqn}</div>
+    </div>
+    <div class="panes">
+      <div class="pane">
+        <div class="plabel"><span>plotted against time</span><span class="mode">the clock</span></div>
+        <canvas class="cTime"></canvas>
+        <div class="readout"><span>${seriesLegend}</span><span class="ro"></span></div>
+      </div>
+      <div class="pane">
+        <div class="plabel"><span>${sys.phase.xlabel} &nbsp;vs&nbsp; ${sys.phase.ylabel}</span><span class="mode">the map</span></div>
+        <canvas class="cPhase"></canvas>
+        <div class="readout"><span style="color:${sys.accent}">■ trajectory</span></div>
+      </div>
+    </div>`;
+  modsEl.appendChild(el);
+
+  const m = {
+    sys,
+    state: sys.init.slice(),
+    t: 0,
+    timeHist: [],          // {t, vals:[...]}
+    phaseHist: [],         // {x,y}
+    cTime: el.querySelector('.cTime'),
+    cPhase: el.querySelector('.cPhase'),
+    ro: el.querySelector('.ro'),
+    dprSet:false
+  };
+  m.ctxT = m.cTime.getContext('2d');
+  m.ctxP = m.cPhase.getContext('2d');
+  mods.push(m);
+});
+
+// ---------- canvas sizing (retina) ----------
+function fit(canvas, ctx){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if(canvas.width !== Math.round(w*dpr) || canvas.height !== Math.round(h*dpr)){
+    canvas.width = Math.round(w*dpr);
+    canvas.height = Math.round(h*dpr);
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {w,h};
+}
+
+// ---------- drawing helpers ----------
+function drawGrid(ctx,w,h, opts){
+  ctx.fillStyle = C.panel; ctx.fillRect(0,0,w,h);
+  ctx.lineWidth=1;
+  ctx.strokeStyle = C.grid;
+  const nx=8, ny=4;
+  ctx.beginPath();
+  for(let i=0;i<=nx;i++){const x=i/nx*w; ctx.moveTo(x,0);ctx.lineTo(x,h);}
+  for(let j=0;j<=ny;j++){const y=j/ny*h; ctx.moveTo(0,y);ctx.lineTo(w,y);}
+  ctx.stroke();
+  // zero axis if in range
+  if(opts && opts.zeroY!==undefined){
+    ctx.strokeStyle=C.axis;ctx.beginPath();
+    ctx.moveTo(0,opts.zeroY);ctx.lineTo(w,opts.zeroY);ctx.stroke();
+  }
+  if(opts && opts.zeroX!==undefined){
+    ctx.strokeStyle=C.axis;ctx.beginPath();
+    ctx.moveTo(opts.zeroX,0);ctx.lineTo(opts.zeroX,h);ctx.stroke();
+  }
+}
+
+const TWINDOW = 6.5; // seconds visible in time panel
+
+function renderTime(m,w,h){
+  const {sys}=m;
+  const min=sys.time.min, max=sys.time.max, span=max-min;
+  const zeroY = (min<=0&&max>=0)? h - (0-min)/span*h : undefined;
+  drawGrid(m.ctxT,w,h,{zeroY});
+  const ctx=m.ctxT;
+  const tNow=m.t, tLeft=tNow-TWINDOW;
+  const X = t => (t - tLeft)/TWINDOW * w;
+  const Y = v => h - (v-min)/span*h;
+
+  sys.time.series.forEach((ser)=>{
+    ctx.lineWidth=1.8; ctx.strokeStyle=ser.color;
+    ctx.lineJoin='round';
+    ctx.beginPath();
+    let started=false;
+    for(const pt of m.timeHist){
+      if(pt.t<tLeft) continue;
+      const x=X(pt.t), y=Y(pt.vals[ser.i]);
+      if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    // head dot at right edge
+    const last=m.timeHist[m.timeHist.length-1];
+    if(last){
+      const x=X(last.t), y=Y(last.vals[ser.i]);
+      ctx.save();
+      ctx.shadowColor=ser.color; ctx.shadowBlur=12;
+      ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.arc(x,y,3.4,0,7);ctx.fill();
+      ctx.fillStyle=ser.color;
+      ctx.beginPath();ctx.arc(x,y,2.0,0,7);ctx.fill();
+      ctx.restore();
+    }
+  });
+}
+
+function renderPhase(m,w,h){
+  const {sys}=m, p=sys.phase;
+  const xspan=p.xmax-p.xmin, yspan=p.ymax-p.ymin;
+  const X = v => (v-p.xmin)/xspan*w;
+  const Y = v => h-(v-p.ymin)/yspan*h;
+  const zeroX = (p.xmin<=0&&p.xmax>=0)? X(0):undefined;
+  const zeroY = (p.ymin<=0&&p.ymax>=0)? Y(0):undefined;
+  drawGrid(m.ctxP,w,h,{zeroX,zeroY});
+  const ctx=m.ctxP;
+  const H=m.phaseHist;
+  if(H.length>1){
+    // faint full trail
+    ctx.lineWidth=1.4; ctx.lineJoin='round';
+    ctx.strokeStyle=sys.accent; ctx.globalAlpha=0.40;
+    ctx.beginPath();
+    ctx.moveTo(X(H[0].x),Y(H[0].y));
+    for(let i=1;i<H.length;i++) ctx.lineTo(X(H[i].x),Y(H[i].y));
+    ctx.stroke();
+    ctx.globalAlpha=1;
+    // bright recent segment
+    const recent=Math.min(70,H.length);
+    ctx.lineWidth=2.1; ctx.strokeStyle=sys.accent;
+    ctx.beginPath();
+    const s0=H.length-recent;
+    ctx.moveTo(X(H[s0].x),Y(H[s0].y));
+    for(let i=s0+1;i<H.length;i++) ctx.lineTo(X(H[i].x),Y(H[i].y));
+    ctx.stroke();
+    // head
+    const last=H[H.length-1];
+    const hx=X(last.x), hy=Y(last.y);
+    ctx.save();
+    ctx.shadowColor=sys.accent; ctx.shadowBlur=16;
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(hx,hy,4.0,0,7);ctx.fill();
+    ctx.fillStyle=sys.accent;
+    ctx.beginPath();ctx.arc(hx,hy,2.3,0,7);ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ---------- simulation loop ----------
+let running=true;
+let speed=1.0;
+const playBtn=document.getElementById('playBtn');
+const resetBtn=document.getElementById('resetBtn');
+const speedEl=document.getElementById('speed');
+const spdVal=document.getElementById('spdVal');
+
+playBtn.addEventListener('click',()=>{
+  running=!running;
+  playBtn.textContent=running?'Pause':'Play';
+  if(running) last=performance.now(), requestAnimationFrame(loop);
+});
+resetBtn.addEventListener('click',()=>{
+  mods.forEach(m=>{m.state=m.sys.init.slice();m.t=0;m.timeHist=[];m.phaseHist=[];});
+});
+speedEl.addEventListener('input',()=>{
+  speed=parseFloat(speedEl.value);
+  spdVal.textContent=speed.toFixed(1)+'×';
+});
+
+function step(m){
+  const {sys}=m;
+  const steps=Math.max(1,Math.round(sys.sub*speed));
+  for(let i=0;i<steps;i++){
+    m.state=rk4(m.state,sys.dt,sys.f);
+    m.t+=sys.dt;
+  }
+  // record
+  m.timeHist.push({t:m.t, vals:m.state.slice()});
+  // trim time history to window
+  const cutoff=m.t-TWINDOW-0.2;
+  while(m.timeHist.length>2 && m.timeHist[0].t<cutoff) m.timeHist.shift();
+  m.phaseHist.push({x:m.state[sys.phase.xi], y:m.state[sys.phase.yi]});
+  if(m.phaseHist.length>sys.phase.trail) m.phaseHist.shift();
+}
+
+function render(m){
+  const dT=fit(m.cTime,m.ctxT);
+  const dP=fit(m.cPhase,m.ctxP);
+  renderTime(m,dT.w,dT.h);
+  renderPhase(m,dP.w,dP.h);
+  m.ro.textContent=m.sys.readout(m.state);
+}
+
+let last=performance.now();
+function loop(now){
+  if(!running) return;
+  // advance simulation in real-ish time; cap dt to avoid jumps after tab switch
+  const elapsed=Math.min((now-last)/1000, 0.05);
+  last=now;
+  mods.forEach(m=>{ step(m); render(m); });
+  requestAnimationFrame(loop);
+}
+
+// initial draw + reduced motion handling
+mods.forEach(render);
+if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+  running=false; playBtn.textContent='Play';
+} else {
+  requestAnimationFrame(loop);
+}
+window.addEventListener('resize',()=>{ if(!running) mods.forEach(render); });
+</script>
+</body>
+</html>

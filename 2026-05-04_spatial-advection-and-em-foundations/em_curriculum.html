@@ -1,0 +1,2173 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>em curriculum</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Bottom-up EM curriculum
+// Builds from "what is force" up through Maxwell, addressing each question
+// in the order the user actually asked them, with no assumed knowledge.
+
+let katexLoadPromise = null;
+function loadKaTeX() {
+  if (katexLoadPromise) return katexLoadPromise;
+  katexLoadPromise = new Promise((resolve) => {
+    if (window.katex) { resolve(); return; }
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
+    document.head.appendChild(link);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
+    script.onload = () => resolve();
+    document.head.appendChild(script);
+  });
+  return katexLoadPromise;
+}
+
+function Tex({ children, display = false }) {
+  const ref = useRef(null);
+  const [ready, setReady] = useState(!!window.katex);
+  useEffect(() => { loadKaTeX().then(() => setReady(true)); }, []);
+  useEffect(() => {
+    if (!ready || !ref.current) return;
+    if (window.katex) {
+      try {
+        window.katex.render(children, ref.current, {
+          displayMode: display, throwOnError: false, output: "html", strict: false
+        });
+      } catch (e) { ref.current.textContent = children; }
+    } else { ref.current.textContent = children; }
+  }, [children, display, ready]);
+  return <span ref={ref} className="tex-render" style={{ display: display ? "block" : "inline" }}>{!ready ? children : null}</span>;
+}
+
+// ===========================================================================
+// CHAPTER LIST — the actual bottom-up sequence
+// ===========================================================================
+const CHAPTERS = [
+  { id: "ch00", title: "Start here", subtitle: "what this is, how to read it" },
+  { id: "ch01", title: "Force", subtitle: "what does it mean to push something" },
+  { id: "ch02", title: "The four forces", subtitle: "gravity, EM, strong, weak" },
+  { id: "ch03", title: "The strong force", subtitle: "the glue that holds matter together" },
+  { id: "ch04", title: "Charge", subtitle: "the property that creates electric forces" },
+  { id: "ch05", title: "Coulomb's law", subtitle: "force between two charges" },
+  { id: "ch06", title: "Fields", subtitle: "the conceptual leap from action-at-a-distance" },
+  { id: "ch07", title: "E from a charge", subtitle: "the electric field formula" },
+  { id: "ch08", title: "Constants", subtitle: "k, ε₀, e, c, α — what they are" },
+  { id: "ch09", title: "Trajectories", subtitle: "how to compute particle motion" },
+  { id: "ch10", title: "Currents", subtitle: "amperes, what flows through wires" },
+  { id: "ch11", title: "Magnetic fields", subtitle: "what B is, μ₀, the magnetic constant" },
+  { id: "ch12", title: "Lorentz force", subtitle: "the full force on a charged particle" },
+  { id: "ch13", title: "Maxwell's four equations", subtitle: "the laws of E and B" },
+  { id: "ch14", title: "Fields are universal", subtitle: "QFT, Higgs, modern picture" },
+];
+
+function EMCurriculum() {
+  const [chapter, setChapter] = useState("ch00");
+  const [completed, setCompleted] = useState({});
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#08080d",
+      color: "#e8e8ee",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card {
+          background: #11111a; border: 1px solid #1f1f2c; padding: 22px;
+          margin-bottom: 16px;
+        }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; margin-top: -7px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #08080d;
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%;
+          cursor: grab; border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+        .formula-display {
+          background: #08080d; padding: 14px; border-radius: 4px;
+          text-align: center; margin: 12px 0;
+        }
+        .formula-display .katex { font-size: 1.25em; }
+        .katex { color: inherit !important; }
+        .katex-display { margin: 0.5em 0 !important; color: #fff; }
+        .tex-render { color: #fff; }
+        .formula-block {
+          background: #08080d; border-left: 2px solid #ff5c3a;
+          padding: 12px 16px; margin: 12px 0;
+          font-size: 14px; color: #fff; line-height: 1.7;
+        }
+        .quote-block {
+          background: #0d0d18; border-left: 2px solid #ffd166;
+          padding: 12px 16px; margin: 12px 0;
+          font-size: 13px; color: #b0b0bc; line-height: 1.7;
+        }
+        .check {
+          background: #0d0d18; border: 1px solid #1f1f2c;
+          padding: 14px 16px; margin: 16px 0; border-radius: 4px;
+        }
+        .check-q {
+          font-size: 12px; letter-spacing: 0.15em; color: #7af0a8;
+          text-transform: uppercase; margin-bottom: 8px;
+        }
+        body p { line-height: 1.7; }
+        .prose {
+          font-size: 14px; line-height: 1.75; color: #d8d8e2;
+        }
+        .prose p { margin: 0 0 14px 0; }
+        .prose strong { color: #fff; }
+        .prose em { color: #ffd166; font-style: italic; }
+        .key-term {
+          color: #ff5c3a; font-weight: 600;
+        }
+        .definition {
+          background: #11111a; border: 1px dashed #ff5c3a;
+          padding: 12px 16px; margin: 14px 0;
+        }
+        .definition .lbl { font-size: 10px; letter-spacing: 0.2em; color: #ff5c3a; margin-bottom: 6px; }
+        .definition .val { font-size: 14px; color: #fff; line-height: 1.6; }
+        .sidebar {
+          width: 260px; min-width: 260px;
+          background: #0a0a12; border-right: 1px solid #1f1f2c;
+          padding: 24px 18px; height: 100vh; position: sticky; top: 0;
+          overflow-y: auto;
+        }
+        .ch-link {
+          display: block; padding: 10px 12px; cursor: pointer;
+          border-left: 2px solid transparent;
+          transition: all 0.15s ease;
+        }
+        .ch-link:hover { background: #11111a; border-left-color: #2a2a35; }
+        .ch-link.active { background: #11111a; border-left-color: #ff5c3a; }
+        .ch-num {
+          font-size: 9px; letter-spacing: 0.2em; color: #666;
+        }
+        .ch-link.active .ch-num { color: #ff5c3a; }
+        .ch-title {
+          font-family: 'Fraunces', serif; font-style: italic; font-size: 15px;
+          color: #e8e8ee; margin-top: 2px;
+        }
+        .ch-sub {
+          font-size: 10px; color: #888; margin-top: 2px;
+        }
+        @media (max-width: 800px) {
+          .layout { flex-direction: column; }
+          .sidebar { position: static; width: 100%; height: auto; }
+        }
+      `}</style>
+
+      <div className="layout" style={{ display: "flex" }}>
+        <div className="sidebar">
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 6 }}>
+              CURRICULUM
+            </div>
+            <div className="display" style={{ fontSize: 22, fontStyle: "italic", fontWeight: 800, color: "#fff", lineHeight: 1.1 }}>
+              Electromagnetism<br/>from scratch
+            </div>
+          </div>
+          {CHAPTERS.map((c, i) => (
+            <div key={c.id}
+              className={`ch-link ${chapter === c.id ? "active" : ""}`}
+              onClick={() => setChapter(c.id)}>
+              <div className="ch-num">CH {String(i).padStart(2, '0')}</div>
+              <div className="ch-title">{c.title}</div>
+              <div className="ch-sub">{c.subtitle}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, padding: "32px 32px", maxWidth: 880, minWidth: 0 }}>
+          {chapter === "ch00" && <Ch00 onStart={() => setChapter("ch01")} />}
+          {chapter === "ch01" && <Ch01 />}
+          {chapter === "ch02" && <Ch02 />}
+          {chapter === "ch03" && <Ch03 />}
+          {chapter === "ch04" && <Ch04 />}
+          {chapter === "ch05" && <Ch05 />}
+          {chapter === "ch06" && <Ch06 />}
+          {chapter === "ch07" && <Ch07 />}
+          {chapter === "ch08" && <Ch08 />}
+          {chapter === "ch09" && <Ch09 />}
+          {chapter === "ch10" && <Ch10 />}
+          {chapter === "ch11" && <Ch11 />}
+          {chapter === "ch12" && <Ch12 />}
+          {chapter === "ch13" && <Ch13 />}
+
+          {/* Nav buttons */}
+          <ChapterNav chapter={chapter} setChapter={setChapter} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChapterNav({ chapter, setChapter }) {
+  const idx = CHAPTERS.findIndex(c => c.id === chapter);
+  const prev = idx > 0 ? CHAPTERS[idx - 1] : null;
+  const next = idx < CHAPTERS.length - 1 ? CHAPTERS[idx + 1] : null;
+  return (
+    <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid #1f1f2c", display: "flex", justifyContent: "space-between", gap: 12 }}>
+      {prev ? (
+        <button className="control-btn" onClick={() => setChapter(prev.id)}>
+          ← {prev.title}
+        </button>
+      ) : <div />}
+      {next && (
+        <button className="control-btn active" onClick={() => setChapter(next.id)}>
+          {next.title} →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 00 — Start Here
+// =========================================================================
+function Ch00({ onStart }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 00</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Start here
+      </h1>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          This is a curriculum built around the questions that actually come up. We're going to assume <strong>nothing</strong> — not what a force is, not what charge means, not what an ampere is. We'll build everything from the ground up.
+        </p>
+        <p>
+          You'll see this material in <em>three modes</em> as we go:
+        </p>
+        <p>
+          <strong>1. Plain explanations.</strong> Sentences that try to tell you what something is and why it matters, written for someone who hasn't been to physics class.
+        </p>
+        <p>
+          <strong>2. Math.</strong> Real formulas, properly typeset. Don't skip them — but don't be intimidated either. The math is just a precise way of saying what the words say.
+        </p>
+        <p>
+          <strong>3. Interactive demos.</strong> Slider-driven visualizations where you can play with the concepts directly. These are where the intuition usually clicks.
+        </p>
+        <p>
+          When you see a <span className="key-term">term in orange</span>, that's a key word being defined for the first time. When you see <em>a phrase in yellow italic</em>, it's a piece of the conceptual scaffolding worth holding onto.
+        </p>
+        <p>
+          The chapters are sequential — earlier ones build the foundation for later ones. You can always click back to a previous chapter if something feels unclear.
+        </p>
+        <p>
+          By the end you'll understand: what charges and fields are, why constants like <Tex>{"\\epsilon_0"}</Tex> and <Tex>{"\\mu_0"}</Tex> exist, what Maxwell's four equations mean, what an electromagnetic wave is, and how all of this connects to the modern picture of the universe as fields.
+        </p>
+      </div>
+
+      <button onClick={onStart} className="control-btn active" style={{ marginTop: 24, padding: "12px 20px", fontSize: 12 }}>
+        Begin → Chapter 01: Force
+      </button>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 01 — Force
+// =========================================================================
+function Ch01() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 01</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Force
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>What it actually means to push or pull something.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          Before we can talk about electromagnetism, we need <em>force</em>. Everything that's going to come — charge, fields, currents, magnetism — is ultimately about objects pushing and pulling on each other.
+        </p>
+
+        <div className="definition">
+          <div className="lbl">DEFINITION</div>
+          <div className="val">
+            A <span className="key-term">force</span> is a push or pull on an object. It has a <strong>magnitude</strong> (how hard the push) and a <strong>direction</strong> (which way it's pushing). That makes it a <strong>vector</strong>.
+          </div>
+        </div>
+
+        <p>
+          We write force as <Tex>{"\\vec{F}"}</Tex>. The little arrow on top means "this is a vector — it has a direction, not just a size."
+        </p>
+
+        <p>
+          Forces have units of <strong>newtons</strong>, abbreviated <Tex>{"\\text{N}"}</Tex>. One newton is roughly the force you'd feel holding a small apple against gravity.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Newton's second law
+        </h3>
+
+        <p>
+          The fundamental rule connecting forces to motion comes from Isaac Newton:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{F} = m\\vec{a}"}</Tex>
+        </div>
+
+        <p>
+          In words: <em>force equals mass times acceleration</em>. Where:
+        </p>
+        <p>
+          • <Tex>{"m"}</Tex> is the <span className="key-term">mass</span> of the object — how much "stuff" it has, in kilograms.<br/>
+          • <Tex>{"\\vec{a}"}</Tex> is the <span className="key-term">acceleration</span> — how fast the velocity is changing, with units of meters per second per second.<br/>
+          • <Tex>{"\\vec{F}"}</Tex> is the force needed to produce that acceleration.
+        </p>
+
+        <p>
+          Read this equation as a recipe: <em>if I know the force on something and how heavy it is, I can compute how fast it'll accelerate.</em> Just rearrange to <Tex>{"\\vec{a} = \\vec{F}/m"}</Tex>.
+        </p>
+
+        <ForceDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Why this matters
+        </h3>
+
+        <p>
+          Once you have force and Newton's second law, you have <em>all of mechanics</em>. Every prediction about how things move — planets, projectiles, particles in plasmas — comes from computing the force on something and then applying <Tex>{"\\vec{F} = m\\vec{a}"}</Tex> to figure out the motion.
+        </p>
+
+        <p>
+          So for the rest of this curriculum, our job is going to be: <strong>given some configuration of charges and fields, what's the force on a particle? Then plug it into Newton.</strong>
+        </p>
+
+        <div className="check">
+          <div className="check-q">CHECK</div>
+          <div style={{ fontSize: 13, color: "#d8d8e2", lineHeight: 1.65 }}>
+            A 2 kg ball has a force of 10 N pushing it to the right. What's its acceleration?
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", color: "#666", fontSize: 12 }}>show answer</summary>
+              <div style={{ marginTop: 6, fontSize: 13 }}>
+                <Tex>{"\\vec{a} = \\vec{F}/m = 10/2 = 5 \\text{ m/s}^2"}</Tex> to the right. Every second, the ball gets 5 m/s faster in that direction.
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ForceDemo() {
+  const [F, setF] = useState(5);
+  const [m, setM] = useState(2);
+  const a = F / m;
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · F = ma
+      </div>
+      <svg width="100%" viewBox="0 0 480 120" style={{ background: "#08080d", borderRadius: 4 }}>
+        <line x1="40" y1="80" x2="440" y2="80" stroke="#1f1f2c" />
+        <rect x="200" y="50" width={20 + m * 12} height={20 + m * 12} fill="#7af0a8" stroke="#0a0a0f" strokeWidth="2" />
+        <text x={210 + m * 6} y={62 + m * 6} fontSize="10" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{m}kg</text>
+        {/* Force arrow */}
+        <line x1={170 - F * 6} y1={62 + m * 6} x2={195} y2={62 + m * 6} stroke="#ff5c3a" strokeWidth="3" markerEnd="url(#fa1)" />
+        <text x={170 - F * 6} y={50 + m * 6} fontSize="11" fill="#ff5c3a" fontStyle="italic" fontFamily="Fraunces">F = {F}N</text>
+        {/* Acceleration arrow */}
+        <line x1={210 + m * 12 + 10} y1={62 + m * 6} x2={210 + m * 12 + 10 + a * 14} y2={62 + m * 6} stroke="#ffd166" strokeWidth="2" markerEnd="url(#fa2)" />
+        <text x={210 + m * 12 + 10 + a * 7} y={50 + m * 6} fontSize="11" fill="#ffd166" fontStyle="italic" fontFamily="Fraunces">a = {a.toFixed(2)} m/s²</text>
+        <defs>
+          <marker id="fa1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+          <marker id="fa2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ffd166" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>Force F (N)</span><span style={{ color: "#fff" }}>{F.toFixed(1)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.5" max="10" step="0.1" value={F} onChange={e => setF(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>Mass m (kg)</span><span style={{ color: "#fff" }}>{m.toFixed(1)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.5" max="6" step="0.1" value={m} onChange={e => setM(parseFloat(e.target.value))} />
+        </div>
+      </div>
+      <div className="formula-block">
+        <Tex>{`\\vec{a} = \\vec{F}/m = ${F.toFixed(1)}/${m.toFixed(1)} = ${a.toFixed(2)} \\text{ m/s}^2`}</Tex>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 02 — Charge
+// =========================================================================
+function Ch02() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 02</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Charge
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The property of matter that creates electric forces.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          You know that some things attract or repel each other in mysterious ways. Magnets stick to fridges. Rubbed balloons attract hair. Lightning shocks you in dry weather. The thing causing all of these phenomena, at the most fundamental level, is <em>electric charge</em>.
+        </p>
+
+        <div className="definition">
+          <div className="lbl">DEFINITION</div>
+          <div className="val">
+            <span className="key-term">Charge</span> is a property that some particles have. It comes in two types — <strong style={{ color: "#ffd166" }}>positive</strong> and <strong style={{ color: "#3ec6c2" }}>negative</strong>. Like charges repel each other; opposite charges attract.
+          </div>
+        </div>
+
+        <p>
+          That's it. Charge is a property, like mass. Just as some objects have more mass than others, some particles have charge and others don't. Charge has units of <strong>coulombs</strong>, abbreviated <Tex>{"\\text{C}"}</Tex>.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          The elementary charge
+        </h3>
+
+        <p>
+          Here's something striking: <em>charge in the universe is quantized</em>. You don't see arbitrary amounts of charge. You see specific units.
+        </p>
+
+        <p>
+          Every electron has the exact same charge: a specific negative value. Every proton has the exact same charge: the same magnitude as the electron, but positive. We call this fundamental amount the <span className="key-term">elementary charge</span>, written <Tex>{"e"}</Tex>:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"e \\approx 1.602 \\times 10^{-19} \\text{ C}"}</Tex>
+        </div>
+
+        <p>
+          That's a very small number. To get one coulomb of charge, you'd need about <Tex>{"6.24 \\times 10^{18}"}</Tex> electrons or protons. That's why we don't usually deal with single coulombs in everyday life — most household devices involve microcoulombs (millionths of a coulomb) or less.
+        </p>
+
+        <div className="quote-block">
+          <strong>Note on the symbol:</strong> The Latin letter <Tex>{"e"}</Tex> is reserved for the elementary charge. The Greek letter <Tex>{"\\epsilon"}</Tex> (epsilon) means something completely different. We'll meet <Tex>{"\\epsilon_0"}</Tex> in Chapter 06. They look similar but have nothing to do with each other.
+          </div>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Where charge comes from
+        </h3>
+
+        <p>
+          Atoms are made of three particles:
+        </p>
+
+        <p>
+          • <strong>Protons</strong> have charge <Tex>{"+e"}</Tex>. They live in the nucleus.<br/>
+          • <strong>Electrons</strong> have charge <Tex>{"-e"}</Tex>. They orbit around the nucleus.<br/>
+          • <strong>Neutrons</strong> have <em>no charge</em>. They live in the nucleus alongside protons.
+        </p>
+
+        <div className="quote-block">
+          <strong>What holds the nucleus together?</strong> Protons all have the same positive charge, so by Coulomb's law they should violently repel each other. The reason nuclei don't fly apart is the <em>strong nuclear force</em> we met in Chapter 02 — a different force that overpowers electric repulsion at nuclear distances. Neutrons feel the strong force too, so adding neutrons gives extra binding without adding more electric repulsion. That's why heavy elements have more neutrons than protons.
+        </div>
+
+        <p>
+          A normal atom has equal numbers of protons and electrons. The charges cancel out, so the atom is electrically neutral. But you can <em>add or remove electrons</em> from atoms — that's what happens when you rub a balloon on your hair, or when lightning strikes. The result is an object with extra electrons (negative charge) or missing electrons (positive charge).
+        </p>
+
+        <ChargeDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Wait — protons and electrons have the same charge?
+        </h3>
+
+        <p>
+          Protons and electrons have <em>equal magnitude, opposite sign</em>. Same size of charge — one positive, one negative. To extraordinary experimental precision, the magnitude of an electron's charge equals the magnitude of a proton's charge.
+        </p>
+
+        <p>
+          This is genuinely remarkable, because protons and electrons are <em>completely different particles</em>:
+        </p>
+
+        <p>
+          • <strong>Electrons</strong> are <em>fundamental</em> — they're not made of anything smaller. As far as we know, an electron is a single excitation of the electron field (Chapter 12).<br/>
+          • <strong>Protons</strong> are <em>composite</em> — they're built out of three smaller particles called <span className="key-term">quarks</span>:
+        </p>
+
+        <div className="formula-block">
+          A proton = 2 up-quarks + 1 down-quark<br/>
+          Up quark charge: <Tex>{"+\\tfrac{2}{3}e"}</Tex><br/>
+          Down quark charge: <Tex>{"-\\tfrac{1}{3}e"}</Tex><br/>
+          Total: <Tex>{"+\\tfrac{2}{3}e + \\tfrac{2}{3}e - \\tfrac{1}{3}e = +e"}</Tex>
+        </div>
+
+        <p>
+          So a proton is <em>not made of electrons</em>. It's made of three quarks whose charges happen to sum to <Tex>{"+e"}</Tex>. The fact that this sum exactly matches the electron's <Tex>{"-e"}</Tex> in magnitude is one of the deep mysteries of the Standard Model — it follows from a principle called <em>anomaly cancellation</em>, but the underlying reason is still unsolved.
+        </p>
+
+        <p>
+          A neutron, similarly, is made of <strong>1 up-quark + 2 down-quarks</strong>. Its charge: <Tex>{"+\\tfrac{2}{3} - \\tfrac{1}{3} - \\tfrac{1}{3} = 0"}</Tex>. That's why neutrons are neutral.
+        </p>
+
+        <div className="quote-block">
+          <strong>Quarks have fractional charges</strong> (multiples of <Tex>{"e/3"}</Tex>), but you'll never see a free quark by itself. They're always bound together inside particles like protons and neutrons. So every charge you can isolate in the universe is an integer multiple of <Tex>{"e"}</Tex>.
+        </div>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Ions — atoms with extra or missing electrons
+        </h3>
+
+        <p>
+          Now here's something practically important. An atom in its normal state has the <em>same number</em> of protons and electrons, so it's electrically neutral overall. But electrons are weakly bound to the outer parts of the atom — much easier to remove or add than the tightly-bound protons in the nucleus.
+        </p>
+
+        <p>
+          When an atom <em>loses</em> or <em>gains</em> electrons (while keeping the same protons), it becomes an <span className="key-term">ion</span>. Its net charge is the difference:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\text{net charge} = (\\text{# protons}) - (\\text{# electrons}), \\text{ in units of } e"}</Tex>
+        </div>
+
+        <p>
+          • <strong>Loses electrons</strong> → fewer negative charges → net positive → <span className="key-term">cation</span> (positive ion)<br/>
+          • <strong>Gains electrons</strong> → extra negative charges → net negative → <span className="key-term">anion</span> (negative ion)
+        </p>
+
+        <h3 className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Worked examples
+        </h3>
+
+        <div className="formula-block" style={{ borderLeftColor: "#ffd166" }}>
+          <strong>Sodium atom (Na)</strong>: 11 protons, 11 electrons.<br/>
+          Net charge: <Tex>{"11(+e) + 11(-e) = 0"}</Tex> — neutral.<br/><br/>
+
+          <strong>Sodium loses 1 electron → Na⁺</strong>: 11 protons, 10 electrons.<br/>
+          Net charge: <Tex>{"11(+e) + 10(-e) = +1e"}</Tex> — positive ion.<br/><br/>
+
+          <strong>Chlorine atom (Cl)</strong>: 17 protons, 17 electrons.<br/>
+          Net charge: <Tex>{"17(+e) + 17(-e) = 0"}</Tex> — neutral.<br/><br/>
+
+          <strong>Chlorine gains 1 electron → Cl⁻</strong>: 17 protons, 18 electrons.<br/>
+          Net charge: <Tex>{"17(+e) + 18(-e) = -1e"}</Tex> — negative ion.
+        </div>
+
+        <p>
+          This is exactly what happens in table salt (NaCl). A sodium atom transfers an electron to a chlorine atom. Now you have <strong>Na⁺</strong> and <strong>Cl⁻</strong> — two ions with opposite charges that attract each other electrostatically and stick together as a salt crystal.
+        </p>
+
+        <p>
+          Other examples of common ions:
+        </p>
+
+        <p>
+          • <strong>Ca²⁺</strong> (calcium ion): 20 protons, 18 electrons → charge <Tex>{"+2e"}</Tex> (lost 2 electrons)<br/>
+          • <strong>O²⁻</strong> (oxide ion): 8 protons, 10 electrons → charge <Tex>{"-2e"}</Tex> (gained 2 electrons)<br/>
+          • <strong>Al³⁺</strong> (aluminum ion): 13 protons, 10 electrons → charge <Tex>{"+3e"}</Tex> (lost 3 electrons)
+        </p>
+
+        <p>
+          The notation in chemistry is: write the element symbol, then a superscript with the charge (e.g. Mg²⁺ for an ion with <Tex>{"+2e"}</Tex>).
+        </p>
+
+        <IonDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Why this matters
+        </h3>
+
+        <p>
+          Ions are everywhere. They're how batteries work (lithium ions moving from one electrode to another). They're how nerve signals travel in your body (sodium and potassium ions crossing cell membranes). They're how electricity flows in saltwater. They're the ingredients of plasma — the fourth state of matter, made of free ions and electrons.
+        </p>
+
+        <p>
+          When we eventually get to plasma physics, we'll be tracking populations of ions and electrons separately, because they have different masses and respond to fields differently. The fact that you can have <em>extra positive</em> or <em>extra negative</em> charge in a region of space — by having more ions or more electrons — is what drives all the interesting plasma phenomena.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          The fundamental rule
+        </h3>
+
+        <p>
+          Two charges interact. The rule is simple but profound:
+        </p>
+
+        <div className="formula-block" style={{ borderLeftColor: "#7af0a8" }}>
+          Like charges repel. Opposite charges attract. The force gets stronger when charges are bigger, and weaker when they're farther apart.
+        </div>
+
+        <p>
+          The next chapter makes this precise. We'll write down the actual formula for the force between two charges — <em>Coulomb's law</em>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ChargeDemo() {
+  const [protons, setProtons] = useState(8);
+  const [electrons, setElectrons] = useState(8);
+  const netCharge = protons - electrons;
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · build an atom or ion
+      </div>
+      <svg width="100%" viewBox="0 0 480 200" style={{ background: "#08080d", borderRadius: 4 }}>
+        {/* Nucleus */}
+        <circle cx={240} cy={100} r={Math.max(20, 8 + protons * 1.5)} fill="#1a1a26" stroke="#666" />
+        {Array.from({ length: protons }).map((_, i) => {
+          const ang = (i / protons) * Math.PI * 2;
+          const r = protons > 1 ? Math.min(15, protons) : 0;
+          return <circle key={`p${i}`} cx={240 + Math.cos(ang) * r} cy={100 + Math.sin(ang) * r} r="3" fill="#ffd166" />;
+        })}
+        {/* Electrons in orbit */}
+        {Array.from({ length: electrons }).map((_, i) => {
+          const ang = (i / electrons) * Math.PI * 2;
+          const orbit = 60 + (i % 2) * 20;
+          return <circle key={`e${i}`} cx={240 + Math.cos(ang) * orbit} cy={100 + Math.sin(ang) * orbit} r="3" fill="#3ec6c2" />;
+        })}
+        {/* Orbits */}
+        {[60, 80].map(r => <circle key={r} cx={240} cy={100} r={r} fill="none" stroke="#1f1f2c" strokeDasharray="2,3" />)}
+        <text x={20} y={20} fontSize="11" fill="#ffd166" fontStyle="italic">protons (yellow): {protons}</text>
+        <text x={20} y={36} fontSize="11" fill="#3ec6c2" fontStyle="italic">electrons (cyan): {electrons}</text>
+        <text x={20} y={180} fontSize="13" fill={netCharge === 0 ? "#7af0a8" : netCharge > 0 ? "#ffd166" : "#3ec6c2"} fontStyle="italic" fontFamily="Fraunces">
+          net charge: {netCharge >= 0 ? "+" : ""}{netCharge}e
+          {netCharge === 0 && " (neutral)"}
+          {netCharge !== 0 && " (ion)"}
+        </text>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>protons</span><span style={{ color: "#fff" }}>{protons}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="1" max="12" step="1" value={protons} onChange={e => setProtons(parseInt(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>electrons</span><span style={{ color: "#fff" }}>{electrons}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0" max="14" step="1" value={electrons} onChange={e => setElectrons(parseInt(e.target.value))} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IonDemo() {
+  const ELEMENTS = [
+    { name: "Hydrogen", symbol: "H", protons: 1 },
+    { name: "Sodium", symbol: "Na", protons: 11 },
+    { name: "Magnesium", symbol: "Mg", protons: 12 },
+    { name: "Chlorine", symbol: "Cl", protons: 17 },
+    { name: "Calcium", symbol: "Ca", protons: 20 },
+    { name: "Oxygen", symbol: "O", protons: 8 },
+  ];
+  const [elemIdx, setElemIdx] = useState(1); // start with sodium
+  const elem = ELEMENTS[elemIdx];
+  const [electrons, setElectrons] = useState(elem.protons);
+
+  // Reset electrons when element changes
+  useEffect(() => { setElectrons(elem.protons); }, [elemIdx]);
+
+  const protons = elem.protons;
+  const netCharge = protons - electrons;
+  const ionLabel = netCharge === 0
+    ? `${elem.symbol} (neutral atom)`
+    : `${elem.symbol}${Math.abs(netCharge) === 1 ? "" : Math.abs(netCharge)}${netCharge > 0 ? "⁺" : "⁻"}`;
+  const W = 480, H = 240;
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · build an ion · pick an element, then add or remove electrons
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {ELEMENTS.map((e, i) => (
+          <button key={e.symbol}
+            className={`control-btn ${elemIdx === i ? "active" : ""}`}
+            onClick={() => setElemIdx(i)}>
+            {e.symbol} ({e.protons}p)
+          </button>
+        ))}
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {/* Nucleus */}
+        <circle cx={W/2} cy={H/2} r={Math.max(18, 6 + protons * 1.2)} fill="#1a1a26" stroke="#666" />
+        {Array.from({ length: protons }).map((_, i) => {
+          const ang = (i / protons) * Math.PI * 2;
+          const rr = protons > 1 ? Math.min(13, protons * 0.8) : 0;
+          return <circle key={`p${i}`} cx={W/2 + Math.cos(ang) * rr} cy={H/2 + Math.sin(ang) * rr} r="2.5" fill="#ffd166" />;
+        })}
+        {/* Electron shells (very rough) */}
+        {Array.from({ length: electrons }).map((_, i) => {
+          const shell = i < 2 ? 0 : (i < 10 ? 1 : 2);
+          const inShell = i < 2 ? i : (i < 10 ? i - 2 : i - 10);
+          const shellSize = i < 2 ? 2 : (i < 10 ? 8 : 8);
+          const orbit = 50 + shell * 25;
+          const ang = (inShell / shellSize) * Math.PI * 2;
+          return <circle key={`e${i}`}
+            cx={W/2 + Math.cos(ang) * orbit}
+            cy={H/2 + Math.sin(ang) * orbit}
+            r="3" fill="#3ec6c2" />;
+        })}
+        {/* Orbit guides */}
+        {[50, 75, 100].map(r => <circle key={r} cx={W/2} cy={H/2} r={r} fill="none" stroke="#1f1f2c" strokeDasharray="2,3" />)}
+
+        <text x={20} y={22} fontSize="11" fill="#ffd166">{elem.name} · {protons} protons</text>
+        <text x={20} y={38} fontSize="11" fill="#3ec6c2">{electrons} electrons</text>
+
+        <text x={W - 20} y={28} fontSize="22" fill="#fff" textAnchor="end" fontFamily="Fraunces" fontStyle="italic">
+          {ionLabel}
+        </text>
+        <text x={W - 20} y={H - 10} fontSize="13"
+          fill={netCharge === 0 ? "#7af0a8" : netCharge > 0 ? "#ffd166" : "#3ec6c2"}
+          textAnchor="end" fontFamily="Fraunces" fontStyle="italic">
+          net charge = {netCharge >= 0 ? "+" : ""}{netCharge}e
+        </text>
+      </svg>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>electrons</span><span style={{ color: "#fff" }}>{electrons}</span>
+        </div>
+        <input className="smooth-slider" type="range"
+          min={Math.max(0, protons - 5)} max={protons + 4} step="1"
+          value={electrons} onChange={e => setElectrons(parseInt(e.target.value))} />
+      </div>
+      <div className="formula-block" style={{ marginTop: 14 }}>
+        <Tex>{`\\text{net charge} = ${protons}(+e) + ${electrons}(-e) = ${netCharge >= 0 ? "+" : ""}${netCharge}e`}</Tex>
+        <div style={{ fontSize: 12, color: netCharge === 0 ? "#7af0a8" : netCharge > 0 ? "#ffd166" : "#3ec6c2", marginTop: 6 }}>
+          {netCharge === 0 && "neutral atom"}
+          {netCharge > 0 && `cation — lost ${netCharge} electron${netCharge !== 1 ? "s" : ""}`}
+          {netCharge < 0 && `anion — gained ${Math.abs(netCharge)} electron${Math.abs(netCharge) !== 1 ? "s" : ""}`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 03 — Coulomb's Law
+// =========================================================================
+function Ch03() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 03</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Coulomb's law
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The exact force between two charges.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          In the 1780s, Charles-Augustin de Coulomb did careful experiments measuring the force between charged objects. He found a precise formula:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"F = \\frac{k \\, q_1 q_2}{r^2}"}</Tex>
+        </div>
+
+        <p>Let's pick this apart piece by piece.</p>
+
+        <p>
+          • <Tex>{"F"}</Tex> is the magnitude of the force between the two charges.<br/>
+          • <Tex>{"q_1"}</Tex> and <Tex>{"q_2"}</Tex> are the two charges (in coulombs).<br/>
+          • <Tex>{"r"}</Tex> is the distance between them (in meters).<br/>
+          • <Tex>{"k"}</Tex> is a constant — <strong>Coulomb's constant</strong>. We'll talk about constants in Chapter 06; for now, just think of <Tex>{"k"}</Tex> as a fixed number that makes the units work out.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          What this formula tells you
+        </h3>
+
+        <p>
+          <strong>1. Stronger charges → stronger force.</strong> Doubling either <Tex>{"q_1"}</Tex> or <Tex>{"q_2"}</Tex> doubles <Tex>{"F"}</Tex>. Doubling both quadruples it.
+        </p>
+
+        <p>
+          <strong>2. Greater distance → weaker force.</strong> Specifically, the force falls as <Tex>{"1/r^2"}</Tex> (the <span className="key-term">inverse square law</span>). Move twice as far apart, force drops by 4. Three times as far, force drops by 9.
+        </p>
+
+        <p>
+          <strong>3. Same sign or opposite sign → repulsion or attraction.</strong> If <Tex>{"q_1"}</Tex> and <Tex>{"q_2"}</Tex> are both positive (or both negative), <Tex>{"q_1 q_2 > 0"}</Tex> and <Tex>{"F"}</Tex> is positive — repulsion. If one is positive and the other negative, <Tex>{"q_1 q_2 < 0"}</Tex> and <Tex>{"F"}</Tex> is negative — attraction.
+        </p>
+
+        <CoulombDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Why <Tex>{"1/r^2"}</Tex>?
+        </h3>
+
+        <p>
+          The inverse-square falloff isn't arbitrary. It's a <em>consequence of living in 3D space</em>. Imagine a charge at the center of a sphere. Whatever "influence" it sends out radially has to spread over the surface area of that sphere. As the sphere grows bigger, the surface area grows like <Tex>{"4\\pi r^2"}</Tex>. So the influence per unit area — the field strength — gets diluted by <Tex>{"1/r^2"}</Tex>.
+        </p>
+
+        <p>
+          The same logic applies to gravity, light intensity, and sound. They all fall off as <Tex>{"1/r^2"}</Tex> for the same geometric reason.
+        </p>
+
+        <div className="check">
+          <div className="check-q">CHECK</div>
+          <div style={{ fontSize: 13, color: "#d8d8e2", lineHeight: 1.65 }}>
+            Two charges, <Tex>{"q_1 = 3"}</Tex> and <Tex>{"q_2 = -2"}</Tex>, sit 2 meters apart. With <Tex>{"k = 1"}</Tex>, what's the force? Is it attractive or repulsive?
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", color: "#666", fontSize: 12 }}>show answer</summary>
+              <div style={{ marginTop: 6, fontSize: 13 }}>
+                <Tex>{"F = (1)(3)(-2)/(2^2) = -6/4 = -1.5"}</Tex>. Negative force means attractive (opposite charges pull together).
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoulombDemo() {
+  const [q1, setQ1] = useState(1);
+  const [q2, setQ2] = useState(1);
+  const [r, setR] = useState(2);
+  const F = (q1 * q2) / (r * r);
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · Coulomb's law
+      </div>
+      <svg width="100%" viewBox="0 0 480 160" style={{ background: "#08080d", borderRadius: 4 }}>
+        <circle cx={100} cy={80} r={14} fill={q1 > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={100} y={85} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{q1 > 0 ? "+" : "−"}</text>
+        <text x={100} y={50} fontSize="11" fill="#b0b0bc" textAnchor="middle">{`q₁ = ${q1 >= 0 ? "+" : ""}${q1.toFixed(2)}`}</text>
+        <circle cx={100 + r * 60} cy={80} r={14} fill={q2 > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={100 + r * 60} y={85} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{q2 > 0 ? "+" : "−"}</text>
+        <text x={100 + r * 60} y={50} fontSize="11" fill="#b0b0bc" textAnchor="middle">{`q₂ = ${q2 >= 0 ? "+" : ""}${q2.toFixed(2)}`}</text>
+        <line x1={100} y1={110} x2={100 + r * 60} y2={110} stroke="#666" strokeWidth="1" />
+        <text x={100 + r * 30} y={130} fontSize="11" fill="#888" textAnchor="middle">{`r = ${r.toFixed(2)}`}</text>
+        {Math.abs(F) > 0.001 && (() => {
+          const arrowLen = Math.min(80, Math.abs(F) * 60);
+          const dir = F > 0 ? 1 : -1;
+          return (
+            <g>
+              <line x1={100 - 16} y1={80} x2={100 - 16 - dir * arrowLen} y2={80} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#cf3)" />
+              <line x1={100 + r * 60 + 16} y1={80} x2={100 + r * 60 + 16 + dir * arrowLen} y2={80} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#cf3)" />
+            </g>
+          );
+        })()}
+        <defs>
+          <marker id="cf3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 14 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>q₁</span><span style={{ color: "#fff" }}>{q1 >= 0 ? "+" : ""}{q1.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={q1} onChange={e => setQ1(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>q₂</span><span style={{ color: "#fff" }}>{q2 >= 0 ? "+" : ""}{q2.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={q2} onChange={e => setQ2(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>r</span><span style={{ color: "#fff" }}>{r.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.5" max="5" step="0.01" value={r} onChange={e => setR(parseFloat(e.target.value))} />
+        </div>
+      </div>
+      <div className="formula-block">
+        <Tex>{`F = \\frac{q_1 q_2}{r^2} = \\frac{(${q1.toFixed(2)})(${q2.toFixed(2)})}{(${r.toFixed(2)})^2} = ${F.toFixed(3)}`}</Tex>
+        <div style={{ fontSize: 12, color: F > 0.01 ? "#ff5c3a" : F < -0.01 ? "#3ec6c2" : "#888", marginTop: 6 }}>
+          {F > 0.01 && "repulsive — pushing apart"}
+          {F < -0.01 && "attractive — pulling together"}
+          {Math.abs(F) <= 0.01 && "approximately zero"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 04 — Fields
+// =========================================================================
+function Ch04() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 04</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Fields
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The conceptual leap that changed physics forever.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          Coulomb's law tells you the force between two charges. But here's a question that bothered physicists for a long time: <em>how does charge A know about charge B?</em>
+        </p>
+
+        <p>
+          They're not touching. There's empty space between them. Yet somehow they push or pull on each other. This was called <strong>action at a distance</strong>, and it always felt magical and unsatisfying.
+        </p>
+
+        <p>
+          In the 1800s, Michael Faraday came up with a deeper way of thinking about it: <em>fields</em>.
+        </p>
+
+        <div className="definition">
+          <div className="lbl">DEFINITION</div>
+          <div className="val">
+            A <span className="key-term">field</span> is a quantity that has a value at every point in space. The value can be a number, or a vector (having direction), or something more complicated.
+          </div>
+        </div>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          A simple example: temperature
+        </h3>
+
+        <p>
+          You already understand fields. The temperature in a room is a field. At every point in the room, there's some temperature. Near the heater it's warmer; near the window it's cooler. Temperature is a <em>scalar field</em> — at each point, there's just one number.
+        </p>
+
+        <p>
+          The wind in a city is a <em>vector field</em>. At every point in the city, there's a wind blowing in some direction with some speed. Wind has both magnitude and direction at every location.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          The electric field
+        </h3>
+
+        <p>
+          Now Faraday's insight, applied to charges:
+        </p>
+
+        <div className="formula-block">
+          A charge doesn't push other charges directly. Instead, it creates an <em>electric field</em> in the space around it. Other charges then feel a force from <em>that field</em>.
+        </div>
+
+        <p>
+          We write the electric field as <Tex>{"\\vec{E}"}</Tex>. It's a vector field — at every point in space, there's a vector telling you which direction the field is pointing and how strong it is.
+        </p>
+
+        <p>
+          The rule for what force a charge feels is beautifully simple:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{F} = q\\vec{E}"}</Tex>
+        </div>
+
+        <p>
+          In words: <em>the force on a charge is its charge times the electric field at its location.</em>
+        </p>
+
+        <p>
+          So we've split the problem into two parts:
+        </p>
+
+        <p>
+          <strong>1.</strong> Other charges create an E field everywhere in space.<br/>
+          <strong>2.</strong> A charge sitting somewhere feels a force from the E field <em>at that location</em>.
+        </p>
+
+        <FieldVizDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Why this is profound
+        </h3>
+
+        <p>
+          The field concept seems like a small change. Instead of "A pushes B directly," we say "A makes a field, B reacts to the field." But this turns out to be one of the most important conceptual shifts in physics history.
+        </p>
+
+        <p>
+          Why? Because <strong>fields can have a life of their own</strong>. Once you think of fields as real things existing in space, you can ask: what happens when the field <em>changes</em>? It turns out the answer is electromagnetic waves — light. The field can detach from the charge that made it and travel through space. We'll get to this in Chapter 11.
+        </p>
+
+        <p>
+          For now, the key idea: <em>a charge creates an E field, and other charges feel a force proportional to the E field at their location.</em>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function FieldVizDemo() {
+  const [Q, setQ] = useState(1);
+  const [testX, setTestX] = useState(150);
+  const [testY, setTestY] = useState(80);
+  const cx = 240, cy = 140;
+  const dx = testX - cx, dy = testY - cy;
+  const r2 = dx*dx + dy*dy;
+  const r = Math.sqrt(r2);
+  const Emag = Q / Math.max(r2, 100) * 5000;
+  const Eclamp = Math.min(Emag, 80);
+  const Ex = (dx/r) * Eclamp * (Q > 0 ? 1 : -1);
+  const Ey = (dy/r) * Eclamp * (Q > 0 ? 1 : -1);
+  // sample arrows
+  const arrows = [];
+  for (let i = -7; i <= 7; i++) {
+    for (let j = -4; j <= 4; j++) {
+      const px = cx + i * 30;
+      const py = cy + j * 30;
+      const ddx = px - cx, ddy = py - cy;
+      const rr2 = ddx*ddx + ddy*ddy;
+      if (rr2 < 400 || rr2 > 50000) continue;
+      const rr = Math.sqrt(rr2);
+      const m = Q / rr2 * 1500;
+      const len = Math.min(16, Math.abs(m));
+      const dir = Q > 0 ? 1 : -1;
+      arrows.push({
+        x1: px - dir*(ddx/rr)*len/2, y1: py - dir*(ddy/rr)*len/2,
+        x2: px + dir*(ddx/rr)*len/2, y2: py + dir*(ddy/rr)*len/2,
+      });
+    }
+  }
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · drag the test charge anywhere in the field
+      </div>
+      <svg width="100%" viewBox="0 0 480 280" style={{ background: "#08080d", borderRadius: 4 }}
+        onMouseMove={e => {
+          if (e.buttons === 1) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const sx = (e.clientX - rect.left) / rect.width * 480;
+            const sy = (e.clientY - rect.top) / rect.height * 280;
+            setTestX(sx); setTestY(sy);
+          }
+        }}>
+        {arrows.map((a, i) => (
+          <line key={i} x1={a.x1} y1={a.y1} x2={a.x2} y2={a.y2}
+            stroke="#7af0a8" strokeWidth="1.2" markerEnd="url(#fv1)" opacity="0.5" />
+        ))}
+        <circle cx={cx} cy={cy} r={14} fill={Q > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={cx} y={cy + 5} fontSize="16" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{Q > 0 ? "+" : "−"}</text>
+
+        {/* Test charge */}
+        <circle cx={testX} cy={testY} r={9} fill="#ff5c3a" stroke="#0a0a0f" strokeWidth="2" />
+        <text x={testX} y={testY + 4} fontSize="11" fill="#0a0a0f" textAnchor="middle" fontWeight="700">+</text>
+        {/* Force arrow on test charge */}
+        {r > 5 && (
+          <line x1={testX} y1={testY} x2={testX + Ex} y2={testY + Ey} stroke="#ff5c3a" strokeWidth="2.5" markerEnd="url(#fv2)" />
+        )}
+        <text x={testX + Ex + 6} y={testY + Ey - 4} fontSize="11" fill="#ff5c3a" fontStyle="italic" fontFamily="Fraunces">F = qE</text>
+
+        <text x={20} y={20} fontSize="11" fill="#7af0a8" fontStyle="italic">field arrows · click and drag the small +</text>
+        <defs>
+          <marker id="fv1" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <polygon points="0 0, 5 2.5, 0 5" fill="#7af0a8" />
+          </marker>
+          <marker id="fv2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>source charge Q</span><span style={{ color: "#fff" }}>{Q >= 0 ? "+" : ""}{Q.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Q} onChange={e => setQ(parseFloat(e.target.value))} />
+      </div>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 10, lineHeight: 1.5 }}>
+        Drag the small <span style={{ color: "#ff5c3a" }}>+</span> charge to different locations. The force arrow shows what F = qE evaluates to there. Far away → weaker. Closer → stronger. Direction follows the field.
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 05 — E from a Charge
+// =========================================================================
+function Ch05() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 05</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        E from a charge
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The formula for the field a charge creates.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          We said charges create electric fields. Now let's write down the formula. For a single charge <Tex>{"q"}</Tex> sitting at the origin, the electric field at a point a distance <Tex>{"r"}</Tex> away is:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{E}(\\vec{r}) = \\frac{kq}{r^2}\\hat{r}"}</Tex>
+        </div>
+
+        <p>
+          This formula has a lot packed into it. Let's go term by term.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          <Tex>{"\\vec{r}"}</Tex> — position
+        </h3>
+        <p>
+          <Tex>{"\\vec{r}"}</Tex> with the arrow is a <em>position vector</em>. It's the location in space where you want to know the field, written as <Tex>{"(x, y, z)"}</Tex>. It's a 3D address.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#ffd166", marginTop: 20 }}>
+          <Tex>{"r"}</Tex> — distance
+        </h3>
+        <p>
+          <Tex>{"r"}</Tex> without the arrow is the <em>magnitude</em> of <Tex>{"\\vec{r}"}</Tex> — just the distance from the source charge to your point of interest. <Tex>{"r = \\sqrt{x^2 + y^2 + z^2}"}</Tex>. It's a number, not a vector.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#ffd166", marginTop: 20 }}>
+          <Tex>{"\\hat{r}"}</Tex> — direction
+        </h3>
+        <p>
+          <Tex>{"\\hat{r}"}</Tex> with the hat is the <em>unit vector</em> in the direction of <Tex>{"\\vec{r}"}</Tex> — a vector of length 1 that points outward from the source charge. <Tex>{"\\hat{r} = \\vec{r}/r"}</Tex>. So the field points <em>radially outward</em> if the charge is positive, or <em>radially inward</em> if negative.
+        </p>
+
+        <div className="quote-block">
+          <strong>The notation game:</strong> Yes, it's annoying that <Tex>{"\\vec{r}"}</Tex>, <Tex>{"r"}</Tex>, and <Tex>{"\\hat{r}"}</Tex> are all called "r." Physics does this everywhere. Just remember: arrow = full vector, no decoration = magnitude (just a number), hat = unit vector (direction only).
+        </div>
+
+        <h3 className="display" style={{ fontSize: 20, fontStyle: "italic", color: "#ffd166", marginTop: 20 }}>
+          <Tex>{"k"}</Tex> — Coulomb's constant
+        </h3>
+        <p>
+          <Tex>{"k"}</Tex> is the same constant we saw in Coulomb's law. It sets the strength of electric interactions in our units. Chapter 06 covers this in detail.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Putting the pieces together
+        </h3>
+
+        <p>
+          Read the formula <Tex>{"\\vec{E}(\\vec{r}) = \\frac{kq}{r^2}\\hat{r}"}</Tex> as:
+        </p>
+
+        <p>
+          • At any position <Tex>{"\\vec{r}"}</Tex> in space,<br/>
+          • The electric field has magnitude <Tex>{"kq/r^2"}</Tex> (Coulomb-like falloff),<br/>
+          • And points in direction <Tex>{"\\hat{r}"}</Tex> (radially outward from the charge).
+        </p>
+
+        <p>
+          <strong>Plug it back into Coulomb's law and check.</strong> The force on a test charge <Tex>{"q_t"}</Tex> at position <Tex>{"\\vec{r}"}</Tex> is:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{F} = q_t \\vec{E} = q_t \\cdot \\frac{kq}{r^2}\\hat{r} = \\frac{k q_t q}{r^2}\\hat{r}"}</Tex>
+        </div>
+
+        <p>
+          Coulomb's law! The force formulation and the field formulation give exactly the same answer. The field idea is just a re-organization that turns out to be much more powerful.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Multiple charges: superposition
+        </h3>
+
+        <p>
+          What if you have several charges? The total field at a point is the <em>vector sum</em> of the field from each charge:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{E}_{\\rm total}(\\vec{r}) = \\vec{E}_1(\\vec{r}) + \\vec{E}_2(\\vec{r}) + \\dots"}</Tex>
+        </div>
+
+        <p>
+          This is called the <span className="key-term">superposition principle</span>. It's why the demo in Chapter 04 worked even with multiple charges: just add up the fields from each one.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 06 — Constants
+// =========================================================================
+function Ch06() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 06</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Constants
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The numbers that show up everywhere — what they mean, why they exist.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          You've seen <Tex>{"k"}</Tex>, you've heard about <Tex>{"e"}</Tex>, and we're about to introduce <Tex>{"\\epsilon_0"}</Tex>, <Tex>{"\\mu_0"}</Tex>, <Tex>{"c"}</Tex>, and <Tex>{"\\alpha"}</Tex>. This chapter explains what each of them is and how they relate.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          1. Coulomb's constant <Tex>{"k"}</Tex>
+        </h3>
+
+        <p>
+          <Tex>{"k"}</Tex> is the proportionality constant in Coulomb's law:
+        </p>
+        <div className="formula-display">
+          <Tex display>{"k \\approx 8.99 \\times 10^9 \\text{ N·m}^2/\\text{C}^2"}</Tex>
+        </div>
+
+        <p>
+          That's a huge number. It means electric forces are <em>extremely strong</em>. Two 1-coulomb charges 1 meter apart push each other with about 9 billion newtons. That's why everyday objects only have tiny net charges — anything more would fly apart.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          2. Permittivity of free space <Tex>{"\\epsilon_0"}</Tex>
+        </h3>
+
+        <p>
+          <Tex>{"\\epsilon_0"}</Tex> ("epsilon nought") is the more fundamental constant that <Tex>{"k"}</Tex> is built from:
+        </p>
+        <div className="formula-display">
+          <Tex display>{"k = \\frac{1}{4\\pi\\epsilon_0}, \\quad \\epsilon_0 \\approx 8.85 \\times 10^{-12} \\text{ C}^2/(\\text{N·m}^2)"}</Tex>
+        </div>
+
+        <p>
+          The <Tex>{"4\\pi"}</Tex> comes from sphere geometry (surface area of a sphere is <Tex>{"4\\pi r^2"}</Tex>).
+        </p>
+
+        <p>
+          <strong>What it physically means:</strong> <Tex>{"\\epsilon_0"}</Tex> tells you how strongly the <em>vacuum</em> responds to electric charge. Smaller <Tex>{"\\epsilon_0"}</Tex> would mean the vacuum supports stronger fields per unit charge. Bigger would mean weaker fields. Our universe picked a specific value, which determines all electromagnetic strengths.
+        </p>
+
+        <p>
+          <em>Free space</em> means empty vacuum — no material in the way. If you fill the space with a material like glass or water, the constant changes (becomes <Tex>{"\\epsilon = \\kappa\\epsilon_0"}</Tex> where <Tex>{"\\kappa"}</Tex> is the dielectric constant of the material).
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          3. The elementary charge <Tex>{"e"}</Tex>
+        </h3>
+
+        <p>
+          The charge of one proton (or magnitude of one electron's charge):
+        </p>
+        <div className="formula-display">
+          <Tex display>{"e \\approx 1.602 \\times 10^{-19} \\text{ C}"}</Tex>
+        </div>
+
+        <p>
+          This is the <em>quantum of charge</em>. Every charge in the universe is a multiple of this (or in the case of quarks inside nucleons, a multiple of <Tex>{"e/3"}</Tex>).
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          4. Speed of light <Tex>{"c"}</Tex>
+        </h3>
+        <div className="formula-display">
+          <Tex display>{"c = 299{,}792{,}458 \\text{ m/s} \\approx 3 \\times 10^8 \\text{ m/s}"}</Tex>
+        </div>
+        <p>
+          Speed at which electromagnetic waves travel. As we'll see in Chapter 11, this isn't a coincidence — the speed of light is determined by <Tex>{"\\epsilon_0"}</Tex> and <Tex>{"\\mu_0"}</Tex>.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          5. The fine structure constant <Tex>{"\\alpha"}</Tex>
+        </h3>
+
+        <p>
+          This is the <em>truly fundamental</em> electromagnetic constant. It's dimensionless — just a pure number, the same in every unit system:
+        </p>
+        <div className="formula-display">
+          <Tex display>{"\\alpha = \\frac{e^2}{4\\pi\\epsilon_0 \\hbar c} \\approx \\frac{1}{137.036}"}</Tex>
+        </div>
+        <p>
+          Aliens in another galaxy would measure the same value. It's <em>the</em> number that says how strongly electromagnetism couples to charged matter in our universe.
+        </p>
+        <p>
+          Nobody knows why <Tex>{"\\alpha \\approx 1/137"}</Tex>. It's one of the deepest open problems in physics. The other constants (<Tex>{"k"}</Tex>, <Tex>{"\\epsilon_0"}</Tex>, etc.) are just unit-dressed-up packaging around <Tex>{"\\alpha"}</Tex>, <Tex>{"e"}</Tex>, <Tex>{"\\hbar"}</Tex>, and <Tex>{"c"}</Tex>.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The full table
+        </h3>
+
+        <ConstantsTable />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          Why so many constants?
+        </h3>
+
+        <p>
+          Mostly: <em>unit conventions</em>. We picked the meter, kilogram, second, and coulomb as base units long before we understood the physics deeply. The constants are the conversion factors between our chosen units and the underlying physical relationships.
+        </p>
+
+        <p>
+          In particle physics units (where <Tex>{"\\hbar = c = 1"}</Tex>), almost all of these constants disappear. The physics doesn't change — just the bookkeeping.
+        </p>
+
+        <p>
+          The <em>real</em> physics is captured in dimensionless ratios like <Tex>{"\\alpha"}</Tex>. Those are the things that can't be made to disappear by changing units. They're real facts about the universe.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ConstantsTable() {
+  const rows = [
+    ["k", "Coulomb's constant", "8.99×10⁹ N·m²/C²", "force scale"],
+    ["ε₀", "permittivity of free space", "8.85×10⁻¹² C²/(N·m²)", "vacuum's response to charge"],
+    ["μ₀", "permeability of free space", "1.26×10⁻⁶ N/A²", "vacuum's response to current"],
+    ["e", "elementary charge", "1.6×10⁻¹⁹ C", "smallest unit of charge"],
+    ["c", "speed of light", "3×10⁸ m/s", "EM wave speed"],
+    ["α", "fine structure constant", "≈ 1/137 (dimensionless)", "true EM strength"],
+    ["ℏ", "reduced Planck constant", "1.05×10⁻³⁴ J·s", "quantum scale"],
+  ];
+  return (
+    <div className="viz-card" style={{ marginTop: 16 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #2a2a35", color: "#888" }}>
+            <th style={{ textAlign: "left", padding: "10px 8px" }}>SYMBOL</th>
+            <th style={{ textAlign: "left", padding: "10px 8px" }}>NAME</th>
+            <th style={{ textAlign: "left", padding: "10px 8px" }}>VALUE</th>
+            <th style={{ textAlign: "left", padding: "10px 8px" }}>WHAT IT MEASURES</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #1a1a26" }}>
+              <td style={{ padding: "10px 8px", fontFamily: "Fraunces", fontStyle: "italic", color: "#ff5c3a" }}>{r[0]}</td>
+              <td style={{ padding: "10px 8px", color: "#d8d8e2" }}>{r[1]}</td>
+              <td style={{ padding: "10px 8px", color: "#d8d8e2", fontFamily: "JetBrains Mono", fontSize: 11 }}>{r[2]}</td>
+              <td style={{ padding: "10px 8px", color: "#888" }}>{r[3]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 07 — Trajectories
+// =========================================================================
+function Ch07() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 07</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Trajectories
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>How particles move through fields. The bridge from forces to motion.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          You now know: a charge in a field feels a force. Newton says force gives you acceleration. Acceleration changes velocity. Velocity changes position. So the recipe for predicting motion is simple — but it requires us to take it step by step.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The two equations of motion
+        </h3>
+
+        <p>For a charge in an electric field, we have two coupled equations:</p>
+
+        <div className="formula-display">
+          <Tex display>{"\\frac{d\\vec{r}}{dt} = \\vec{v}, \\quad \\frac{d\\vec{v}}{dt} = \\frac{q}{m}\\vec{E}(\\vec{r})"}</Tex>
+        </div>
+
+        <p>
+          In words:
+        </p>
+        <p>
+          • Position changes at the rate of velocity. (How position evolves.)<br/>
+          • Velocity changes at the rate of <Tex>{"(q/m)\\vec{E}"}</Tex>. (How velocity evolves — this is just <Tex>{"\\vec{F}=m\\vec{a}"}</Tex> with <Tex>{"\\vec{F}=q\\vec{E}"}</Tex>.)
+        </p>
+
+        <p>
+          Notice they're coupled: to find <Tex>{"\\vec{v}"}</Tex>, you need to know <Tex>{"\\vec{E}"}</Tex>, which depends on <Tex>{"\\vec{r}"}</Tex>. To know <Tex>{"\\vec{r}"}</Tex>, you need <Tex>{"\\vec{v}"}</Tex>. Each updates the other.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The numerical recipe
+        </h3>
+
+        <p>
+          To predict a trajectory, we use a simple step-by-step procedure. Pick a small time step <Tex>{"\\Delta t"}</Tex>. Then in a loop:
+        </p>
+
+        <div className="formula-block">
+          <strong>1.</strong> Look up <Tex>{"\\vec{E}"}</Tex> at current position <Tex>{"\\vec{r}"}</Tex>.<br/>
+          <strong>2.</strong> Compute acceleration: <Tex>{"\\vec{a} = (q/m)\\vec{E}(\\vec{r})"}</Tex>.<br/>
+          <strong>3.</strong> Update velocity: <Tex>{"\\vec{v} \\leftarrow \\vec{v} + \\vec{a}\\,\\Delta t"}</Tex>.<br/>
+          <strong>4.</strong> Update position: <Tex>{"\\vec{r} \\leftarrow \\vec{r} + \\vec{v}\\,\\Delta t"}</Tex>.<br/>
+          <strong>5.</strong> Repeat.
+        </div>
+
+        <p>
+          This is called <span className="key-term">numerical integration</span>. Every plasma simulation, orbital calculation, video game physics engine, and weather model is built on top of this exact loop (or a refinement of it). You're now seeing the core algorithm.
+        </p>
+
+        <TrajectoryDemo />
+      </div>
+    </div>
+  );
+}
+
+function TrajectoryDemo() {
+  const [Q, setQ] = useState(1);
+  const [vx0, setVx0] = useState(1.5);
+  const [running, setRunning] = useState(false);
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    if (!running) return;
+    let raf;
+    const step = () => {
+      setParticles(ps => ps.map(p => {
+        // Compute E at p's location from charge at center
+        const dx = p.x - 240, dy = p.y - 140;
+        const r2 = dx*dx + dy*dy;
+        if (r2 < 200) return p;
+        const r = Math.sqrt(r2);
+        const Emag = Q / r2 * 800;
+        const Ex = (dx/r) * Emag;
+        const Ey = (dy/r) * Emag;
+        const dt = 0.04;
+        const newVx = p.vx + Ex * dt;
+        const newVy = p.vy + Ey * dt;
+        const newX = p.x + newVx * dt * 30;
+        const newY = p.y + newVy * dt * 30;
+        return { ...p, x: newX, y: newY, vx: newVx, vy: newVy, trail: [...p.trail.slice(-50), {x: newX, y: newY}] };
+      }).filter(p => p.x > 0 && p.x < 480 && p.y > 0 && p.y < 280));
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [running, Q]);
+
+  const launch = () => {
+    setParticles([{ x: 50, y: 140, vx: vx0, vy: 0, trail: [] }]);
+    setRunning(true);
+  };
+
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · launch a particle from the left, watch it interact with the central charge
+      </div>
+      <svg width="100%" viewBox="0 0 480 280" style={{ background: "#08080d", borderRadius: 4 }}>
+        <circle cx={240} cy={140} r={14} fill={Q > 0 ? "#ffd166" : "#3ec6c2"} stroke="#0a0a0f" strokeWidth="2" />
+        <text x={240} y={145} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{Q > 0 ? "+" : "−"}</text>
+        {particles.map((p, i) => (
+          <g key={i}>
+            {p.trail.map((t, j) => <circle key={j} cx={t.x} cy={t.y} r="1.5" fill="#ff5c3a" opacity={j / 50} />)}
+            <circle cx={p.x} cy={p.y} r="5" fill="#ff5c3a" />
+          </g>
+        ))}
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 14, marginTop: 14 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>central charge</span><span style={{ color: "#fff" }}>{Q.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Q} onChange={e => setQ(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>launch speed</span><span style={{ color: "#fff" }}>{vx0.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.5" max="4" step="0.05" value={vx0} onChange={e => setVx0(parseFloat(e.target.value))} />
+        </div>
+        <button className="control-btn active" onClick={launch}>Launch</button>
+      </div>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 10 }}>
+        The particle is launched from the left moving right. As it nears the central charge, it feels a force, accelerates, and curves. Try negative Q (attraction → deflection toward center) vs positive Q (repulsion → deflection away).
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 08 — Currents
+// =========================================================================
+function Ch08() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 08</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Currents
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>What flows through wires. The ampere.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          Up to this point, we've talked about static charges sitting in space. Now we let them <em>move</em>. When charges flow, that's a <strong>current</strong>.
+        </p>
+
+        <div className="definition">
+          <div className="lbl">DEFINITION</div>
+          <div className="val">
+            <span className="key-term">Electric current</span> <Tex>{"I"}</Tex> is the amount of charge passing through a surface per unit time:
+            <div style={{ marginTop: 8 }}>
+              <Tex>{"I = \\frac{dQ}{dt}"}</Tex>
+            </div>
+          </div>
+        </div>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The ampere
+        </h3>
+
+        <p>
+          The unit of current is the <span className="key-term">ampere</span>, abbreviated <Tex>{"\\text{A}"}</Tex>. By definition:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"1 \\text{ ampere} = 1 \\text{ coulomb per second}"}</Tex>
+        </div>
+
+        <p>
+          So if a wire carries 1 amp of current, it means 1 coulomb of charge (about <Tex>{"6.24 \\times 10^{18}"}</Tex> electrons) is passing any given cross-section per second.
+        </p>
+
+        <p>
+          Most household appliances pull a few amps. A typical phone charger: ~1 A. A microwave: ~10 A. A lightning bolt: tens of thousands of A briefly.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Where the symbol <Tex>{"I"}</Tex> comes from
+        </h3>
+
+        <p>
+          The letter "I" for current comes from the French <em>intensité de courant</em> (intensity of current), used by André-Marie Ampère himself when he developed the theory of currents in the 1820s. We're stuck with it.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Current density
+        </h3>
+
+        <p>
+          For a 3D situation (not just a wire), we use a <em>current density</em> <Tex>{"\\vec{J}"}</Tex>, which is current per unit area:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{J} = \\rho \\vec{v}"}</Tex>
+        </div>
+
+        <p>
+          where <Tex>{"\\rho"}</Tex> is charge density (charge per volume) and <Tex>{"\\vec{v}"}</Tex> is the average velocity of the charges. This is what shows up in Maxwell's equations.
+        </p>
+
+        <CurrentDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Why currents matter
+        </h3>
+
+        <p>
+          Currents are the bridge between electricity and magnetism. As we'll see in the next chapter, <strong>currents create magnetic fields</strong>. This is the foundation of motors, transformers, electromagnets, and basically all electrical engineering.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CurrentDemo() {
+  const [I, setI] = useState(2);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const W = 480, H = 100;
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · electrons flowing through a wire
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <rect x="20" y="40" width="440" height="20" fill="#1a1a26" stroke="#666" />
+        {Array.from({ length: Math.max(2, Math.floor(I * 4)) }).map((_, i) => {
+          const offset = ((t * I * 80 + i * 50) % 440);
+          return <circle key={i} cx={20 + offset} cy={50} r="4" fill="#3ec6c2" />;
+        })}
+        <text x={20} y={20} fontSize="11" fill="#3ec6c2" fontStyle="italic">electrons flowing →</text>
+        <text x={W - 20} y={90} fontSize="11" fill="#ffd166" fontStyle="italic" textAnchor="end">I = {I.toFixed(1)} A</text>
+        <line x1={250} y1={30} x2={250} y2={70} stroke="#ff5c3a" strokeWidth="1" strokeDasharray="2,3" />
+        <text x={250} y={25} fontSize="9" fill="#ff5c3a" textAnchor="middle">cross-section</text>
+      </svg>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>current I (amperes)</span><span style={{ color: "#fff" }}>{I.toFixed(1)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="0.5" max="6" step="0.1" value={I} onChange={e => setI(parseFloat(e.target.value))} />
+      </div>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 10 }}>
+        The dashed orange line is a "cross-section" through the wire. Higher current = more electrons passing through that line per second.
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 09 — Magnetic Fields
+// =========================================================================
+function Ch09() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 09</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Magnetic fields
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The magnetic field B and the constant μ₀.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          Just as charges create electric fields, currents create <em>magnetic fields</em>. We write the magnetic field as <Tex>{"\\vec{B}"}</Tex>.
+        </p>
+
+        <p>
+          You've encountered B before — every magnet has one. Earth has one (your compass needle aligns with it). MRI machines use enormous ones. The tradition of using <Tex>{"\\vec{B}"}</Tex> for the magnetic field comes from old physics conventions; the choice of letter doesn't mean anything special.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Three weird things about B
+        </h3>
+
+        <p>
+          <strong>1.</strong> B only pushes <em>moving</em> charges. A stationary charge in a magnetic field feels no force at all.<br/>
+          <strong>2.</strong> The magnetic force is always perpendicular to the velocity. So B can change a particle's <em>direction</em> but not its <em>speed</em>.<br/>
+          <strong>3.</strong> There are no isolated "magnetic charges" (no monopoles). Field lines always form closed loops.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The magnetic constant μ₀
+        </h3>
+
+        <p>
+          The magnetic counterpart to <Tex>{"\\epsilon_0"}</Tex> is <Tex>{"\\mu_0"}</Tex> ("mu nought"), the <span className="key-term">permeability of free space</span>:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\mu_0 \\approx 1.257 \\times 10^{-6} \\text{ N/A}^2"}</Tex>
+        </div>
+
+        <p>
+          The units N/A² are <em>newtons per ampere squared</em> — they make sense given that <Tex>{"\\mu_0"}</Tex> appears in formulas connecting force to current.
+        </p>
+
+        <p>
+          Just like <Tex>{"\\epsilon_0"}</Tex> tells you "how vacuum responds to charge to make E", <Tex>{"\\mu_0"}</Tex> tells you "<em>how vacuum responds to current to make B</em>".
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Ampère's law
+        </h3>
+
+        <p>
+          The fundamental rule for how currents create B fields is <span className="key-term">Ampère's law</span>:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\nabla \\times \\vec{B} = \\mu_0 \\vec{J}"}</Tex>
+        </div>
+
+        <p>
+          (This is the version without electromagnetic waves — the full version Maxwell adjusted, in Chapter 11.)
+        </p>
+
+        <p>
+          The <Tex>{"\\nabla \\times"}</Tex> ("curl") on the left measures how much B "circulates" around a point. The right side says: that circulation is <Tex>{"\\mu_0"}</Tex> times the current density at that point.
+        </p>
+
+        <p>
+          For a long straight wire, you can solve this and get a clean formula for the B field circling the wire:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"B = \\frac{\\mu_0 I}{2\\pi r}"}</Tex>
+        </div>
+
+        <p>
+          where <Tex>{"r"}</Tex> is the distance from the wire. So a 1 A current creates a B of about <Tex>{"2 \\times 10^{-7}"}</Tex> T at 1 m distance — quite small, but pile up enough current and turns of wire and you get serious magnetism.
+        </p>
+
+        <AmpereDemo />
+
+        <div className="quote-block">
+          <strong>The right-hand rule:</strong> point your right thumb along the direction of current, and your fingers curl in the direction of B. Most physics is right-handed by convention.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AmpereDemo() {
+  const [I, setI] = useState(1);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const W = 480, H = 240;
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · current creates circulating B field
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <line x1={W/2} y1={H - 20} x2={W/2} y2={20} stroke="#ffd166" strokeWidth={3 + Math.abs(I) * 4}
+          markerEnd={I > 0 ? "url(#aja3)" : undefined} markerStart={I < 0 ? "url(#aja3b)" : undefined} />
+        <text x={W/2 + 10} y={40} fontSize="14" fill="#ffd166">I = {I.toFixed(1)} A</text>
+        {[60, 95, 130].map((r, i) => {
+          const arrowAngle = I > 0 ? -t * 0.6 + i * 0.4 : t * 0.6 + i * 0.4;
+          const ax = W/2 + r * Math.cos(arrowAngle);
+          const ay = H/2 + r * Math.sin(arrowAngle) * 0.4;
+          const ax2 = W/2 + r * Math.cos(arrowAngle + (I > 0 ? -0.3 : 0.3));
+          const ay2 = H/2 + r * Math.sin(arrowAngle + (I > 0 ? -0.3 : 0.3)) * 0.4;
+          return (
+            <g key={i}>
+              <ellipse cx={W/2} cy={H/2} rx={r} ry={r * 0.4} fill="none" stroke="#9d8def"
+                strokeOpacity={0.5 - i * 0.1} strokeDasharray="3,3" />
+              <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#9d8def" strokeWidth="2.5" markerEnd="url(#aba3)" />
+            </g>
+          );
+        })}
+        <text x={20} y={25} fontSize="11" fill="#9d8def">B circulates around the current</text>
+        <defs>
+          <marker id="aja3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0, 8 4, 0 8" fill="#ffd166" />
+          </marker>
+          <marker id="aja3b" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
+            <polygon points="8 0, 0 4, 8 8" fill="#ffd166" />
+          </marker>
+          <marker id="aba3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#9d8def" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>current I</span><span style={{ color: "#fff" }}>{I.toFixed(1)} A</span>
+        </div>
+        <input className="smooth-slider" type="range" min="-2" max="2" step="0.05" value={I} onChange={e => setI(parseFloat(e.target.value))} />
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 10 — Lorentz Force
+// =========================================================================
+function Ch10() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 10</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Lorentz force
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The complete force on a charged particle.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          Now we combine. The total force on a charged particle moving through both an E field and a B field is:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{F} = q(\\vec{E} + \\vec{v} \\times \\vec{B})"}</Tex>
+        </div>
+
+        <p>
+          This is the <span className="key-term">Lorentz force</span>. It's the entire force law of classical electromagnetism. Two parts:
+        </p>
+
+        <p>
+          • <Tex>{"q\\vec{E}"}</Tex> — the electric part. Pushes parallel to E. Same for moving and stationary charges.<br/>
+          • <Tex>{"q\\vec{v} \\times \\vec{B}"}</Tex> — the magnetic part. Perpendicular to v and B. Only acts on moving charges.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The cross product
+        </h3>
+
+        <p>
+          The <span className="key-term">cross product</span> <Tex>{"\\vec{v} \\times \\vec{B}"}</Tex> is a way of multiplying two vectors to get a third vector. It's defined component-wise:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"\\vec{v} \\times \\vec{B} = (v_y B_z - v_z B_y, \\; v_z B_x - v_x B_z, \\; v_x B_y - v_y B_x)"}</Tex>
+        </div>
+
+        <p>
+          The result is always perpendicular to both <Tex>{"\\vec{v}"}</Tex> and <Tex>{"\\vec{B}"}</Tex>. Its magnitude is <Tex>{"|\\vec{v}||\\vec{B}|\\sin\\theta"}</Tex> where <Tex>{"\\theta"}</Tex> is the angle between them.
+        </p>
+
+        <p>
+          The fact that the magnetic force is always perpendicular to v is what makes charged particles in B fields go in <em>circles</em> — they keep turning, never speeding up or slowing down.
+        </p>
+
+        <GyrationDemo />
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The complete picture
+        </h3>
+
+        <p>
+          To predict a particle's motion under E and B fields, plug the Lorentz force into Newton's second law:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"m\\frac{d\\vec{v}}{dt} = q(\\vec{E} + \\vec{v} \\times \\vec{B})"}</Tex>
+        </div>
+
+        <p>
+          Then numerically integrate using the same step-by-step recipe from Chapter 07. That's it. That's the entire mechanics of charged particles. Plasma physics, particle accelerators, MRI machines — they're all just this equation, applied in different contexts.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function GyrationDemo() {
+  const [B, setB] = useState(1);
+  const [v0, setV0] = useState(1);
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 480, H = 240;
+  const cx = W/2, cy = H/2;
+  const omega = B;
+  const radius = (v0 / B) * 50;
+  const px = cx + radius * Math.cos(omega * t);
+  const py = cy + radius * Math.sin(omega * t);
+
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · gyration in B field
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        {[0.15, 0.35, 0.55, 0.75, 0.9].map((fy, j) => (
+          [0.1, 0.25, 0.4, 0.6, 0.75, 0.9].map((fx, i) => (
+            <circle key={`${i}${j}`} cx={W * fx} cy={H * fy} r="2" fill="#9d8def" opacity="0.4" />
+          ))
+        ))}
+        <text x={20} y={20} fontSize="10" fill="#9d8def">B out of page</text>
+        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#9d8def" strokeOpacity="0.4" strokeDasharray="3,3" />
+        <circle cx={px} cy={py} r="6" fill="#ffd166" />
+        <line x1={px} y1={py} x2={px - Math.sin(omega * t) * 30} y2={py + Math.cos(omega * t) * 30}
+          stroke="#7af0a8" strokeWidth="2" markerEnd="url(#gyrA2)" />
+        <line x1={px} y1={py} x2={cx + (px - cx) * 0.5} y2={cy + (py - cy) * 0.5}
+          stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#gyrF2)" />
+        <defs>
+          <marker id="gyrA2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+          <marker id="gyrF2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|B|</span><span style={{ color: "#fff" }}>{B.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="3" step="0.01" value={B} onChange={e => setB(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|v|</span><span style={{ color: "#fff" }}>{v0.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="2" step="0.01" value={v0} onChange={e => setV0(parseFloat(e.target.value))} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 11 — Maxwell's Equations
+// =========================================================================
+function Ch11() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 11</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Maxwell's equations
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The four laws governing E and B.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          You now have all the pieces. Maxwell's four equations are the complete laws governing electric and magnetic fields:
+        </p>
+
+        <div className="formula-display"><Tex display>{"\\nabla \\cdot \\vec{E} = \\frac{\\rho}{\\epsilon_0}"}</Tex></div>
+        <p style={{ textAlign: "center", color: "#888", fontSize: 12, marginTop: -4 }}>Gauss's law — charges create E</p>
+
+        <div className="formula-display"><Tex display>{"\\nabla \\cdot \\vec{B} = 0"}</Tex></div>
+        <p style={{ textAlign: "center", color: "#888", fontSize: 12, marginTop: -4 }}>No magnetic monopoles</p>
+
+        <div className="formula-display"><Tex display>{"\\nabla \\times \\vec{E} = -\\frac{\\partial \\vec{B}}{\\partial t}"}</Tex></div>
+        <p style={{ textAlign: "center", color: "#888", fontSize: 12, marginTop: -4 }}>Faraday — changing B creates circulating E</p>
+
+        <div className="formula-display"><Tex display>{"\\nabla \\times \\vec{B} = \\mu_0 \\vec{J} + \\mu_0\\epsilon_0 \\frac{\\partial \\vec{E}}{\\partial t}"}</Tex></div>
+        <p style={{ textAlign: "center", color: "#888", fontSize: 12, marginTop: -4 }}>Ampère-Maxwell — currents AND changing E create circulating B</p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          What each one says
+        </h3>
+
+        <p>
+          <strong>1. Gauss</strong> tells you where E comes from — <em>charges</em>. Specifically, the divergence (the "outflow") of E at a point is proportional to the charge density there.
+        </p>
+
+        <p>
+          <strong>2. No monopoles</strong> says B has no sources or sinks — field lines always close. There's no isolated north pole.
+        </p>
+
+        <p>
+          <strong>3. Faraday</strong> says a changing B creates a circulating E. This is how generators work.
+        </p>
+
+        <p>
+          <strong>4. Ampère-Maxwell</strong> says currents create circulating B (the original Ampère part), AND changing E creates circulating B (Maxwell's addition). The Maxwell part is the magic — it's what makes EM waves possible.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 28 }}>
+          The discovery of light
+        </h3>
+
+        <p>
+          When Maxwell wrote down equation 4 in 1865 with his "displacement current" addition (the <Tex>{"\\mu_0\\epsilon_0\\partial\\vec{E}/\\partial t"}</Tex> term), the four equations became symmetric: changing B creates E, and changing E creates B. This means a perturbation can propagate as a wave — E generating B generating E and so on.
+        </p>
+
+        <p>
+          Maxwell solved the equations and found wave solutions traveling at speed:
+        </p>
+
+        <div className="formula-display">
+          <Tex display>{"c = \\frac{1}{\\sqrt{\\mu_0 \\epsilon_0}}"}</Tex>
+        </div>
+
+        <p>
+          Plug in numbers: <Tex>{"c \\approx 3 \\times 10^8"}</Tex> m/s. <em>That's the measured speed of light.</em> Maxwell realized: <strong>light is an electromagnetic wave</strong>. Radio waves, microwaves, X-rays, gamma rays — all the same thing, just different frequencies.
+        </p>
+
+        <p>
+          This was one of the great unifications in physics — until Maxwell, electricity, magnetism, and optics were three separate subjects.
+        </p>
+
+        <EMWaveDemo />
+      </div>
+    </div>
+  );
+}
+
+function EMWaveDemo() {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const W = 520, H = 200;
+  const N = 80;
+  let Epath = "", Bpath = "";
+  for (let i = 0; i <= N; i++) {
+    const x = (i / N) * W;
+    const phase = (i / N) * 4 * Math.PI - t * 2;
+    Epath += `${i === 0 ? "M" : "L"}${x},${H/2 - Math.sin(phase) * 50} `;
+    Bpath += `${i === 0 ? "M" : "L"}${x},${H/2 - Math.sin(phase) * 50} `;
+  }
+  return (
+    <div className="viz-card" style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 10 }}>
+        DEMO · electromagnetic wave (this is light)
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#08080d", borderRadius: 4 }}>
+        <line x1="0" y1={H/2} x2={W} y2={H/2} stroke="#1f1f2c" strokeDasharray="2,3" />
+        <path d={Epath} fill="none" stroke="#7af0a8" strokeWidth="2" />
+        <path d={Bpath} fill="none" stroke="#9d8def" strokeWidth="2" strokeOpacity="0.7" strokeDasharray="4,3" />
+        <text x={20} y={20} fontSize="11" fill="#7af0a8">E</text>
+        <text x={20} y={36} fontSize="11" fill="#9d8def">B</text>
+        <text x={W - 10} y={H - 8} fontSize="11" fill="#888" textAnchor="end">propagating →</text>
+      </svg>
+    </div>
+  );
+}
+
+// =========================================================================
+// CHAPTER 12 — Fields are Universal
+// =========================================================================
+function Ch12() {
+  return (
+    <div>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>CHAPTER 12</div>
+      <h1 className="display" style={{ fontSize: 42, fontWeight: 800, fontStyle: "italic", margin: 0, lineHeight: 1.05 }}>
+        Fields are universal
+      </h1>
+      <p style={{ fontSize: 14, color: "#888", marginTop: 8 }}>The modern picture: everything is fields.</p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          We've been treating fields as a useful trick for understanding forces. But here's the modern view, developed throughout the 20th century, and now considered fundamental:
+        </p>
+
+        <div className="formula-block" style={{ borderLeftColor: "#ffd166" }}>
+          <strong>The universe is fundamentally made of fields.</strong> Particles are excitations — localized "ripples" — in those fields. The fields are real things existing throughout all of space.
+        </div>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Quantum field theory
+        </h3>
+
+        <p>
+          The framework is called <span className="key-term">quantum field theory</span> (QFT). In QFT, every type of fundamental particle has its own field that fills the universe:
+        </p>
+
+        <p>
+          • The <strong>electron field</strong> permeates all space. An electron is a localized vibration in that field.<br/>
+          • The <strong>electromagnetic field</strong> permeates all space. A photon is a vibration in that field.<br/>
+          • The <strong>quark fields</strong> permeate all space. Quarks are vibrations.<br/>
+          • The <strong>Higgs field</strong> permeates all space. The Higgs boson is a vibration.
+        </p>
+
+        <p>
+          So when you ask "what is empty space?" — modern physics says: <em>not empty</em>. It's filled with overlapping quantum fields, all extending everywhere. What we see as "empty" is just the vacuum state of those fields — their lowest-energy configuration.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          The Higgs field as a "setting"
+        </h3>
+
+        <p>
+          The Higgs field is a great example because it's the cleanest case of "a field that gives the universe its settings." The Higgs field has a non-zero value <em>everywhere in space</em>, even in vacuum. Particles moving through this field interact with it, and that interaction is what we observe as their <em>mass</em>.
+        </p>
+
+        <p>
+          Different coupling strengths to the Higgs → different masses for different particles. Different value of the Higgs field → all masses change. The Higgs field's value is genuinely a "setting" of our universe.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Free parameters
+        </h3>
+
+        <p>
+          The Standard Model — our best theory of nature — has about 20 numbers that we have to <em>measure</em> rather than calculate. These include:
+        </p>
+
+        <p>
+          • The fine structure constant <Tex>{"\\alpha \\approx 1/137"}</Tex><br/>
+          • The masses of the electron, quarks, etc.<br/>
+          • The Higgs vacuum value<br/>
+          • Various coupling constants
+        </p>
+
+        <p>
+          We don't know <em>why</em> any of them have the values they do. They're just measured. This is one of the deepest open problems in physics.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          QFT is established. String theory is not.
+        </h3>
+
+        <p>
+          QFT is experimentally verified — every particle accelerator experiment ever done is a test of QFT. It's our consensus theory.
+        </p>
+
+        <p>
+          <span className="key-term">String theory</span> is something different — a proposed deeper theory that says "particles and fields are themselves vibrations of tiny strings." It's mathematically beautiful but has zero direct experimental evidence. Active research, controversial.
+        </p>
+
+        <h3 className="display" style={{ fontSize: 22, fontStyle: "italic", color: "#ffd166", marginTop: 24 }}>
+          Where this leaves us
+        </h3>
+
+        <p>
+          You started by asking "what is force." We've come a long way. Forces are derived from fields, fields are real things in space, and at the deepest level the universe is a tapestry of quantum fields with specific properties baked in. Particles are how we perceive ripples in those fields.
+        </p>
+
+        <p>
+          The classical Maxwell equations you learned in the last chapter are the <em>classical limit</em> of the underlying quantum theory of the electromagnetic field, called <span className="key-term">quantum electrodynamics (QED)</span>. QED is the most precisely tested theory in all of physics — it agrees with experiments to 12 decimal places.
+        </p>
+
+        <p>
+          So: yes, fields are universal. Yes, they have settings. The settings are mostly mysterious. The framework is called QFT, not string theory. And you got here by asking really good questions.
+        </p>
+
+        <div className="quote-block" style={{ borderLeftColor: "#ff5c3a" }}>
+          <strong>What's next:</strong> if you want to go deeper, the natural directions are: (1) quantum mechanics, which explains how particles behave at small scales; (2) special relativity, which explains why E and B mix together when you change reference frames; (3) plasma physics specifically, where you can apply Vlasov-Maxwell to real systems; (4) quantum field theory, the deepest current framework. Pick your adventure.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EMCurriculum));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

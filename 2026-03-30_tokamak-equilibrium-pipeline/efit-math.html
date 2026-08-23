@@ -1,0 +1,327 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>efit math</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const steps = [
+  {
+    title: "Start: What we know",
+    content: [
+      { label: "We have temperature at each point", math: null },
+      { label: "Center of plasma:", math: "T_e = 25 keV,  T_i = 22 keV" },
+      { label: "Edge of plasma:", math: "T_e = 0.1 keV,  T_i = 0.08 keV" },
+      { label: "", math: null },
+      { label: "We have density at each point", math: null },
+      { label: "Center:", math: "n_e = 3.5 × 10²⁰ /m³" },
+      { label: "Edge:", math: "n_e = 0.05 × 10²⁰ /m³" },
+      { label: "", math: null },
+      { label: "We have current flowing through the plasma", math: null },
+      { label: "Total plasma current:", math: "I_p = 8.7 million amps" },
+      { label: "Distributed across the cross-section as J(r)", math: null },
+    ],
+  },
+  {
+    title: "Step 1: Calculate pressure P",
+    content: [
+      { label: "Formula:", math: "P = n_e × T_e  +  n_i × T_i" },
+      { label: "(particles × energy = push)", math: null },
+      { label: "", math: null },
+      { label: "At the center (r = 0):", math: null },
+      { label: "Electron pressure:", math: "3.5×10²⁰  ×  25 keV  =  1.40 MPa" },
+      { label: "Ion pressure:", math: "3.5×10²⁰  ×  22 keV  =  1.23 MPa" },
+      { label: "Total:", math: "P(center) = 1.40 + 1.23 = 2.63 MPa" },
+      { label: "", math: null },
+      { label: "At the edge (r = 1):", math: null },
+      { label: "Electron:", math: "0.05×10²⁰  ×  0.1 keV  =  0.0001 MPa" },
+      { label: "Ion:", math: "0.05×10²⁰  ×  0.08 keV  =  0.00006 MPa" },
+      { label: "Total:", math: "P(edge) ≈ 0.0002 MPa  ≈  basically zero" },
+      { label: "", math: null },
+      { label: "So pressure is huge in the center, near-zero at the edge.", math: null },
+      { label: "This pressure gradient is trying to push the plasma apart.", math: null },
+    ],
+  },
+  {
+    title: "Step 2: The force balance (what EFIT solves)",
+    content: [
+      { label: "The whole point of the equilibrium:", math: null },
+      { label: "", math: null },
+      { label: "Pressure pushing OUT  =  Magnetic field pushing IN", math: null },
+      { label: "", math: null },
+      { label: "Written as an equation:", math: "∇P  =  J × B" },
+      { label: "", math: null },
+      { label: "In English:", math: null },
+      { label: "  ∇P = how fast pressure changes with position", math: null },
+      { label: "       (steeper gradient = harder outward push)", math: null },
+      { label: "  J  = current density (amps per m²)", math: null },
+      { label: "  B  = magnetic field (tesla)", math: null },
+      { label: "  J × B = the force on a current-carrying wire in a magnetic field", math: null },
+      { label: "          (same physics as an electric motor)", math: null },
+      { label: "", math: null },
+      { label: "This is it. This one equation is what EFIT solves.", math: null },
+      { label: "You give it P and J. It finds the B field shape that", math: null },
+      { label: "balances the pressure everywhere simultaneously.", math: null },
+    ],
+  },
+  {
+    title: "Step 3: The Grad-Shafranov equation (same thing, fancier)",
+    content: [
+      { label: "Because tokamaks are axisymmetric (donut-shaped),", math: null },
+      { label: "the 3D force balance simplifies to one 2D equation:", math: null },
+      { label: "", math: null },
+      { label: "The Grad-Shafranov equation:", math: null },
+      { label: "", math: "R ∂/∂R(1/R × ∂ψ/∂R) + ∂²ψ/∂Z² = -μ₀R²P'(ψ) - ff'(ψ)" },
+      { label: "", math: null },
+      { label: "Looks scary but here's what each piece is:", math: null },
+      { label: "", math: null },
+      { label: "  ψ = poloidal magnetic flux (THE THING WE'RE SOLVING FOR)", math: null },
+      { label: "      a single number at each (R,Z) point", math: null },
+      { label: "      contour lines of ψ = the nested donut surfaces", math: null },
+      { label: "", math: null },
+      { label: "  Left side = how ψ curves in space (like a terrain map)", math: null },
+      { label: "  P'(ψ) = how pressure changes per unit flux (from Step 1)", math: null },
+      { label: "  ff'(ψ) = related to J, the current (given as input)", math: null },
+      { label: "", math: null },
+      { label: "EFIT's job: find the 2D map of ψ(R,Z) that satisfies", math: null },
+      { label: "this equation at every grid point simultaneously.", math: null },
+    ],
+  },
+  {
+    title: "Step 4: What EFIT actually computes (with numbers)",
+    content: [
+      { label: "EFIT solves on a grid, say 65 × 65 points.", math: null },
+      { label: "At each point it finds ψ:", math: null },
+      { label: "", math: null },
+      { label: "Example output (just a few points):", math: null },
+      { label: "", math: null },
+      { label: "  R=0.81m, Z=0.00m:  ψ = 0.000  (magnetic axis — center)", math: null },
+      { label: "  R=0.90m, Z=0.00m:  ψ = 0.152", math: null },
+      { label: "  R=1.00m, Z=0.00m:  ψ = 0.387", math: null },
+      { label: "  R=1.10m, Z=0.00m:  ψ = 0.581", math: null },
+      { label: "  R=1.20m, Z=0.00m:  ψ = 0.724", math: null },
+      { label: "  R=1.30m, Z=0.00m:  ψ = 0.891", math: null },
+      { label: "  R=1.40m, Z=0.00m:  ψ = 1.000  (plasma boundary — edge)", math: null },
+      { label: "", math: null },
+      { label: "ψ = 0 at center, ψ = 1 at edge (after normalizing).", math: null },
+      { label: "Lines of constant ψ = the nested surfaces the plasma lives on.", math: null },
+      { label: "All 65×65 = 4,225 values of ψ go into the EQDSK file.", math: null },
+    ],
+  },
+  {
+    title: "Step 5: Derived quantities (what you get for free from ψ)",
+    content: [
+      { label: "Once you have the ψ map, everything else follows:", math: null },
+      { label: "", math: null },
+      { label: "Magnetic field direction at any point:", math: "B = ∇ψ × ∇φ / R  +  f(ψ)∇φ / R" },
+      { label: "(just derivatives of ψ — the slope of the terrain map)", math: null },
+      { label: "", math: null },
+      { label: "Safety factor (how twisted the field lines are):", math: null },
+      { label: "  q at ψ=0.0 (center):  0.95", math: null },
+      { label: "  q at ψ=0.5 (mid):     1.65", math: null },
+      { label: "  q at ψ=1.0 (edge):    4.20", math: null },
+      { label: "(higher q = more twisted. q=1 is a special surface where", math: null },
+      { label: " instabilities can happen)", math: null },
+      { label: "", math: null },
+      { label: "Plasma shape (from the ψ = 1 contour):", math: null },
+      { label: "  Elongation κ = 1.75  (how tall vs wide)", math: null },
+      { label: "  Triangularity δ = 0.40  (how D-shaped)", math: null },
+      { label: "  Shafranov shift = 0.06m  (how far center shifted outward)", math: null },
+      { label: "", math: null },
+      { label: "ALL of this goes into the EQDSK file.", math: null },
+      { label: "ALL of this came from just P and J as inputs.", math: null },
+    ],
+  },
+  {
+    title: "Summary: Inputs → Math → Outputs",
+    content: [
+      { label: "INPUTS (what you provide):", math: null, highlight: "input" },
+      { label: "  Temperature profile", math: "T(r): 25 keV → 0.1 keV" },
+      { label: "  Density profile", math: "n(r): 3.5×10²⁰ → 0.05×10²⁰" },
+      { label: "  Current profile", math: "J(r) or equivalently q(r)" },
+      { label: "  Coil positions + currents", math: "~30 rows in a table" },
+      { label: "  Wall contour", math: "~100 (R,Z) points" },
+      { label: "", math: null },
+      { label: "MATH (what EFIT does):", math: null, highlight: "math" },
+      { label: "  T × n → P  (pressure)", math: null },
+      { label: "  Solve ∇P = J × B on a 65×65 grid", math: null },
+      { label: "  Find ψ(R,Z) that balances forces everywhere", math: null },
+      { label: "  Iterate until self-consistent", math: null },
+      { label: "", math: null },
+      { label: "OUTPUTS (the EQDSK file):", math: null, highlight: "output" },
+      { label: "  2D map of ψ(R,Z)", math: "65×65 = 4,225 numbers" },
+      { label: "  Pressure profile mapped to ψ", math: "65 numbers" },
+      { label: "  Current function f(ψ) = RBφ", math: "65 numbers" },
+      { label: "  Safety factor q(ψ)", math: "65 numbers" },
+      { label: "  Plasma boundary contour", math: "~89 (R,Z) pairs" },
+      { label: "  Wall contour", math: "~25 (R,Z) pairs" },
+      { label: "", math: null },
+      { label: "Total: about 4,500 numbers in a ~100KB text file.", math: null },
+      { label: "That file defines the entire magnetic universe the", math: null },
+      { label: "plasma lives in. Everything downstream reads it.", math: null },
+    ],
+  },
+];
+
+function MathWalkthrough() {
+  const [step, setStep] = useState(0);
+  const current = steps[step];
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', 'SF Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px 0" }}>
+          WHAT EFIT DOES WITH P AND J
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 20px 0", letterSpacing: 1 }}>
+          THE MATH, LINE BY LINE, WITH REAL NUMBERS
+        </p>
+
+        {/* Step navigation */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 20, flexWrap: "wrap" }}>
+          {steps.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => setStep(i)}
+              style={{
+                padding: "8px 14px",
+                background: step === i ? "#1a2a3a" : "#12171f",
+                border: step === i ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: step === i ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 11,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                fontWeight: step === i ? 700 : 400,
+              }}
+            >
+              {i === steps.length - 1 ? "Summary" : `Step ${i}`}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{
+          background: "#12171f",
+          borderRadius: 6,
+          border: "1px solid #1e2630",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            padding: "16px 20px",
+            background: "#1a2a3a",
+            borderBottom: "1px solid #1e2630",
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#4ecdc4" }}>
+              {current.title}
+            </div>
+          </div>
+
+          <div style={{ padding: "16px 20px" }}>
+            {current.content.map((line, i) => {
+              if (!line.label && !line.math) {
+                return <div key={i} style={{ height: 12 }} />;
+              }
+
+              const highlightColors = {
+                input: { bg: "rgba(78, 205, 196, 0.08)", border: "#4ecdc4" },
+                math: { bg: "rgba(138, 180, 248, 0.08)", border: "#8ab4f8" },
+                output: { bg: "rgba(201, 184, 124, 0.08)", border: "#c9b87c" },
+              };
+              const hl = line.highlight ? highlightColors[line.highlight] : null;
+
+              return (
+                <div key={i} style={{
+                  padding: hl ? "8px 12px" : "3px 0",
+                  background: hl ? hl.bg : "transparent",
+                  borderLeft: hl ? `3px solid ${hl.border}` : "none",
+                  borderRadius: hl ? 4 : 0,
+                  marginBottom: hl ? 8 : 0,
+                  marginTop: hl ? 8 : 0,
+                }}>
+                  {line.label && (
+                    <span style={{
+                      fontSize: 13,
+                      color: hl ? hl.border : "#a0aab8",
+                      fontWeight: hl ? 700 : 400,
+                      lineHeight: 1.7,
+                    }}>
+                      {line.label}
+                    </span>
+                  )}
+                  {line.math && (
+                    <div style={{
+                      fontSize: 14,
+                      color: "#e6ecf2",
+                      fontWeight: 600,
+                      padding: line.label ? "4px 0 0 20px" : "0 0 0 20px",
+                      lineHeight: 1.7,
+                    }}>
+                      {line.math}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Nav buttons */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
+          <button
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            style={{
+              padding: "8px 20px",
+              background: step === 0 ? "#12171f" : "#1a2a3a",
+              border: "1px solid #1e2630",
+              borderRadius: 4,
+              color: step === 0 ? "#3a4550" : "#4ecdc4",
+              fontFamily: "inherit",
+              fontSize: 12,
+              cursor: step === 0 ? "default" : "pointer",
+            }}
+          >
+            ← Previous
+          </button>
+          <span style={{ fontSize: 11, color: "#3a4550", alignSelf: "center" }}>
+            {step + 1} / {steps.length}
+          </span>
+          <button
+            onClick={() => setStep(Math.min(steps.length - 1, step + 1))}
+            disabled={step === steps.length - 1}
+            style={{
+              padding: "8px 20px",
+              background: step === steps.length - 1 ? "#12171f" : "#1a2a3a",
+              border: "1px solid #1e2630",
+              borderRadius: 4,
+              color: step === steps.length - 1 ? "#3a4550" : "#4ecdc4",
+              fontFamily: "inherit",
+              fontSize: 12,
+              cursor: step === steps.length - 1 ? "default" : "pointer",
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(MathWalkthrough));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

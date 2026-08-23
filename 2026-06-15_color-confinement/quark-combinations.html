@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Confinement — Every Way to Bind Quarks & Gluons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07060d;
+    --bg2:#0d0b18;
+    --panel:rgba(22,20,38,.72);
+    --line:rgba(154,150,196,.18);
+    --ink:#e9e7ff;
+    --mute:#9a96c4;
+    --R:#ff4242;
+    --G:#3bff7a;
+    --B:#4a7bff;
+    --aR:#38e8e8; /* antired = cyan */
+    --aG:#ff4ad0; /* antigreen = magenta */
+    --aB:#ffe14a; /* antiblue = yellow */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #14112a 0%, var(--bg) 55%);
+    color:var(--ink);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    min-height:100%;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 64px}
+
+  header{margin-bottom:22px}
+  .eyebrow{
+    font-family:"JetBrains Mono",monospace;
+    font-size:12px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--mute);
+  }
+  h1{
+    font-size:clamp(28px,5vw,52px);line-height:1.02;font-weight:700;
+    margin:.18em 0 .35em;letter-spacing:-.02em;
+  }
+  h1 em{font-style:normal;background:linear-gradient(90deg,var(--R),var(--G),var(--B));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{max-width:62ch;color:var(--mute);font-size:clamp(15px,1.6vw,17px);line-height:1.55}
+  .lede b{color:var(--ink);font-weight:500}
+
+  .stage{
+    display:grid;grid-template-columns:1.35fr .95fr;gap:18px;margin-top:26px;
+  }
+  @media(max-width:840px){.stage{grid-template-columns:1fr}}
+
+  .chamber{
+    position:relative;background:linear-gradient(180deg,var(--bg2),#08070f);
+    border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    min-height:440px;
+  }
+  canvas{display:block;width:100%;height:100%}
+  .chamber-tag{
+    position:absolute;top:14px;left:16px;font-family:"JetBrains Mono",monospace;
+    font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--mute);
+    pointer-events:none;
+  }
+  .neutral-readout{
+    position:absolute;bottom:14px;left:16px;font-family:"JetBrains Mono",monospace;
+    font-size:12px;color:var(--mute);pointer-events:none;
+  }
+  .neutral-readout .dot{display:inline-block;width:10px;height:10px;border-radius:50%;
+    background:#fff;box-shadow:0 0 12px #fff,0 0 4px #fff;vertical-align:-1px;margin-left:6px}
+
+  .info{
+    background:var(--panel);border:1px solid var(--line);border-radius:18px;
+    padding:22px;backdrop-filter:blur(6px);
+  }
+  .info h2{font-size:26px;font-weight:700;letter-spacing:-.01em}
+  .info .sub{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--mute);
+    letter-spacing:.12em;text-transform:uppercase;margin-top:4px}
+  .status{display:inline-block;margin-top:14px;font-family:"JetBrains Mono",monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;
+    border-radius:999px;border:1px solid var(--line)}
+  .status.obs{color:#3bff7a;border-color:rgba(59,255,122,.4)}
+  .status.pred{color:var(--aB);border-color:rgba(255,225,74,.4)}
+  .info p.desc{margin-top:16px;color:var(--mute);line-height:1.6;font-size:15px}
+  .recipe{margin-top:18px;font-family:"JetBrains Mono",monospace;font-size:14px;
+    background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .recipe .row{display:flex;justify-content:space-between;gap:14px;padding:5px 0;color:var(--mute)}
+  .recipe .row span:last-child{color:var(--ink);text-align:right}
+  .recipe .row.math span:last-child{color:#fff}
+
+  .picker{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}
+  .chip{
+    font-family:"JetBrains Mono",monospace;font-size:12.5px;letter-spacing:.04em;
+    color:var(--mute);background:rgba(255,255,255,.03);
+    border:1px solid var(--line);border-radius:11px;padding:10px 13px;cursor:pointer;
+    transition:.18s;display:flex;flex-direction:column;gap:3px;min-width:104px;
+  }
+  .chip b{color:var(--ink);font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:500;letter-spacing:0}
+  .chip:hover{border-color:rgba(154,150,196,.45);background:rgba(255,255,255,.06);transform:translateY(-1px)}
+  .chip[aria-selected="true"]{border-color:var(--ink);background:rgba(154,150,196,.14);color:var(--ink)}
+  .chip:focus-visible{outline:2px solid var(--B);outline-offset:2px}
+
+  .legend{margin-top:30px;border-top:1px solid var(--line);padding-top:20px;
+    display:flex;flex-wrap:wrap;gap:20px 30px;align-items:flex-start}
+  .legend .grp{font-size:13px;color:var(--mute);line-height:1.5}
+  .legend .grp h3{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--mute);margin-bottom:8px;font-weight:500}
+  .swatch{display:inline-flex;align-items:center;gap:7px;margin-right:14px;color:var(--ink);font-size:13px}
+  .swatch i{width:13px;height:13px;border-radius:50%;display:inline-block}
+  .note{max-width:64ch}
+  .note b{color:var(--ink);font-weight:500}
+  @media(prefers-reduced-motion:reduce){canvas{opacity:.96}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Quantum Chromodynamics · Color Confinement</div>
+    <h1>Every way to bind <em>quarks &amp; gluons</em></h1>
+    <p class="lede">Quarks carry a property called <b>color charge</b> — red, green, or blue (and anti­colors for antiquarks). Nature only lets particles exist if their colors add up to <b>white</b>. That single rule produces every combination below. Gluons are the glue: they carry color too, and constantly swap it between quarks. Pick a state to watch it bind.</p>
+  </header>
+
+  <div class="stage">
+    <div class="chamber">
+      <span class="chamber-tag" id="tag">confinement chamber</span>
+      <canvas id="c"></canvas>
+      <div class="neutral-readout">net color charge: <span id="netlabel">white</span><span class="dot"></span></div>
+    </div>
+    <aside class="info">
+      <h2 id="name">Meson</h2>
+      <div class="sub" id="formula">q + q̄</div>
+      <span class="status obs" id="status">Observed</span>
+      <p class="desc" id="desc"></p>
+      <div class="recipe" id="recipe"></div>
+    </aside>
+  </div>
+
+  <div class="picker" id="picker" role="tablist" aria-label="Particle states"></div>
+
+  <div class="legend">
+    <div class="grp">
+      <h3>Color charge (quarks)</h3>
+      <span class="swatch"><i style="background:var(--R)"></i>red</span>
+      <span class="swatch"><i style="background:var(--G)"></i>green</span>
+      <span class="swatch"><i style="background:var(--B)"></i>blue</span>
+    </div>
+    <div class="grp">
+      <h3>Anticolor (antiquarks)</h3>
+      <span class="swatch"><i style="background:var(--aR)"></i>antired</span>
+      <span class="swatch"><i style="background:var(--aG)"></i>antigreen</span>
+      <span class="swatch"><i style="background:var(--aB)"></i>antiblue</span>
+    </div>
+    <div class="grp note">
+      <h3>Reading the chamber</h3>
+      Glowing orbs are quarks; split orbs are <b>gluons</b> (they carry a color + an anticolor). The wavy links are <b>flux tubes</b> — the strong force, which gets <i>stronger</i> with distance, so quarks can never escape alone. Pulses traveling the tubes are gluons handing color between quarks while keeping the total white.
+    </div>
+  </div>
+</div>
+
+<script>
+const C = {
+  R:'#ff4242', G:'#3bff7a', B:'#4a7bff',
+  aR:'#38e8e8', aG:'#ff4ad0', aB:'#ffe14a'
+};
+// quark = single color; antiquark = single anticolor; gluon = {a,b} color+anticolor
+const STATES = {
+  meson:{
+    name:'Meson', formula:'q + q̄', status:'obs',
+    desc:'The simplest bound state: one quark and one antiquark. The quark’s color is exactly cancelled by the antiquark’s anticolor, so the pair is neutral. Pions and kaons are mesons.',
+    parts:[{t:'q',c:C.R},{t:'aq',c:C.aR}],
+    recipe:[['Constituents','1 quark + 1 antiquark'],['Color math','red + antired → white'],['Example','π⁺ pion (u d̄)']]
+  },
+  baryon:{
+    name:'Baryon', formula:'q q q', status:'obs',
+    desc:'Three quarks, one of each color. Red + green + blue combine to white — the same way light does. Protons (uud) and neutrons (udd) are baryons, which is why nearly everything you can touch is made of them.',
+    parts:[{t:'q',c:C.R},{t:'q',c:C.G},{t:'q',c:C.B}],
+    recipe:[['Constituents','3 quarks'],['Color math','red + green + blue → white'],['Example','proton (u u d)']]
+  },
+  antibaryon:{
+    name:'Antibaryon', formula:'q̄ q̄ q̄', status:'obs',
+    desc:'The mirror of a baryon: three antiquarks carrying the three anticolors, which also sum to white. Antiprotons are made this way and have been produced and trapped in the lab.',
+    parts:[{t:'aq',c:C.aR},{t:'aq',c:C.aG},{t:'aq',c:C.aB}],
+    recipe:[['Constituents','3 antiquarks'],['Color math','antired + antigreen + antiblue → white'],['Example','antiproton (ū ū d̄)']]
+  },
+  tetraquark:{
+    name:'Tetraquark', formula:'q q q̄ q̄', status:'obs',
+    desc:'An exotic state of two quarks and two antiquarks. The colors still pair off to neutral. Long predicted, these were finally confirmed at the LHC — including a doubly-charmed one that is unusually long-lived.',
+    parts:[{t:'q',c:C.R},{t:'aq',c:C.aR},{t:'q',c:C.B},{t:'aq',c:C.aB}],
+    recipe:[['Constituents','2 quarks + 2 antiquarks'],['Color math','(red+antired) + (blue+antiblue) → white'],['Example','Tcc⁺ , X(6900)']]
+  },
+  pentaquark:{
+    name:'Pentaquark', formula:'q q q q q̄', status:'obs',
+    desc:'Four quarks plus an antiquark. One quark–antiquark pair cancels, leaving a red-green-blue core — so it’s neutral overall. Discovered at LHCb in 2015, often pictured as a baryon and a meson stuck together.',
+    parts:[{t:'q',c:C.R},{t:'q',c:C.G},{t:'q',c:C.B},{t:'q',c:C.R},{t:'aq',c:C.aR}],
+    recipe:[['Constituents','4 quarks + 1 antiquark'],['Color math','(red+green+blue) + (red+antired) → white'],['Example','Pc(4450)⁺']]
+  },
+  hexaquark:{
+    name:'Hexaquark', formula:'q q q q q q', status:'pred',
+    desc:'Six quarks bound together — effectively two baryons fused into one particle (a "dibaryon"). Two sets of red-green-blue keep it neutral. The d*(2380) resonance is a leading candidate, but its nature is still debated.',
+    parts:[{t:'q',c:C.R},{t:'q',c:C.G},{t:'q',c:C.B},{t:'q',c:C.R},{t:'q',c:C.G},{t:'q',c:C.B}],
+    recipe:[['Constituents','6 quarks'],['Color math','two × (red+green+blue) → white'],['Status','d*(2380) candidate — debated']]
+  },
+  glueball:{
+    name:'Glueball', formula:'g g (g)', status:'pred',
+    desc:'The strangest one: a particle made of pure gluons and no quarks at all. Because gluons carry color, they can bind to each other. QCD predicts glueballs should exist, but cleanly identifying one is still an open hunt.',
+    parts:[{t:'g',c:C.R,c2:C.aG},{t:'g',c:C.G,c2:C.aB},{t:'g',c:C.B,c2:C.aR}],
+    recipe:[['Constituents','gluons only — no quarks'],['Color math','color loop closes → white'],['Status','Predicted · f₀(1710) candidate']]
+  },
+  hybrid:{
+    name:'Hybrid meson', formula:'q q̄ + g*', status:'pred',
+    desc:'A quark and antiquark plus an excited gluon field that acts like a real constituent. The extra gluonic energy lets it have quantum numbers an ordinary meson can’t — a tell-tale signature experiments look for.',
+    parts:[{t:'q',c:C.R},{t:'aq',c:C.aR},{t:'g',c:C.G,c2:C.aG}],
+    recipe:[['Constituents','quark + antiquark + excited gluon'],['Color math','red + antired, gluon balances → white'],['Status','π₁(1600) candidate']]
+  }
+};
+
+// ---- build picker ----
+const picker = document.getElementById('picker');
+const order = ['meson','baryon','antibaryon','tetraquark','pentaquark','hexaquark','glueball','hybrid'];
+const labels = {meson:'q q̄',baryon:'q q q',antibaryon:'q̄ q̄ q̄',tetraquark:'q q q̄ q̄',pentaquark:'4q + q̄',hexaquark:'6 q',glueball:'g g g',hybrid:'q q̄ g'};
+order.forEach((k,i)=>{
+  const b=document.createElement('button');
+  b.className='chip';b.setAttribute('role','tab');
+  b.setAttribute('aria-selected', i===0?'true':'false');
+  b.innerHTML='<b>'+STATES[k].name+'</b><span style="color:var(--mute)">'+labels[k]+'</span>';
+  b.onclick=()=>select(k);
+  b.dataset.key=k;
+  picker.appendChild(b);
+});
+
+// ---- canvas setup ----
+const canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
+let W,H,DPR;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  const r=canvas.parentElement.getBoundingClientRect();
+  W=r.width;H=r.height;
+  canvas.width=W*DPR;canvas.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize',resize);
+
+let current='meson', nodes=[], t=0;
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function layout(state){
+  const parts=STATES[state].parts;
+  const n=parts.length;
+  nodes=parts.map((p,i)=>{
+    const ang=-Math.PI/2 + i/n*Math.PI*2;
+    const rad = n===2?70 : n===1?0 : 78+ n*4;
+    return {...p, baseAng:ang, rad, phase:Math.random()*Math.PI*2, x:0,y:0};
+  });
+}
+
+function select(k){
+  current=k;
+  layout(k);
+  [...picker.children].forEach(c=>c.setAttribute('aria-selected', c.dataset.key===k));
+  const s=STATES[k];
+  document.getElementById('name').textContent=s.name;
+  document.getElementById('formula').textContent=s.formula;
+  document.getElementById('desc').textContent=s.desc;
+  document.getElementById('tag').textContent=s.name.toLowerCase()+' · confinement chamber';
+  const st=document.getElementById('status');
+  st.textContent = s.status==='obs'?'Observed in experiments':'Predicted / candidate';
+  st.className='status '+(s.status==='obs'?'obs':'pred');
+  const rec=document.getElementById('recipe');
+  rec.innerHTML=s.recipe.map(([a,b],idx)=>'<div class="row'+(idx===1?' math':'')+'"><span>'+a+'</span><span>'+b+'</span></div>').join('');
+}
+
+function hexToRgb(h){const n=parseInt(h.slice(1),16);return[n>>16,(n>>8)&255,n&255];}
+function glow(x,y,r,color,a){
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  const [R,G,B]=hexToRgb(color);
+  g.addColorStop(0,`rgba(${R},${G},${B},${a})`);
+  g.addColorStop(.5,`rgba(${R},${G},${B},${a*.35})`);
+  g.addColorStop(1,`rgba(${R},${G},${B},0)`);
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+}
+
+function fluxTube(a,b,phase){
+  const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+  const segs=Math.max(10,len/8);
+  ctx.beginPath();
+  for(let i=0;i<=segs;i++){
+    const u=i/segs;
+    const px=a.x+dx*u, py=a.y+dy*u;
+    const nx=-dy/len, ny=dx/len;
+    const wob=Math.sin(u*Math.PI)*Math.sin(u*14 - phase)*4*(reduce?0:1);
+    const X=px+nx*wob, Y=py+ny*wob;
+    i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);
+  }
+  ctx.strokeStyle='rgba(200,200,255,.16)';ctx.lineWidth=1.4;ctx.stroke();
+  // traveling gluon pulse
+  if(!reduce){
+    const u=(phase*0.06)%1;
+    const px=a.x+dx*u, py=a.y+dy*u;
+    glow(px,py,7,'#ffffff',.5);
+  }
+}
+
+function drawQuark(nd){
+  const r=15;
+  glow(nd.x,nd.y,42,nd.c,.55);
+  // core
+  ctx.beginPath();ctx.arc(nd.x,nd.y,r,0,7);
+  const [R,G,B]=hexToRgb(nd.c);
+  ctx.fillStyle=`rgb(${R},${G},${B})`;ctx.fill();
+  ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,255,255,.6)';ctx.stroke();
+  if(nd.t==='aq'){ // antiquark ring marker
+    ctx.beginPath();ctx.arc(nd.x,nd.y,r+6,0,7);
+    ctx.strokeStyle=`rgba(${R},${G},${B},.6)`;ctx.lineWidth=1.2;ctx.stroke();
+  }
+}
+function drawGluon(nd){
+  const r=14;
+  glow(nd.x,nd.y,40,nd.c,.4);glow(nd.x,nd.y,40,nd.c2,.4);
+  // split orb
+  ctx.save();ctx.beginPath();ctx.arc(nd.x,nd.y,r,0,7);ctx.clip();
+  ctx.fillStyle=nd.c;ctx.fillRect(nd.x-r,nd.y-r,r,2*r);
+  ctx.fillStyle=nd.c2;ctx.fillRect(nd.x,nd.y-r,r,2*r);
+  ctx.restore();
+  ctx.beginPath();ctx.arc(nd.x,nd.y,r,0,7);ctx.lineWidth=1.4;ctx.strokeStyle='rgba(255,255,255,.55)';ctx.stroke();
+}
+
+function frame(){
+  t+= reduce?0.4:1;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2;
+  // position nodes
+  nodes.forEach(nd=>{
+    const wob = reduce?0:Math.sin(t*0.02+nd.phase)*0.12;
+    const ang=nd.baseAng + t*0.004 + wob;
+    nd.x=cx+Math.cos(ang)*nd.rad;
+    nd.y=cy+Math.sin(ang)*nd.rad;
+  });
+  // central neutrality glow (the "white" proof)
+  const pulse=reduce?.5:(.42+0.08*Math.sin(t*0.05));
+  glow(cx,cy,nodes.length>1?nodes[0].rad*1.5:46,'#ffffff',pulse*0.5);
+  // flux tubes: connect each node to centroid + neighbors
+  for(let i=0;i<nodes.length;i++){
+    for(let j=i+1;j<nodes.length;j++){
+      fluxTube(nodes[i],nodes[j],t*0.18+i*2+j);
+    }
+  }
+  // draw particles
+  nodes.forEach(nd=> nd.t==='g'?drawGluon(nd):drawQuark(nd));
+  requestAnimationFrame(frame);
+}
+
+resize();select('meson');frame();
+</script>
+</body>
+</html>

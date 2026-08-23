@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ballooning · Peeling · ELMs — 2D Cutaways</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06090f;--panel:#0c121c;--panel2:#0a0f18;--line:rgba(140,170,200,0.12);--line2:rgba(140,170,200,0.2);
+    --txt:#d2dde9;--mut:#7387a0;--dim:#46566a;
+    --H:#27e7d4;--Hglow:rgba(39,231,212,0.5);
+    --bad:#ff6450;--elm:#ff3d6e;--elmglow:rgba(255,61,110,0.55);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{font-family:"Bricolage Grotesque",sans-serif;color:var(--txt);line-height:1.6;overflow-x:hidden;
+    background:radial-gradient(900px 600px at 78% -6%,rgba(255,100,80,0.08),transparent 60%),
+      radial-gradient(700px 500px at 10% 4%,rgba(39,231,212,0.08),transparent 60%),var(--bg);}
+  .wrap{max-width:780px;margin:0 auto;padding:26px 16px 56px;}
+  .kicker{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.26em;text-transform:uppercase;
+    color:var(--mut);display:flex;align-items:center;gap:9px;}
+  .kicker::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--H);box-shadow:0 0 10px var(--Hglow);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{font-size:clamp(27px,7vw,44px);line-height:1.04;font-weight:800;letter-spacing:-0.025em;margin:12px 0 10px;
+    background:linear-gradient(96deg,#fff 8%,var(--H) 55%,#ff9a3c 118%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .lede{color:var(--mut);font-size:15px;max-width:58ch;}
+
+  .lenses{display:flex;gap:8px;margin:18px 0 10px;}
+  .lens{flex:1;font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.06em;text-align:center;
+    background:#0c1320;border:1px solid var(--line2);color:var(--mut);padding:11px 6px;border-radius:11px;cursor:pointer;transition:.18s;}
+  .lens.active{color:#04140f;font-weight:700;background:linear-gradient(180deg,#fff,#bfe9e3);border-color:#fff;box-shadow:0 0 18px -6px var(--Hglow);}
+  .lens.active[data-l=elm]{background:linear-gradient(180deg,#fff,#ffc3cf);box-shadow:0 0 18px -6px var(--elmglow);}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:560px){.grid{grid-template-columns:1fr;}}
+  .cut{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:15px;
+    padding:12px 11px 10px;position:relative;overflow:hidden;box-shadow:0 18px 44px -30px #000;}
+  .cuttitle{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-bottom:4px;}
+  .cuttitle b{color:var(--txt);font-weight:700;}
+  canvas{display:block;width:100%;height:300px;border-radius:8px;}
+  .cap{font-size:12px;color:var(--mut);margin-top:7px;line-height:1.45;}
+
+  .ctl{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;margin:14px 0;}
+  .ctlrow{display:flex;align-items:center;gap:12px;}
+  .slabel{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:24px;background:transparent;cursor:pointer;}
+  input[type=range]::-webkit-slider-runnable-track{height:7px;border-radius:6px;background:#16202e;border:1px solid var(--line2);}
+  input[type=range]::-moz-range-track{height:7px;border-radius:6px;background:#16202e;border:1px solid var(--line2);}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:23px;height:23px;margin-top:-9px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--elm));border:2px solid #14060a;box-shadow:0 0 14px var(--elmglow);}
+  input[type=range]::-moz-range-thumb{width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--elm));border:2px solid #14060a;}
+  .fire{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;letter-spacing:.08em;color:#fff;
+    background:linear-gradient(180deg,#ff5277,#d31e48);border:none;padding:11px 16px;border-radius:10px;cursor:pointer;box-shadow:0 0 18px -6px var(--elmglow);}
+  .pedbar{flex:1;height:10px;border-radius:6px;background:#16202e;border:1px solid var(--line2);overflow:hidden;position:relative;}
+  .pedfill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--H),var(--bad));}
+  .pedlim{position:absolute;right:6%;top:-2px;bottom:-2px;width:2px;background:var(--elm);box-shadow:0 0 8px var(--elmglow);}
+
+  .explain{background:linear-gradient(180deg,#0d141f,#0a0f18);border:1px solid var(--line2);border-radius:14px;padding:15px 14px;}
+  .explain h3{margin:0 0 7px;font-size:17px;font-weight:800;}
+  .explain p{margin:0;font-size:14px;color:#b9c6d6;}
+  b.k{color:#fff;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--mut);margin:14px 0 0;}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:middle;margin-right:5px;}
+  footer{margin-top:24px;font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--dim);text-align:center;letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">2D cutaways · two ways to slice the donut</div>
+  <h1>The Same Break, From Two Angles</h1>
+  <p class="lede">Two cross-sections of the tokamak, driven together. The <b style="color:var(--txt)">bagel slice</b> shows <em>poloidal</em> position — inner vs outer side. The <b style="color:var(--txt)">top-down</b> view shows <em>toroidal</em> structure — the mode number, i.e. how many ripples wrap around the ring. Together they fully pin down where and how the edge fails.</p>
+
+  <div class="lenses">
+    <div class="lens active" data-l="balloon">BALLOONING</div>
+    <div class="lens" data-l="peel">PEELING</div>
+    <div class="lens" data-l="elm">ELM CYCLE</div>
+  </div>
+
+  <div class="grid">
+    <div class="cut">
+      <div class="cuttitle"><b>Bagel slice</b> · poloidal cut</div>
+      <canvas id="pol"></canvas>
+      <div class="cap" id="capPol"></div>
+    </div>
+    <div class="cut">
+      <div class="cuttitle"><b>Top-down</b> · through the midplane</div>
+      <canvas id="tor"></canvas>
+      <div class="cap" id="capTor"></div>
+    </div>
+  </div>
+
+  <div class="ctl">
+    <div class="ctlrow" id="manualCtl">
+      <span class="slabel">pedestal pressure</span>
+      <input type="range" id="press" min="0" max="100" value="22">
+    </div>
+    <div class="ctlrow" id="elmCtl" style="display:none;">
+      <div class="pedbar"><div class="pedfill" id="pedfill"></div><div class="pedlim"></div></div>
+      <button class="fire" id="fireBtn">↯ FIRE ELM</button>
+    </div>
+  </div>
+
+  <div class="explain" id="explain"></div>
+
+  <div class="legend">
+    <span><i style="background:var(--bad)"></i>outer side · bad curvature</span>
+    <span><i style="background:var(--H)"></i>inner side · good curvature</span>
+    <span><i style="background:var(--elm)"></i>ELM filaments</span>
+  </div>
+  <footer>teaching model · amplitudes & mode numbers exaggerated for clarity</footer>
+</div>
+
+<script>
+"use strict";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const TAU=Math.PI*2;
+function curvColor(t,alpha){ // t:0 good(inner,teal) .. 1 bad(outer,red)
+  const r=Math.round(lerp(39,255,t)),g=Math.round(lerp(231,100,t)),b=Math.round(lerp(212,80,t));
+  return `rgba(${r},${g},${b},${alpha==null?1:alpha})`;
+}
+
+const EXPLAIN={
+  balloon:`<h3>Ballooning — pressure, stuck on the outer side</h3>
+    <p>In the <b class="k">bagel slice</b> the boundary bulges only on the <b class="k">right (outer) side</b> — pressure escaping where the field is too weak to hold it. In the <b class="k">top-down</b> view that bulge becomes <b class="k">many tight ripples</b> around the outer rim: a <b class="k">high mode number</b>. Inner rim stays calm. Pressure-driven, outboard, fine-scale.</p>`,
+  peel:`<h3>Peeling — current, wrapping the whole edge</h3>
+    <p>Now the ripples spread around the <b class="k">entire</b> boundary, not just the outer side, and the <b class="k">top-down</b> view shows only a <b class="k">few broad twisting bands</b> that slowly rotate — a <b class="k">low mode number</b>, helical. This is the edge current lifting the outer magnetic layers like peeling skin. Current-driven, global, coarse-scale.</p>`,
+  elm:`<h3>ELM — both, then rupture</h3>
+    <p>The pedestal builds (bar) until it hits the limit, then the edge <b class="k">erupts</b>: in the bagel slice, filaments fire off the outer side; top-down, they spray radially outward at several toroidal spots. The edge collapses and rebuilds. Hit <b class="k">FIRE ELM</b> to trigger one. That outward spray is what lands on the divertor.</p>`
+};
+const CAP={
+  balloon:{pol:"Bulge on the RIGHT (outer) side only — the inner side barely moves.",tor:"Outer rim breaks into MANY small ripples (high n). Inner rim smooth."},
+  peel:{pol:"Ripples wrap the WHOLE rim, lifting the edge layer evenly.",tor:"Only a FEW broad bands, slowly rotating (low n, helical)."},
+  elm:{pol:"Filaments erupt outboard as the boundary collapses inward.",tor:"Plasma sprays radially outward at several points around the ring."}
+};
+
+let lens='balloon', g=0.22, gTarget=0.22, erupting=false, elmT=0, t=0;
+const FLIFE=0.7, NF=14;
+
+const pol=document.getElementById('pol'), tor=document.getElementById('tor');
+function setup(cv){const r=cv.getBoundingClientRect();const dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);cv._w=r.width;cv._h=r.height;cv._ctx=ctx;}
+function fit(){setup(pol);setup(tor);}
+window.addEventListener('resize',fit);
+
+function weights(){return {ball:(lens==='peel')?0.12:1.0, peel:(lens==='balloon')?0.12:(lens==='peel'?1.0:0.8)};}
+
+/* ---- mini cut indicator (tiny donut showing slice plane) ---- */
+function miniIndicator(ctx,x,y,r,kind){
+  ctx.save();ctx.translate(x,y);
+  ctx.strokeStyle='rgba(140,170,200,0.35)';ctx.lineWidth=1;
+  // donut as two ellipses (perspective)
+  ctx.beginPath();ctx.ellipse(0,0,r,r*0.5,0,0,TAU);ctx.stroke();
+  ctx.beginPath();ctx.ellipse(0,0,r*0.42,r*0.21,0,0,TAU);ctx.stroke();
+  ctx.strokeStyle='rgba(255,61,110,0.7)';ctx.lineWidth=1.4;
+  if(kind==='pol'){ // vertical slice plane
+    ctx.beginPath();ctx.moveTo(0,-r*0.7);ctx.lineTo(0,r*0.7);ctx.stroke();
+  }else{ // horizontal midplane slice
+    ctx.beginPath();ctx.ellipse(0,0,r,r*0.5,0,0,TAU);ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ---- POLOIDAL (bagel slice) ---- */
+function dispPol(th,w){ // th: 0 = outboard(right)
+  const cv=Math.cos(th), outer=Math.max(0,cv);
+  const ball=Math.pow(outer,1.5)*(0.82+0.18*Math.cos(6*th));
+  const peel=(0.5+0.5*Math.cos(6*th - t*1.2));
+  return 0.26*g*w.ball*ball + 0.17*g*w.peel*peel;
+}
+// D-shape flux surface (math coords, y up, centred at origin)
+const KAPPA=1.45, DELTA=0.30; // elongation, triangularity
+function dShape(th,s,a){
+  // extra downward pinch near the bottom gives the diverted X-point cusp
+  const cuspe=0.16*Math.pow(Math.max(0,-Math.sin(th)),3);
+  return [a*s*Math.cos(th+DELTA*Math.sin(th)),
+          a*s*(KAPPA*Math.sin(th) - cuspe*KAPPA)];
+}
+function dNormal(th,a){
+  const e=0.0016;
+  const p1=dShape(th-e,1,a), p2=dShape(th+e,1,a), p=dShape(th,1,a);
+  let nx=p2[1]-p1[1], ny=-(p2[0]-p1[0]);
+  const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+  if(nx*p[0]+ny*p[1]<0){nx=-nx;ny=-ny;}      // force outward
+  return [nx,ny];
+}
+function drawPol(){
+  const ctx=pol._ctx,W=pol._w,H=pol._h;ctx.clearRect(0,0,W,H);
+  const cx=W*0.46, cy=H*0.5, a=Math.min(W,H)*0.27, w=weights();
+  const scr=p=>[cx+p[0], cy-p[1]];
+  // nested D flux surfaces
+  ctx.strokeStyle='rgba(120,160,190,0.12)';ctx.lineWidth=1;
+  for(const s of [0.4,0.66,0.86]){ctx.beginPath();
+    for(let i=0;i<=130;i++){const p=scr(dShape(i/130*TAU,s,a));i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);}
+    ctx.closePath();ctx.stroke();}
+  // core glow
+  const cg=ctx.createRadialGradient(cx,cy,2,cx,cy,a);cg.addColorStop(0,'rgba(255,200,120,0.18)');cg.addColorStop(1,'rgba(255,200,120,0)');
+  ctx.fillStyle=cg;ctx.beginPath();ctx.ellipse(cx,cy,a*0.7,a*0.7*KAPPA,0,0,TAU);ctx.fill();
+  // boundary (separatrix), D-shape + outward-normal deformation, per-segment coloured
+  const N=200; let pts=[];
+  for(let i=0;i<=N;i++){const th=i/N*TAU; const base=dShape(th,1,a); const nrm=dNormal(th,a); const d=a*dispPol(th,w);
+    const p=scr([base[0]+nrm[0]*d, base[1]+nrm[1]*d]); pts.push([p[0],p[1],th]);}
+  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+  ctx.fillStyle='rgba(39,231,212,0.05)';ctx.fill();
+  ctx.lineWidth=2.4;
+  for(let i=0;i<N;i++){const th=pts[i][2];const tt=Math.cos(th)*0.5+0.5;
+    ctx.beginPath();ctx.moveTo(pts[i][0],pts[i][1]);ctx.lineTo(pts[i+1][0],pts[i+1][1]);
+    ctx.strokeStyle=curvColor(tt,0.95);ctx.stroke();}
+  // X-point + short divertor legs at the bottom cusp
+  const xp=scr(dShape(-Math.PI/2,1,a));
+  ctx.fillStyle='rgba(255,61,110,0.9)';ctx.beginPath();ctx.arc(xp[0],xp[1],2.6,0,TAU);ctx.fill();
+  ctx.strokeStyle='rgba(255,61,110,0.4)';ctx.lineWidth=1.2;ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(xp[0],xp[1]);ctx.lineTo(xp[0]-a*0.34,xp[1]+a*0.34);
+  ctx.moveTo(xp[0],xp[1]);ctx.lineTo(xp[0]+a*0.34,xp[1]+a*0.34);ctx.stroke();ctx.setLineDash([]);
+  // labels
+  ctx.font='10px "JetBrains Mono",monospace';ctx.textAlign='center';
+  ctx.fillStyle=curvColor(1,0.9);ctx.fillText('outer →',cx+a*1.18+18,cy);
+  ctx.fillStyle=curvColor(0,0.9);ctx.fillText('← inner',cx-a*0.85-18,cy);
+  ctx.fillStyle='rgba(255,200,120,0.85)';ctx.fillText('core',cx,cy+3);
+  ctx.fillStyle='rgba(255,120,150,0.85)';ctx.fillText('X-point',xp[0],xp[1]+15);
+  if(erupting)drawFilamentsPol(ctx,cx,cy,a);
+  miniIndicator(ctx,W-30,28,18,'pol');ctx.textAlign='left';
+}
+function drawFilamentsPol(ctx,cx,cy,a){
+  const k=elmT/FLIFE, ease=1-Math.pow(1-Math.min(1,k),2);
+  for(let i=0;i<NF;i++){
+    const th=lerp(-0.7,0.7,i/(NF-1)); // outboard spread
+    const base=dShape(th,1,a), nrm=dNormal(th,a);
+    const x0=cx+base[0]+nrm[0]*a*0.06, y0=cy-(base[1]+nrm[1]*a*0.06);
+    const ext=a*0.06+ease*a*1.6;
+    const x1=cx+base[0]+nrm[0]*ext, y1=cy-(base[1]+nrm[1]*ext);
+    const op=(k<0.15?k/0.15:1)*(1-Math.min(1,k));
+    ctx.strokeStyle=`rgba(255,90,120,${op})`;ctx.lineWidth=2.4;ctx.lineCap='round';
+    ctx.shadowColor='rgba(255,61,110,0.7)';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.shadowBlur=0;
+  }
+  ctx.lineCap='butt';
+}
+
+/* ---- TOP-DOWN (midplane) ---- */
+function drawTor(){
+  const ctx=tor._ctx,W=tor._w,H=tor._h;ctx.clearRect(0,0,W,H);
+  const cx=W*0.5, cy=H*0.5, Ro=Math.min(W,H)*0.40, Ri=Ro*0.45, w=weights();
+  const Nb=14, Np=4; // high-n ballooning, low-n peeling
+  // annulus fill
+  ctx.beginPath();ctx.arc(cx,cy,Ro,0,TAU);ctx.arc(cx,cy,Ri,0,TAU,true);
+  ctx.fillStyle='rgba(39,231,212,0.04)';ctx.fill('evenodd');
+  // inner rim (good, blue) — small peeling ripple only
+  const N=220;
+  ctx.beginPath();
+  for(let i=0;i<=N;i++){const ph=i/N*TAU;
+    const rip=0.04*g*w.peel*(0.5+0.5*Math.cos(Np*ph - t*1.3));
+    const r=Ri*(1+rip);const x=cx+r*Math.cos(ph),y=cy+r*Math.sin(ph);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.closePath();ctx.strokeStyle=curvColor(0,0.85);ctx.lineWidth=2;ctx.stroke();
+  // outer rim (bad, red) — ballooning(high n) + peeling(low n)
+  ctx.beginPath();
+  for(let i=0;i<=N;i++){const ph=i/N*TAU;
+    const ball=0.11*g*w.ball*(0.5+0.5*Math.cos(Nb*ph));
+    const peel=0.085*g*w.peel*(0.5+0.5*Math.cos(Np*ph - t*1.3));
+    const r=Ro*(1+ball+peel);const x=cx+r*Math.cos(ph),y=cy+r*Math.sin(ph);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.closePath();ctx.strokeStyle=curvColor(1,0.95);ctx.lineWidth=2.4;
+  ctx.shadowColor='rgba(255,100,80,0.4)';ctx.shadowBlur=6;ctx.stroke();ctx.shadowBlur=0;
+  // labels
+  ctx.font='10px "JetBrains Mono",monospace';ctx.textAlign='center';
+  ctx.fillStyle=curvColor(1,0.9);ctx.fillText('outer rim',cx,cy-Ro-8);
+  ctx.fillStyle=curvColor(0,0.9);ctx.fillText('inner',cx,cy+3);
+  // ELM filaments radial out
+  if(erupting){
+    const k=elmT/FLIFE, ease=1-Math.pow(1-Math.min(1,k),2);
+    for(let i=0;i<NF;i++){const ph=i/NF*TAU + 0.1;
+      const r0=Ro*1.04, r1=r0+ease*Ro*0.85;
+      const op=(k<0.15?k/0.15:1)*(1-Math.min(1,k));
+      ctx.strokeStyle=`rgba(255,90,120,${op})`;ctx.lineWidth=2.2;ctx.lineCap='round';
+      ctx.shadowColor='rgba(255,61,110,0.7)';ctx.shadowBlur=7;
+      ctx.beginPath();ctx.moveTo(cx+r0*Math.cos(ph),cy+r0*Math.sin(ph));
+      ctx.lineTo(cx+r1*Math.cos(ph),cy+r1*Math.sin(ph));ctx.stroke();ctx.shadowBlur=0;}
+    ctx.lineCap='butt';
+  }
+  miniIndicator(ctx,W-30,28,18,'tor');ctx.textAlign='left';
+}
+
+/* ---- sim loop ---- */
+let last=performance.now();
+function loop(now){
+  let dt=(now-last)/1000;last=now;dt=Math.min(dt,0.05);t+=dt;
+  if(lens==='elm'){
+    if(!erupting){g+=dt*0.34;if(g>=1){g=1;fire();}}
+    else{g=lerp(g,0.22,Math.min(1,dt*7));elmT+=dt;if(elmT>=FLIFE)erupting=false;}
+  }else{g+=(gTarget-g)*Math.min(1,dt*4);}
+  const pf=document.getElementById('pedfill');if(pf)pf.style.width=(clamp(g,0,1)*100)+'%';
+  drawPol();drawTor();
+  requestAnimationFrame(loop);
+}
+function fire(){if(erupting)return;erupting=true;elmT=0;}
+
+/* ---- UI ---- */
+function setLens(l){
+  lens=l;
+  document.querySelectorAll('.lens').forEach(b=>b.classList.toggle('active',b.dataset.l===l));
+  document.querySelector('.lens.active').setAttribute('data-l',l);
+  document.getElementById('explain').innerHTML=EXPLAIN[l];
+  document.getElementById('capPol').textContent=CAP[l].pol;
+  document.getElementById('capTor').textContent=CAP[l].tor;
+  const m=document.getElementById('manualCtl'),e=document.getElementById('elmCtl');
+  if(l==='elm'){m.style.display='none';e.style.display='flex';g=0.22;erupting=false;}
+  else{m.style.display='flex';e.style.display='none';erupting=false;gTarget=+document.getElementById('press').value/100;}
+}
+document.querySelectorAll('.lens').forEach(b=>b.addEventListener('click',()=>setLens(b.dataset.l)));
+document.getElementById('press').addEventListener('input',e=>{gTarget=+e.target.value/100;});
+document.getElementById('fireBtn').addEventListener('click',()=>{g=1;fire();});
+
+fit();setLens('balloon');requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,541 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>local vs neighbors v2</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  yellow: "#fff176",
+};
+
+function fluxSurface(psiNorm, theta) {
+  const r0 = 2.0, kappa = 1.6, delta = 0.35, shaf = 0.25;
+  const a = 0.7 * psiNorm;
+  const shift = shaf * (1 - psiNorm * psiNorm);
+  return {
+    R: r0 + shift + a * Math.cos(theta + delta * Math.sin(theta)),
+    Z: kappa * a * Math.sin(theta),
+  };
+}
+
+const PHASES = [
+  {
+    title: "1. One point on one surface",
+    desc: "We want the metric coefficients at this specific point. Pinch to zoom, drag to pan.",
+  },
+  {
+    title: "2. Peek at the neighbors",
+    desc: "To compute \u2207\u03c8, we reach into neighboring surfaces \u2014 one inside, one outside. Yellow particles show info flowing in.",
+  },
+  {
+    title: "3. Compute the gradient",
+    desc: "From the neighbor \u03c8 values we get \u2207\u03c8 (green arrow) at our point \u2014 the slope of the \u03c8 hill.",
+  },
+  {
+    title: "4. Result lives at the point",
+    desc: "g_xx, g_xy, g_yy, J all live HERE. Neighbors were inputs. Output is local.",
+  },
+];
+
+function ComputeVsDescribe() {
+  const [phase, setPhase] = useState(0);
+  const [anim, setAnim] = useState(0);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Camera state
+  const camRef = useRef({ cx: 2.3, cy: 0.2, zoom: 600 });
+  const touchRef = useRef({ dragging: false, lastX: 0, lastY: 0, dist: 0 });
+
+  const chosenPsi = 0.5;
+  const chosenTheta = 0.4;
+  const innerPsi = 0.42;
+  const outerPsi = 0.58;
+
+  useEffect(() => {
+    const start = Date.now();
+    const tick = () => {
+      setAnim((Date.now() - start) / 1000);
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  // Touch handlers for pinch zoom and pan
+  const getTouchDist = (touches) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getTouchCenter = (touches) => ({
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2,
+  });
+
+  const handleTouchStart = useCallback((e) => {
+    e.preventDefault();
+    const t = touchRef.current;
+    if (e.touches.length === 1) {
+      t.dragging = true;
+      t.lastX = e.touches[0].clientX;
+      t.lastY = e.touches[0].clientY;
+      t.pinching = false;
+    } else if (e.touches.length === 2) {
+      t.dragging = false;
+      t.pinching = true;
+      t.dist = getTouchDist(e.touches);
+      const c = getTouchCenter(e.touches);
+      t.lastX = c.x;
+      t.lastY = c.y;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    e.preventDefault();
+    const t = touchRef.current;
+    const cam = camRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+
+    if (e.touches.length === 1 && t.dragging && !t.pinching) {
+      const dx = e.touches[0].clientX - t.lastX;
+      const dy = e.touches[0].clientY - t.lastY;
+      cam.cx -= (dx * scaleX) / cam.zoom;
+      cam.cy += (dy * scaleX) / cam.zoom;
+      t.lastX = e.touches[0].clientX;
+      t.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2 && t.pinching) {
+      const newDist = getTouchDist(e.touches);
+      const scale = newDist / t.dist;
+      cam.zoom = Math.max(200, Math.min(5000, cam.zoom * scale));
+      t.dist = newDist;
+
+      // Also pan with two fingers
+      const c = getTouchCenter(e.touches);
+      const dx = c.x - t.lastX;
+      const dy = c.y - t.lastY;
+      cam.cx -= (dx * scaleX) / cam.zoom;
+      cam.cy += (dy * scaleX) / cam.zoom;
+      t.lastX = c.x;
+      t.lastY = c.y;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    e.preventDefault();
+    const t = touchRef.current;
+    if (e.touches.length === 0) {
+      t.dragging = false;
+      t.pinching = false;
+    } else if (e.touches.length === 1) {
+      t.pinching = false;
+      t.dragging = true;
+      t.lastX = e.touches[0].clientX;
+      t.lastY = e.touches[0].clientY;
+    }
+  }, []);
+
+  // Mouse wheel zoom for desktop
+  const handleWheel = useCallback((e) => {
+    e.preventDefault();
+    const cam = camRef.current;
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    cam.zoom = Math.max(200, Math.min(5000, cam.zoom * factor));
+  }, []);
+
+  // Mouse drag for desktop
+  const handleMouseDown = useCallback((e) => {
+    const t = touchRef.current;
+    t.dragging = true;
+    t.lastX = e.clientX;
+    t.lastY = e.clientY;
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    const t = touchRef.current;
+    const cam = camRef.current;
+    const canvas = canvasRef.current;
+    if (!t.dragging || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const dx = e.clientX - t.lastX;
+    const dy = e.clientY - t.lastY;
+    cam.cx -= (dx * scaleX) / cam.zoom;
+    cam.cy += (dy * scaleX) / cam.zoom;
+    t.lastX = e.clientX;
+    t.lastY = e.clientY;
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    touchRef.current.dragging = false;
+  }, []);
+
+  // Attach non-passive touch listeners
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const opts = { passive: false };
+    el.addEventListener("touchstart", handleTouchStart, opts);
+    el.addEventListener("touchmove", handleTouchMove, opts);
+    el.addEventListener("touchend", handleTouchEnd, opts);
+    el.addEventListener("wheel", handleWheel, opts);
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("touchend", handleTouchEnd);
+      el.removeEventListener("wheel", handleWheel);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel]);
+
+  // Reset view
+  const resetView = () => {
+    camRef.current = { cx: 2.3, cy: 0.2, zoom: 600 };
+  };
+
+  // Draw
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const cam = camRef.current;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const midX = W / 2, midY = H / 2;
+    const toX = (R) => midX + (R - cam.cx) * cam.zoom;
+    const toY = (Z) => midY - (Z - cam.cy) * cam.zoom;
+
+    const nTh = 300;
+
+    // Background surfaces
+    for (let si = 1; si <= 8; si++) {
+      const psi = si / 8;
+      if (Math.abs(psi - chosenPsi) < 0.02) continue;
+      if (phase >= 1 && Math.abs(psi - innerPsi) < 0.02) continue;
+      if (phase >= 1 && Math.abs(psi - outerPsi) < 0.02) continue;
+      ctx.beginPath();
+      for (let j = 0; j <= nTh; j++) {
+        const th = (j / nTh) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(psi, th);
+        if (j === 0) ctx.moveTo(toX(R), toY(Z));
+        else ctx.lineTo(toX(R), toY(Z));
+      }
+      ctx.closePath();
+      ctx.strokeStyle = C.border + "35";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    // Three key surfaces
+    const surfaceDefs = [
+      { psi: innerPsi, label: "\u03c8\u2212\u03b4 (inner)", color: C.yellow, dash: [6, 6], showPhase: 1 },
+      { psi: chosenPsi, label: "\u03c8\u2080 (our surface)", color: C.accent, dash: [], showPhase: 0 },
+      { psi: outerPsi, label: "\u03c8+\u03b4 (outer)", color: C.yellow, dash: [6, 6], showPhase: 1 },
+    ];
+
+    surfaceDefs.forEach((s) => {
+      if (phase < s.showPhase) return;
+      ctx.beginPath();
+      for (let j = 0; j <= nTh; j++) {
+        const th = (j / nTh) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(s.psi, th);
+        if (j === 0) ctx.moveTo(toX(R), toY(Z));
+        else ctx.lineTo(toX(R), toY(Z));
+      }
+      if (s.psi === chosenPsi) {
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = s.color;
+        ctx.shadowBlur = 12;
+      } else {
+        ctx.strokeStyle = s.color + "80";
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 0;
+        ctx.setLineDash(s.dash);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.setLineDash([]);
+
+      // Label
+      const lt = s.psi === chosenPsi ? chosenTheta + 0.45 : (s.psi < chosenPsi ? chosenTheta + 0.55 : chosenTheta + 0.35);
+      const { R: lR, Z: lZ } = fluxSurface(s.psi, lt);
+      const lx = toX(lR), ly = toY(lZ);
+      if (lx > 5 && lx < W - 5 && ly > 5 && ly < H - 5) {
+        const fontSize = Math.max(9, Math.min(14, cam.zoom / 80));
+        ctx.font = (s.psi === chosenPsi ? "bold " : "") + fontSize + "px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = s.color;
+        ctx.fillText(s.label, lx + 8, ly - 6);
+      }
+    });
+
+    // Main point
+    const { R: ptR, Z: ptZ } = fluxSurface(chosenPsi, chosenTheta);
+    const ptX = toX(ptR), ptY = toY(ptZ);
+
+    // Neighbor connections
+    if (phase >= 1) {
+      const { R: inR, Z: inZ } = fluxSurface(innerPsi, chosenTheta);
+      const { R: outR, Z: outZ } = fluxSurface(outerPsi, chosenTheta);
+      const inX = toX(inR), inY = toY(inZ);
+      const outX = toX(outR), outY = toY(outZ);
+
+      [{ x: inX, y: inY }, { x: outX, y: outY }].forEach((nb) => {
+        ctx.beginPath();
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(nb.x, nb.y);
+        ctx.strokeStyle = C.yellow + "60";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Neighbor dots
+      const dotR = Math.max(4, Math.min(9, cam.zoom / 120));
+      [{ x: inX, y: inY, psi: innerPsi }, { x: outX, y: outY, psi: outerPsi }].forEach((nb) => {
+        ctx.beginPath();
+        ctx.arc(nb.x, nb.y, dotR, 0, Math.PI * 2);
+        ctx.fillStyle = C.yellow;
+        ctx.shadowColor = C.yellow;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        const fs = Math.max(8, Math.min(13, cam.zoom / 80));
+        ctx.font = "bold " + fs + "px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.yellow;
+        const side = nb.x < ptX ? -(fs * 5.5) : dotR + 6;
+        ctx.fillText(`\u03c8=${nb.psi.toFixed(2)}`, nb.x + side, nb.y - dotR - 4);
+      });
+
+      // Particles
+      for (let i = 0; i < 4; i++) {
+        const t = ((anim * 0.7 + i / 4) % 1);
+        ctx.globalAlpha = 0.15 + 0.85 * Math.sin(t * Math.PI);
+        ctx.fillStyle = C.yellow;
+        [{ x: inX, y: inY }, { x: outX, y: outY }].forEach((nb) => {
+          ctx.beginPath();
+          ctx.arc(nb.x + (ptX - nb.x) * t, nb.y + (ptY - nb.y) * t, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Gradient
+    if (phase >= 2) {
+      const { R: inR, Z: inZ } = fluxSurface(innerPsi, chosenTheta);
+      const { R: outR, Z: outZ } = fluxSurface(outerPsi, chosenTheta);
+      const dR = outR - inR, dZ = outZ - inZ;
+      const mag = Math.sqrt(dR * dR + dZ * dZ);
+      const arrLen = Math.min(80, cam.zoom * 0.06);
+      const ax = (dR / mag) * arrLen, ay = -(dZ / mag) * arrLen;
+
+      ctx.beginPath();
+      ctx.moveTo(ptX, ptY);
+      ctx.lineTo(ptX + ax, ptY + ay);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      const ang = Math.atan2(ay, ax);
+      ctx.beginPath();
+      ctx.moveTo(ptX + ax, ptY + ay);
+      ctx.lineTo(ptX + ax - 12 * Math.cos(ang - 0.35), ptY + ay - 12 * Math.sin(ang - 0.35));
+      ctx.moveTo(ptX + ax, ptY + ay);
+      ctx.lineTo(ptX + ax - 12 * Math.cos(ang + 0.35), ptY + ay - 12 * Math.sin(ang + 0.35));
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      const fs = Math.max(10, Math.min(15, cam.zoom / 70));
+      ctx.font = "bold " + fs + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green;
+      ctx.fillText("\u2207\u03c8", ptX + ax + 8, ptY + ay - 8);
+    }
+
+    // Result
+    if (phase >= 3) {
+      const pulse = 0.5 + 0.5 * Math.sin(anim * 2);
+      ctx.beginPath();
+      ctx.arc(ptX, ptY, 25 + 8 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = C.accent + "10";
+      ctx.fill();
+
+      const fs = Math.max(9, Math.min(12, cam.zoom / 80));
+      const bx = ptX + 18, by = ptY + 18;
+      ctx.fillStyle = C.surface + "e0";
+      ctx.strokeStyle = C.accent + "60";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, fs * 12, fs * 6.5, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = "bold " + fs + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.accent;
+      ctx.fillText("RESULT (local):", bx + 8, by + fs + 2);
+      ctx.font = (fs - 1) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green;
+      ctx.fillText("g_xx = |\u2207\u03c8|\u00b2", bx + 8, by + fs * 2.3);
+      ctx.fillStyle = C.orange;
+      ctx.fillText("g_yy = |\u2207\u03b8|\u00b2", bx + 8, by + fs * 3.5);
+      ctx.fillStyle = C.yellow;
+      ctx.fillText("g_xy = \u2207\u03c8\u00b7\u2207\u03b8", bx + 8, by + fs * 4.7);
+      ctx.fillStyle = C.purple;
+      ctx.fillText("J = area", bx + 8, by + fs * 5.9);
+    }
+
+    // Main point dot
+    const ptR2 = Math.max(5, Math.min(12, cam.zoom / 80));
+    ctx.beginPath();
+    ctx.arc(ptX, ptY, ptR2, 0, Math.PI * 2);
+    ctx.fillStyle = C.highlight;
+    ctx.shadowColor = C.highlight;
+    ctx.shadowBlur = 15;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (phase < 3) {
+      const fs = Math.max(10, Math.min(14, cam.zoom / 70));
+      ctx.font = "bold " + fs + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.highlight;
+      ctx.fillText("our point", ptX + ptR2 + 6, ptY + 4);
+    }
+
+    // Zoom indicator
+    ctx.font = "9px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim + "60";
+    ctx.fillText("pinch to zoom \u00b7 drag to pan", 10, H - 8);
+  }, [phase, anim]);
+
+  const current = PHASES[phase];
+
+  return (
+    <div style={{
+      background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", padding: "16px 12px",
+      fontFamily: "'IBM Plex Mono', 'Fira Code', monospace", color: C.text,
+    }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: C.textBright, margin: 0 }}>
+            Computed From Neighbors, Lives at the Point
+          </h1>
+        </div>
+
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 10 }}>
+          {PHASES.map((_, i) => (
+            <button key={i} onClick={() => setPhase(i)} style={{
+              width: 44, height: 4, borderRadius: 2, border: "none",
+              background: i === phase ? C.accent : i < phase ? C.accentDim : C.surface,
+              cursor: "pointer",
+            }} />
+          ))}
+        </div>
+
+        {/* Canvas with touch */}
+        <div
+          ref={containerRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{
+            background: C.bgPanel, border: `1px solid ${C.border}`,
+            borderRadius: 10, overflow: "hidden", marginBottom: 8,
+            touchAction: "none", cursor: "grab",
+          }}
+        >
+          <canvas ref={canvasRef} width={500} height={450}
+            style={{ width: "100%", height: "auto", display: "block", pointerEvents: "none" }} />
+        </div>
+
+        {/* Reset */}
+        <div style={{ textAlign: "center", marginBottom: 10 }}>
+          <button onClick={resetView} style={{
+            padding: "4px 14px", borderRadius: 5, fontSize: 9,
+            border: `1px solid ${C.border}`,
+            background: C.bgPanel, color: C.textDim,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            reset view
+          </button>
+        </div>
+
+        {/* Info */}
+        <div style={{
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: 14, marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.accent, marginBottom: 6 }}>
+            {current.title}
+          </div>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.6 }}>
+            {current.desc}
+          </div>
+          {phase === 3 && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px", background: C.surface,
+              borderRadius: 6, fontSize: 10, color: C.textDim, lineHeight: 1.8,
+            }}>
+              <span style={{ color: C.yellow }}>look at neighbors</span> → inputs
+              <br /><span style={{ color: C.green }}>compute slope</span> → gradient
+              <br /><span style={{ color: C.highlight }}>result belongs here</span> → local metric coefficients
+            </div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button onClick={() => setPhase(Math.max(0, phase - 1))} disabled={phase === 0} style={{
+            padding: "8px 20px", borderRadius: 6, border: `1px solid ${C.border}`,
+            background: phase === 0 ? C.surface : C.bgPanel,
+            color: phase === 0 ? C.textDim : C.text,
+            cursor: phase === 0 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>← Back</button>
+          <button onClick={() => setPhase(Math.min(3, phase + 1))} disabled={phase === 3} style={{
+            padding: "8px 20px", borderRadius: 6,
+            border: `1px solid ${phase === 3 ? C.border : C.accent}`,
+            background: phase === 3 ? C.surface : C.accentDim,
+            color: phase === 3 ? C.textDim : C.accent,
+            cursor: phase === 3 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ComputeVsDescribe));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

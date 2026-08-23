@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curvature κ — Updated</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070d;--s1:#0b1222;--bdr:#17253f;--tx:#dfe8f5;
+  --dim:#5a7094;--mut:#2f4468;--cyan:#1fd6e8;--green:#3ee886;
+  --amber:#f5c042;--red:#ef6461;--purple:#9b7ff0;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:900px;margin:0 auto;padding:24px 14px 80px;}
+
+.hero{text-align:center;padding:28px 16px 20px;position:relative;}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,rgba(239,100,97,0.03),transparent 60%);pointer-events:none;}
+.ey{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--red);margin-bottom:10px;}
+.hero h1{font-size:clamp(24px,5.5vw,40px);font-weight:800;letter-spacing:-1px;margin-bottom:8px;}
+.hero h1 .k{color:var(--red);font-style:italic;}
+.hero p{color:var(--dim);font-size:14px;font-weight:300;max-width:540px;margin:0 auto;line-height:1.6;}
+
+.tabs{display:flex;gap:3px;background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:3px;margin-bottom:24px;}
+.tab{flex:1;padding:10px 4px;border:none;background:transparent;color:var(--dim);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;border-radius:8px;cursor:pointer;transition:all .25s;text-align:center;}
+.tab:hover{color:var(--tx);}
+.tab.on{background:rgba(239,100,97,0.1);color:var(--red);}
+.tc{display:none;}.tc.on{display:block;}
+
+.sec{margin-bottom:32px;}
+.stag{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--mut);margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+.stag::after{content:'';flex:1;height:1px;background:var(--bdr);}
+
+.call{background:var(--s1);border:1px solid var(--bdr);border-left:3px solid var(--red);border-radius:0 13px 13px 0;padding:18px 20px;margin-bottom:18px;}
+.call.g{border-left-color:var(--green);}.call.c{border-left-color:var(--cyan);}.call.a{border-left-color:var(--amber);}
+.call p{font-size:15px;font-weight:400;line-height:1.7;}
+.hl{font-weight:700;}.hr{color:var(--red);}.hg{color:var(--green);}.hc{color:var(--cyan);}.ha{color:var(--amber);}
+
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+@media(max-width:600px){.cgrid{grid-template-columns:1fr;}}
+.card{background:var(--s1);border:1px solid var(--bdr);border-radius:13px;padding:18px;overflow:hidden;position:relative;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.card.bad::before{background:linear-gradient(90deg,var(--red),transparent);}
+.card.good::before{background:linear-gradient(90deg,var(--green),transparent);}
+.card.info::before{background:linear-gradient(90deg,var(--cyan),transparent);}
+.card.warn::before{background:linear-gradient(90deg,var(--amber),transparent);}
+.card h3{font-size:14px;font-weight:700;margin-bottom:4px;}
+.card.bad h3{color:var(--red);}.card.good h3{color:var(--green);}
+.card.info h3{color:var(--cyan);}.card.warn h3{color:var(--amber);}
+.card p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.6;}
+.card.wide{grid-column:1/-1;}
+
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-bottom:14px;}
+.vbar{padding:10px 14px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--mut);}
+canvas{display:block;width:100%;}
+.vfoot{padding:8px 14px;border-top:1px solid var(--bdr);display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--dim);}
+.vleg{display:flex;align-items:center;gap:5px;}
+.vdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:120px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:9px 11px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bdr);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--red);cursor:pointer;box-shadow:0 0 8px rgba(239,100,97,.3);}
+
+.compare-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+@media(max-width:550px){.compare-row{grid-template-columns:1fr;}}
+.cbox{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px;text-align:center;}
+.cbox .dim{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:8px;}
+.cbox h4{font-size:14px;font-weight:700;margin-bottom:4px;}
+.cbox p{font-size:11px;color:var(--dim);font-weight:300;line-height:1.5;}
+.cbox code{font-family:'JetBrains Mono',monospace;font-size:11px;display:block;margin-top:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;text-align:left;line-height:1.7;}
+
+.arrow-down{text-align:center;color:var(--mut);font-size:20px;margin:6px 0;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="hero">
+    <div class="ey">CHEASE → GENE · Geometry Quantities</div>
+    <h1>Magnetic <span class="k">Curvature</span></h1>
+    <p>How much the field line bends radially — toward or away from the plasma center — at each point as it goes around the surface.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="what">What It Is</button>
+    <button class="tab" data-t="where">Good vs Bad</button>
+    <button class="tab" data-t="data">The Data</button>
+    <button class="tab" data-t="gene">What GENE Gets</button>
+  </div>
+
+  <!-- ============ WHAT IT IS ============ -->
+  <div class="tc on" id="t-what">
+    <div class="sec">
+      <div class="stag">The idea</div>
+      <div class="call">
+        <p>Field lines in a tokamak curve as they spiral around. <span class="hl hr">Curvature κ</span> measures how much a field line bends <span class="hl">radially</span> at each point — toward the plasma center or away from it. Only the radial component matters because that's the direction of the pressure gradient.</p>
+      </div>
+      <div class="cgrid">
+        <div class="card info">
+          <h3>Radial = the dangerous direction</h3>
+          <p>Pressure is high at the center, low at the edge. Bending outward (toward low pressure) is unstable — like a ball on a hilltop. Bending inward is stable — ball in a valley. Up/down bending just follows the flux surface shape and doesn't matter for stability.</p>
+        </div>
+        <div class="card info">
+          <h3>It changes around the surface</h3>
+          <p>Unlike shear (same everywhere on a surface), curvature flips sign as you go around. Positive on the outboard side (bad), negative on the inboard side (good). That's why it's indexed by θ — you need ~128 values to describe it, not just one.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="stag">See the bending</div>
+      <div class="ctrls">
+        <div class="cg">
+          <div class="cg-l">Elongation</div>
+          <div class="cg-r"><input type="range" id="sE" min="1" max="2" step="0.05" value="1.4"><span class="cg-v" id="vE" style="color:var(--amber)">1.4</span></div>
+        </div>
+        <div class="cg">
+          <div class="cg-l">Triangularity</div>
+          <div class="cg-r"><input type="range" id="sT" min="-0.3" max="0.5" step="0.05" value="0.2"><span class="cg-v" id="vT" style="color:var(--cyan)">0.2</span></div>
+        </div>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">CROSS-SECTION — RADIAL BENDING ARROWS</span></div>
+        <canvas id="cArrows" style="height:420px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg"><div class="vdot" style="background:var(--red)"></div> Outboard: bends outward (κ > 0, bad)</div>
+          <div class="vleg"><div class="vdot" style="background:var(--green)"></div> Inboard: bends inward (κ < 0, good)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GOOD VS BAD ============ -->
+  <div class="tc" id="t-where">
+    <div class="sec">
+      <div class="stag">Outboard vs inboard</div>
+      <div class="call">
+        <p><span class="hl hr">Outboard</span> = outside of the donut, far from the hole. Field is weaker, bends outward. Bad — drives turbulence.</p>
+      </div>
+      <div class="call g">
+        <p><span class="hl hg">Inboard</span> = inside of the donut, near the hole. Field is stronger, bends inward. Good — stabilizes.</p>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">BALL ANALOGY</span></div>
+        <canvas id="cBall" style="height:200px;"></canvas>
+      </div>
+      <div class="cgrid">
+        <div class="card bad">
+          <h3>Outboard: ball on a hilltop</h3>
+          <p>κ and ∇p point the same way. Perturbations roll downhill and grow. This is where turbulence starts — "ballooning" because the plasma bulges outward.</p>
+        </div>
+        <div class="card good">
+          <h3>Inboard: ball in a valley</h3>
+          <p>κ opposes ∇p. Perturbations get pushed back. But the field line spends less time here (shorter path on the inside of the donut), so it only partially cancels the bad side.</p>
+        </div>
+        <div class="card warn wide">
+          <h3>Shaping helps</h3>
+          <p>Higher elongation reduces outboard curvature. Negative triangularity reshapes where the bad curvature sits. Try the sliders on the first tab — watch the arrows shrink on the outboard side as you crank elongation up.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ THE DATA ============ -->
+  <div class="tc" id="t-data">
+    <div class="sec">
+      <div class="stag">How CHEASE computes curvature</div>
+      <div class="call a">
+        <p>CHEASE doesn't store curvature as a 2D heatmap on its R,Z grid. It works <span class="hl ha">surface by surface</span>. For each flux surface, it traces around poloidally and computes κ(θ) — one profile per surface. Each profile is a 1D array.</p>
+      </div>
+
+      <div class="ctrls">
+        <div class="cg">
+          <div class="cg-l">Select Surface ρ</div>
+          <div class="cg-r"><input type="range" id="sRho" min="0.15" max="0.9" step="0.05" value="0.6"><span class="cg-v" id="vRho" style="color:var(--amber)">0.60</span></div>
+        </div>
+      </div>
+
+      <!-- Cross-section with multiple colored surfaces -->
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">CROSS-SECTION — EACH SURFACE HAS ITS OWN κ(θ)</span></div>
+        <canvas id="cSurfaces" style="height:380px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg" style="color:var(--mut)">Each ring is colored by its own κ — red=bad, green=good</div>
+          <div class="vleg"><div class="vdot" style="background:var(--amber);box-shadow:0 0 5px rgba(245,192,66,.5)"></div> Selected surface (highlighted)</div>
+        </div>
+      </div>
+
+      <div class="arrow-down">↓ each surface produces one κ(θ) profile ↓</div>
+
+      <!-- Stacked κ profiles -->
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">κ(θ) PROFILES — ONE PER SURFACE</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--amber);">SELECTED = BRIGHT</span></div>
+        <canvas id="cProfiles" style="height:280px;"></canvas>
+        <div class="vfoot">
+          <div class="vleg" style="color:var(--mut)">Faint lines = other surfaces · Bright = selected ρ</div>
+          <div class="vleg" style="color:var(--mut)">Outer surfaces have stronger κ (taller curves)</div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="stag">Compare to shear</div>
+        <div class="compare-row">
+          <div class="cbox">
+            <div class="dim" style="background:rgba(31,214,232,0.1);color:var(--cyan);">SHEAR</div>
+            <h4 style="color:var(--cyan)">Indexed by ρ</h4>
+            <p>One number per surface. Same everywhere on that surface.</p>
+            <code><span style="color:var(--cyan)">ŝ</span>[surface_index]<br><span style="color:var(--mut)"># e.g. ŝ = 1.85</span></code>
+          </div>
+          <div class="cbox">
+            <div class="dim" style="background:rgba(239,100,97,0.1);color:var(--red);">CURVATURE</div>
+            <h4 style="color:var(--red)">Indexed by θ</h4>
+            <p>~128 numbers per surface. Changes around the ring.</p>
+            <code><span style="color:var(--red)">κ</span>[poloidal_index]<br><span style="color:var(--mut)"># e.g. [+0.71, +0.68, ... -0.52, ...]</span></code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ WHAT GENE GETS ============ -->
+  <div class="tc" id="t-gene">
+    <div class="sec">
+      <div class="stag">The handoff</div>
+      <div class="call c">
+        <p>GENE says "give me ρ = 0.6." CHEASE grabs that surface's κ(θ) profile and writes it as a <span class="hl hg">1D array</span> in the geometry file. That's one curve — ~128 values from outboard → top → inboard → bottom → back.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:140px 1fr;gap:10px;margin-bottom:14px;align-items:start;">
+        <div class="viz" style="margin:0;">
+          <canvas id="cMini" style="height:160px;"></canvas>
+          <div style="padding:5px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:7px;color:var(--mut);letter-spacing:1px;border-top:1px solid var(--bdr);">POSITION ON SURFACE</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;gap:6px;">
+            <div style="flex:1;background:var(--s1);border:1px solid var(--bdr);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--amber);">2.50</div>
+              <div style="font-size:9px;color:var(--mut);">q</div>
+            </div>
+            <div style="flex:1;background:var(--s1);border:1px solid var(--bdr);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--cyan);">1.85</div>
+              <div style="font-size:9px;color:var(--mut);">ŝ</div>
+            </div>
+          </div>
+          <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--dim);font-weight:300;line-height:1.5;">
+            <b style="color:var(--tx)">q and ŝ</b> = single numbers, don't change along the line. Everything below = 1D arrays that do.
+          </div>
+        </div>
+      </div>
+
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">κ(z) — CURVATURE ALONG THE FIELD LINE</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--red);">DRIVES TURBULENCE</span></div>
+        <canvas id="gK" style="height:140px;"></canvas>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">|B|(z) — FIELD STRENGTH</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--amber);">STRONGER INBOARD</span></div>
+        <canvas id="gB" style="height:110px;"></canvas>
+      </div>
+      <div class="viz">
+        <div class="vbar"><span class="vbar-t">JACOBIAN(z) — GRID CELL VOLUME</span><span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--green);">REAL-SPACE SIZE</span></div>
+        <canvas id="gJ" style="height:110px;"></canvas>
+      </div>
+
+      <div class="cgrid">
+        <div class="card bad">
+          <h3>κ drives the turbulence</h3>
+          <p>GENE's turbulence equation has a term that's literally κ × pressure gradient. Positive κ (outboard) = energy source for turbulence. Negative κ (inboard) = stabilizing. The balance between them determines how much heat escapes.</p>
+        </div>
+        <div class="card info">
+          <h3>Particle drifts need it</h3>
+          <p>Charged particles in a curved field drift sideways. The drift speed and direction depend on κ. Wrong curvature = wrong drifts = wrong transport.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let elong=1.4, tri=0.2, selRho=0.6, time=0, hoverFrac=-1;
+
+function kappa(th,rho){return Math.cos(th+tri*Math.sin(th))*(0.3+0.65*(rho||0.6))/elong;}
+function bField(th){return 0.95-0.12*Math.cos(th);}
+function jacobian(th){return (1+0.6*Math.cos(th))*elong*0.8;}
+function surfPt(theta,rFrac,maxR){
+  const r=maxR*rFrac;
+  return{x:r*Math.cos(theta+tri*Math.sin(theta)),y:r*elong*Math.sin(theta)};
+}
+function kappaColor(k){
+  const t=Math.max(0,Math.min(1,(k+0.55)/1.1));
+  let r,g,b;
+  if(t<0.42){const f=t/0.42;r=26*(1-f)+14*f|0;g=138*(1-f)+26*f|0;b=85*(1-f)+36*f|0;}
+  else if(t<0.58){const f=(t-0.42)/0.16;r=14+f*50|0;g=26;b=36-f*12|0;}
+  else{const f=(t-0.58)/0.42;r=64+f*175|0;g=26+f*50|0;b=24+f*45|0;}
+  return{r,g,b};
+}
+
+// Canvas management
+const cIds=['cArrows','cBall','cSurfaces','cProfiles','cMini','gK','gB','gJ'];
+const C={},X={},D={};
+function resizeAll(){
+  const dpr=window.devicePixelRatio||1;
+  cIds.forEach(id=>{
+    const c=document.getElementById(id);if(!c)return;
+    const r=c.getBoundingClientRect();
+    if(r.width<1)return;
+    C[id]=c;X[id]=c.getContext('2d');
+    c.width=r.width*dpr;c.height=r.height*dpr;
+    X[id].setTransform(dpr,0,0,dpr,0,0);
+    D[id]={w:r.width,h:r.height};
+  });
+}
+
+// ============ ARROWS CROSS-SECTION ============
+function drawArrows(){
+  if(!D.cArrows)return;
+  const ctx=X.cArrows,W=D.cArrows.w,H=D.cArrows.h;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.37;
+
+  // Background tint
+  const bg=ctx.createLinearGradient(cx-maxR*1.5,cy,cx+maxR*1.5,cy);
+  bg.addColorStop(0,'rgba(62,232,134,0.015)');bg.addColorStop(0.5,'transparent');bg.addColorStop(1,'rgba(239,100,97,0.015)');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+  // Ghost surfaces
+  for(let i=1;i<=7;i++){const f=i/7;
+    ctx.beginPath();for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,f,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+    ctx.closePath();ctx.strokeStyle=`rgba(31,214,232,${0.03+0.012*f})`;ctx.lineWidth=0.6;ctx.stroke();}
+
+  // Main surface colored + arrows
+  const rf=0.65,nS=32;
+  for(let i=0;i<nS;i++){
+    const th0=(i/nS)*Math.PI*2,th1=((i+1)/nS)*Math.PI*2,thM=(th0+th1)/2;
+    const sp0=surfPt(th0,rf,maxR),sp1=surfPt(th1,rf,maxR);
+    const k=kappa(thM,rf);const col=kappaColor(k);const absK=Math.abs(k);
+    ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);
+    ctx.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;ctx.lineWidth=4;ctx.stroke();
+
+    const spM=surfPt(thM,rf,maxR),mx=cx+spM.x,my=cy-spM.y;
+    const dx=spM.x,dy=-spM.y,dist=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=dx/dist,ny=dy/dist,arrowLen=absK*38;
+    if(arrowLen>4){
+      const dir=k>0?1:-1;const ax=mx+nx*dir*arrowLen,ay=my+ny*dir*arrowLen;
+      ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(ax,ay);
+      ctx.strokeStyle=`rgba(${col.r},${col.g},${col.b},${0.25+absK*0.5})`;ctx.lineWidth=1.8;ctx.stroke();
+      const ang=Math.atan2(ay-my,ax-mx);
+      ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax-5*Math.cos(ang-.4),ay-5*Math.sin(ang-.4));ctx.lineTo(ax-5*Math.cos(ang+.4),ay-5*Math.sin(ang+.4));ctx.closePath();
+      ctx.fillStyle=`rgba(${col.r},${col.g},${col.b},${0.25+absK*0.5})`;ctx.fill();
+    }
+  }
+
+  // Labels
+  ctx.font='700 12px "JetBrains Mono",monospace';ctx.textAlign='center';
+  const outP=surfPt(0,rf,maxR);ctx.fillStyle='rgba(239,100,97,0.55)';ctx.fillText('OUTBOARD',cx+outP.x+48,cy-outP.y-12);
+  ctx.font='300 9px "DM Sans"';ctx.fillStyle='rgba(239,100,97,0.3)';ctx.fillText('κ > 0 — bends outward',cx+outP.x+48,cy-outP.y+3);
+  const inP=surfPt(Math.PI,rf,maxR);ctx.font='700 12px "JetBrains Mono",monospace';ctx.fillStyle='rgba(62,232,134,0.55)';ctx.fillText('INBOARD',cx+inP.x-48,cy-inP.y-12);
+  ctx.font='300 9px "DM Sans"';ctx.fillStyle='rgba(62,232,134,0.3)';ctx.fillText('κ < 0 — bends inward',cx+inP.x-48,cy-inP.y+3);
+  ctx.font='500 8px "JetBrains Mono",monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='center';ctx.fillText('AXIS',cx,cy);
+}
+
+// ============ BALL ============
+function drawBall(){
+  if(!D.cBall)return;
+  const ctx=X.cBall,W=D.cBall.w,H=D.cBall.h;
+  ctx.clearRect(0,0,W,H);
+  const cy=H*0.6;
+  // Bad
+  const bx=W*0.25;ctx.beginPath();for(let x=-100;x<=100;x++)ctx.lineTo(bx+x,cy-38*Math.exp(-x*x/2000));
+  ctx.strokeStyle='rgba(239,100,97,0.5)';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(bx+Math.sin(time*3)*4,cy-38-7,7,0,Math.PI*2);ctx.fillStyle='var(--red)';ctx.fill();
+  ctx.font='700 11px "DM Sans"';ctx.fillStyle='var(--red)';ctx.textAlign='center';ctx.fillText('Outboard',bx,cy+28);
+  ctx.font='300 9px "DM Sans"';ctx.fillStyle='var(--dim)';ctx.fillText('unstable',bx,cy+42);
+  // Good
+  const gx=W*0.75;ctx.beginPath();for(let x=-100;x<=100;x++)ctx.lineTo(gx+x,cy+38*Math.exp(-x*x/2000)-38);
+  ctx.strokeStyle='rgba(62,232,134,0.5)';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(gx+Math.sin(time*3)*1.5,cy-7,7,0,Math.PI*2);ctx.fillStyle='var(--green)';ctx.fill();
+  ctx.font='700 11px "DM Sans"';ctx.fillStyle='var(--green)';ctx.textAlign='center';ctx.fillText('Inboard',gx,cy+28);
+  ctx.font='300 9px "DM Sans"';ctx.fillStyle='var(--dim)';ctx.fillText('stable',gx,cy+42);
+}
+
+// ============ SURFACES (cross-section with multiple κ-colored rings) ============
+function drawSurfaces(){
+  if(!D.cSurfaces)return;
+  const ctx=X.cSurfaces,W=D.cSurfaces.w,H=D.cSurfaces.h;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.38;
+
+  const surfRhos=[0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85];
+  surfRhos.forEach(rho=>{
+    const isSel=Math.abs(rho-selRho)<0.06;
+    const nS=48;
+    for(let i=0;i<nS;i++){
+      const th0=(i/nS)*Math.PI*2,th1=((i+1)/nS)*Math.PI*2;
+      const sp0=surfPt(th0,rho,maxR),sp1=surfPt(th1,rho,maxR);
+      const k=kappa((th0+th1)/2,rho);const col=kappaColor(k);
+      ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);
+      const alpha=isSel?1:0.3;
+      ctx.strokeStyle=`rgba(${col.r},${col.g},${col.b},${alpha})`;
+      ctx.lineWidth=isSel?4:2;ctx.stroke();
+    }
+    if(isSel){
+      // Glow
+      ctx.beginPath();for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,rho,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+      ctx.closePath();ctx.strokeStyle='rgba(245,192,66,0.2)';ctx.lineWidth=8;ctx.stroke();
+      // Label
+      const lp=surfPt(-0.5,rho,maxR);
+      ctx.font='600 11px "JetBrains Mono",monospace';ctx.fillStyle='rgba(245,192,66,0.8)';ctx.textAlign='left';
+      ctx.fillText(`ρ=${selRho.toFixed(2)}`,cx+lp.x+10,cy-lp.y);
+    }
+  });
+  ctx.font='500 8px "JetBrains Mono",monospace';ctx.fillStyle='rgba(100,116,139,0.25)';ctx.textAlign='center';ctx.fillText('AXIS',cx,cy);
+}
+
+// ============ STACKED κ PROFILES ============
+function drawProfiles(){
+  if(!D.cProfiles)return;
+  const ctx=X.cProfiles,W=D.cProfiles.w,H=D.cProfiles.h;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#080c14';ctx.fillRect(0,0,W,H);
+
+  const pad={l:44,r:14,t:16,b:30},w=W-pad.l-pad.r,h=H-pad.t-pad.b;
+  const zy=pad.t+h/2,maxK=0.7;
+
+  // Zero line
+  ctx.strokeStyle='rgba(100,116,139,0.1)';ctx.lineWidth=0.5;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+w,zy);ctx.stroke();ctx.setLineDash([]);
+
+  // Shade
+  ctx.fillStyle='rgba(239,100,97,0.03)';ctx.fillRect(pad.l,pad.t,w,h/2);
+  ctx.fillStyle='rgba(62,232,134,0.03)';ctx.fillRect(pad.l,zy,w,h/2);
+  ctx.font='300 7px "JetBrains Mono",monospace';
+  ctx.fillStyle='rgba(239,100,97,0.25)';ctx.textAlign='left';ctx.fillText('BAD κ>0',pad.l+3,pad.t+10);
+  ctx.fillStyle='rgba(62,232,134,0.25)';ctx.fillText('GOOD κ<0',pad.l+3,pad.t+h-4);
+
+  // Draw profiles for multiple surfaces
+  const surfRhos=[0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85];
+  const N=200;
+
+  surfRhos.forEach(rho=>{
+    const isSel=Math.abs(rho-selRho)<0.06;
+
+    if(isSel){
+      // Fill areas for selected
+      ctx.beginPath();ctx.moveTo(pad.l,zy);
+      for(let i=0;i<=N;i++){const th=(i/N)*Math.PI*2;const k=kappa(th,rho);ctx.lineTo(pad.l+(i/N)*w,zy-(Math.max(0,k)/maxK)*(h/2)*0.9);}
+      ctx.lineTo(pad.l+w,zy);ctx.closePath();ctx.fillStyle='rgba(239,100,97,0.1)';ctx.fill();
+      ctx.beginPath();ctx.moveTo(pad.l,zy);
+      for(let i=0;i<=N;i++){const th=(i/N)*Math.PI*2;const k=kappa(th,rho);ctx.lineTo(pad.l+(i/N)*w,zy-(Math.min(0,k)/maxK)*(h/2)*0.9);}
+      ctx.lineTo(pad.l+w,zy);ctx.closePath();ctx.fillStyle='rgba(62,232,134,0.1)';ctx.fill();
+    }
+
+    // Line
+    for(let i=0;i<N;i++){
+      const th0=(i/N)*Math.PI*2,th1=((i+1)/N)*Math.PI*2;
+      const k0=kappa(th0,rho),k1=kappa(th1,rho);
+      const px0=pad.l+(i/N)*w,px1=pad.l+((i+1)/N)*w;
+      const py0=zy-(k0/maxK)*(h/2)*0.9,py1=zy-(k1/maxK)*(h/2)*0.9;
+
+      if(isSel){
+        const col=kappaColor((k0+k1)/2);
+        ctx.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;ctx.lineWidth=2.5;
+      } else {
+        ctx.strokeStyle=`rgba(100,116,139,0.12)`;ctx.lineWidth=1;
+      }
+      ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px1,py1);ctx.stroke();
+    }
+
+    // ρ label on right
+    const endK=kappa(0.05,rho);
+    const ey=zy-(endK/maxK)*(h/2)*0.9;
+    ctx.font=isSel?'600 9px "JetBrains Mono",monospace':'300 8px "JetBrains Mono",monospace';
+    ctx.fillStyle=isSel?'rgba(245,192,66,0.7)':'rgba(100,116,139,0.2)';
+    ctx.textAlign='left';ctx.fillText(isSel?`ρ=${rho.toFixed(2)} ←`:`${rho.toFixed(2)}`,pad.l+w+4,ey);
+  });
+
+  // X labels
+  ctx.font='8px "JetBrains Mono",monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';
+  ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(w/4)*i,pad.t+h+5));
+  ctx.font='9px "JetBrains Mono",monospace';ctx.fillText('θ (poloidal angle)',pad.l+w/2,pad.t+h+18);
+}
+
+// ============ MINI CROSS-SECTION (gene tab) ============
+function drawMini(){
+  if(!D.cMini)return;
+  const ctx=X.cMini,W=D.cMini.w,H=D.cMini.h;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0b1222';ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.38;
+  for(let i=1;i<=5;i++){const f=i/5;ctx.beginPath();for(let j=0;j<=48;j++){const th=(j/48)*Math.PI*2;const sp=surfPt(th,f,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}ctx.closePath();ctx.strokeStyle=`rgba(31,214,232,${0.04+0.01*f})`;ctx.lineWidth=0.5;ctx.stroke();}
+  const nS=48;for(let i=0;i<nS;i++){const th0=(i/nS)*Math.PI*2,th1=((i+1)/nS)*Math.PI*2;const sp0=surfPt(th0,0.6,maxR),sp1=surfPt(th1,0.6,maxR);const k=kappa((th0+th1)/2,0.6);const col=kappaColor(k);ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);ctx.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;ctx.lineWidth=3;ctx.stroke();}
+  if(hoverFrac>=0){
+    const th=hoverFrac*Math.PI*2;const sp=surfPt(th,0.6,maxR);const hx=cx+sp.x,hy=cy-sp.y;const k=kappa(th,0.6);const col=kappaColor(k);
+    ctx.beginPath();ctx.arc(hx,hy,12,0,Math.PI*2);const gr=ctx.createRadialGradient(hx,hy,0,hx,hy,12);gr.addColorStop(0,`rgba(${col.r},${col.g},${col.b},0.5)`);gr.addColorStop(1,`rgba(${col.r},${col.g},${col.b},0)`);ctx.fillStyle=gr;ctx.fill();
+    ctx.beginPath();ctx.arc(hx,hy,4,0,Math.PI*2);ctx.fillStyle=`rgb(${col.r},${col.g},${col.b})`;ctx.fill();ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+  } else {ctx.font='300 8px "DM Sans"';ctx.fillStyle='rgba(100,116,139,0.3)';ctx.textAlign='center';ctx.fillText('hover a plot',cx,H-6);}
+}
+
+// ============ GENE PLOTS ============
+function drawGenePlot(id,fn,color,range,isCurv,isLast){
+  if(!D[id])return;
+  const ctx=X[id],W=D[id].w,H=D[id].h;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#080c14';ctx.fillRect(0,0,W,H);
+  const pad={l:44,r:14,t:8,b:isLast?22:10},w=W-pad.l-pad.r,h=H-pad.t-pad.b;
+  const[yMin,yMax]=range;const toY=v=>pad.t+h-(v-yMin)/(yMax-yMin)*h;
+
+  if(isCurv){
+    const zy=toY(0);
+    ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+w,zy);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(239,100,97,0.03)';ctx.fillRect(pad.l,pad.t,w,zy-pad.t);
+    ctx.fillStyle='rgba(62,232,134,0.03)';ctx.fillRect(pad.l,zy,w,pad.t+h-zy);
+    // Fills
+    const N=200;
+    ctx.beginPath();ctx.moveTo(pad.l,zy);for(let i=0;i<=N;i++){const th=(i/N)*Math.PI*2;ctx.lineTo(pad.l+(i/N)*w,toY(Math.max(0,fn(th))));}ctx.lineTo(pad.l+w,zy);ctx.closePath();ctx.fillStyle='rgba(239,100,97,0.08)';ctx.fill();
+    ctx.beginPath();ctx.moveTo(pad.l,zy);for(let i=0;i<=N;i++){const th=(i/N)*Math.PI*2;ctx.lineTo(pad.l+(i/N)*w,toY(Math.min(0,fn(th))));}ctx.lineTo(pad.l+w,zy);ctx.closePath();ctx.fillStyle='rgba(62,232,134,0.08)';ctx.fill();
+  }
+
+  const N=200;
+  for(let i=0;i<N;i++){
+    const th0=(i/N)*Math.PI*2,th1=((i+1)/N)*Math.PI*2;
+    const v0=fn(th0),v1=fn(th1);
+    let col;if(isCurv){const kc=kappaColor(v0);col=`rgb(${kc.r},${kc.g},${kc.b})`;}else col=`rgba(${color.join(',')},0.6)`;
+    ctx.beginPath();ctx.moveTo(pad.l+(i/N)*w,toY(v0));ctx.lineTo(pad.l+((i+1)/N)*w,toY(v1));ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+  }
+
+  // Hover
+  if(hoverFrac>=0){
+    const hx=pad.l+hoverFrac*w;ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(hx,pad.t);ctx.lineTo(hx,pad.t+h);ctx.stroke();ctx.setLineDash([]);
+    const th=hoverFrac*Math.PI*2,v=fn(th);let col;if(isCurv){const kc=kappaColor(v);col=`rgb(${kc.r},${kc.g},${kc.b})`;}else col=`rgb(${color.join(',')})`;
+    ctx.beginPath();ctx.arc(hx,toY(v),4,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.font='600 9px "JetBrains Mono",monospace';ctx.fillStyle=col;ctx.textAlign=hoverFrac>0.85?'right':'left';
+    ctx.fillText(`${v>0?'+':''}${v.toFixed(3)}`,hoverFrac>0.85?hx-8:hx+8,toY(v)-8);
+  }
+
+  if(isLast){ctx.font='7px "JetBrains Mono",monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';
+  ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(w/4)*i,pad.t+h+3));}
+}
+
+function drawGene(){
+  drawGenePlot('gK',th=>kappa(th,0.6),[239,100,97],[-0.5,0.5],true,false);
+  drawGenePlot('gB',bField,[245,192,66],[0.75,1.15],false,false);
+  drawGenePlot('gJ',jacobian,[62,232,134],[0.3,1.8],false,true);
+}
+
+// Hover on gene plots
+['gK','gB','gJ'].forEach(id=>{
+  const c=document.getElementById(id);
+  c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();hoverFrac=Math.max(0,Math.min(1,(e.clientX-r.left-44)/(r.width-44-14)));drawGene();drawMini();});
+  c.addEventListener('mouseleave',()=>{hoverFrac=-1;drawGene();drawMini();});
+  c.addEventListener('touchmove',e=>{e.preventDefault();const r=c.getBoundingClientRect();hoverFrac=Math.max(0,Math.min(1,(e.touches[0].clientX-r.left-44)/(r.width-44-14)));drawGene();drawMini();},{passive:false});
+  c.addEventListener('touchend',()=>{hoverFrac=-1;drawGene();drawMini();});
+});
+
+// ============ CONTROLS ============
+document.getElementById('sE').addEventListener('input',e=>{elong=parseFloat(e.target.value);document.getElementById('vE').textContent=elong.toFixed(1);drawAll();});
+document.getElementById('sT').addEventListener('input',e=>{tri=parseFloat(e.target.value);document.getElementById('vT').textContent=tri.toFixed(1);drawAll();});
+document.getElementById('sRho').addEventListener('input',e=>{selRho=parseFloat(e.target.value);document.getElementById('vRho').textContent=selRho.toFixed(2);drawAll();});
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tc').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');document.getElementById('t-'+t.dataset.t).classList.add('on');
+  setTimeout(()=>{resizeAll();drawAll();},50);
+}));
+
+function drawAll(){try{drawArrows();}catch(e){}try{drawSurfaces();}catch(e){}try{drawProfiles();}catch(e){}try{drawMini();}catch(e){}try{drawGene();}catch(e){}}
+let lastT=0;function frame(ts){if(!lastT)lastT=ts;time+=(ts-lastT)/1000;lastT=ts;try{drawBall();}catch(e){}requestAnimationFrame(frame);}
+window.addEventListener('resize',()=>{resizeAll();drawAll();});
+resizeAll();drawAll();requestAnimationFrame(frame);
+</script>
+</body>
+</html>

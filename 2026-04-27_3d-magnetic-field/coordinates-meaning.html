@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What do (x, y, z) actually mean?</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  p { margin-bottom:1rem; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+
+  .stage {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    overflow:hidden;
+    margin:1.5rem 0;
+    position:relative;
+  }
+  .stage-tag {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 4px;
+  }
+  #scene {
+    width:100%;
+    height:480px;
+    display:block;
+    cursor:grab;
+  }
+  #scene:active { cursor:grabbing; }
+
+  .sliders {
+    padding:14px 16px;
+    border-top:1px solid #252a36;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .slider-row {
+    display:grid;
+    grid-template-columns:80px 1fr 80px;
+    align-items:center;
+    gap:12px;
+  }
+  .slider-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.85rem;
+    font-weight:600;
+  }
+  .slider-label.x { color:#fb7185; }
+  .slider-label.y { color:#4ade80; }
+  .slider-label.z { color:#5cb8f0; }
+  .slider-value {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.85rem;
+    color:#e2e5ed;
+    text-align:right;
+  }
+  input[type=range] {
+    -webkit-appearance:none;
+    width:100%;
+    height:4px;
+    background:#252a36;
+    border-radius:2px;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none;
+    width:18px; height:18px;
+    border-radius:50%;
+    background:#f0a050;
+    cursor:pointer;
+    border:2px solid #0c0e13;
+  }
+  input[type=range]::-moz-range-thumb {
+    width:18px; height:18px;
+    border-radius:50%;
+    background:#f0a050;
+    cursor:pointer;
+    border:2px solid #0c0e13;
+  }
+  input.x::-webkit-slider-thumb { background:#fb7185; }
+  input.y::-webkit-slider-thumb { background:#4ade80; }
+  input.z::-webkit-slider-thumb { background:#5cb8f0; }
+  input.x::-moz-range-thumb { background:#fb7185; }
+  input.y::-moz-range-thumb { background:#4ade80; }
+  input.z::-moz-range-thumb { background:#5cb8f0; }
+
+  .recipe {
+    background:#0c0e13;
+    border:1px solid #252a36;
+    border-radius:6px;
+    margin:14px 16px 16px;
+    padding:12px 14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.78rem;
+    line-height:1.9;
+    color:#8a8f9f;
+  }
+  .recipe .step {
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .recipe .num {
+    color:#6b7084;
+    font-weight:600;
+    flex-shrink:0;
+  }
+  .recipe .x-step strong { color:#fb7185; }
+  .recipe .y-step strong { color:#4ade80; }
+  .recipe .z-step strong { color:#5cb8f0; }
+
+  .note {
+    background:#12151c;
+    border-left:3px solid #5cb8f0;
+    border-radius:0 4px 4px 0;
+    padding:0.9rem 1.1rem;
+    margin:1.2rem 0;
+    font-size:0.92rem;
+  }
+  .note-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#5cb8f0;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+
+  .hint {
+    position:absolute;
+    top:42px; right:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.62rem;
+    color:#6b7084;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    pointer-events:none;
+    background:rgba(12,14,19,0.7);
+    padding:4px 8px;
+    border-radius:3px;
+    border:1px solid #252a36;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>What do (x, y, z) actually mean?</h1>
+<p class="sub">Drag the sliders. Watch the dot. The numbers are a recipe for getting to a point.</p>
+
+<p>Think of <code>(x, y, z)</code> as a <strong>three-step recipe</strong> for finding a point in the torus:</p>
+
+<div class="stage">
+  <div class="stage-tag">Move the sliders to set x, y, z — see where you end up</div>
+  <canvas id="scene"></canvas>
+  <div class="hint">drag · scroll</div>
+
+  <div class="recipe">
+    <div class="step x-step"><span class="num">1.</span><span><strong>x</strong> picks which flux surface (which donut shell)</span></div>
+    <div class="step y-step"><span class="num">2.</span><span><strong>y</strong> picks which field line on that shell</span></div>
+    <div class="step z-step"><span class="num">3.</span><span><strong>z</strong> says how far along that field line to walk</span></div>
+  </div>
+
+  <div class="sliders">
+    <div class="slider-row">
+      <span class="slider-label x">x</span>
+      <input type="range" class="x" id="sx" min="0" max="100" value="50">
+      <span class="slider-value" id="vx">0.50</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label y">y</span>
+      <input type="range" class="y" id="sy" min="0" max="100" value="0">
+      <span class="slider-value" id="vy">0.00</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label z">z</span>
+      <input type="range" class="z" id="sz" min="0" max="100" value="0">
+      <span class="slider-value" id="vz">0.00</span>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <span class="note-label">What you should try</span>
+  <p style="margin-bottom:0.5rem"><strong>Move only x:</strong> the dot jumps between donut shells, in and out. Different x = different flux surface.</p>
+  <p style="margin-bottom:0.5rem"><strong>Move only y:</strong> the dot slides around the surface perpendicular to the field. Different y = different field line.</p>
+  <p style="margin-bottom:0"><strong>Move only z:</strong> the dot slides <em>along</em> the highlighted field line, spiraling helically around the torus.</p>
+</div>
+
+<p>So the <strong style="color:#4ade80">y value</strong> is just "how far along the binormal direction did I step from the reference field line." It's a length, in meters. y = 0 means you're on the reference (highlighted) field line. y = 0.5 m means you stepped half a meter along the binormal — and now you're on a different field line, one that's parallel to the reference but offset.</p>
+
+<p>The reason this is confusing: in everyday geometry, if you walk "1 meter east" you always end up at the same offset, no matter where you started. Here, "1 meter along y" lands you on a different field line every time, because y is a direction <em>defined locally</em> — it depends on where the field is pointing right there.</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  const C = {
+    bg:0x0c0e13,
+    surface:0x12151c,
+    border:0x252a36,
+    blue:0x5cb8f0,
+    red:0xfb7185,
+    green:0x4ade80,
+    orange:0xf0a050,
+    dim:0x6b7084
+  };
+
+  const R = 3.0;
+  const a_max = 1.4;
+  const q = 3.0;
+
+  const canvas = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(C.bg, 1);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(C.bg, 8, 18);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+
+  // Lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  const key = new THREE.DirectionalLight(0xfff0d8, 0.6);
+  key.position.set(4, 6, 4);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x5cb8f0, 0.35);
+  rim.position.set(-5, -2, -3);
+  scene.add(rim);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  // ── Several flux surfaces (nested donuts) ──
+  const surfaces = [];
+  const surfaceRadii = [0.4, 0.7, 1.0, 1.3];
+  surfaceRadii.forEach((r, idx) => {
+    const geo = new THREE.TorusGeometry(R, r, 24, 64);
+    geo.rotateX(Math.PI / 2);
+    const mat = new THREE.MeshPhongMaterial({
+      color: 0x1a2030,
+      emissive: 0x080c14,
+      specular: 0x5cb8f0,
+      shininess: 20,
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      wireframe: false
+    });
+    const torus = new THREE.Mesh(geo, mat);
+    group.add(torus);
+
+    // Wireframe overlay
+    const wireGeo = new THREE.TorusGeometry(R, r, 8, 24);
+    wireGeo.rotateX(Math.PI / 2);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x252a36,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.25
+    });
+    const wire = new THREE.Mesh(wireGeo, wireMat);
+    group.add(wire);
+
+    surfaces.push({torus, wire, r});
+  });
+
+  // ── Highlighted (active) flux surface ──
+  let activeSurfaceMesh = null;
+  let activeSurfaceWire = null;
+  function updateActiveSurface(currentR) {
+    if (activeSurfaceMesh) {
+      group.remove(activeSurfaceMesh);
+      activeSurfaceMesh.geometry.dispose();
+      activeSurfaceMesh.material.dispose();
+    }
+    if (activeSurfaceWire) {
+      group.remove(activeSurfaceWire);
+      activeSurfaceWire.geometry.dispose();
+      activeSurfaceWire.material.dispose();
+    }
+    const geo = new THREE.TorusGeometry(R, currentR, 32, 80);
+    geo.rotateX(Math.PI / 2);
+    const mat = new THREE.MeshPhongMaterial({
+      color: 0x2a1820,
+      emissive: 0x1a0c10,
+      specular: 0xfb7185,
+      shininess: 25,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    activeSurfaceMesh = new THREE.Mesh(geo, mat);
+    group.add(activeSurfaceMesh);
+
+    const wireGeo = new THREE.TorusGeometry(R, currentR, 10, 32);
+    wireGeo.rotateX(Math.PI / 2);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0xfb7185,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.25
+    });
+    activeSurfaceWire = new THREE.Mesh(wireGeo, wireMat);
+    group.add(activeSurfaceWire);
+  }
+
+  // ── Field lines on the active surface ──
+  // y picks which field line (offset in poloidal angle)
+  function fieldLinePoint(phi, currentR, theta_offset) {
+    const theta = phi / q + theta_offset;
+    return new THREE.Vector3(
+      (R + currentR * Math.cos(theta)) * Math.cos(phi),
+      currentR * Math.sin(theta),
+      (R + currentR * Math.cos(theta)) * Math.sin(phi)
+    );
+  }
+
+  let fieldLinesGroup = new THREE.Group();
+  group.add(fieldLinesGroup);
+
+  function rebuildFieldLines(currentR) {
+    while (fieldLinesGroup.children.length > 0) {
+      const c = fieldLinesGroup.children[0];
+      fieldLinesGroup.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+    }
+
+    // Draw N field lines on this surface
+    const N_LINES = 6;
+    for (let n = 0; n < N_LINES; n++) {
+      const offset = (n / N_LINES) * Math.PI * 2;
+      const pts = [];
+      const SEGS = 400;
+      for (let s = 0; s <= SEGS; s++) {
+        const phi = (s / SEGS) * Math.PI * 2 * q;
+        pts.push(fieldLinePoint(phi, currentR, offset));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color: C.blue,
+        transparent: true,
+        opacity: 0.25
+      });
+      fieldLinesGroup.add(new THREE.Line(geo, mat));
+    }
+  }
+
+  // ── The "active" field line (selected by y) ──
+  let activeLineObj = null;
+  function rebuildActiveLine(currentR, yOffset) {
+    if (activeLineObj) {
+      fieldLinesGroup.remove(activeLineObj);
+      activeLineObj.geometry.dispose();
+      activeLineObj.material.dispose();
+    }
+    const pts = [];
+    const SEGS = 500;
+    for (let s = 0; s <= SEGS; s++) {
+      const phi = (s / SEGS) * Math.PI * 2 * q;
+      pts.push(fieldLinePoint(phi, currentR, yOffset));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+      color: C.green,
+      transparent: true,
+      opacity: 0.95,
+      linewidth: 2
+    });
+    activeLineObj = new THREE.Line(geo, mat);
+    fieldLinesGroup.add(activeLineObj);
+  }
+
+  // ── The dot ──
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 24, 24),
+    new THREE.MeshBasicMaterial({color: C.orange})
+  );
+  group.add(dot);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 24, 24),
+    new THREE.MeshBasicMaterial({color: C.orange, transparent:true, opacity:0.3})
+  );
+  group.add(glow);
+
+  // Magnetic axis for reference
+  {
+    const pts = [];
+    for (let i = 0; i <= 100; i++) {
+      const phi = (i / 100) * Math.PI * 2;
+      pts.push(new THREE.Vector3(R * Math.cos(phi), 0, R * Math.sin(phi)));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineDashedMaterial({
+      color: 0x6b7084,
+      dashSize: 0.12,
+      gapSize: 0.08,
+      transparent: true,
+      opacity: 0.5
+    });
+    const axis = new THREE.Line(geo, mat);
+    axis.computeLineDistances();
+    group.add(axis);
+  }
+
+  // ── Sliders ──
+  const sx = document.getElementById('sx');
+  const sy = document.getElementById('sy');
+  const sz = document.getElementById('sz');
+  const vx = document.getElementById('vx');
+  const vy = document.getElementById('vy');
+  const vz = document.getElementById('vz');
+
+  function update() {
+    const xVal = sx.value / 100; // 0 to 1
+    const yVal = sy.value / 100; // 0 to 1
+    const zVal = sz.value / 100; // 0 to 1
+
+    // Map to physical
+    const currentR = 0.4 + xVal * 1.0; // r from 0.4 to 1.4
+    const yOffset = yVal * Math.PI * 2; // poloidal offset
+    const phi = zVal * Math.PI * 2 * q; // distance along field line
+
+    vx.textContent = xVal.toFixed(2);
+    vy.textContent = yVal.toFixed(2);
+    vz.textContent = zVal.toFixed(2);
+
+    updateActiveSurface(currentR);
+    rebuildFieldLines(currentR);
+    rebuildActiveLine(currentR, yOffset);
+
+    const pos = fieldLinePoint(phi, currentR, yOffset);
+    dot.position.copy(pos);
+    glow.position.copy(pos);
+  }
+
+  sx.addEventListener('input', update);
+  sy.addEventListener('input', update);
+  sz.addEventListener('input', update);
+
+  // ── Camera controls ──
+  let rotX = 0.4, rotY = 0.6;
+  let targetRotX = 0.4, targetRotY = 0.6;
+  let zoom = 1.0, targetZoom = 1.0;
+  let isDragging = false;
+  let lastX = 0, lastY = 0;
+
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    targetRotY += (e.clientX - lastX) * 0.005;
+    targetRotX += (e.clientY - lastY) * 0.005;
+    targetRotX = Math.max(-1.3, Math.min(1.3, targetRotX));
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => isDragging = false);
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    targetZoom *= (1 + e.deltaY * 0.001);
+    targetZoom = Math.max(0.5, Math.min(2.5, targetZoom));
+  }, {passive:false});
+
+  // Touch
+  let lastTouchDist = 0;
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+    }
+  });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && isDragging) {
+      targetRotY += (e.touches[0].clientX - lastX) * 0.005;
+      targetRotX += (e.touches[0].clientY - lastY) * 0.005;
+      targetRotX = Math.max(-1.3, Math.min(1.3, targetRotX));
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (lastTouchDist > 0) {
+        targetZoom *= lastTouchDist / dist;
+        targetZoom = Math.max(0.5, Math.min(2.5, targetZoom));
+      }
+      lastTouchDist = dist;
+    }
+  }, {passive:false});
+  canvas.addEventListener('touchend', () => {
+    isDragging = false;
+    lastTouchDist = 0;
+  });
+
+  function resize() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  let t = 0;
+  function animate() {
+    t += 0.01;
+    rotX += (targetRotX - rotX) * 0.1;
+    rotY += (targetRotY - rotY) * 0.1;
+    zoom += (targetZoom - zoom) * 0.1;
+
+    const dist = 7.5 * zoom;
+    camera.position.x = dist * Math.sin(rotY) * Math.cos(rotX);
+    camera.position.y = dist * Math.sin(rotX);
+    camera.position.z = dist * Math.cos(rotY) * Math.cos(rotX);
+    camera.lookAt(0, 0, 0);
+
+    glow.scale.setScalar(1 + 0.15 * Math.sin(t * 4));
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+
+  canvas.style.height = '480px';
+  resize();
+  update();
+  animate();
+  window.addEventListener('resize', resize);
+})();
+</script>
+
+</body>
+</html>

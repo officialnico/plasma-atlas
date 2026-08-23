@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>full grids</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function FullGrids() {
+  const [zoomCenter, setZoomCenter] = useState({ r: 0.5, z: 0.5 }); // normalized 0-1
+  const [zoomLevel, setZoomLevel] = useState(0); // 0 = full, 1 = 4x, 2 = 16x
+
+  const R0 = 1.18, a = 0.42, kappa = 1.75, delta = 0.40;
+  const Rmin = 0.55, Rmax = 1.85, Zmin = -1.05, Zmax = 1.05;
+
+  function psiFunc(R, Z) {
+    const dRn = (R - R0) / a;
+    const dZn = Z / (a * kappa);
+    const asin_d = Math.asin(delta);
+    const triShift = -delta * dZn * dZn;
+    const rhoSq = (dRn - triShift) ** 2 + dZn ** 2;
+    return Math.sqrt(rhoSq);
+  }
+
+  function psiColor(psi) {
+    if (psi > 1.0) {
+      const t = Math.min((psi - 1) / 1.0, 1);
+      return `rgb(${Math.round(8 + t * 5)},${Math.round(12 + t * 5)},${Math.round(20 + t * 5)})`;
+    }
+    const t = psi;
+    const r = Math.round(10 + t * 20);
+    const g = Math.round(190 - t * 150);
+    const b = Math.round(190 - t * 70);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // Render a grid as a canvas-like SVG
+  function GridView({ n, label, color, size }) {
+    const w = size, h = size;
+
+    // Zoom window in normalized coords
+    const zoomFactors = [1, 0.25, 0.0625];
+    const zf = zoomFactors[zoomLevel];
+    const halfW = zf / 2;
+    const rStart = Math.max(0, zoomCenter.r - halfW);
+    const rEnd = Math.min(1, zoomCenter.r + halfW);
+    const zStart = Math.max(0, zoomCenter.z - halfW);
+    const zEnd = Math.min(1, zoomCenter.z + halfW);
+
+    // How many grid cells are visible in this zoom
+    const iStart = Math.floor(rStart * (n - 1));
+    const iEnd = Math.ceil(rEnd * (n - 1));
+    const jStart = Math.floor(zStart * (n - 1));
+    const jEnd = Math.ceil(zEnd * (n - 1));
+    const visibleR = iEnd - iStart;
+    const visibleZ = jEnd - jStart;
+
+    const cellW = w / visibleR;
+    const cellH = h / visibleZ;
+    const showNumbers = cellW > 28 && cellH > 16;
+
+    const cells = [];
+    for (let j = jStart; j < jEnd; j++) {
+      for (let i = iStart; i < iEnd; i++) {
+        const rN = i / (n - 1);
+        const zN = j / (n - 1);
+        const R = Rmin + rN * (Rmax - Rmin);
+        const Z = Zmax - zN * (Zmax - Zmin);
+        const psi = psiFunc(R, Z);
+        const x = (i - iStart) * cellW;
+        const y = (j - jStart) * cellH;
+        cells.push({ x, y, w: cellW, h: cellH, psi, R, Z, i, j });
+      }
+    }
+
+    return (
+      <div>
+        <div style={{ fontSize: 10, color, fontWeight: 700, marginBottom: 4 }}>
+          {label}
+        </div>
+        <div style={{
+          background: "#0d1117", borderRadius: 4,
+          border: `1px solid ${color}33`, padding: 2,
+        }}>
+          <svg width={w} height={h} style={{ display: "block" }}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = (e.clientX - rect.left) / w;
+              const y = (e.clientY - rect.top) / h;
+              const newR = rStart + x * (rEnd - rStart);
+              const newZ = zStart + y * (zEnd - zStart);
+              setZoomCenter({ r: newR, z: newZ });
+            }}
+          >
+            {cells.map((c, idx) => (
+              <g key={idx}>
+                <rect
+                  x={c.x} y={c.y}
+                  width={Math.ceil(c.w) + 0.5} height={Math.ceil(c.h) + 0.5}
+                  fill={psiColor(c.psi)}
+                  stroke={cellW > 4 ? "#0a0e1422" : "none"}
+                  strokeWidth={cellW > 4 ? 0.5 : 0}
+                />
+                {showNumbers && (
+                  <text x={c.x + c.w / 2} y={c.y + c.h / 2 + 3}
+                    textAnchor="middle" fill="#e6ecf2"
+                    fontSize={Math.min(8, cellW / 4)}
+                    opacity={0.8}
+                  >
+                    {c.psi.toFixed(2)}
+                  </text>
+                )}
+              </g>
+            ))}
+          </svg>
+        </div>
+        <div style={{ fontSize: 9, color: "#3a4a5a", marginTop: 3 }}>
+          {n}×{n} = {(n * n).toLocaleString()} cells
+          {zoomLevel > 0 && ` · showing ${visibleR}×${visibleZ} of them`}
+        </div>
+      </div>
+    );
+  }
+
+  const gridSize = 260;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          ACTUAL GRID SIZES — EFIT vs CHEASE
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          TAP ANYWHERE TO SET ZOOM CENTER · USE BUTTONS TO ZOOM IN
+        </p>
+
+        {/* Zoom controls */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {[
+            { level: 0, label: "Full view", desc: "See everything" },
+            { level: 1, label: "4× zoom", desc: "See individual cells" },
+            { level: 2, label: "16× zoom", desc: "See numbers in cells" },
+          ].map(z => (
+            <button key={z.level}
+              onClick={() => setZoomLevel(z.level)}
+              style={{
+                flex: 1, padding: "8px 10px", textAlign: "center",
+                background: zoomLevel === z.level ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${zoomLevel === z.level ? "#4ecdc4" : "#1e2630"}`,
+                borderRadius: 4, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <div style={{ fontSize: 11, color: zoomLevel === z.level ? "#4ecdc4" : "#5c6a7a", fontWeight: 700 }}>{z.label}</div>
+              <div style={{ fontSize: 8, color: "#3a4a5a" }}>{z.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Side by side grids */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          <GridView n={65} label="EFIT — 65×65 (1 value per cell)" color="#ff6b6b" size={gridSize} />
+          <GridView n={256} label="CHEASE — 256×256 (4 values per cell)" color="#4ecdc4" size={gridSize} />
+        </div>
+
+        {/* Stats comparison */}
+        <div style={{
+          marginTop: 12, padding: 12,
+          background: "#12171f", borderRadius: 6,
+          border: "1px solid #1e2630",
+        }}>
+          <div style={{ display: "flex", gap: 20 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#ff6b6b", fontWeight: 700, marginBottom: 6 }}>EFIT</div>
+              {[
+                { label: "Grid", value: "65 × 65" },
+                { label: "Per point", value: "1 number" },
+                { label: "Total numbers", value: "4,225" },
+                { label: "File size", value: "~100 KB" },
+                { label: "Derivatives", value: "Subtract neighbors" },
+              ].map((row, i) => (
+                <div key={i} style={{
+                  display: "flex", justifyContent: "space-between",
+                  fontSize: 9, color: "#5c6a7a", padding: "2px 0",
+                  borderBottom: "1px solid #1a2030",
+                }}>
+                  <span>{row.label}</span>
+                  <span style={{ color: "#e6ecf2" }}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ width: 1, background: "#1e2630" }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700, marginBottom: 6 }}>CHEASE</div>
+              {[
+                { label: "Grid", value: "256 × 256" },
+                { label: "Per point", value: "4 numbers" },
+                { label: "Total numbers", value: "262,144" },
+                { label: "File size", value: "~2-4 MB" },
+                { label: "Derivatives", value: "Exact from solver" },
+              ].map((row, i) => (
+                <div key={i} style={{
+                  display: "flex", justifyContent: "space-between",
+                  fontSize: 9, color: "#5c6a7a", padding: "2px 0",
+                  borderBottom: "1px solid #1a2030",
+                }}>
+                  <span>{row.label}</span>
+                  <span style={{ color: "#e6ecf2" }}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: 8, padding: 6, background: "#0a0e14",
+            borderRadius: 4, fontSize: 9, color: "#3a4a5a", textAlign: "center",
+          }}>
+            62× more data. Still under 4 MB. The GENE run after this costs millions of CPU-hours.
+          </div>
+        </div>
+
+        {/* What zoom reveals */}
+        <div style={{
+          marginTop: 12, padding: 12,
+          background: "rgba(78,205,196,0.05)",
+          borderRadius: 6, border: "1px solid rgba(78,205,196,0.15)",
+        }}>
+          <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            What to notice
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.8 }}>
+            {zoomLevel === 0 && "At full view, EFIT's grid looks pixelated — you can see the individual cells as colored squares. CHEASE's grid looks smooth because the cells are so small they blend together. Tap anywhere on either grid then hit 4× or 16× zoom to look closer."}
+            {zoomLevel === 1 && "At 4× zoom, you can see individual cells in both grids. EFIT has big blocky cells. CHEASE has tiny cells — 4× more in each direction. This is where the resolution difference becomes obvious. And remember: each CHEASE cell also stores 4× more data than each EFIT cell."}
+            {zoomLevel === 2 && "At 16× zoom, you can read the actual ψ values in the cells (if they're big enough). EFIT's cells are large with numbers visible. CHEASE still has very dense cells even at this zoom. The color gradients in CHEASE are much smoother because there are so many more sample points."}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FullGrids));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

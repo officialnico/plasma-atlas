@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reading the Vlasov terms</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; min-height: 100%; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; overflow-x: hidden; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+
+h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin-bottom: 8px; color: #fff; }
+.sub { color: #a8a59c; font-size: 14px; line-height: 1.6; max-width: 780px; margin-bottom: 24px; }
+
+.term {
+  background: rgba(12,12,18,0.85);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 24px 28px;
+  margin-bottom: 22px;
+}
+.term h2 {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 22px;
+  color: #fff; margin-bottom: 8px; letter-spacing: -0.01em;
+}
+.term .formula-big {
+  font-family: 'JetBrains Mono', monospace; font-size: 24px;
+  color: #d4a04a; font-weight: 600;
+  text-align: center; padding: 14px;
+  background: rgba(212,160,74,0.06);
+  border: 1px solid rgba(212,160,74,0.2);
+  border-radius: 6px; margin: 12px 0 18px;
+}
+
+.explainer {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+@media (max-width: 800px) { .explainer { grid-template-columns: 1fr; } }
+
+.box {
+  padding: 14px 16px;
+  border-radius: 6px;
+  font-size: 13.5px; line-height: 1.65;
+}
+.box.simple {
+  background: rgba(74,157,110,0.05);
+  border-left: 3px solid #5fc28e;
+}
+.box.simple .lbl {
+  color: #6fdb9e; font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px; letter-spacing: 0.2em; font-weight: 600;
+  text-transform: uppercase; display: block; margin-bottom: 6px;
+}
+.box.tech {
+  background: rgba(91,141,191,0.05);
+  border-left: 3px solid #7badd6;
+}
+.box.tech .lbl {
+  color: #8bbde6; font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px; letter-spacing: 0.2em; font-weight: 600;
+  text-transform: uppercase; display: block; margin-bottom: 6px;
+}
+.box code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px;
+  color: #f0e6d0;
+}
+
+.viz {
+  margin: 16px 0;
+  background: #050508;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.viz canvas { display: block; width: 100%; }
+.viz .controls {
+  display: flex; gap: 12px; padding: 10px 14px;
+  background: rgba(0,0,0,0.4);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-wrap: wrap; align-items: center;
+}
+.btn {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+  color: #e8e6e0; padding: 6px 14px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  cursor: pointer;
+}
+.btn:hover { background: rgba(255,255,255,0.12); }
+.btn.primary { background: #d4a04a; color: #1a1408; border-color: #d4a04a; font-weight: 600; }
+
+.slider-block { display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+.slider-block input[type=range] {
+  width: 110px; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  border-radius: 2px; outline: none;
+}
+.slider-block input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+  cursor: pointer; border: none;
+}
+
+.amber input[type=range] { background: rgba(212,160,74,0.2); }
+.amber input[type=range]::-webkit-slider-thumb { background: #d4a04a; box-shadow: 0 0 0 3px rgba(212,160,74,0.25); }
+.amber span.lbl { color: #d4a04a; }
+.amber span.val { color: #d4a04a; font-weight: 600; min-width: 36px; text-align: right; }
+
+.green input[type=range] { background: rgba(74,157,110,0.2); }
+.green input[type=range]::-webkit-slider-thumb { background: #5fc28e; box-shadow: 0 0 0 3px rgba(74,157,110,0.25); }
+.green span.lbl { color: #6fdb9e; }
+.green span.val { color: #6fdb9e; font-weight: 600; min-width: 36px; text-align: right; }
+
+.red input[type=range] { background: rgba(255,107,107,0.2); }
+.red input[type=range]::-webkit-slider-thumb { background: #ff6b6b; box-shadow: 0 0 0 3px rgba(255,107,107,0.25); }
+.red span.lbl { color: #ff8b8b; }
+.red span.val { color: #ff8b8b; font-weight: 600; min-width: 36px; text-align: right; }
+
+.readout {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(212,160,74,0.05);
+  border: 1px solid rgba(212,160,74,0.2);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+  color: #f0e6d0; line-height: 1.7;
+}
+.readout .row {
+  display: flex; justify-content: space-between;
+  align-items: center; padding: 2px 0;
+}
+.readout .lbl { color: #888; }
+.readout .v { font-weight: 600; }
+.tag-x { color: #ff8b8b; font-weight: 600; }
+.tag-v { color: #6fdb9e; font-weight: 600; }
+.tag-f { color: #d4a04a; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Reading the Vlasov terms</h1>
+<p class="sub">Two terms, two intuitions. Watch what they each do to <span class="tag-f">f</span> as you change <span class="tag-v">v</span>, the gradient of <span class="tag-f">f</span>, and the force <span class="tag-x">F</span>.</p>
+
+<!-- ============================ -->
+<!-- TERM 1: v · ∂f/∂x            -->
+<!-- ============================ -->
+<div class="term">
+<h2>Term 1: <span class="tag-v">v</span> · ∂<span class="tag-f">f</span>/∂<span class="tag-x">x</span> — the spatial advection term</h2>
+<div class="formula-big"><span style="color:#6fdb9e">v</span> · ∂<span style="color:#d4a04a">f</span>/∂<span style="color:#ff8b8b">x</span></div>
+
+<div class="explainer">
+  <div class="box simple">
+    <span class="lbl">simple version</span>
+    <p>Imagine a parade marching down a street. <span class="tag-v">v</span> is how fast the marchers are walking. <span class="tag-f">f</span> is how dense the crowd is at each spot.</p>
+    <p style="margin-top:8px">If you stand at one spot and watch, the density at YOUR spot changes because the parade is moving past you. Where the parade is dense, that density gets <em>carried</em> downstream toward you. Where it's sparse behind you, that emptiness gets carried away.</p>
+    <p style="margin-top:8px"><strong>Faster marchers (bigger v) = density gets carried faster.</strong> Bigger gradient (∂f/∂x = "how steeply density changes with position") = bigger jump in what's about to arrive.</p>
+  </div>
+  <div class="box tech">
+    <span class="lbl">technical version</span>
+    <p><code>∂f/∂x</code> is the slope of <span class="tag-f">f</span> as you move in <span class="tag-x">x</span>. Positive slope = f rising as you move right. Negative slope = f falling.</p>
+    <p style="margin-top:8px"><code>v · ∂f/∂x</code> is "rate of <span class="tag-x">x</span>-position change" times "rate of <span class="tag-f">f</span>-with-<span class="tag-x">x</span> change." By the chain rule, this gives you the rate at which the <em>shape</em> of f, traveling at speed v, changes the value of f at a fixed point.</p>
+    <p style="margin-top:8px">Sign matters. If v &gt; 0 and ∂f/∂x &gt; 0, then bigger f is upstream (to the left), which means LESS f is being swept in than is leaving — so this term is positive, meaning <span class="tag-f">f</span> at this point will <em>decrease</em> (because in the equation it's <code>∂f/∂t = −v·∂f/∂x</code>).</p>
+  </div>
+</div>
+
+<div class="viz">
+  <canvas id="vizT1" height="320"></canvas>
+  <div class="controls">
+    <button class="btn primary" id="play1">▶ play</button>
+    <button class="btn" id="reset1">reset</button>
+    <div class="slider-block green">
+      <span class="lbl">v (speed)</span>
+      <input type="range" id="vSl" min="-1.0" max="1.0" step="0.05" value="0.5">
+      <span class="val" id="vSlV">0.50</span>
+    </div>
+    <div class="slider-block amber">
+      <span class="lbl">f shape (sharpness)</span>
+      <input type="range" id="sharpSl" min="0.05" max="0.4" step="0.01" value="0.12">
+      <span class="val" id="sharpSlV">0.12</span>
+    </div>
+  </div>
+</div>
+
+<div class="readout" id="readout1">
+  <div class="row"><span class="lbl">at the orange dot:</span><span></span></div>
+  <div class="row"><span class="lbl">  v</span><span class="v" style="color:#6fdb9e" id="r1v">—</span></div>
+  <div class="row"><span class="lbl">  ∂f/∂x (slope)</span><span class="v" style="color:#d4a04a" id="r1g">—</span></div>
+  <div class="row"><span class="lbl">  v · ∂f/∂x</span><span class="v" id="r1prod">—</span></div>
+  <div class="row"><span class="lbl">  → so ∂f/∂t at this point</span><span class="v" id="r1dt">—</span></div>
+</div>
+
+<p style="margin-top: 14px; color: #d4cfc0; font-size: 14px; line-height: 1.65;">Drag the orange dot left/right to sample different points on the curve. Drag <span class="tag-v">v</span> to change how fast the bump scrolls. Drag sharpness to make the gradient steeper. Watch the readout: when the bump is moving right (v &gt; 0) into a place where f is rising (∂f/∂x &gt; 0), you're on the leading edge of an arriving wave — but at that exact spot, less f is coming from the right than is leaving to the right, so f is locally decreasing at that fixed-position observer.</p>
+</div>
+
+<!-- ============================ -->
+<!-- TERM 2: F · ∂f/∂v            -->
+<!-- ============================ -->
+<div class="term">
+<h2>Term 2: (<span class="tag-x">F</span>/m) · ∂<span class="tag-f">f</span>/∂<span class="tag-v">v</span> — the velocity advection term</h2>
+<div class="formula-big">(<span style="color:#ff8b8b">F</span>/m) · ∂<span style="color:#d4a04a">f</span>/∂<span style="color:#6fdb9e">v</span></div>
+
+<div class="explainer">
+  <div class="box simple">
+    <span class="lbl">simple version</span>
+    <p>Same idea, but instead of "moving in space," the particles are "moving in velocity" — a force is changing their speed.</p>
+    <p style="margin-top:8px">Imagine you have a histogram of how fast cars are going on a highway: lots at 60 mph, fewer at 50 or 70. Now suddenly there's a downhill — every car speeds up by 5 mph. The whole histogram <em>shifts</em> 5 mph to the right.</p>
+    <p style="margin-top:8px"><strong>Force is the wind that blows the velocity-distribution sideways.</strong> ∂f/∂v ("how f changes across velocity") is the slope of that histogram. F · ∂f/∂v is how fast the histogram values at each speed are sliding past you.</p>
+  </div>
+  <div class="box tech">
+    <span class="lbl">technical version</span>
+    <p><code>F</code> is the force, <code>F/m</code> is the acceleration (Newton's second law). Acceleration is to <span class="tag-v">v</span> what velocity is to <span class="tag-x">x</span>: it's the rate of change.</p>
+    <p style="margin-top:8px">So <code>(F/m) · ∂f/∂v</code> is structurally identical to <code>v · ∂f/∂x</code> — same chain-rule pattern, applied to velocity instead of position. The force advects f through velocity space.</p>
+    <p style="margin-top:8px">If the force is constant, f's velocity histogram literally just slides along the v-axis at rate F/m. If the force depends on x, different x-slices have different velocity-shifts — that's where structure forms.</p>
+  </div>
+</div>
+
+<div class="viz">
+  <canvas id="vizT2" height="320"></canvas>
+  <div class="controls">
+    <button class="btn primary" id="play2">▶ play</button>
+    <button class="btn" id="reset2">reset</button>
+    <div class="slider-block red">
+      <span class="lbl">F/m (force / mass)</span>
+      <input type="range" id="fSl" min="-1.5" max="1.5" step="0.05" value="0.6">
+      <span class="val" id="fSlV">0.60</span>
+    </div>
+    <div class="slider-block amber">
+      <span class="lbl">f shape (width)</span>
+      <input type="range" id="widthSl" min="0.1" max="0.5" step="0.02" value="0.2">
+      <span class="val" id="widthSlV">0.20</span>
+    </div>
+  </div>
+</div>
+
+<div class="readout" id="readout2">
+  <div class="row"><span class="lbl">at the orange dot:</span><span></span></div>
+  <div class="row"><span class="lbl">  F/m</span><span class="v" style="color:#ff8b8b" id="r2f">—</span></div>
+  <div class="row"><span class="lbl">  ∂f/∂v (slope)</span><span class="v" style="color:#d4a04a" id="r2g">—</span></div>
+  <div class="row"><span class="lbl">  (F/m) · ∂f/∂v</span><span class="v" id="r2prod">—</span></div>
+  <div class="row"><span class="lbl">  → so ∂f/∂t at this point</span><span class="v" id="r2dt">—</span></div>
+</div>
+
+<p style="margin-top: 14px; color: #d4cfc0; font-size: 14px; line-height: 1.65;">Same drill, but now you're in velocity-space. The horizontal axis is <span class="tag-v">v</span>, not <span class="tag-x">x</span>. Drag F up — the bump shifts to the right (toward higher velocities) over time. Drag F to negative — it shifts left. Drag the orange dot to sample the slope at any v. The readout tells you exactly what the equation says about <span class="tag-f">f</span>'s rate of change at that <span class="tag-v">v</span>.</p>
+</div>
+
+<!-- ============================ -->
+<!-- COMBINED: both terms together -->
+<!-- ============================ -->
+<div class="term">
+<h2>Both terms together = the Vlasov equation</h2>
+<div class="formula-big">∂<span style="color:#d4a04a">f</span>/∂t  =  −<span style="color:#6fdb9e">v</span> · ∂<span style="color:#d4a04a">f</span>/∂<span style="color:#ff8b8b">x</span>  −  (F/m) · ∂<span style="color:#d4a04a">f</span>/∂<span style="color:#6fdb9e">v</span></div>
+
+<p style="color: #d4cfc0; font-size: 14px; line-height: 1.7;">In real Vlasov, you have BOTH happening at once. <span class="tag-f">f</span> lives in 2D phase space (<span class="tag-x">x</span>, <span class="tag-v">v</span>), and at every point its rate of change has TWO contributions:</p>
+
+<ul style="margin: 10px 0 14px 22px; line-height: 1.85; color: #d4cfc0; font-size: 14px;">
+  <li>The first term moves f along <span class="tag-x">x</span> at speed <span class="tag-v">v</span> (the value of v at that point in phase space).</li>
+  <li>The second term moves f along <span class="tag-v">v</span> at "speed" F/m (the force divided by mass).</li>
+</ul>
+
+<p style="color: #d4cfc0; font-size: 14px; line-height: 1.7;">Because <span class="tag-v">v</span> is different at different <em>v</em>-positions in phase space (top moves right, bottom moves left), and F can be different at different <em>x</em>-positions, the result is the swirly "wind" pattern you saw in the previous explainer. The two terms together create rotation, shearing, and all the rich structure of the equation.</p>
+</div>
+
+</div>
+
+<script>
+function setupCanvas(canvas, h) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+// ====================================================================
+// TERM 1: v · ∂f/∂x
+// ====================================================================
+(function() {
+  const canvas = document.getElementById('vizT1');
+  let v = 0.5;
+  let sharp = 0.12;
+  let bumpCenter = 0.3;  // moves to the right when v>0
+  let dotX = 0.5;        // user-draggable readout point
+  let playing = false;
+
+  // f is a Gaussian bump centered at bumpCenter
+  function fAt(x) {
+    return Math.exp(-Math.pow((x - bumpCenter) / sharp, 2));
+  }
+  function dfdx(x) {
+    // analytic derivative of the Gaussian
+    return -2 * (x - bumpCenter) / (sharp * sharp) * fAt(x);
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 320);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = w - padL - padR, ph = h - padT - padB;
+    // axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + ph); ctx.lineTo(padL + pw, padT + ph); // x-axis
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + ph); // y-axis
+    ctx.stroke();
+
+    // f(x) curve — filled
+    ctx.fillStyle = 'rgba(212, 160, 74, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + ph);
+    const N = 200;
+    for (let i = 0; i <= N; i++) {
+      const x = i / N;
+      const fy = fAt(x);
+      const px = padL + x * pw;
+      const py = padT + ph - fy * ph * 0.85;
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(padL + pw, padT + ph);
+    ctx.closePath(); ctx.fill();
+
+    ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const x = i / N;
+      const fy = fAt(x);
+      const px = padL + x * pw;
+      const py = padT + ph - fy * ph * 0.85;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Velocity arrow at the top showing flow direction & speed
+    const arrowY = padT + 14;
+    const arrowMidX = padL + pw / 2;
+    const arrowLen = v * pw * 0.35;
+    ctx.strokeStyle = '#5fc28e'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(arrowMidX - arrowLen / 2, arrowY);
+    ctx.lineTo(arrowMidX + arrowLen / 2, arrowY);
+    ctx.stroke();
+    if (Math.abs(arrowLen) > 8) {
+      const sign = Math.sign(arrowLen);
+      ctx.fillStyle = '#5fc28e';
+      ctx.beginPath();
+      ctx.moveTo(arrowMidX + arrowLen / 2, arrowY);
+      ctx.lineTo(arrowMidX + arrowLen / 2 - sign * 9, arrowY - 5);
+      ctx.lineTo(arrowMidX + arrowLen / 2 - sign * 9, arrowY + 5);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = '#5fc28e';
+    ctx.font = 'bold 11px JetBrains Mono';
+    ctx.fillText(`v = ${v.toFixed(2)}`, arrowMidX + Math.abs(arrowLen)/2 + 12, arrowY + 4);
+
+    // Tangent line at the dot showing the slope ∂f/∂x
+    const dot_fx = fAt(dotX);
+    const dot_dfdx = dfdx(dotX);
+    const dotPx = padL + dotX * pw;
+    const dotPy = padT + ph - dot_fx * ph * 0.85;
+    // Tangent: slope visualized
+    const tangentLen = pw * 0.15;
+    const dxDir = 1; // tangent extends in +x direction
+    // dy in pixel coords = -slope * (pw)/(ph in normalized units)
+    // f normalized to ph*0.85, so slope mapped: tangentDyPx = -dot_dfdx * (ph*0.85) * (1/pw) * tangentLen
+    const dyPx = -dot_dfdx * ph * 0.85 * (tangentLen / pw);
+    ctx.strokeStyle = 'rgba(212, 160, 74, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(dotPx - tangentLen/2, dotPy + dyPx/2);
+    ctx.lineTo(dotPx + tangentLen/2, dotPy - dyPx/2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Orange dot (draggable)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(dotPx, dotPy, 8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#d4a04a';
+    ctx.beginPath(); ctx.arc(dotPx, dotPy, 6, 0, Math.PI*2); ctx.fill();
+
+    // Drop a vertical line from dot to x-axis
+    ctx.strokeStyle = 'rgba(212, 160, 74, 0.4)';
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(dotPx, dotPy); ctx.lineTo(dotPx, padT + ph);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Labels
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('f(x) — drag the orange dot to inspect any x position', padL, 16);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('x →', padL + pw/2 - 6, padT + ph + 18);
+    ctx.save(); ctx.translate(padL - 30, padT + ph/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('f →', -10, 0); ctx.restore();
+
+    // Update readouts
+    const prod = v * dot_dfdx;
+    document.getElementById('r1v').textContent = v.toFixed(2);
+    document.getElementById('r1g').textContent = dot_dfdx.toFixed(2);
+    const prodEl = document.getElementById('r1prod');
+    prodEl.textContent = (prod >= 0 ? '+' : '') + prod.toFixed(2);
+    prodEl.style.color = '#d4a04a';
+    const dt_el = document.getElementById('r1dt');
+    const dtVal = -prod;
+    dt_el.textContent = (dtVal >= 0 ? '+' : '') + dtVal.toFixed(2) + (dtVal > 0.05 ? ' (rising)' : (dtVal < -0.05 ? ' (falling)' : ' (~stable)'));
+    dt_el.style.color = dtVal >= 0 ? '#ff8e8e' : '#7eb8ff';
+  }
+
+  // Drag handling for the orange dot
+  let dragging = false;
+  canvas.addEventListener('mousedown', e => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = canvas.clientWidth - padL - padR;
+    // Check if clicking near the dot or anywhere in the plot area
+    if (cy > padT && cy < canvas.clientHeight - padB) {
+      dragging = true;
+      dotX = Math.max(0.02, Math.min(0.98, (cx - padL) / pw));
+    }
+  });
+  window.addEventListener('mouseup', () => dragging = false);
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const padL = 50, padR = 16;
+    const pw = canvas.clientWidth - padL - padR;
+    dotX = Math.max(0.02, Math.min(0.98, (cx - padL) / pw));
+  });
+
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min((t - last) / 1000, 0.05); last = t;
+    if (playing) {
+      bumpCenter += v * dt * 0.3;
+      // wrap around
+      if (bumpCenter > 1.05) bumpCenter = -0.05;
+      if (bumpCenter < -0.05) bumpCenter = 1.05;
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  document.getElementById('play1').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset1').addEventListener('click', () => { bumpCenter = 0.3; });
+
+  const vSl = document.getElementById('vSl'), vSlV = document.getElementById('vSlV');
+  vSl.addEventListener('input', () => { v = parseFloat(vSl.value); vSlV.textContent = v.toFixed(2); });
+  const sSl = document.getElementById('sharpSl'), sSlV = document.getElementById('sharpSlV');
+  sSl.addEventListener('input', () => { sharp = parseFloat(sSl.value); sSlV.textContent = sharp.toFixed(2); });
+})();
+
+// ====================================================================
+// TERM 2: (F/m) · ∂f/∂v
+// ====================================================================
+(function() {
+  const canvas = document.getElementById('vizT2');
+  let F = 0.6;
+  let width = 0.2;
+  let bumpCenter = 0.0;
+  let dotV = 0.0;
+  let playing = false;
+
+  // f as a function of v (a velocity distribution)
+  function fAt(vv) {
+    return Math.exp(-Math.pow((vv - bumpCenter) / width, 2));
+  }
+  function dfdv(vv) {
+    return -2 * (vv - bumpCenter) / (width * width) * fAt(vv);
+  }
+
+  // v range: -1 to +1
+  function vToX(vv, padL, pw) { return padL + (vv + 1) / 2 * pw; }
+  function xToV(px, padL, pw) { return ((px - padL) / pw) * 2 - 1; }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas, 320);
+    ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, w, h);
+    const padL = 50, padR = 16, padT = 24, padB = 36;
+    const pw = w - padL - padR, ph = h - padT - padB;
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + ph); ctx.lineTo(padL + pw, padT + ph);
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + ph);
+    ctx.stroke();
+    // zero-v marker
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.setLineDash([2, 4]);
+    const zeroPx = vToX(0, padL, pw);
+    ctx.beginPath();
+    ctx.moveTo(zeroPx, padT); ctx.lineTo(zeroPx, padT + ph);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#666'; ctx.font = '9px JetBrains Mono';
+    ctx.fillText('v=0', zeroPx + 3, padT + ph - 3);
+
+    // f(v) curve
+    ctx.fillStyle = 'rgba(212, 160, 74, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + ph);
+    const N = 200;
+    for (let i = 0; i <= N; i++) {
+      const vv = (i / N) * 2 - 1;
+      const fy = fAt(vv);
+      const px = vToX(vv, padL, pw);
+      const py = padT + ph - fy * ph * 0.85;
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(padL + pw, padT + ph);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const vv = (i / N) * 2 - 1;
+      const fy = fAt(vv);
+      const px = vToX(vv, padL, pw);
+      const py = padT + ph - fy * ph * 0.85;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Force arrow at the top
+    const arrowY = padT + 14;
+    const arrowMidX = padL + pw / 2;
+    const arrowLen = F * pw * 0.30;
+    ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(arrowMidX - arrowLen / 2, arrowY);
+    ctx.lineTo(arrowMidX + arrowLen / 2, arrowY);
+    ctx.stroke();
+    if (Math.abs(arrowLen) > 8) {
+      const sign = Math.sign(arrowLen);
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.moveTo(arrowMidX + arrowLen / 2, arrowY);
+      ctx.lineTo(arrowMidX + arrowLen / 2 - sign * 9, arrowY - 5);
+      ctx.lineTo(arrowMidX + arrowLen / 2 - sign * 9, arrowY + 5);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = '#ff8b8b'; ctx.font = 'bold 11px JetBrains Mono';
+    ctx.fillText(`F/m = ${F.toFixed(2)}`, arrowMidX + Math.abs(arrowLen)/2 + 12, arrowY + 4);
+
+    // Tangent line at the dot
+    const dot_fv = fAt(dotV);
+    const dot_dfdv = dfdv(dotV);
+    const dotPx = vToX(dotV, padL, pw);
+    const dotPy = padT + ph - dot_fv * ph * 0.85;
+    const tangentLen = pw * 0.15;
+    const dyPx = -dot_dfdv * ph * 0.85 * (tangentLen / pw);
+    ctx.strokeStyle = 'rgba(212, 160, 74, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(dotPx - tangentLen/2, dotPy + dyPx/2);
+    ctx.lineTo(dotPx + tangentLen/2, dotPy - dyPx/2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Orange dot
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(dotPx, dotPy, 8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#d4a04a';
+    ctx.beginPath(); ctx.arc(dotPx, dotPy, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(212, 160, 74, 0.4)';
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(dotPx, dotPy); ctx.lineTo(dotPx, padT + ph);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#a8a59c'; ctx.font = '11px JetBrains Mono';
+    ctx.fillText('f(v) — drag orange dot to inspect any velocity', padL, 16);
+    ctx.fillStyle = '#888'; ctx.font = '10px JetBrains Mono';
+    ctx.fillText('v →', padL + pw/2 - 6, padT + ph + 18);
+    ctx.save(); ctx.translate(padL - 30, padT + ph/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('f →', -10, 0); ctx.restore();
+
+    // Update readouts
+    const prod = F * dot_dfdv;
+    document.getElementById('r2f').textContent = F.toFixed(2);
+    document.getElementById('r2g').textContent = dot_dfdv.toFixed(2);
+    const prodEl = document.getElementById('r2prod');
+    prodEl.textContent = (prod >= 0 ? '+' : '') + prod.toFixed(2);
+    prodEl.style.color = '#d4a04a';
+    const dt_el = document.getElementById('r2dt');
+    const dtVal = -prod;
+    dt_el.textContent = (dtVal >= 0 ? '+' : '') + dtVal.toFixed(2) + (dtVal > 0.05 ? ' (rising)' : (dtVal < -0.05 ? ' (falling)' : ' (~stable)'));
+    dt_el.style.color = dtVal >= 0 ? '#ff8e8e' : '#7eb8ff';
+  }
+
+  let dragging = false;
+  canvas.addEventListener('mousedown', e => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    if (cy > 24 && cy < canvas.clientHeight - 36) {
+      dragging = true;
+      const padL = 50, padR = 16;
+      const pw = canvas.clientWidth - padL - padR;
+      dotV = Math.max(-0.95, Math.min(0.95, xToV(cx, padL, pw)));
+    }
+  });
+  window.addEventListener('mouseup', () => dragging = false);
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const padL = 50, padR = 16;
+    const pw = canvas.clientWidth - padL - padR;
+    dotV = Math.max(-0.95, Math.min(0.95, xToV(cx, padL, pw)));
+  });
+
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min((t - last) / 1000, 0.05); last = t;
+    if (playing) {
+      bumpCenter += F * dt * 0.3;
+      if (bumpCenter > 1.05) bumpCenter = -0.95;
+      if (bumpCenter < -1.05) bumpCenter = 0.95;
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  document.getElementById('play2').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ pause' : '▶ play';
+    e.target.classList.toggle('primary', !playing);
+  });
+  document.getElementById('reset2').addEventListener('click', () => { bumpCenter = 0.0; });
+
+  const fSl = document.getElementById('fSl'), fSlV = document.getElementById('fSlV');
+  fSl.addEventListener('input', () => { F = parseFloat(fSl.value); fSlV.textContent = F.toFixed(2); });
+  const wSl = document.getElementById('widthSl'), wSlV = document.getElementById('widthSlV');
+  wSl.addEventListener('input', () => { width = parseFloat(wSl.value); wSlV.textContent = width.toFixed(2); });
+})();
+</script>
+</body>
+</html>

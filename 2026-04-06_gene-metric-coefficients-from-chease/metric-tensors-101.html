@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metric Tensors: Zero to Hero</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Sora:wght@300;400;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06070b;color:#bfc0c8;font-family:'Sora',sans-serif;min-height:100vh}
+.hdr{padding:18px 14px 6px;text-align:center}
+.hdr h1{font-size:1.2rem;font-weight:700;color:#eaeaef}
+.hdr .sub{font-size:.68rem;color:#484a56;margin-top:2px}
+.dots{display:flex;justify-content:center;gap:4px;padding:10px 0 4px}
+.dot{width:7px;height:7px;border-radius:50%;background:#171b28;transition:all .3s}
+.dot.on{background:#c084fc;width:20px;border-radius:4px}
+.dot.dn{background:#c084fc;opacity:.35}
+.stitle{text-align:center;padding:4px 14px 8px;font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:500;color:#c084fc;min-height:28px}
+.cw{max-width:700px;margin:0 auto;padding:0 10px}
+.cb{background:#0c0e16;border:1px solid #171b28;border-radius:10px;overflow:hidden;touch-action:none}
+canvas{width:100%;display:block}
+.nr{display:flex;justify-content:center;gap:10px;padding:10px 14px}
+.nb{background:#0c0e16;border:1px solid #171b28;color:#484a56;font-family:'Sora',sans-serif;font-size:.75rem;font-weight:600;padding:9px 24px;border-radius:7px;cursor:pointer;transition:all .2s}
+.nb:hover{border-color:#c084fc;color:#bfc0c8}
+.nb.pr{background:rgba(192,132,252,.1);border-color:rgba(192,132,252,.3);color:#c084fc}
+.nb:disabled{opacity:.25;cursor:default}
+.ex{max-width:700px;margin:0 auto;padding:0 12px 20px}
+.cd{background:#0c0e16;border:1px solid #171b28;border-radius:8px;padding:14px 16px;animation:up .3s ease}
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.cd p{font-size:.77rem;line-height:1.65;color:#484a56;margin-bottom:7px}
+.cd p:last-child{margin-bottom:0}
+.cd strong{color:#bfc0c8;font-weight:600}
+.cd code{font-family:'IBM Plex Mono',monospace;font-size:.68rem;background:rgba(192,132,252,.08);color:#c084fc;padding:1px 5px;border-radius:3px}
+.mtx{font-family:'IBM Plex Mono',monospace;font-size:.72rem;background:rgba(0,0,0,.4);border:1px solid #171b28;border-radius:6px;padding:12px 14px;margin:8px 0;line-height:1.8;display:inline-block}
+.mat{display:inline-grid;grid-template-columns:repeat(var(--cols,2),auto);gap:2px 12px;border-left:2px solid rgba(255,255,255,.25);border-right:2px solid rgba(255,255,255,.25);padding:4px 10px;border-radius:3px;vertical-align:middle;font-family:'IBM Plex Mono',monospace;font-size:.75rem;font-weight:600}
+.vec{display:inline-grid;grid-template-columns:auto;gap:2px;border-left:2px solid rgba(255,255,255,.15);border-right:2px solid rgba(255,255,255,.15);padding:4px 6px;border-radius:3px;vertical-align:middle;font-family:'IBM Plex Mono',monospace;font-size:.75rem}
+.eq{font-family:'IBM Plex Mono',monospace;font-size:.73rem;color:#bfc0c8;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0}
+.eq .op{color:rgba(255,255,255,.3);font-size:.8rem}
+.ki{background:rgba(192,132,252,.06);border-left:2px solid #c084fc;padding:8px 12px;margin:8px 0;border-radius:0 5px 5px 0}
+.ki p{color:#bfc0c8!important;margin:0!important}
+</style>
+</head>
+<body>
+<div class="hdr"><h1>Metric Tensors: Zero to Hero</h1><div class="sub">tap Next - drag on canvas to interact</div></div>
+<div class="dots" id="dots"></div>
+<div class="stitle" id="stitle"></div>
+<div class="cw"><div class="cb"><canvas id="c"></canvas></div></div>
+<div class="nr"><button class="nb" id="pb" onclick="go(-1)">Back</button><button class="nb pr" id="nb2" onclick="go(1)">Next</button></div>
+<div class="ex"><div class="cd" id="info"></div></div>
+<script>
+var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
+var W,H,dpr,step=0,mX=.5,mY=.5,aT=0;
+function pm(ex,ey){var r=canvas.getBoundingClientRect();mX=Math.max(0,Math.min(1,(ex-r.left)/r.width));mY=Math.max(0,Math.min(1,(ey-r.top)/r.height))}
+canvas.addEventListener("pointermove",function(e){e.preventDefault();pm(e.clientX,e.clientY)});
+canvas.addEventListener("touchmove",function(e){e.preventDefault();var t=e.touches[0];pm(t.clientX,t.clientY)},{passive:false});
+
+var INFOS=[
+// 0 - flat
+"<p><strong>Start simple.</strong> You have a flat grid. You want to know: if I take a small step dx in x and dy in y, how far did I actually move?</p><p>Answer: <code>distance² = dx² + dy²</code>. That is just the Pythagorean theorem.</p><p>But here is the trick - you can write that distance formula as a <strong>matrix multiplication</strong>:</p><div class=\"mtx\"><div class=\"eq\">distance² <span class=\"op\">=</span> <div class=\"vec\"><span>dx</span><span>dy</span></div> <span class=\"op\">·</span> <div class=\"mat\" style=\"--cols:2\"><span style=\"color:#f87171\">1</span><span>0</span><span>0</span><span style=\"color:#60a5fa\">1</span></div> <span class=\"op\">·</span> <div class=\"vec\"><span>dx</span><span>dy</span></div></div></div><p>That 2x2 matrix in the middle? <strong>That is the metric tensor.</strong> For flat space it is just 1s on the diagonal. Drag on the canvas to see distances measured.</p><div class=\"ki\"><p>A metric tensor is a little table of numbers that tells you how to convert coordinate steps into real physical distance. That is ALL it is.</p></div>",
+
+// 1 - stretched
+"<p>Now imagine your y-axis is <strong>stretched</strong>. One coordinate step in y now covers 2 real meters instead of 1.</p><p>The metric changes to account for this:</p><div class=\"mtx\"><div class=\"mat\" style=\"--cols:2\"><span style=\"color:#f87171\">1</span><span>0</span><span>0</span><span style=\"color:#60a5fa\">4</span></div></div><p>The <span style=\"color:#60a5fa\">4</span> is 2 squared. Why squared? Because distance² = 1·dx² + <span style=\"color:#60a5fa\">4</span>·dy². The metric stores the <strong>square</strong> of the stretching. Notice how circles of equal coordinate distance become ellipses.</p><p>Drag up/down to change how much y is stretched and watch the metric number change.</p><div class=\"ki\"><p>The diagonal entries (g_xx, g_yy, g_zz) tell you how much each direction is stretched. Bigger number = more real distance per coordinate step in that direction.</p></div>",
+
+// 2 - skewed
+"<p>Now the x and y axes are <strong>not perpendicular</strong>. They are tilted relative to each other.</p><p>The metric now has <strong>off-diagonal entries</strong>:</p><div class=\"mtx\"><div class=\"mat\" style=\"--cols:2\"><span style=\"color:#f87171\">1.0</span><span style=\"color:#fbbf24\">0.5</span><span style=\"color:#fbbf24\">0.5</span><span style=\"color:#60a5fa\">1.0</span></div></div><p>That <span style=\"color:#fbbf24\">0.5</span> means: if you step in x, you are also partially stepping in the y direction. The axes are coupled - they leak into each other.</p><p>Drag left/right to tilt the axes and watch the off-diagonal entry change. When the axes are perpendicular, it is 0. When tilted, it grows.</p><div class=\"ki\"><p>Off-diagonal entries (g_xy, g_xz, g_yz) measure the angle between coordinate axes. Zero = perpendicular. Nonzero = tilted. The metric is always symmetric: g_xy = g_yx.</p></div>",
+
+// 3 - 3x3
+"<p>So far we used 2D. But space is 3D, so the full metric tensor is a <strong>3x3 table</strong>:</p><div class=\"mtx\"><div class=\"mat\" style=\"--cols:3\"><span style=\"color:#f87171\">g_xx</span><span style=\"color:#fbbf24\">g_xy</span><span style=\"color:#fb923c\">g_xz</span><span style=\"color:#fbbf24\">g_xy</span><span style=\"color:#60a5fa\">g_yy</span><span style=\"color:#a78bfa\">g_yz</span><span style=\"color:#fb923c\">g_xz</span><span style=\"color:#a78bfa\">g_yz</span><span style=\"color:#4ade80\">g_zz</span></div></div><p>That is 9 entries but because it is symmetric (g_xy = g_yx, etc), only <strong>6 are unique</strong>:</p><p><span style=\"color:#f87171\">g_xx</span> - how stretched is x (radial)</p><p><span style=\"color:#60a5fa\">g_yy</span> - how stretched is y (binormal)</p><p><span style=\"color:#4ade80\">g_zz</span> - how stretched is z (parallel to B)</p><p><span style=\"color:#fbbf24\">g_xy</span> - tilt between x and y (magnetic shear)</p><p><span style=\"color:#fb923c\">g_xz</span> - tilt between x and z</p><p><span style=\"color:#a78bfa\">g_yz</span> - tilt between y and z</p><p>Drag to see all 6 values update at different positions on a warped 3D space.</p><div class=\"ki\"><p>In GENE, g_xx/g_yy/g_xy are the important ones because turbulence lives perpendicular to B. g_zz/g_xz/g_yz matter less because the parallel direction is handled separately.</p></div>",
+
+// 4 - polar
+"<p>You have used a metric before without knowing it: <strong>polar coordinates</strong> (r, theta).</p><p>On a flat plane, polar coords have the metric:</p><div class=\"mtx\"><div class=\"mat\" style=\"--cols:2\"><span style=\"color:#f87171\">1</span><span>0</span><span>0</span><span style=\"color:#60a5fa\">r²</span></div></div><p>That <span style=\"color:#60a5fa\">r²</span> is g_theta-theta. It says: one radian of angle at r=10 covers 10 meters of arc, but at r=1 it only covers 1 meter. Same coordinate step, different real distance - because the metric changes with position.</p><p>Drag radially to see g_theta-theta grow as r increases.</p><div class=\"ki\"><p>The tokamak metric is the same idea. Instead of r making arcs longer, the tokamak shape makes binormal distances longer on the outboard side. Same concept, more complex geometry.</p></div>",
+
+// 5 - what it does in code
+"<p>So what does the code actually DO with these numbers? Here is the simplest example.</p><p>Imagine you are simulating heat spreading through a material. Heat flows from hot spots to cold spots. The equation that describes this needs to know: <strong>how quickly is the temperature changing in each direction around this point?</strong></p><p>In flat space you just check the neighbors: is the point to my left hotter? To my right? Above? Below? Average them and you know if heat flows in or out. That operation is called a <strong>Laplacian</strong> - it is just checking your neighbors and comparing them to you.</p><p>In curved space, your neighbors are not all the same distance away. The point to your left might be 1 meter away, but the point above might be 2.5 meters away. And in a skewed grid, the point to your left might also be partially above you. The metric tells you how to weight each neighbor correctly.</p><div class=\"ki\"><p>A Laplacian = check your neighbors to see if you are hotter/colder/denser than average. The metric just corrects for the fact that your neighbors are not all equally far away. That is all it does.</p></div>",
+
+// 6 - the code
+"<p>In code, the Laplacian at one grid point looks like this:</p><p><code>result = gxx * (left + right - 2*center) + gyy * (up + down - 2*center) + 2*gxy * (diagonal differences)</code></p><p>The <code>(left + right - 2*center)</code> part is checking neighbors in x. The metric value <span style=\"color:#f87171\">gxx</span> weights it. If gxx is big, one coordinate step in x covers a large physical distance, so the rate of change per real meter is different from what the raw grid values suggest - the metric corrects for that.</p><p>Same for <span style=\"color:#60a5fa\">gyy</span> weighting the y-neighbors. And <span style=\"color:#fbbf24\">gxy</span> mixes x and y neighbors when the grid is skewed.</p><p>Watch the animated probe - the stencil arms show how much each direction is weighted at that location.</p><div class=\"ki\"><p>Same code everywhere on the grid. Only the metric multipliers change. GENE does exactly this at each z-point, using the metric values CHEASE provided.</p></div>",
+
+// 7 - tokamak
+"<p>In GENE, the coordinates are (x, y, z) = (radial, binormal, parallel to B). The full 3x3 metric at each z-point is:</p><div class=\"mtx\"><div class=\"mat\" style=\"--cols:3\"><span style=\"color:#f87171\">g_xx</span><span style=\"color:#fbbf24\">g_xy</span><span style=\"color:#fb923c\">g_xz</span><span style=\"color:#fbbf24\">g_xy</span><span style=\"color:#60a5fa\">g_yy</span><span style=\"color:#a78bfa\">g_yz</span><span style=\"color:#fb923c\">g_xz</span><span style=\"color:#a78bfa\">g_yz</span><span style=\"color:#4ade80\">g_zz</span></div></div><p>These all vary along z (the field line). Drag left/right to walk along z and see them all change:</p><p><span style=\"color:#f87171\">g_xx</span> - nearly flat. Flux surfaces are roughly evenly spaced.</p><p><span style=\"color:#60a5fa\">g_yy</span> - THE big one. Huge at outboard (fat side of torus), small at inboard. Controls how strongly turbulence is damped.</p><p><span style=\"color:#fbbf24\">g_xy</span> - zero at midplane, grows with magnetic shear. The skew between radial and binormal.</p><p><span style=\"color:#fb923c\">g_xz</span>, <span style=\"color:#a78bfa\">g_yz</span> - coupling between perpendicular and parallel. Usually small.</p><p><span style=\"color:#4ade80\">g_zz</span> - parallel stretching. Handled separately in GENE's parallel derivative.</p>"
+];
+
+var TITLES=["Step 1: Distance in flat space","Step 2: Stretching one direction","Step 3: Tilted axes (off-diagonal)","Step 4: The full 3x3 tensor - all 6 entries","Step 5: Polar coords - you know this already","Step 6: What a Laplacian actually is","Step 7: Using the metric in code","Step 8: The tokamak - all g_ij along z"];
+var DRAWS=[drawFlat,drawStretched,drawSkewed,drawFull3x3,drawPolar,drawLaplacian,drawRecipe,drawTokamak];
+
+function resize(){dpr=window.devicePixelRatio||1;W=canvas.parentElement.clientWidth;H=Math.min(W*.78,400);canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.height=H+"px";ctx.setTransform(dpr,0,0,dpr,0,0)}
+function go(d){var n=step+d;if(n<0||n>=TITLES.length)return;step=n;upUI()}
+function upUI(){
+var el=document.getElementById("dots");el.innerHTML="";
+for(var i=0;i<TITLES.length;i++){var d=document.createElement("div");d.className="dot"+(i<step?" dn":"")+(i===step?" on":"");el.appendChild(d)}
+document.getElementById("stitle").textContent=TITLES[step];
+document.getElementById("pb").disabled=step===0;
+var nb=document.getElementById("nb2");nb.disabled=step===TITLES.length-1;nb.textContent=step===TITLES.length-1?"Done":"Next";
+var info=document.getElementById("info");info.innerHTML=INFOS[step];info.style.animation="none";info.offsetHeight;info.style.animation=""}
+
+function ar(x1,y1,x2,y2,col,lw){var dx=x2-x1,dy=y2-y1,ln=Math.sqrt(dx*dx+dy*dy);if(ln<1)return;var ux=dx/ln,uy=dy/ln;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=col;ctx.lineWidth=lw||2;ctx.stroke();var h=7;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-h*(ux-uy*.35),y2-h*(uy+ux*.35));ctx.lineTo(x2-h*(ux+uy*.35),y2-h*(uy-ux*.35));ctx.closePath();ctx.fillStyle=col;ctx.fill()}
+
+// Full 3x3 matrix display
+function mb3(x,y,vals){
+  ctx.fillStyle="rgba(0,0,0,.65)";ctx.fillRect(x,y,160,72);
+  ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;ctx.strokeRect(x,y,160,72);
+  ctx.font="500 7px IBM Plex Mono";ctx.fillStyle="rgba(255,255,255,.25)";
+  ctx.fillText("g_ij =",x+3,y+40);
+  // Brackets
+  ctx.strokeStyle="rgba(255,255,255,.2)";ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x+34,y+6);ctx.lineTo(x+30,y+6);ctx.lineTo(x+30,y+66);ctx.lineTo(x+34,y+66);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+148,y+6);ctx.lineTo(x+152,y+6);ctx.lineTo(x+152,y+66);ctx.lineTo(x+148,y+66);ctx.stroke();
+  ctx.font="600 9px IBM Plex Mono";
+  var colors=["#f87171","#fbbf24","#fb923c","#60a5fa","#a78bfa","#4ade80"];
+  // Row 1: xx xy xz
+  ctx.fillStyle=colors[0];ctx.fillText(vals[0].toFixed(2),x+36,y+22);
+  ctx.fillStyle=colors[1];ctx.fillText(vals[1].toFixed(2),x+76,y+22);
+  ctx.fillStyle=colors[2];ctx.fillText(vals[2].toFixed(2),x+116,y+22);
+  // Row 2: xy yy yz
+  ctx.fillStyle=colors[1];ctx.fillText(vals[1].toFixed(2),x+36,y+42);
+  ctx.fillStyle=colors[3];ctx.fillText(vals[3].toFixed(2),x+76,y+42);
+  ctx.fillStyle=colors[4];ctx.fillText(vals[4].toFixed(2),x+116,y+42);
+  // Row 3: xz yz zz
+  ctx.fillStyle=colors[2];ctx.fillText(vals[2].toFixed(2),x+36,y+62);
+  ctx.fillStyle=colors[4];ctx.fillText(vals[4].toFixed(2),x+76,y+62);
+  ctx.fillStyle=colors[5];ctx.fillText(vals[5].toFixed(2),x+116,y+62);
+}
+
+// 2x2 matrix display for early steps
+function mb(x,y,a,b,c){ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(x,y,115,52);ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;ctx.strokeRect(x,y,115,52);ctx.font="500 8px IBM Plex Mono";ctx.fillStyle="rgba(255,255,255,.3)";ctx.fillText("g =",x+4,y+30);ctx.strokeStyle="rgba(255,255,255,.2)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+26,y+8);ctx.lineTo(x+22,y+8);ctx.lineTo(x+22,y+44);ctx.lineTo(x+26,y+44);ctx.stroke();ctx.beginPath();ctx.moveTo(x+99,y+8);ctx.lineTo(x+103,y+8);ctx.lineTo(x+103,y+44);ctx.lineTo(x+99,y+44);ctx.stroke();ctx.font="600 10px IBM Plex Mono";ctx.fillStyle="#f87171";ctx.fillText(a.toFixed(2),x+30,y+22);ctx.fillStyle="#fbbf24";ctx.fillText(b.toFixed(2),x+68,y+22);ctx.fillText(b.toFixed(2),x+30,y+42);ctx.fillStyle="#60a5fa";ctx.fillText(c.toFixed(2),x+68,y+42)}
+function lb(t,x,y,col,sz){ctx.font=(sz||9)+"px IBM Plex Mono";ctx.fillStyle=col||"rgba(255,255,255,.3)";ctx.fillText(t,x,y)}
+
+function drawFlat(){var cx=W/2,cy=H/2,sp=40;var cols=Math.ceil(W/sp)+1,rows=Math.ceil(H/sp)+1,ox=(W%sp)/2,oy=(H%sp)/2;for(var r=0;r<rows;r++){ctx.beginPath();ctx.moveTo(0,oy+r*sp);ctx.lineTo(W,oy+r*sp);ctx.strokeStyle="rgba(255,255,255,.03)";ctx.lineWidth=.5;ctx.stroke()}for(var c=0;c<cols;c++){ctx.beginPath();ctx.moveTo(ox+c*sp,0);ctx.lineTo(ox+c*sp,H);ctx.strokeStyle="rgba(255,255,255,.03)";ctx.lineWidth=.5;ctx.stroke()}var ax=cx-sp*1.5,ay=cy;var bx=cx+(mX-.5)*W*.5,by=cy+(mY-.5)*H*.5;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.strokeStyle="rgba(192,132,252,.5)";ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,ay);ctx.strokeStyle="rgba(248,113,113,.4)";ctx.lineWidth=1;ctx.stroke();ctx.beginPath();ctx.moveTo(bx,ay);ctx.lineTo(bx,by);ctx.strokeStyle="rgba(96,165,250,.4)";ctx.lineWidth=1;ctx.stroke();ctx.beginPath();ctx.arc(ax,ay,4,0,Math.PI*2);ctx.fillStyle="#c084fc";ctx.fill();ctx.beginPath();ctx.arc(bx,by,4,0,Math.PI*2);ctx.fillStyle="#c084fc";ctx.fill();var ddx=(bx-ax)/sp,ddy=(by-ay)/sp,ds=Math.sqrt(ddx*ddx+ddy*ddy);lb("dx="+ddx.toFixed(1),(ax+bx)/2-15,ay-8,"#f87171");lb("dy="+ddy.toFixed(1),bx+6,(ay+by)/2+3,"#60a5fa");lb("ds="+ds.toFixed(2),(ax+bx)/2+10,(ay+by)/2-12,"#c084fc",11);for(var i=1;i<=3;i++){ctx.beginPath();ctx.arc(ax,ay,i*sp,0,Math.PI*2);ctx.strokeStyle="rgba(192,132,252,.06)";ctx.lineWidth=1;ctx.stroke()}mb(10,10,1,0,1);lb("ds\u00B2 = 1\u00B7dx\u00B2 + 1\u00B7dy\u00B2",10,76,"rgba(192,132,252,.4)",8);lb("drag to move",W/2-30,H-10,"rgba(255,255,255,.12)",8)}
+
+function drawStretched(){var sY=1+mY*3,gyyV=sY*sY,cx=W/2,cy=H/2,sp=36;var cols=Math.ceil(W/sp)+2,rows=Math.ceil(H/(sp*sY))+2;for(var c=-cols;c<=cols;c++){var x=c*sp+cx;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.strokeStyle="rgba(248,113,113,.05)";ctx.lineWidth=.5;ctx.stroke()}for(var r=-rows;r<=rows;r++){var y=r*sp*sY+cy;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.strokeStyle="rgba(96,165,250,.05)";ctx.lineWidth=.5;ctx.stroke()}for(var i=1;i<=2;i++){ctx.beginPath();ctx.ellipse(cx,cy,i*sp*1.5,i*sp*sY*1.5,0,0,Math.PI*2);ctx.strokeStyle="rgba(192,132,252,.1)";ctx.lineWidth=1;ctx.stroke()}ar(cx,cy,cx+sp*2,cy,"#f87171",2);lb("x: 1 step = 1 unit",cx+sp*2+8,cy+4,"#f87171",8);ar(cx,cy,cx,cy-sp*sY*1.5,"#60a5fa",2);lb("y: 1 step = "+sY.toFixed(1)+" units",cx+8,cy-sp*sY*1.5-5,"#60a5fa",8);ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fillStyle="#fff";ctx.fill();mb(10,10,1,0,gyyV);lb("g_yy = "+gyyV.toFixed(1)+" (stretch = "+sY.toFixed(1)+")",10,76,"#60a5fa",8);lb("drag up/down",W/2-30,H-10,"rgba(255,255,255,.12)",8)}
+
+function drawSkewed(){var sk=(mX-.5)*2,gxyV=sk*.8,cx=W/2,cy=H/2,sp=36;ctx.save();ctx.translate(cx,cy);var n=14;for(var c=-n;c<=n;c++){ctx.beginPath();ctx.moveTo(c*sp+(-8*sp)*sk*.4,-8*sp);ctx.lineTo(c*sp+(8*sp)*sk*.4,8*sp);ctx.strokeStyle="rgba(248,113,113,.05)";ctx.lineWidth=.5;ctx.stroke()}for(var r=-8;r<=8;r++){ctx.beginPath();ctx.moveTo(-n*sp,r*sp);ctx.lineTo(n*sp,r*sp);ctx.strokeStyle="rgba(96,165,250,.05)";ctx.lineWidth=.5;ctx.stroke()}ar(0,0,sp*2,sp*2*sk*.4,"#f87171",2.5);lb("x",sp*2+8,sp*2*sk*.4+4,"#f87171",10);ar(0,0,0,-sp*2,"#60a5fa",2.5);lb("y",6,-sp*2-5,"#60a5fa",10);if(Math.abs(sk)>.1){ctx.beginPath();var a1=-Math.PI/2,a2=Math.atan2(sp*2*sk*.4,sp*2);ctx.arc(0,0,20,Math.min(a1,a2),Math.max(a1,a2));ctx.strokeStyle="rgba(251,191,36,.4)";ctx.lineWidth=1;ctx.stroke()}ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);ctx.fillStyle="#fff";ctx.fill();ctx.restore();mb(10,10,1,gxyV,1);if(Math.abs(gxyV)<.05)lb("g_xy ~ 0: perpendicular",10,76,"rgba(74,222,128,.5)",8);else lb("g_xy = "+gxyV.toFixed(2)+": tilted!",10,76,"#fbbf24",8);lb("drag left/right",W/2-30,H-10,"rgba(255,255,255,.12)",8)}
+
+function drawFull3x3(){
+  var cx=W/2,cy=H/2;
+  var pts=[],cols=14,rows=10;
+  for(var r=0;r<=rows;r++){pts[r]=[];for(var c=0;c<=cols;c++){var u=(c/cols)*2-1,v=(r/rows)*2-1;var w=.3;pts[r][c]={x:cx+(u+w*u*v*v)*(W*.38),y:cy+(v+w*v*u*u+.15*Math.sin(u*2))*(H*.38)}}}
+  for(var r=0;r<=rows;r++){ctx.beginPath();for(var c=0;c<=cols;c++){var p=pts[r][c];c===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)}ctx.strokeStyle="rgba(96,165,250,.07)";ctx.lineWidth=.5;ctx.stroke()}
+  for(var c=0;c<=cols;c++){ctx.beginPath();for(var r2=0;r2<=rows;r2++){var p=pts[r2][c];r2===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)}ctx.strokeStyle="rgba(248,113,113,.07)";ctx.lineWidth=.5;ctx.stroke()}
+  var pc=Math.max(1,Math.min(cols-1,Math.floor(mX*cols))),pr=Math.max(1,Math.min(rows-1,Math.floor(mY*rows)));
+  var pp=pts[pr][pc],pR=pts[pr][Math.min(pc+1,cols)],pL=pts[pr][Math.max(pc-1,0)];
+  var pU=pts[Math.max(pr-1,0)][pc],pD=pts[Math.min(pr+1,rows)][pc];
+  var ex={x:(pR.x-pL.x)/2,y:(pR.y-pL.y)/2},ey={x:(pD.x-pU.x)/2,y:(pD.y-pU.y)/2};
+  ar(pp.x,pp.y,pp.x+ex.x*1.2,pp.y+ex.y*1.2,"#f87171",2.5);
+  ar(pp.x,pp.y,pp.x+ey.x*1.2,pp.y+ey.y*1.2,"#60a5fa",2.5);
+  // z direction shown as a dot (out of screen)
+  ctx.beginPath();ctx.arc(pp.x,pp.y,8,0,Math.PI*2);ctx.strokeStyle="rgba(74,222,128,.4)";ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(pp.x,pp.y,2,0,Math.PI*2);ctx.fillStyle="#4ade80";ctx.fill();
+  lb("z (out of screen)",pp.x+12,pp.y-12,"#4ade80",8);
+
+  var gxx=(ex.x*ex.x+ex.y*ex.y)/900;
+  var gyy=(ey.x*ey.x+ey.y*ey.y)/900;
+  var gxy=(ex.x*ey.x+ex.y*ey.y)/900;
+  var gxz=0.1*Math.sin(mX*3);
+  var gyz=0.05*Math.cos(mY*4);
+  var gzz=0.8+0.2*Math.sin(mX*2+mY);
+  ctx.beginPath();ctx.arc(pp.x,pp.y,5,0,Math.PI*2);ctx.fillStyle="#c084fc";ctx.fill();
+  mb3(8,8,[gxx,gxy,gxz,gyy,gyz,gzz]);
+  // Legend
+  lb("g_xx",8,94,"#f87171",8);lb("g_xy",50,94,"#fbbf24",8);lb("g_xz",92,94,"#fb923c",8);
+  lb("g_yy",8,106,"#60a5fa",8);lb("g_yz",50,106,"#a78bfa",8);lb("g_zz",92,106,"#4ade80",8);
+  lb("drag to probe",W/2-30,H-10,"rgba(255,255,255,.12)",8);
+}
+
+function drawPolar(){var cx=W*.45,cy=H*.5,maxR=Math.min(W,H)*.38;for(var i=1;i<=6;i++){ctx.beginPath();ctx.arc(cx,cy,(i/6)*maxR,0,Math.PI*2);ctx.strokeStyle="rgba(96,165,250,"+(0.03+i*0.015)+")";ctx.lineWidth=.5;ctx.stroke()}for(var i=0;i<12;i++){var a=(i/12)*Math.PI*2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*maxR,cy+Math.sin(a)*maxR);ctx.strokeStyle="rgba(248,113,113,.04)";ctx.lineWidth=.5;ctx.stroke()}var dx=(mX-.45)*W,dy=(mY-.5)*H,pR2=Math.sqrt(dx*dx+dy*dy),pA=Math.atan2(dy,dx);var rN=Math.max(.15,Math.min(.95,pR2/maxR)),rV=rN*maxR;var px=cx+Math.cos(pA)*rV,py=cy+Math.sin(pA)*rV;ar(px,py,px+Math.cos(pA)*35,py+Math.sin(pA)*35,"#f87171",2.5);ar(px,py,px-Math.sin(pA)*35,py+Math.cos(pA)*35,"#60a5fa",2.5);ctx.beginPath();ctx.arc(cx,cy,rV,pA-.25,pA+.25);ctx.strokeStyle="rgba(96,165,250,.6)";ctx.lineWidth=3;ctx.stroke();if(rV>50){ctx.beginPath();ctx.arc(cx,cy,rV*.4,pA-.25,pA+.25);ctx.strokeStyle="rgba(96,165,250,.25)";ctx.lineWidth=3;ctx.stroke()}ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fillStyle="#c084fc";ctx.fill();var rD=(rN*3).toFixed(1),gtt=rN*3*rN*3;mb(10,10,1,0,gtt);lb("r="+rD+"   g_\u03B8\u03B8=r\u00B2="+gtt.toFixed(1),10,76,"#60a5fa",8);lb("drag radially",W/2-30,H-10,"rgba(255,255,255,.12)",8)}
+
+function drawLaplacian(){
+  var cx=W/2,cy=H/2,sp=50;
+  // Draw a temperature field as colored grid
+  var cols=10,rows=8;
+  var cw=(W-40)/cols,ch=(H-60)/rows;
+  var hotX=Math.floor(cols*mX),hotY=Math.floor(rows*mY);
+  hotX=Math.max(1,Math.min(cols-2,hotX));hotY=Math.max(1,Math.min(rows-2,hotY));
+  for(var r=0;r<rows;r++){for(var c=0;c<cols;c++){
+    var dist=Math.sqrt((c-hotX)*(c-hotX)+(r-hotY)*(r-hotY));
+    var temp=Math.exp(-dist*dist/6);
+    var red=Math.floor(temp*255),blue=Math.floor((1-temp)*80);
+    ctx.fillStyle="rgba("+red+","+Math.floor(temp*80)+","+blue+","+(0.15+temp*0.5)+")";
+    ctx.fillRect(20+c*cw,20+r*ch,cw-1,ch-1);
+  }}
+  // Highlight center and neighbors
+  var px=20+(hotX+.5)*cw,py=20+(hotY+.5)*ch;
+  ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.strokeRect(20+hotX*cw,20+hotY*ch,cw-1,ch-1);
+  // Neighbor arrows
+  ar(px,py,px+cw,py,"#f87171",1.5);ar(px,py,px-cw,py,"#f87171",1.5);
+  ar(px,py,px,py+ch,"#60a5fa",1.5);ar(px,py,px,py-ch,"#60a5fa",1.5);
+  // Labels
+  lb("center",px-12,py-8,"#fff",8);
+  lb("neighbor",px+cw+3,py+3,"#f87171",7);
+  lb("neighbor",px-cw-40,py+3,"#f87171",7);
+  lb("neighbor",px-12,py-ch-3,"#60a5fa",7);
+  lb("hot spot (drag it)",px+15,py+15,"rgba(255,200,100,.5)",8);
+  lb("Laplacian = are neighbors hotter or colder than me?",10,H-25,"rgba(192,132,252,.5)",8);
+  lb("metric weights each neighbor by real distance",10,H-10,"rgba(255,255,255,.2)",8);
+}
+
+function drawRecipe(){var cx=W/2,cy=H*0.42;var cols=10,rows=7;var gx=20,gy=15,gw=W-40,gh=H-90;
+// Draw warped grid - more visible
+for(var r=0;r<=rows;r++){ctx.beginPath();for(var c=0;c<=cols;c++){var x=gx+(c/cols)*gw,y=gy+(r/rows)*gh;var w=Math.sin(c/cols*Math.PI)*15*Math.sin(r/rows*Math.PI);c===0?ctx.moveTo(x+w,y):ctx.lineTo(x+w,y)}ctx.strokeStyle="rgba(96,165,250,.1)";ctx.lineWidth=1;ctx.stroke()}
+for(var c=0;c<=cols;c++){ctx.beginPath();for(var r2=0;r2<=rows;r2++){var x=gx+(c/cols)*gw,y=gy+(r2/rows)*gh;var w=Math.sin(c/cols*Math.PI)*15*Math.sin(r2/rows*Math.PI);r2===0?ctx.moveTo(x+w,y):ctx.lineTo(x+w,y)}ctx.strokeStyle="rgba(248,113,113,.1)";ctx.lineWidth=1;ctx.stroke()}
+// Animated probe
+var sp2=.12,pt=(aT*sp2)%1;
+var px=cx+Math.sin(pt*Math.PI*2)*(W*.22),py=cy+Math.sin(pt*Math.PI*4)*(H*.18);
+var nX=(px-gx)/gw,nY=(py-gy)/gh;
+var lg=.8+.4*Math.cos(nX*Math.PI*2),lgY=1+1.5*Math.sin(nY*Math.PI),lgXY=.3*Math.sin(nX*Math.PI*2)*Math.cos(nY*Math.PI);
+// Stencil arms - much bigger
+var aL=55;
+// Glow behind stencil
+ctx.beginPath();ctx.arc(px,py,aL*1.3,0,Math.PI*2);
+var grad=ctx.createRadialGradient(px,py,0,px,py,aL*1.3);
+grad.addColorStop(0,"rgba(192,132,252,.08)");grad.addColorStop(1,"rgba(192,132,252,0)");
+ctx.fillStyle=grad;ctx.fill();
+// x-arm
+var xLen=aL*Math.sqrt(Math.abs(lg));
+ar(px-xLen,py,px+xLen,py,"#f87171",3);
+// y-arm
+var yLen=aL*Math.sqrt(Math.abs(lgY));
+ar(px,py-yLen,px,py+yLen,"#60a5fa",3);
+// xy cross arm
+if(Math.abs(lgXY)>.05){var xyLen=aL*Math.abs(lgXY)*1.2;var sg=lgXY>0?1:-1;ctx.beginPath();ctx.moveTo(px-xyLen,py-xyLen*sg);ctx.lineTo(px+xyLen,py+xyLen*sg);ctx.strokeStyle="rgba(251,191,36,.5)";ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([])}
+// Center dot
+ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);ctx.fillStyle="#c084fc";ctx.fill();
+ctx.beginPath();ctx.arc(px,py,10,0,Math.PI*2);ctx.strokeStyle="rgba(192,132,252,.4)";ctx.lineWidth=1;ctx.stroke();
+// Arm labels directly on stencil
+ctx.font="600 10px IBM Plex Mono";
+ctx.fillStyle="#f87171";ctx.fillText("gxx="+lg.toFixed(2),px+xLen+6,py-4);
+ctx.fillStyle="#60a5fa";ctx.fillText("gyy="+lgY.toFixed(2),px+6,py-yLen-6);
+if(Math.abs(lgXY)>.05){ctx.fillStyle="#fbbf24";ctx.fillText("gxy="+lgXY.toFixed(2),px+25,py+25)}
+// Matrix display
+mb(8,8,lg,lgXY,lgY);
+// Bottom equation - bigger, clearer
+ctx.fillStyle="rgba(0,0,0,.7)";ctx.fillRect(0,H-52,W,52);
+ctx.font="600 11px IBM Plex Mono";
+ctx.fillStyle="rgba(255,255,255,.25)";ctx.fillText("neighbor check, weighted by metric:",12,H-34);
+ctx.font="600 12px IBM Plex Mono";
+ctx.fillStyle="#f87171";ctx.fillText(lg.toFixed(2),12,H-12);
+ctx.fillStyle="rgba(255,255,255,.2)";ctx.fillText("\u00b7check_x  +",48,H-12);
+ctx.fillStyle="#fbbf24";ctx.fillText(lgXY.toFixed(2),158,H-12);
+ctx.fillStyle="rgba(255,255,255,.2)";ctx.fillText("\u00b7check_xy  +",188,H-12);
+ctx.fillStyle="#60a5fa";ctx.fillText(lgY.toFixed(2),W>350?305:280,H-12);
+ctx.fillStyle="rgba(255,255,255,.2)";ctx.fillText("\u00b7check_y",W>350?340:315,H-12)}
+
+function drawTokamak(){
+  var z=(mX*2-1)*Math.PI;
+  var sh=.8,eps=.18,r=.3,q=1.4,R0=r/eps;
+  var gxV=1/((q*R0)*(q*R0))*(1+.2*eps*Math.cos(z));
+  var gyyV=(1/(r*r))*(1+(sh*z)*(sh*z)+2*eps*Math.cos(z)+2*eps*sh*z*Math.sin(z));
+  var gxyV=(sh*z)/(r*r*q)+eps*Math.sin(z)/(r*r*q);
+  var gxzV=0.05*Math.sin(z)*eps/(r*q);
+  var gyzV=0.03*Math.cos(z)*eps/(r*q);
+  var gzzV=1/((q*R0)*(q*R0))*(1-eps*Math.cos(z));
+
+  // Tokamak cross section
+  var tCx=W*.22,tCy=H*.5,tR=Math.min(W*.17,H*.32);
+  ctx.beginPath();for(var a=0;a<=Math.PI*2+.05;a+=.05){var rr=tR*(1+.2*Math.cos(a));var px=tCx+rr*Math.cos(a),py=tCy-rr*1.3*Math.sin(a);a<.01?ctx.moveTo(px,py):ctx.lineTo(px,py)}ctx.strokeStyle="rgba(96,165,250,.2)";ctx.lineWidth=1.5;ctx.stroke();
+  var mR=tR*(1+.2*Math.cos(z)),mx=tCx+mR*Math.cos(z),my=tCy-mR*1.3*Math.sin(z);
+  ctx.beginPath();ctx.arc(mx,my,5,0,Math.PI*2);ctx.fillStyle="#c084fc";ctx.fill();
+  ctx.beginPath();ctx.arc(mx,my,10,0,Math.PI*2);ctx.strokeStyle="rgba(192,132,252,.3)";ctx.lineWidth=1;ctx.stroke();
+  lb("out",tCx+tR+5,tCy+3,"rgba(255,255,255,.12)",7);
+  lb("in",tCx-tR-15,tCy+3,"rgba(255,255,255,.12)",7);
+
+  // Full 3x3 matrix
+  mb3(W*.42,6,[gxV,gxyV,gxzV,gyyV,gyzV,gzzV]);
+
+  // Individual values listed with colors
+  var vx=W*.42,vy=88;
+  ctx.font="600 8px IBM Plex Mono";
+  ctx.fillStyle="#f87171";ctx.fillText("g_xx="+gxV.toFixed(3)+" (radial stretch)",vx,vy);
+  ctx.fillStyle="#60a5fa";ctx.fillText("g_yy="+gyyV.toFixed(1)+" (binormal - THE BIG ONE)",vx,vy+13);
+  ctx.fillStyle="#fbbf24";ctx.fillText("g_xy="+gxyV.toFixed(2)+" (shear skew)",vx,vy+26);
+  ctx.fillStyle="#fb923c";ctx.fillText("g_xz="+gxzV.toFixed(3)+" (small)",vx,vy+39);
+  ctx.fillStyle="#a78bfa";ctx.fillText("g_yz="+gyzV.toFixed(3)+" (small)",vx,vy+52);
+  ctx.fillStyle="#4ade80";ctx.fillText("g_zz="+gzzV.toFixed(3)+" (parallel)",vx,vy+65);
+
+  // Mini profile
+  var pY=H-45,pH=30,pX=10,pW=W*.35;
+  ctx.beginPath();for(var i=0;i<=100;i++){var zz=-Math.PI+(i/100)*2*Math.PI;var v=(1/(r*r))*(1+(sh*zz)*(sh*zz)+2*eps*Math.cos(zz)+2*eps*sh*zz*Math.sin(zz));var mx2=(1/(r*r))*(1+(sh*Math.PI)*(sh*Math.PI)+2*eps+2*eps*sh*Math.PI);var x=pX+(i/100)*pW,y2=pY+pH-(v/mx2)*pH;i===0?ctx.moveTo(x,y2):ctx.lineTo(x,y2)}ctx.strokeStyle="rgba(96,165,250,.3)";ctx.lineWidth=1;ctx.stroke();
+  var mPx=pX+((z+Math.PI)/(2*Math.PI))*pW;
+  ctx.beginPath();ctx.moveTo(mPx,pY);ctx.lineTo(mPx,pY+pH);ctx.strokeStyle="rgba(192,132,252,.5)";ctx.lineWidth=1;ctx.stroke();
+  lb("g_yy(z)",pX,pY-5,"rgba(96,165,250,.3)",7);
+
+  var loc=Math.abs(z)<.3?"OUTBOARD":Math.abs(z)>2.5?"INBOARD":"mid";
+  lb("z="+z.toFixed(2)+" ("+loc+")",pX,pY+pH+12,"rgba(192,132,252,.4)",8);
+  lb("drag left/right to walk along z",W/2-70,16,"rgba(255,255,255,.12)",8);
+}
+
+var last=0;
+function loop(ts){var dt=Math.min((ts-last)/1000,.1);last=ts;aT+=dt;ctx.clearRect(0,0,W,H);DRAWS[step]();requestAnimationFrame(loop)}
+window.addEventListener("resize",resize);resize();upUI();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gaussian Moment Integrals · Interactive Visualizer</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #f7f5f0;
+  color: #1a1a1a;
+  line-height: 1.5;
+}
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+header {
+  margin-bottom: 24px;
+}
+h1 {
+  font-size: 28px;
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+.subtitle {
+  color: #6a6a6a;
+  font-size: 15px;
+  margin: 0;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 24px 0 0;
+  border-bottom: 1px solid #d8d4cc;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6a6a6a;
+  font-family: inherit;
+  font-weight: 500;
+  transition: color 0.1s, border-color 0.1s;
+  margin-bottom: -1px;
+}
+.tab:hover {
+  color: #1a1a1a;
+}
+.tab.active {
+  color: #1a1a1a;
+  border-bottom-color: #d85a30;
+}
+.panel {
+  display: none;
+  margin-top: 24px;
+}
+.panel.active {
+  display: block;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+}
+.canvas-card {
+  background: white;
+  border: 1px solid #e3dfd4;
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+}
+.canvas-wrap {
+  position: relative;
+  height: 380px;
+}
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card {
+  background: white;
+  border: 1px solid #e3dfd4;
+  border-radius: 12px;
+  padding: 16px;
+}
+.card h3 {
+  font-size: 14px;
+  margin: 0 0 12px;
+  color: #6a6a6a;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.row:last-child { margin-bottom: 0; }
+.row label {
+  font-size: 13px;
+  color: #444;
+  flex: 1;
+}
+.row .out {
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: right;
+}
+input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  background: #d8d4cc;
+  border-radius: 2px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #d85a30;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+input[type=range]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #d85a30;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+}
+.metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+}
+.metric .label {
+  font-size: 13px;
+  color: #6a6a6a;
+}
+.metric .value {
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.metric .value.target {
+  color: #0f6e56;
+}
+.legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #6a6a6a;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+.explanation {
+  background: #fff8ed;
+  border: 1px solid #f0d9a8;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #5a3a10;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+.formula {
+  font-family: "SF Mono", "Consolas", "Courier New", monospace;
+  background: #f7f5f0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin: 8px 0;
+  display: inline-block;
+}
+.intro {
+  background: white;
+  border: 1px solid #e3dfd4;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #444;
+}
+button.action {
+  background: white;
+  border: 1px solid #d8d4cc;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: #1a1a1a;
+}
+button.action:hover { background: #f0eee7; }
+.area-display {
+  font-size: 32px;
+  font-weight: 500;
+  color: #d85a30;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  margin: 8px 0;
+}
+.area-target {
+  font-size: 13px;
+  color: #6a6a6a;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Gaussian Moment Integrals</h1>
+    <p class="subtitle">An interactive tool for understanding how integrals of bell curves work — and why the magic numbers (0, 1) come out the way they do.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="zeroth">∫ f dv = 1 (normalization)</button>
+    <button class="tab" data-tab="first">∫ v·f dv = 0 (mean)</button>
+    <button class="tab" data-tab="second">∫ v²·f dv = 1 (variance)</button>
+    <button class="tab" data-tab="shifted">Shifted Gaussian: ∫ v·f dv = u₀</button>
+  </div>
+
+  <!-- TAB 1: ZEROTH MOMENT -->
+  <div class="panel active" id="panel-zeroth">
+    <div class="intro">
+      <strong>The integral:</strong> <span class="formula">∫<sub>−∞</sub><sup>∞</sup> (1/√(2π)) e<sup>−v²/2</sup> dv = 1</strong></span><br>
+      <strong>What it means:</strong> The total area under a standard bell curve equals exactly 1. This is the "normalization" of the Gaussian — it's calibrated so probabilities sum to 100%. In the moment exercise, this is the integral that gives you n(x,t) = n₀ from your distribution function.
+    </div>
+    <div class="layout">
+      <div class="canvas-card">
+        <div class="canvas-wrap">
+          <canvas id="cv-zeroth"></canvas>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="swatch" style="background:#7F77DD"></div>f(v) = (1/√2π)·e<sup>−v²/2</sup></div>
+          <div class="legend-item"><div class="swatch" style="background:rgba(216,90,48,0.3)"></div>area inside slider range</div>
+        </div>
+        <div class="explanation">
+          The dashed line is the bell curve. The shaded area is the integral evaluated between your slider bounds. Pull the bounds toward ±∞ and the area approaches 1 — that's what "the integral equals 1" means: the entire area under the curve is 1.
+        </div>
+      </div>
+      <div class="controls">
+        <div class="card">
+          <h3>Integration bounds</h3>
+          <div class="row">
+            <label>lower v</label>
+            <input type="range" id="z-lo" min="-5" max="0" step="0.05" value="-5">
+            <span class="out" id="z-lo-out">-5.0</span>
+          </div>
+          <div class="row">
+            <label>upper v</label>
+            <input type="range" id="z-hi" min="0" max="5" step="0.05" value="5">
+            <span class="out" id="z-hi-out">+5.0</span>
+          </div>
+          <button class="action" id="z-reset" style="margin-top:8px;">Set to ±∞ (max range)</button>
+        </div>
+        <div class="card">
+          <div class="area-display" id="z-area">1.000</div>
+          <div class="area-target">target as bounds → ±∞: <strong>1.000</strong></div>
+          <div style="border-top: 1px solid #e3dfd4; margin: 12px 0;"></div>
+          <div class="metric">
+            <span class="label">f at v = 0 (peak)</span>
+            <span class="value">0.399</span>
+          </div>
+          <div class="metric">
+            <span class="label">σ (std deviation)</span>
+            <span class="value">1.000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: FIRST MOMENT -->
+  <div class="panel" id="panel-first">
+    <div class="intro">
+      <strong>The integral:</strong> <span class="formula">∫<sub>−∞</sub><sup>∞</sup> v · (1/√(2π)) e<sup>−v²/2</sup> dv = 0</span><br>
+      <strong>Why zero?</strong> Multiplying by v makes the integrand <strong>odd</strong> — the negative-v half mirrors the positive-v half but with opposite sign. The two halves cancel exactly. This is why the mean velocity of an unshifted Maxwellian is zero.
+    </div>
+    <div class="layout">
+      <div class="canvas-card">
+        <div class="canvas-wrap">
+          <canvas id="cv-first"></canvas>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="swatch" style="background:#7F77DD"></div>v·f(v) — the integrand</div>
+          <div class="legend-item"><div class="swatch" style="background:rgba(15,110,86,0.3)"></div>positive area (above zero)</div>
+          <div class="legend-item"><div class="swatch" style="background:rgba(216,90,48,0.3)"></div>negative area (below zero)</div>
+        </div>
+        <div class="explanation">
+          Look at the shape: it's antisymmetric. Whatever positive area sits to the right of v=0, the same magnitude of negative area sits to the left. They cancel when you add them up — that's exactly what "the integral is zero" means.
+        </div>
+      </div>
+      <div class="controls">
+        <div class="card">
+          <h3>Integration bounds</h3>
+          <div class="row">
+            <label>lower v</label>
+            <input type="range" id="f-lo" min="-5" max="0" step="0.05" value="-5">
+            <span class="out" id="f-lo-out">-5.0</span>
+          </div>
+          <div class="row">
+            <label>upper v</label>
+            <input type="range" id="f-hi" min="0" max="5" step="0.05" value="5">
+            <span class="out" id="f-hi-out">+5.0</span>
+          </div>
+          <button class="action" id="f-symm" style="margin-top:8px;">Make symmetric around 0</button>
+        </div>
+        <div class="card">
+          <h3>Net signed area</h3>
+          <div class="area-display" id="f-area">0.000</div>
+          <div class="area-target">target with symmetric bounds: <strong>0.000</strong></div>
+          <div style="border-top: 1px solid #e3dfd4; margin: 12px 0;"></div>
+          <div class="metric">
+            <span class="label">positive piece</span>
+            <span class="value" id="f-pos">+0.399</span>
+          </div>
+          <div class="metric">
+            <span class="label">negative piece</span>
+            <span class="value" id="f-neg">−0.399</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Try this</h3>
+          <div style="font-size:13px; color:#555; line-height:1.6;">
+            Set lower v = -2 and upper v = +2. Net area is still ~0. Now set lower = -1, upper = +3. The asymmetric bounds break the cancellation — the integral becomes nonzero. The "zero" only happens with symmetric bounds OR over the full ±∞.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: SECOND MOMENT -->
+  <div class="panel" id="panel-second">
+    <div class="intro">
+      <strong>The integral:</strong> <span class="formula">∫<sub>−∞</sub><sup>∞</sup> v² · (1/√(2π)) e<sup>−v²/2</sup> dv = 1</span><br>
+      <strong>What it means:</strong> Multiplying by v² makes the integrand <strong>even</strong> (and always non-negative). Both halves contribute positively. The total area equals 1 for the standard Gaussian — this is the variance, which equals σ².
+    </div>
+    <div class="layout">
+      <div class="canvas-card">
+        <div class="canvas-wrap">
+          <canvas id="cv-second"></canvas>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="swatch" style="background:#7F77DD"></div>v²·f(v) — the integrand</div>
+          <div class="legend-item"><div class="swatch" style="background:rgba(216,90,48,0.3)"></div>area inside slider range</div>
+        </div>
+        <div class="explanation">
+          Notice the integrand is zero at v=0 (because v² is zero there) and rises before falling — it's the bell curve "weighted" by v². The peaks are at v = ±1, which is exactly σ. This is why σ² is called the "second moment" — it captures the spread of the distribution.
+        </div>
+      </div>
+      <div class="controls">
+        <div class="card">
+          <h3>Integration bounds</h3>
+          <div class="row">
+            <label>lower v</label>
+            <input type="range" id="s-lo" min="-5" max="0" step="0.05" value="-5">
+            <span class="out" id="s-lo-out">-5.0</span>
+          </div>
+          <div class="row">
+            <label>upper v</label>
+            <input type="range" id="s-hi" min="0" max="5" step="0.05" value="5">
+            <span class="out" id="s-hi-out">+5.0</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="area-display" id="s-area">1.000</div>
+          <div class="area-target">target as bounds → ±∞: <strong>1.000</strong></div>
+          <div style="border-top: 1px solid #e3dfd4; margin: 12px 0;"></div>
+          <div class="metric">
+            <span class="label">% inside [−1, +1]</span>
+            <span class="value" id="s-1sigma">68%</span>
+          </div>
+          <div class="metric">
+            <span class="label">% inside [−2, +2]</span>
+            <span class="value" id="s-2sigma">95%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: SHIFTED -->
+  <div class="panel" id="panel-shifted">
+    <div class="intro">
+      <strong>The integral:</strong> <span class="formula">∫<sub>−∞</sub><sup>∞</sup> v · (1/√(2π)) e<sup>−(v−u₀)²/2</sup> dv = u₀</span><br>
+      <strong>What it means:</strong> If you shift the Gaussian so its peak is at u₀ instead of 0, the mean velocity becomes u₀. Slide the drift slider to see the curve translate, and watch the integral track the peak.
+    </div>
+    <div class="layout">
+      <div class="canvas-card">
+        <div class="canvas-wrap">
+          <canvas id="cv-shifted"></canvas>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="swatch" style="background:#7F77DD"></div>shifted Gaussian f(v)</div>
+          <div class="legend-item"><div class="swatch" style="background:#D85A30"></div>v·f(v) — the integrand</div>
+          <div class="legend-item"><div class="swatch" style="background:rgba(216,90,48,0.25)"></div>net signed area</div>
+        </div>
+        <div class="explanation">
+          When u₀ = 0, v·f is odd and the integral is 0. As u₀ shifts away from zero, the symmetry breaks — one half of v·f gets bigger than the other, and the integral picks up a value equal to u₀. The substitution w = v − u₀ that you did in Exercise 4 is the algebraic version of this picture.
+        </div>
+      </div>
+      <div class="controls">
+        <div class="card">
+          <h3>Drift velocity u₀</h3>
+          <div class="row">
+            <label>u₀</label>
+            <input type="range" id="sh-u0" min="-3" max="3" step="0.05" value="1">
+            <span class="out" id="sh-u0-out">+1.0</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="area-display" id="sh-area">1.000</div>
+          <div class="area-target">target value: <strong id="sh-target">1.000</strong> (= u₀)</div>
+          <div style="border-top: 1px solid #e3dfd4; margin: 12px 0;"></div>
+          <div class="metric">
+            <span class="label">peak of f</span>
+            <span class="value" id="sh-peak">at v = 1.00</span>
+          </div>
+          <div class="metric">
+            <span class="label">computed mean</span>
+            <span class="value" id="sh-mean">1.000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ========== Tab switching ==========
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    setTimeout(() => { drawAll(); }, 50);
+  });
+});
+
+// ========== Math helpers ==========
+function gauss(v) {
+  return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-v * v / 2);
+}
+function gaussShifted(v, u0) {
+  return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(v - u0) * (v - u0) / 2);
+}
+// numerical integration via trapezoid rule
+function integrate(fn, lo, hi, N = 800) {
+  const dx = (hi - lo) / N;
+  let sum = 0.5 * (fn(lo) + fn(hi));
+  for (let i = 1; i < N; i++) {
+    sum += fn(lo + i * dx);
+  }
+  return sum * dx;
+}
+
+// ========== Canvas helpers ==========
+function setupCanvas(c) {
+  const dpr = window.devicePixelRatio || 1;
+  const r = c.getBoundingClientRect();
+  c.width = r.width * dpr;
+  c.height = r.height * dpr;
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: r.width, h: r.height };
+}
+
+function drawAxes(ctx, w, h, padL, padR, padT, padB, xMin, xMax, yMin, yMax) {
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const x2px = x => padL + (x - xMin) / (xMax - xMin) * plotW;
+  const y2py = y => padT + plotH - (y - yMin) / (yMax - yMin) * plotH;
+
+  // axis lines
+  ctx.strokeStyle = '#d8d4cc';
+  ctx.lineWidth = 0.5;
+  // x-axis at y=0
+  const yZero = y2py(0);
+  ctx.beginPath();
+  ctx.moveTo(padL, yZero);
+  ctx.lineTo(padL + plotW, yZero);
+  ctx.stroke();
+  // y-axis at x=0
+  const xZero = x2px(0);
+  ctx.beginPath();
+  ctx.moveTo(xZero, padT);
+  ctx.lineTo(xZero, padT + plotH);
+  ctx.stroke();
+
+  // ticks and labels
+  ctx.fillStyle = '#888';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  for (let xv = Math.ceil(xMin); xv <= Math.floor(xMax); xv++) {
+    if (xv === 0) continue;
+    const px = x2px(xv);
+    ctx.beginPath();
+    ctx.moveTo(px, yZero - 3);
+    ctx.lineTo(px, yZero + 3);
+    ctx.stroke();
+    ctx.fillText(xv.toString(), px, yZero + 14);
+  }
+  ctx.fillText('v', x2px(xMax) - 8, yZero + 14);
+
+  return { x2px, y2py, plotW, plotH };
+}
+
+// ========== TAB 1: ZEROTH MOMENT ==========
+function drawZeroth() {
+  const c = document.getElementById('cv-zeroth');
+  if (!c) return;
+  const { ctx, w, h } = setupCanvas(c);
+  ctx.clearRect(0, 0, w, h);
+  const { x2px, y2py } = drawAxes(ctx, w, h, 32, 14, 16, 26, -5, 5, -0.05, 0.45);
+
+  const lo = parseFloat(document.getElementById('z-lo').value);
+  const hi = parseFloat(document.getElementById('z-hi').value);
+
+  // shaded area inside bounds
+  ctx.fillStyle = 'rgba(216, 90, 48, 0.3)';
+  ctx.beginPath();
+  ctx.moveTo(x2px(lo), y2py(0));
+  for (let v = lo; v <= hi; v += 0.02) {
+    ctx.lineTo(x2px(v), y2py(gauss(v)));
+  }
+  ctx.lineTo(x2px(hi), y2py(0));
+  ctx.closePath();
+  ctx.fill();
+
+  // full curve
+  ctx.strokeStyle = '#7F77DD';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let v = -5; v <= 5; v += 0.02) {
+    const px = x2px(v);
+    const py = y2py(gauss(v));
+    if (v === -5) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // bound markers
+  [['lo', lo], ['hi', hi]].forEach(([_, val]) => {
+    ctx.strokeStyle = '#d85a30';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x2px(val), y2py(0));
+    ctx.lineTo(x2px(val), y2py(0.42));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // area readout
+  const area = integrate(gauss, lo, hi);
+  document.getElementById('z-area').textContent = area.toFixed(3);
+  document.getElementById('z-lo-out').textContent = (lo >= 0 ? '+' : '') + lo.toFixed(1);
+  document.getElementById('z-hi-out').textContent = (hi >= 0 ? '+' : '') + hi.toFixed(1);
+}
+
+// ========== TAB 2: FIRST MOMENT ==========
+function drawFirst() {
+  const c = document.getElementById('cv-first');
+  if (!c) return;
+  const { ctx, w, h } = setupCanvas(c);
+  ctx.clearRect(0, 0, w, h);
+  const { x2px, y2py } = drawAxes(ctx, w, h, 32, 14, 16, 26, -5, 5, -0.30, 0.30);
+
+  const lo = parseFloat(document.getElementById('f-lo').value);
+  const hi = parseFloat(document.getElementById('f-hi').value);
+
+  // shaded — split into pos and neg halves
+  // negative half (where v < 0, integrand is negative): coral
+  // positive half (where v > 0, integrand is positive): teal
+  const integrand = v => v * gauss(v);
+
+  // negative
+  if (lo < 0) {
+    ctx.fillStyle = 'rgba(216, 90, 48, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(x2px(lo), y2py(0));
+    for (let v = lo; v <= Math.min(hi, 0); v += 0.02) {
+      ctx.lineTo(x2px(v), y2py(integrand(v)));
+    }
+    ctx.lineTo(x2px(Math.min(hi, 0)), y2py(0));
+    ctx.closePath();
+    ctx.fill();
+  }
+  // positive
+  if (hi > 0) {
+    ctx.fillStyle = 'rgba(15, 110, 86, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(x2px(Math.max(lo, 0)), y2py(0));
+    for (let v = Math.max(lo, 0); v <= hi; v += 0.02) {
+      ctx.lineTo(x2px(v), y2py(integrand(v)));
+    }
+    ctx.lineTo(x2px(hi), y2py(0));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // curve
+  ctx.strokeStyle = '#7F77DD';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let v = -5; v <= 5; v += 0.02) {
+    const px = x2px(v);
+    const py = y2py(integrand(v));
+    if (v === -5) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // bound markers
+  [['lo', lo], ['hi', hi]].forEach(([_, val]) => {
+    ctx.strokeStyle = '#d85a30';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x2px(val), y2py(-0.28));
+    ctx.lineTo(x2px(val), y2py(0.28));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // readouts
+  const total = integrate(integrand, lo, hi);
+  const negPart = lo < 0 ? integrate(integrand, lo, Math.min(hi, 0)) : 0;
+  const posPart = hi > 0 ? integrate(integrand, Math.max(lo, 0), hi) : 0;
+  document.getElementById('f-area').textContent = (total >= 0 ? '+' : '') + total.toFixed(3);
+  document.getElementById('f-pos').textContent = (posPart >= 0 ? '+' : '') + posPart.toFixed(3);
+  document.getElementById('f-neg').textContent = (negPart >= 0 ? '+' : '') + negPart.toFixed(3);
+  document.getElementById('f-lo-out').textContent = (lo >= 0 ? '+' : '') + lo.toFixed(1);
+  document.getElementById('f-hi-out').textContent = (hi >= 0 ? '+' : '') + hi.toFixed(1);
+}
+
+// ========== TAB 3: SECOND MOMENT ==========
+function drawSecond() {
+  const c = document.getElementById('cv-second');
+  if (!c) return;
+  const { ctx, w, h } = setupCanvas(c);
+  ctx.clearRect(0, 0, w, h);
+  const { x2px, y2py } = drawAxes(ctx, w, h, 32, 14, 16, 26, -5, 5, -0.05, 0.45);
+
+  const lo = parseFloat(document.getElementById('s-lo').value);
+  const hi = parseFloat(document.getElementById('s-hi').value);
+
+  const integrand = v => v * v * gauss(v);
+
+  // shaded
+  ctx.fillStyle = 'rgba(216, 90, 48, 0.3)';
+  ctx.beginPath();
+  ctx.moveTo(x2px(lo), y2py(0));
+  for (let v = lo; v <= hi; v += 0.02) {
+    ctx.lineTo(x2px(v), y2py(integrand(v)));
+  }
+  ctx.lineTo(x2px(hi), y2py(0));
+  ctx.closePath();
+  ctx.fill();
+
+  // curve
+  ctx.strokeStyle = '#7F77DD';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let v = -5; v <= 5; v += 0.02) {
+    const px = x2px(v);
+    const py = y2py(integrand(v));
+    if (v === -5) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // bound markers
+  [['lo', lo], ['hi', hi]].forEach(([_, val]) => {
+    ctx.strokeStyle = '#d85a30';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x2px(val), y2py(0));
+    ctx.lineTo(x2px(val), y2py(0.42));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // readouts
+  const area = integrate(integrand, lo, hi);
+  document.getElementById('s-area').textContent = area.toFixed(3);
+  document.getElementById('s-lo-out').textContent = (lo >= 0 ? '+' : '') + lo.toFixed(1);
+  document.getElementById('s-hi-out').textContent = (hi >= 0 ? '+' : '') + hi.toFixed(1);
+  document.getElementById('s-1sigma').textContent = (integrate(gauss, -1, 1) * 100).toFixed(0) + '%';
+  document.getElementById('s-2sigma').textContent = (integrate(gauss, -2, 2) * 100).toFixed(0) + '%';
+}
+
+// ========== TAB 4: SHIFTED ==========
+function drawShifted() {
+  const c = document.getElementById('cv-shifted');
+  if (!c) return;
+  const { ctx, w, h } = setupCanvas(c);
+  ctx.clearRect(0, 0, w, h);
+  const { x2px, y2py } = drawAxes(ctx, w, h, 32, 14, 16, 26, -5, 5, -0.45, 0.55);
+
+  const u0 = parseFloat(document.getElementById('sh-u0').value);
+  const f = v => gaussShifted(v, u0);
+  const integrand = v => v * f(v);
+
+  // signed area of integrand
+  // negative parts
+  ctx.fillStyle = 'rgba(216, 90, 48, 0.25)';
+  for (let v = -5; v < 5; v += 0.02) {
+    const yv = integrand(v);
+    if (Math.abs(yv) < 0.001) continue;
+    ctx.beginPath();
+    ctx.moveTo(x2px(v), y2py(0));
+    ctx.lineTo(x2px(v), y2py(yv));
+    ctx.lineTo(x2px(v + 0.02), y2py(integrand(v + 0.02)));
+    ctx.lineTo(x2px(v + 0.02), y2py(0));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // f curve
+  ctx.strokeStyle = '#7F77DD';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let v = -5; v <= 5; v += 0.02) {
+    const px = x2px(v);
+    const py = y2py(f(v));
+    if (v === -5) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // integrand v*f curve
+  ctx.strokeStyle = '#D85A30';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let v = -5; v <= 5; v += 0.02) {
+    const px = x2px(v);
+    const py = y2py(integrand(v));
+    if (v === -5) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // peak marker
+  ctx.strokeStyle = '#7F77DD';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(x2px(u0), y2py(0));
+  ctx.lineTo(x2px(u0), y2py(f(u0)));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // readouts
+  const mean = integrate(integrand, -8, 8, 1600);
+  document.getElementById('sh-area').textContent = (mean >= 0 ? '+' : '') + mean.toFixed(3);
+  document.getElementById('sh-mean').textContent = (mean >= 0 ? '+' : '') + mean.toFixed(3);
+  document.getElementById('sh-target').textContent = (u0 >= 0 ? '+' : '') + u0.toFixed(3);
+  document.getElementById('sh-peak').textContent = 'at v = ' + u0.toFixed(2);
+  document.getElementById('sh-u0-out').textContent = (u0 >= 0 ? '+' : '') + u0.toFixed(2);
+}
+
+// ========== Wire up ==========
+function drawAll() {
+  drawZeroth();
+  drawFirst();
+  drawSecond();
+  drawShifted();
+}
+
+['z-lo', 'z-hi'].forEach(id => document.getElementById(id).addEventListener('input', drawZeroth));
+['f-lo', 'f-hi'].forEach(id => document.getElementById(id).addEventListener('input', drawFirst));
+['s-lo', 's-hi'].forEach(id => document.getElementById(id).addEventListener('input', drawSecond));
+document.getElementById('sh-u0').addEventListener('input', drawShifted);
+
+document.getElementById('z-reset').addEventListener('click', () => {
+  document.getElementById('z-lo').value = -5;
+  document.getElementById('z-hi').value = 5;
+  drawZeroth();
+});
+document.getElementById('f-symm').addEventListener('click', () => {
+  const hi = parseFloat(document.getElementById('f-hi').value);
+  document.getElementById('f-lo').value = -hi;
+  drawFirst();
+});
+
+window.addEventListener('resize', drawAll);
+window.addEventListener('load', drawAll);
+drawAll();
+</script>
+</body>
+</html>

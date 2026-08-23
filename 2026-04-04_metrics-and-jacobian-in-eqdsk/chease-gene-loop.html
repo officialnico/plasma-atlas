@@ -1,0 +1,546 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease gene loop</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+  yellow: "#fff176",
+  pink: "#f48fb1",
+};
+
+const NODES = [
+  {
+    id: "input",
+    label: "Input",
+    sub: "plasma shape, coils,\nboundary, profiles",
+    color: C.yellow,
+    x: 0.5,
+    y: 0.06,
+    details: [
+      "Tokamak geometry (wall shape, coil positions)",
+      "Boundary flux surface shape",
+      "Pressure profile p(ψ)",
+      "Current profile or safety factor q(ψ)",
+      "These come from experiment or design specs",
+    ],
+  },
+  {
+    id: "chease",
+    label: "CHEASE",
+    sub: "Grad-Shafranov\nequilibrium solver",
+    color: C.accent,
+    x: 0.5,
+    y: 0.21,
+    details: [
+      "Solves the Grad-Shafranov equation:",
+      "  ΔΨ = -μ₀R²dp/dψ - F dF/dψ",
+      "Iterates until ψ(R,Z) is self-consistent",
+      "Outputs: 2D ψ map + 1D profiles",
+      "This is the equilibrium reconstruction",
+    ],
+  },
+  {
+    id: "eqdsk",
+    label: "EQDSK File",
+    sub: "ψ(R,Z) grid +\n1D profiles",
+    color: C.orange,
+    x: 0.5,
+    y: 0.36,
+    details: [
+      "Standard format (G-EQDSK)",
+      "2D array: ψ on (R,Z) grid (e.g. 129×129)",
+      "1D profiles: q(ψ), p(ψ), F(ψ), FF'(ψ), p'(ψ)",
+      "Boundary shape (R,Z) points",
+      "Compact: typically < 1 MB for full equilibrium",
+    ],
+  },
+  {
+    id: "interface",
+    label: "Interface Code",
+    sub: "geometry extraction\nat chosen ψ₀",
+    color: C.green,
+    x: 0.5,
+    y: 0.51,
+    details: [
+      "User picks a flux surface ψ₀",
+      "Traces contour ψ = ψ₀ on the grid",
+      "Assigns θ, computes ∂ψ/∂R, ∂ψ/∂Z",
+      "Builds ∇ψ, ∇θ at each θ point",
+      "Computes g_xx(θ), g_xy(θ), g_yy(θ), J(θ)",
+      "Also extracts q, shear, pressure gradient",
+    ],
+  },
+  {
+    id: "gene-input",
+    label: "GENE Input",
+    sub: "1D geometry arrays\nalong field line",
+    color: C.purple,
+    x: 0.5,
+    y: 0.66,
+    details: [
+      "g_xx(z), g_xy(z), g_yy(z) — metric coefficients",
+      "J(z) — Jacobian",
+      "q — safety factor (single number)",
+      "ŝ — magnetic shear (single number)",
+      "β, pressure gradient, collisionality...",
+      "z here = θ along the field line",
+    ],
+  },
+  {
+    id: "gene",
+    label: "GENE",
+    sub: "gyrokinetic\nturbulence solver",
+    color: C.highlight,
+    x: 0.5,
+    y: 0.81,
+    details: [
+      "Solves gyrokinetic equation on flux tube",
+      "Uses metric coefficients for all spatial derivatives",
+      "Evolves distribution function f(x, y, z, v∥, μ)",
+      "Simulates turbulent eddies, zonal flows",
+      "Outputs: heat flux, particle flux, fluctuations",
+    ],
+  },
+  {
+    id: "output",
+    label: "Results",
+    sub: "transport, fluxes,\nfluctuations",
+    color: C.pink,
+    x: 0.5,
+    y: 0.95,
+    details: [
+      "Heat transport coefficient χ",
+      "Particle and momentum fluxes",
+      "Turbulence spectra and correlation lengths",
+      "Can feed back into transport codes",
+      "Which update profiles → new CHEASE run → iterate",
+    ],
+  },
+];
+
+const ARROWS = [
+  { from: "input", to: "chease", label: "" },
+  { from: "chease", to: "eqdsk", label: "writes" },
+  { from: "eqdsk", to: "interface", label: "reads" },
+  { from: "interface", to: "gene-input", label: "exports" },
+  { from: "gene-input", to: "gene", label: "loads" },
+  { from: "gene", to: "output", label: "" },
+];
+
+// Feedback loop
+const FEEDBACK = {
+  from: "output",
+  to: "input",
+  label: "update profiles\n(transport coupling)",
+};
+
+function CheaseGeneLoop() {
+  const [selected, setSelected] = useState(null);
+  const [animPhase, setAnimPhase] = useState(0);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+
+  useEffect(() => {
+    const start = Date.now();
+    const tick = () => {
+      setAnimPhase((Date.now() - start) / 1000);
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  // Canvas for animated particles flowing along arrows
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const nodePos = {};
+    NODES.forEach((n) => {
+      nodePos[n.id] = { x: n.x * W, y: n.y * H };
+    });
+
+    // Draw arrows with flowing particles
+    const drawArrow = (from, to, label, color = C.border) => {
+      const fx = nodePos[from].x, fy = nodePos[from].y + 18;
+      const tx = nodePos[to].x, ty = nodePos[to].y - 22;
+
+      // Line
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(tx, ty);
+      ctx.strokeStyle = color + "60";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Arrowhead
+      const angle = Math.atan2(ty - fy, tx - fx);
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - 8 * Math.cos(angle - 0.35), ty - 8 * Math.sin(angle - 0.35));
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - 8 * Math.cos(angle + 0.35), ty - 8 * Math.sin(angle + 0.35));
+      ctx.strokeStyle = color + "90";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Flowing particles
+      const nParts = 3;
+      for (let i = 0; i < nParts; i++) {
+        const t = ((animPhase * 0.4 + i / nParts) % 1);
+        const px = fx + (tx - fx) * t;
+        const py = fy + (ty - fy) * t;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.3 + 0.7 * Math.sin(t * Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Label
+      if (label) {
+        const mx = (fx + tx) / 2 + 12;
+        const my = (fy + ty) / 2;
+        ctx.font = "9px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.textDim;
+        ctx.fillText(label, mx, my);
+      }
+    };
+
+    ARROWS.forEach((a) => {
+      const fromNode = NODES.find((n) => n.id === a.from);
+      const toNode = NODES.find((n) => n.id === a.to);
+      const isHighlighted =
+        selected === a.from || selected === a.to;
+      drawArrow(a.from, a.to, a.label, isHighlighted ? C.accent : C.border);
+    });
+
+    // Feedback loop
+    if (showFeedback) {
+      const fy = nodePos["output"].y;
+      const ty = nodePos["input"].y;
+      const curveX = W * 0.85;
+
+      ctx.beginPath();
+      ctx.moveTo(nodePos["output"].x + 50, fy);
+      ctx.quadraticCurveTo(curveX, (fy + ty) / 2, nodePos["input"].x + 50, ty);
+      ctx.strokeStyle = C.pink + "50";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrowhead
+      ctx.beginPath();
+      const endX = nodePos["input"].x + 50;
+      ctx.moveTo(endX, ty);
+      ctx.lineTo(endX + 5, ty + 8);
+      ctx.moveTo(endX, ty);
+      ctx.lineTo(endX - 5, ty + 8);
+      ctx.strokeStyle = C.pink + "80";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Particles on curve
+      for (let i = 0; i < 4; i++) {
+        const t = ((animPhase * 0.25 + i / 4) % 1);
+        const sx = nodePos["output"].x + 50;
+        const ex = nodePos["input"].x + 50;
+        const px = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * curveX + t * t * ex;
+        const py = (1 - t) * (1 - t) * fy + 2 * (1 - t) * t * ((fy + ty) / 2) + t * t * ty;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fillStyle = C.pink;
+        ctx.globalAlpha = 0.3 + 0.5 * Math.sin(t * Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Label
+      ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.pink;
+      ctx.fillText("update profiles", curveX - 35, (fy + ty) / 2 - 10);
+      ctx.fillText("(iterate)", curveX - 25, (fy + ty) / 2 + 4);
+    }
+  }, [animPhase, selected, showFeedback]);
+
+  const selectedNode = NODES.find((n) => n.id === selected);
+
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "16px 12px",
+        fontFamily: "'IBM Plex Mono', 'Fira Code', monospace",
+        color: C.text,
+      }}
+    >
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <h1
+            style={{
+              fontSize: 17,
+              fontWeight: 700,
+              color: C.textBright,
+              margin: 0,
+              letterSpacing: "0.04em",
+            }}
+          >
+            CHEASE ↔ GENE Pipeline
+          </h1>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 4 }}>
+            tap any box for details
+          </div>
+        </div>
+
+        {/* Main diagram */}
+        <div
+          style={{
+            position: "relative",
+            background: C.bgPanel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            overflow: "hidden",
+            marginBottom: 12,
+            height: 620,
+          }}
+        >
+          {/* Canvas for arrows */}
+          <canvas
+            ref={canvasRef}
+            width={500}
+            height={620}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+            }}
+          />
+
+          {/* Node boxes */}
+          {NODES.map((node) => {
+            const isSelected = selected === node.id;
+            return (
+              <div
+                key={node.id}
+                onClick={() => setSelected(isSelected ? null : node.id)}
+                style={{
+                  position: "absolute",
+                  left: `calc(${node.x * 100}% - 70px)`,
+                  top: `calc(${node.y * 100}% - 18px)`,
+                  width: 140,
+                  textAlign: "center",
+                  cursor: "pointer",
+                  zIndex: 2,
+                }}
+              >
+                <div
+                  style={{
+                    background: isSelected
+                      ? node.color + "25"
+                      : C.surface + "e0",
+                    border: `1.5px solid ${isSelected ? node.color : node.color + "50"}`,
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    transition: "all 0.2s",
+                    boxShadow: isSelected
+                      ? `0 0 16px ${node.color}30`
+                      : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: node.color,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {node.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 8.5,
+                      color: C.textDim,
+                      lineHeight: 1.4,
+                      whiteSpace: "pre-line",
+                    }}
+                  >
+                    {node.sub}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Data format labels on the side */}
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              top: "28%",
+              fontSize: 8,
+              color: C.textDim,
+              transform: "rotate(-90deg)",
+              transformOrigin: "left center",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            equilibrium
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              top: "60%",
+              fontSize: 8,
+              color: C.textDim,
+              transform: "rotate(-90deg)",
+              transformOrigin: "left center",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            geometry
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              top: "87%",
+              fontSize: 8,
+              color: C.textDim,
+              transform: "rotate(-90deg)",
+              transformOrigin: "left center",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            turbulence
+          </div>
+        </div>
+
+        {/* Feedback toggle */}
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <button
+            onClick={() => setShowFeedback(!showFeedback)}
+            style={{
+              padding: "6px 16px",
+              borderRadius: 6,
+              fontSize: 10,
+              border: `1px solid ${showFeedback ? C.pink : C.border}`,
+              background: showFeedback ? C.pink + "20" : C.bgPanel,
+              color: showFeedback ? C.pink : C.textDim,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.3s",
+            }}
+          >
+            {showFeedback ? "● " : "○ "}show feedback loop
+          </button>
+        </div>
+
+        {/* Details panel */}
+        <div
+          style={{
+            background: C.bgPanel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 14,
+            minHeight: 100,
+            transition: "all 0.3s",
+          }}
+        >
+          {selectedNode ? (
+            <>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: selectedNode.color,
+                  marginBottom: 8,
+                }}
+              >
+                {selectedNode.label}
+              </div>
+              {selectedNode.details.map((d, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: 11,
+                    color: d.startsWith("  ") ? C.accent : C.text,
+                    lineHeight: 1.6,
+                    fontFamily: d.startsWith("  ")
+                      ? "'Courier New', monospace"
+                      : "inherit",
+                    paddingLeft: d.startsWith("  ") ? 8 : 0,
+                  }}
+                >
+                  {d.startsWith("  ") ? d : `• ${d}`}
+                </div>
+              ))}
+            </>
+          ) : (
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textDim,
+                lineHeight: 1.7,
+                textAlign: "center",
+                paddingTop: 12,
+              }}
+            >
+              Tap any box above to see what it does, what data it holds, and
+              what format it uses.
+              <br />
+              <br />
+              The particles flowing along arrows show the direction of data
+              flow. Toggle the feedback loop to see how results can feed back
+              into a new equilibrium.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CheaseGeneLoop));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

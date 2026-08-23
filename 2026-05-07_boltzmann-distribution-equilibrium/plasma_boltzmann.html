@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plasma Sheath · Boltzmann Density Relation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050810;
+  --bg-2: #0a1020;
+  --ink: #e8f0ff;
+  --ink-dim: #7a8aa8;
+  --ion: #ff6b35;          /* positive ions */
+  --electron: #4dd0e1;     /* electrons */
+  --plasma: #b39ddb;       /* mixed bulk plasma */
+  --wall: #ffd54f;         /* charged wall */
+  --grid: rgba(232, 240, 255, 0.05);
+  --panel: rgba(232, 240, 255, 0.025);
+  --border: rgba(232, 240, 255, 0.1);
+  --warning: #ff5252;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(255, 107, 53, 0.08), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 80% 80%, rgba(77, 208, 225, 0.06), transparent 60%),
+    var(--bg);
+}
+
+/* Subtle scanlines for that CRT/lab-monitor feel */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(232, 240, 255, 0.015) 0,
+    rgba(232, 240, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.shell {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 36px 28px 80px;
+  position: relative;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ion);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--ion);
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--electron);
+}
+
+.tagline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-align: right;
+  line-height: 1.7;
+  letter-spacing: 0.05em;
+}
+.tagline span { color: var(--ion); }
+
+/* ---------- INTRO ---------- */
+.intro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 36px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--ink-dim);
+}
+.intro p { max-width: 60ch; }
+.intro strong { color: var(--ink); font-weight: 400; }
+.intro em { color: var(--electron); font-style: italic; }
+
+/* ---------- LAYOUT ---------- */
+.lab {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.dual {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 980px) {
+  .dual { grid-template-columns: 1fr; }
+  .intro { grid-template-columns: 1fr; gap: 16px; }
+  header { grid-template-columns: 1fr; }
+  .tagline { text-align: left; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 22px;
+  position: relative;
+}
+
+.panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-label .num { color: var(--ion); font-weight: 600; }
+
+#chamberCanvas {
+  width: 100%;
+  height: 380px;
+  background:
+    linear-gradient(90deg,
+      rgba(255, 213, 79, 0.08) 0%,
+      rgba(255, 213, 79, 0.02) 8%,
+      transparent 15%,
+      transparent 85%,
+      rgba(232, 240, 255, 0.02) 100%),
+    var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  display: block;
+  cursor: crosshair;
+}
+
+#densityCanvas, #potentialCanvas {
+  width: 100%;
+  height: 280px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  display: block;
+}
+
+/* ---------- CONTROLS ---------- */
+.controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.control-group label {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 10px;
+}
+
+.control-group .value {
+  font-family: 'Fraunces', serif;
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--electron);
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.control-group .value.warn { color: var(--ion); }
+.control-group .value .sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-left: 6px;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--electron);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 4px rgba(77, 208, 225, 0.15);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--electron);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 4px rgba(77, 208, 225, 0.15);
+}
+
+input[type="range"].ion-slider::-webkit-slider-thumb { background: var(--ion); box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.2); }
+input[type="range"].ion-slider::-moz-range-thumb { background: var(--ion); box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.2); }
+
+input[type="range"].wall-slider::-webkit-slider-thumb { background: var(--wall); box-shadow: 0 0 0 4px rgba(255, 213, 79, 0.2); }
+input[type="range"].wall-slider::-moz-range-thumb { background: var(--wall); box-shadow: 0 0 0 4px rgba(255, 213, 79, 0.2); }
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+}
+button:hover {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+button.primary {
+  background: var(--electron);
+  border-color: var(--electron);
+  color: var(--bg);
+}
+button.primary:hover {
+  background: var(--ion);
+  border-color: var(--ion);
+}
+
+/* ---------- LEGEND ---------- */
+.legend {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.legend .item { display: flex; align-items: center; gap: 8px; }
+.legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legend .swatch.line {
+  width: 18px;
+  height: 2px;
+  border-radius: 0;
+}
+
+/* ---------- EXPLANATION ---------- */
+.explain {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  margin-bottom: 40px;
+  margin-top: 12px;
+}
+@media (max-width: 900px) { .explain { grid-template-columns: 1fr; } }
+
+.note {
+  border-top: 2px solid var(--ion);
+  padding-top: 16px;
+}
+.note:nth-child(2) { border-color: var(--electron); }
+.note:nth-child(3) { border-color: var(--wall); }
+
+.note-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.2em;
+  margin-bottom: 8px;
+}
+.note h3 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 20px;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+.note p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+}
+.note p strong { color: var(--ink); font-weight: 400; }
+.note code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--electron);
+  background: rgba(77, 208, 225, 0.08);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* ---------- FOOTER FORMULA ---------- */
+.formula {
+  text-align: center;
+  padding: 40px 24px;
+  border-top: 1px solid var(--border);
+}
+.formula-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 22px;
+}
+.formula-eq {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: clamp(26px, 3.6vw, 40px);
+  font-weight: 300;
+  color: var(--ink);
+}
+.formula-eq .ion-c { color: var(--ion); }
+.formula-eq .e-c { color: var(--electron); }
+.formula-eq .w-c { color: var(--wall); }
+.formula-caption {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  font-style: italic;
+  max-width: 60ch;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
+
+/* ---------- TOOLTIP ---------- */
+.hint {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div>
+      <div class="eyebrow">plasma physics · boltzmann density relation</div>
+      <h1>Ions stay. Electrons <em>flee</em>.<br>The sheath is what's left.</h1>
+    </div>
+    <div class="tagline">
+      <span>// </span>n(r) = n₀ · exp(−qφ(r) / k<sub>B</sub>T)<br>
+      <span>// </span>charged wall on the left<br>
+      <span>// </span>quasineutral plasma to the right
+    </div>
+  </header>
+
+  <section class="intro">
+    <p>
+      A plasma is a soup of <strong>positive ions</strong> and <strong>electrons</strong> — overall neutral in the bulk.
+      But put a charged wall in contact with it, and the species respond very differently.
+      Electrons are light and fast; ions are heavy and slow.
+      The lighter, more mobile species redistributes itself almost instantly to follow the Boltzmann relation —
+      <em>that's why your equation works</em>.
+    </p>
+    <p>
+      Below: a 1D plasma chamber. The left edge is a wall held at potential φ_wall (you control it).
+      Watch the electron density (cyan) and ion density (orange) settle into different exponential profiles.
+      The region near the wall where they no longer balance is the <strong>sheath</strong> — and its width is the Debye length.
+    </p>
+  </section>
+
+  <div class="lab">
+    <div class="panel">
+      <div class="panel-label">
+        <span><span class="num">01</span> &nbsp; plasma chamber · 1D · charged wall on left</span>
+        <span id="chamberStat">— particles</span>
+      </div>
+      <canvas id="chamberCanvas"></canvas>
+      <div class="hint">drag wall ↔ to reposition</div>
+    </div>
+
+    <div class="dual">
+      <div class="panel">
+        <div class="panel-label">
+          <span><span class="num">02</span> &nbsp; density profile · n(x)</span>
+        </div>
+        <canvas id="densityCanvas"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-label">
+          <span><span class="num">03</span> &nbsp; potential φ(x) · self-consistent</span>
+        </div>
+        <canvas id="potentialCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend" style="margin-bottom: 24px;">
+    <div class="item"><span class="swatch" style="background:var(--ion)"></span>positive ions (heavy, slow)</div>
+    <div class="item"><span class="swatch" style="background:var(--electron)"></span>electrons (light, fast)</div>
+    <div class="item"><span class="swatch line" style="background:var(--wall)"></span>boltzmann prediction</div>
+    <div class="item"><span class="swatch line" style="background:var(--ink-dim)"></span>simulated density</div>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>wall potential φ_wall</label>
+      <div class="value warn" id="wallDisplay">−3.0 <span class="sub">k<sub>B</sub>T/e</span></div>
+      <input type="range" id="wallSlider" class="wall-slider" min="-8" max="2" step="0.1" value="-3">
+    </div>
+
+    <div class="control-group">
+      <label>temperature (electron) T<sub>e</sub></label>
+      <div class="value" id="tempDisplay">1.0</div>
+      <input type="range" id="tempSlider" min="0.3" max="3" step="0.1" value="1">
+    </div>
+
+    <div class="control-group">
+      <label>ion / electron mass ratio</label>
+      <div class="value" id="massDisplay">100×</div>
+      <input type="range" id="massSlider" class="ion-slider" min="10" max="500" step="10" value="100">
+    </div>
+
+    <div class="control-group">
+      <label>controls</label>
+      <div class="button-row">
+        <button class="primary" id="resetBtn">↻ Reset</button>
+        <button id="pauseBtn">⏸ Pause</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="explain">
+    <div class="note">
+      <div class="note-num">— 01 · ions</div>
+      <h3>Heavy and inertial</h3>
+      <p>
+        Ions barely move during the time electrons rearrange themselves.
+        On the electron timescale, ion density looks roughly uniform.
+        That's why your formula <code>n = n₀ exp(−qφ/k_BT)</code> is usually applied to the <strong>electrons</strong>
+        — they're the ones that thermalize quickly enough to obey it.
+      </p>
+    </div>
+    <div class="note">
+      <div class="note-num">— 02 · electrons</div>
+      <h3>Light and Boltzmann-distributed</h3>
+      <p>
+        Electrons are pushed away from a negative wall (their charge is −e, so −eφ_wall is large and positive →
+        density crashes). At a positive wall, they pile up. Either way, the equilibrium profile is exponential.
+        This is your equation in action.
+      </p>
+    </div>
+    <div class="note">
+      <div class="note-num">— 03 · the sheath</div>
+      <h3>Where neutrality breaks</h3>
+      <p>
+        Far from the wall, n_i ≈ n_e and the plasma is <strong>quasineutral</strong>.
+        Within a few <em>Debye lengths</em> of the wall, electrons have fled and the region is dominated by ions —
+        a positive space-charge layer that screens the wall from the bulk.
+        That's the sheath.
+      </p>
+    </div>
+  </section>
+
+  <div class="formula">
+    <div class="formula-label">Boltzmann density relation · electron equilibrium in a potential</div>
+    <div class="formula-eq">
+      <span class="e-c">n<sub>e</sub>(x)</span> = <span class="ion-c">n<sub>0</sub></span> · exp<small>(</small>−<span class="w-c">(−e)·φ(x)</span> / <span>k<sub>B</sub>T<sub>e</sub></span><small>)</small>
+    </div>
+    <div class="formula-caption">
+      For electrons (q = −e), a negative wall (φ &lt; 0) gives −qφ &lt; 0, so the exponent is negative and density drops.
+      The same equation governs ions in atmospheres, bound electrons in semiconductors, and the barometric formula.
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ============ CANVAS SETUP ============
+const chamberCanvas = document.getElementById('chamberCanvas');
+const cCtx = chamberCanvas.getContext('2d');
+const densityCanvas = document.getElementById('densityCanvas');
+const dCtx = densityCanvas.getContext('2d');
+const potentialCanvas = document.getElementById('potentialCanvas');
+const phCtx = potentialCanvas.getContext('2d');
+
+function resizeCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: rect.width, h: rect.height };
+}
+
+let cDim = resizeCanvas(chamberCanvas);
+let dDim = resizeCanvas(densityCanvas);
+let phDim = resizeCanvas(potentialCanvas);
+
+window.addEventListener('resize', () => {
+  cDim = resizeCanvas(chamberCanvas);
+  dDim = resizeCanvas(densityCanvas);
+  phDim = resizeCanvas(potentialCanvas);
+});
+
+// ============ PHYSICS PARAMS ============
+let wallPhi = -3.0;     // in units of kT_e/e
+let Te = 1.0;           // electron temperature
+let Ti = 0.1;           // ion temperature (cold ions, typical)
+let massRatio = 100;    // m_i / m_e
+let running = true;
+
+const N_ELECTRONS = 600;
+const N_IONS = 600;
+const WALL_X_FRAC = 0.08; // wall position as fraction of chamber width
+
+// Particles
+let electrons = [];
+let ions = [];
+
+class Particle {
+  constructor(x, y, vx, vy, charge, mass) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.charge = charge; // +1 or -1
+    this.mass = mass;
+  }
+}
+
+function thermalSpeed(T, m) {
+  // Box-Muller: normally distributed velocity component, std dev = sqrt(T/m)
+  const u1 = Math.max(1e-9, Math.random()), u2 = Math.random();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * Math.sqrt(T / m);
+}
+
+function initParticles() {
+  electrons = [];
+  ions = [];
+  const w = cDim.w, h = cDim.h;
+  const wallX = w * WALL_X_FRAC;
+  const m_e = 1, m_i = massRatio;
+
+  for (let i = 0; i < N_ELECTRONS; i++) {
+    const x = wallX + Math.random() * (w - wallX - 4);
+    const y = Math.random() * h;
+    const vx = thermalSpeed(Te, m_e);
+    const vy = thermalSpeed(Te, m_e);
+    electrons.push(new Particle(x, y, vx, vy, -1, m_e));
+  }
+  for (let i = 0; i < N_IONS; i++) {
+    const x = wallX + Math.random() * (w - wallX - 4);
+    const y = Math.random() * h;
+    const vx = thermalSpeed(Ti, m_i);
+    const vy = thermalSpeed(Ti, m_i);
+    ions.push(new Particle(x, y, vx, vy, +1, m_i));
+  }
+}
+
+// ============ SELF-CONSISTENT POTENTIAL ============
+// Compute a potential profile that combines wall potential + screening from charge density.
+// We use the Boltzmann ansatz to compute densities given φ, but to make the simulation
+// stable & responsive we'll compute φ(x) from a smoothed combination of:
+//   - wall boundary condition φ(wallX) = wallPhi
+//   - exponential decay in the bulk over a Debye length
+// For pedagogical clarity, we use an analytic ansatz: φ(x) = wallPhi * exp(-(x - wallX)/lambdaD)
+// This is what comes out of linearized Poisson-Boltzmann.
+
+const NX = 80; // grid for density / potential plots
+
+function computeFields() {
+  const w = cDim.w;
+  const wallX = w * WALL_X_FRAC;
+  const xs = [];
+  const phi = [];
+  const ne_theory = [];
+  const ni_theory = [];
+
+  // Debye length: scales as sqrt(T_e / n_0). We'll set it as a fraction of chamber.
+  // Make it dependent on Te so users see it grow.
+  const lambdaD = Math.max(20, 60 * Math.sqrt(Te));
+
+  for (let i = 0; i < NX; i++) {
+    const x = wallX + (i / (NX - 1)) * (w - wallX);
+    const dx = x - wallX;
+    // exponential decay of perturbation from wall
+    const phiX = wallPhi * Math.exp(-dx / lambdaD);
+    xs.push(x);
+    phi.push(phiX);
+    // electron Boltzmann: n_e = n0 * exp(-q_e * phi / kT_e) with q_e = -1
+    // → n_e = n0 * exp(phi / Te)  [since -(-1)*phi/Te = phi/Te]
+    ne_theory.push(Math.exp(phiX / Te));
+    // ion Boltzmann (cold ions ~ uniform here, but include for completeness)
+    // n_i = n0 * exp(-(+1) phi / Ti) = exp(-phi/Ti). For cold ions (Ti small) this is huge swing,
+    // but in reality ions don't equilibrate; cap to look reasonable.
+    ni_theory.push(Math.min(3, Math.exp(-phiX / Math.max(0.5, Ti * 5))));
+  }
+  return { xs, phi, ne_theory, ni_theory, wallX, lambdaD };
+}
+
+// ============ FORCES & STEP ============
+function step(dt) {
+  const w = cDim.w, h = cDim.h;
+  const wallX = w * WALL_X_FRAC;
+  const fields = computeFields();
+
+  // Use field gradient to get force: F = -q dφ/dx (in our reduced units)
+  // Compute electric field on the fly at particle position.
+  function E_at(x) {
+    if (x <= wallX) return 0;
+    const dx = x - wallX;
+    const lambdaD = fields.lambdaD;
+    // φ = wallPhi * exp(-dx/lambdaD) → dφ/dx = -wallPhi/lambdaD * exp(-dx/lambdaD)
+    const dphidx = -wallPhi / lambdaD * Math.exp(-dx / lambdaD);
+    return -dphidx; // E = -dφ/dx
+  }
+
+  // Electrons feel strong force (light), Ions feel weak (heavy)
+  // We scale forces by 1/mass so heavier particles accelerate less.
+  const F_SCALE = 80; // converts our normalized E into pixel acceleration
+
+  for (const p of electrons) {
+    const Ex = E_at(p.x);
+    const ax = (p.charge * Ex * F_SCALE) / p.mass;
+    p.vx += ax * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    // wall absorption / reflection - reflect with thermal randomization
+    if (p.x < wallX) {
+      // electrons arriving at negative wall get strongly repelled - reflect them
+      // but if wall is very negative they shouldn't even reach it, that's the point
+      p.x = wallX + 1;
+      p.vx = Math.abs(thermalSpeed(Te, p.mass));
+    }
+    if (p.x > w - 2) { p.x = w - 2; p.vx = -Math.abs(p.vx); }
+    if (p.y < 2) { p.y = 2; p.vy = -p.vy; }
+    if (p.y > h - 2) { p.y = h - 2; p.vy = -p.vy; }
+    // gentle thermostat: a tiny chance of velocity randomization (collisions)
+    if (Math.random() < 0.005) {
+      p.vx = thermalSpeed(Te, p.mass);
+      p.vy = thermalSpeed(Te, p.mass);
+    }
+  }
+
+  for (const p of ions) {
+    const Ex = E_at(p.x);
+    const ax = (p.charge * Ex * F_SCALE) / p.mass;
+    p.vx += ax * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.x < wallX) { p.x = wallX + 1; p.vx = Math.abs(p.vx); }
+    if (p.x > w - 2) { p.x = w - 2; p.vx = -Math.abs(p.vx); }
+    if (p.y < 2) { p.y = 2; p.vy = -p.vy; }
+    if (p.y > h - 2) { p.y = h - 2; p.vy = -p.vy; }
+    if (Math.random() < 0.002) {
+      p.vx = thermalSpeed(Ti, p.mass);
+      p.vy = thermalSpeed(Ti, p.mass);
+    }
+  }
+}
+
+// ============ DRAWING ============
+function drawChamber() {
+  cCtx.clearRect(0, 0, cDim.w, cDim.h);
+  const w = cDim.w, h = cDim.h;
+  const wallX = w * WALL_X_FRAC;
+
+  // background subtle vertical grid
+  cCtx.strokeStyle = 'rgba(232, 240, 255, 0.04)';
+  cCtx.lineWidth = 1;
+  const gx = 50;
+  for (let x = wallX; x < w; x += gx) {
+    cCtx.beginPath();
+    cCtx.moveTo(x, 0); cCtx.lineTo(x, h);
+    cCtx.stroke();
+  }
+
+  // wall
+  const wallGrad = cCtx.createLinearGradient(0, 0, wallX, 0);
+  if (wallPhi < 0) {
+    wallGrad.addColorStop(0, 'rgba(77, 208, 225, 0.4)');
+    wallGrad.addColorStop(1, 'rgba(77, 208, 225, 0.0)');
+  } else {
+    wallGrad.addColorStop(0, 'rgba(255, 107, 53, 0.4)');
+    wallGrad.addColorStop(1, 'rgba(255, 107, 53, 0.0)');
+  }
+  cCtx.fillStyle = wallGrad;
+  cCtx.fillRect(0, 0, wallX, h);
+
+  // wall solid
+  cCtx.fillStyle = 'rgba(255, 213, 79, 0.85)';
+  cCtx.fillRect(wallX - 3, 0, 3, h);
+
+  // wall label
+  cCtx.fillStyle = 'rgba(255, 213, 79, 0.95)';
+  cCtx.font = "11px 'JetBrains Mono', monospace";
+  cCtx.textAlign = 'left';
+  cCtx.fillText('WALL', 8, 18);
+  cCtx.fillStyle = 'rgba(255, 213, 79, 0.6)';
+  cCtx.fillText('φ = ' + wallPhi.toFixed(1), 8, 32);
+
+  // bulk plasma label
+  cCtx.fillStyle = 'rgba(232, 240, 255, 0.4)';
+  cCtx.textAlign = 'right';
+  cCtx.fillText('QUASINEUTRAL BULK →', w - 12, 18);
+
+  // sheath indicator: shaded region within ~1 Debye length
+  const lambdaD = Math.max(20, 60 * Math.sqrt(Te));
+  const sheathGrad = cCtx.createLinearGradient(wallX, 0, wallX + lambdaD, 0);
+  sheathGrad.addColorStop(0, 'rgba(255, 213, 79, 0.06)');
+  sheathGrad.addColorStop(1, 'rgba(255, 213, 79, 0)');
+  cCtx.fillStyle = sheathGrad;
+  cCtx.fillRect(wallX, 0, lambdaD, h);
+
+  // sheath label
+  cCtx.fillStyle = 'rgba(255, 213, 79, 0.5)';
+  cCtx.font = "9px 'JetBrains Mono', monospace";
+  cCtx.textAlign = 'center';
+  cCtx.fillText('← SHEATH ~ λ_D →', wallX + lambdaD / 2, h - 10);
+
+  // Draw ions
+  for (const p of ions) {
+    cCtx.fillStyle = 'rgba(255, 107, 53, 0.18)';
+    cCtx.beginPath();
+    cCtx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+    cCtx.fill();
+    cCtx.fillStyle = 'rgba(255, 107, 53, 0.95)';
+    cCtx.beginPath();
+    cCtx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+    cCtx.fill();
+  }
+
+  // Draw electrons
+  for (const p of electrons) {
+    cCtx.fillStyle = 'rgba(77, 208, 225, 0.2)';
+    cCtx.beginPath();
+    cCtx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+    cCtx.fill();
+    cCtx.fillStyle = 'rgba(77, 208, 225, 1)';
+    cCtx.beginPath();
+    cCtx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+    cCtx.fill();
+  }
+}
+
+function drawDensity() {
+  dCtx.clearRect(0, 0, dDim.w, dDim.h);
+  const w = dDim.w, h = dDim.h;
+  const padL = 40, padR = 14, padT = 16, padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const wallX = cDim.w * WALL_X_FRAC;
+
+  // axes
+  dCtx.strokeStyle = 'rgba(232, 240, 255, 0.2)';
+  dCtx.lineWidth = 1;
+  dCtx.beginPath();
+  dCtx.moveTo(padL, padT);
+  dCtx.lineTo(padL, padT + plotH);
+  dCtx.lineTo(padL + plotW, padT + plotH);
+  dCtx.stroke();
+
+  // Bin particles by x position (in same coord as chamber)
+  const nBins = 40;
+  const xMin = wallX;
+  const xMax = cDim.w;
+  const eBins = new Array(nBins).fill(0);
+  const iBins = new Array(nBins).fill(0);
+  for (const p of electrons) {
+    const idx = Math.floor((p.x - xMin) / (xMax - xMin) * nBins);
+    if (idx >= 0 && idx < nBins) eBins[idx]++;
+  }
+  for (const p of ions) {
+    const idx = Math.floor((p.x - xMin) / (xMax - xMin) * nBins);
+    if (idx >= 0 && idx < nBins) iBins[idx]++;
+  }
+  // Smooth (3-point average)
+  function smooth(arr) {
+    const out = arr.slice();
+    for (let i = 1; i < arr.length - 1; i++) out[i] = (arr[i - 1] + arr[i] + arr[i + 1]) / 3;
+    return out;
+  }
+  const eBinsS = smooth(smooth(eBins));
+  const iBinsS = smooth(smooth(iBins));
+
+  const expectedAvg = N_ELECTRONS / nBins; // bulk reference
+  const yMax = Math.max(...eBinsS, ...iBinsS, expectedAvg * 2) * 1.1;
+
+  // theoretical curves (from Boltzmann)
+  const fields = computeFields();
+  // Map fields x → plot pixel
+  function xToPix(x) {
+    return padL + ((x - xMin) / (xMax - xMin)) * plotW;
+  }
+
+  // Theory: electron density n_e/n_0 = exp(phi/Te) (since q=-1)
+  dCtx.strokeStyle = 'rgba(77, 208, 225, 0.4)';
+  dCtx.lineWidth = 2;
+  dCtx.setLineDash([4, 3]);
+  dCtx.beginPath();
+  for (let i = 0; i < fields.xs.length; i++) {
+    const x = fields.xs[i];
+    const ne = fields.ne_theory[i] * expectedAvg; // scale to bin counts
+    const px = xToPix(x);
+    const py = padT + plotH - (ne / yMax) * plotH;
+    if (i === 0) dCtx.moveTo(px, py);
+    else dCtx.lineTo(px, py);
+  }
+  dCtx.stroke();
+  dCtx.setLineDash([]);
+
+  // Theory ion (mostly flat)
+  dCtx.strokeStyle = 'rgba(255, 107, 53, 0.35)';
+  dCtx.lineWidth = 2;
+  dCtx.setLineDash([4, 3]);
+  dCtx.beginPath();
+  for (let i = 0; i < fields.xs.length; i++) {
+    const x = fields.xs[i];
+    const ni = expectedAvg; // ions stay roughly uniform on this timescale
+    const px = xToPix(x);
+    const py = padT + plotH - (ni / yMax) * plotH;
+    if (i === 0) dCtx.moveTo(px, py);
+    else dCtx.lineTo(px, py);
+  }
+  dCtx.stroke();
+  dCtx.setLineDash([]);
+
+  // Simulated electron density (filled area)
+  dCtx.fillStyle = 'rgba(77, 208, 225, 0.15)';
+  dCtx.beginPath();
+  dCtx.moveTo(padL, padT + plotH);
+  for (let i = 0; i < nBins; i++) {
+    const x = xMin + ((i + 0.5) / nBins) * (xMax - xMin);
+    const px = xToPix(x);
+    const py = padT + plotH - (eBinsS[i] / yMax) * plotH;
+    dCtx.lineTo(px, py);
+  }
+  dCtx.lineTo(padL + plotW, padT + plotH);
+  dCtx.closePath();
+  dCtx.fill();
+
+  dCtx.strokeStyle = 'rgba(77, 208, 225, 0.95)';
+  dCtx.lineWidth = 2;
+  dCtx.beginPath();
+  for (let i = 0; i < nBins; i++) {
+    const x = xMin + ((i + 0.5) / nBins) * (xMax - xMin);
+    const px = xToPix(x);
+    const py = padT + plotH - (eBinsS[i] / yMax) * plotH;
+    if (i === 0) dCtx.moveTo(px, py);
+    else dCtx.lineTo(px, py);
+  }
+  dCtx.stroke();
+
+  // Simulated ion density
+  dCtx.strokeStyle = 'rgba(255, 107, 53, 0.95)';
+  dCtx.lineWidth = 2;
+  dCtx.beginPath();
+  for (let i = 0; i < nBins; i++) {
+    const x = xMin + ((i + 0.5) / nBins) * (xMax - xMin);
+    const px = xToPix(x);
+    const py = padT + plotH - (iBinsS[i] / yMax) * plotH;
+    if (i === 0) dCtx.moveTo(px, py);
+    else dCtx.lineTo(px, py);
+  }
+  dCtx.stroke();
+
+  // labels
+  dCtx.fillStyle = 'rgba(168, 178, 200, 0.9)';
+  dCtx.font = "10px 'JetBrains Mono', monospace";
+  dCtx.textAlign = 'center';
+  dCtx.fillText('POSITION x →', padL + plotW / 2, h - 8);
+  dCtx.save();
+  dCtx.translate(12, padT + plotH / 2);
+  dCtx.rotate(-Math.PI / 2);
+  dCtx.textAlign = 'center';
+  dCtx.fillText('DENSITY n →', 0, 0);
+  dCtx.restore();
+
+  // n_0 reference line
+  const refY = padT + plotH - (expectedAvg / yMax) * plotH;
+  dCtx.strokeStyle = 'rgba(232, 240, 255, 0.15)';
+  dCtx.setLineDash([2, 4]);
+  dCtx.lineWidth = 1;
+  dCtx.beginPath();
+  dCtx.moveTo(padL, refY);
+  dCtx.lineTo(padL + plotW, refY);
+  dCtx.stroke();
+  dCtx.setLineDash([]);
+  dCtx.fillStyle = 'rgba(232, 240, 255, 0.4)';
+  dCtx.textAlign = 'right';
+  dCtx.fillText('n₀', padL - 6, refY + 3);
+}
+
+function drawPotential() {
+  phCtx.clearRect(0, 0, phDim.w, phDim.h);
+  const w = phDim.w, h = phDim.h;
+  const padL = 40, padR = 14, padT = 16, padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const fields = computeFields();
+  const wallX = fields.wallX;
+  const xMin = wallX;
+  const xMax = cDim.w;
+
+  // axes
+  phCtx.strokeStyle = 'rgba(232, 240, 255, 0.2)';
+  phCtx.lineWidth = 1;
+  phCtx.beginPath();
+  phCtx.moveTo(padL, padT);
+  phCtx.lineTo(padL, padT + plotH);
+  phCtx.lineTo(padL + plotW, padT + plotH);
+  phCtx.stroke();
+
+  // y range: include 0 and wallPhi
+  const phiMin = Math.min(0, wallPhi) - 0.5;
+  const phiMax = Math.max(0, wallPhi) + 0.5;
+
+  function xToPix(x) {
+    return padL + ((x - xMin) / (xMax - xMin)) * plotW;
+  }
+  function phiToPix(p) {
+    return padT + plotH - ((p - phiMin) / (phiMax - phiMin)) * plotH;
+  }
+
+  // zero line
+  const zeroY = phiToPix(0);
+  phCtx.strokeStyle = 'rgba(232, 240, 255, 0.18)';
+  phCtx.setLineDash([2, 4]);
+  phCtx.lineWidth = 1;
+  phCtx.beginPath();
+  phCtx.moveTo(padL, zeroY);
+  phCtx.lineTo(padL + plotW, zeroY);
+  phCtx.stroke();
+  phCtx.setLineDash([]);
+  phCtx.fillStyle = 'rgba(232, 240, 255, 0.4)';
+  phCtx.font = "10px 'JetBrains Mono', monospace";
+  phCtx.textAlign = 'right';
+  phCtx.fillText('0', padL - 6, zeroY + 3);
+
+  // potential curve
+  phCtx.strokeStyle = 'rgba(255, 213, 79, 0.95)';
+  phCtx.lineWidth = 2.5;
+  phCtx.beginPath();
+  for (let i = 0; i < fields.xs.length; i++) {
+    const px = xToPix(fields.xs[i]);
+    const py = phiToPix(fields.phi[i]);
+    if (i === 0) phCtx.moveTo(px, py);
+    else phCtx.lineTo(px, py);
+  }
+  phCtx.stroke();
+
+  // fill area under curve
+  phCtx.fillStyle = wallPhi < 0
+    ? 'rgba(77, 208, 225, 0.08)'
+    : 'rgba(255, 107, 53, 0.08)';
+  phCtx.beginPath();
+  for (let i = 0; i < fields.xs.length; i++) {
+    const px = xToPix(fields.xs[i]);
+    const py = phiToPix(fields.phi[i]);
+    if (i === 0) phCtx.moveTo(px, py);
+    else phCtx.lineTo(px, py);
+  }
+  phCtx.lineTo(padL + plotW, zeroY);
+  phCtx.lineTo(padL, zeroY);
+  phCtx.closePath();
+  phCtx.fill();
+
+  // wall potential value annotation
+  phCtx.fillStyle = 'rgba(255, 213, 79, 0.95)';
+  phCtx.font = "11px 'JetBrains Mono', monospace";
+  phCtx.textAlign = 'left';
+  phCtx.fillText('φ_wall = ' + wallPhi.toFixed(1), padL + 6, phiToPix(wallPhi) - 6);
+
+  // axis labels
+  phCtx.fillStyle = 'rgba(168, 178, 200, 0.9)';
+  phCtx.font = "10px 'JetBrains Mono', monospace";
+  phCtx.textAlign = 'center';
+  phCtx.fillText('POSITION x →', padL + plotW / 2, h - 8);
+  phCtx.save();
+  phCtx.translate(12, padT + plotH / 2);
+  phCtx.rotate(-Math.PI / 2);
+  phCtx.textAlign = 'center';
+  phCtx.fillText('φ(x) →', 0, 0);
+  phCtx.restore();
+}
+
+// ============ STATS / UI ============
+function updateStats() {
+  document.getElementById('chamberStat').textContent =
+    electrons.length + ' e⁻ · ' + ions.length + ' ions';
+  document.getElementById('wallDisplay').innerHTML =
+    wallPhi.toFixed(1) + ' <span class="sub">k<sub>B</sub>T/e</span>';
+  document.getElementById('tempDisplay').textContent = Te.toFixed(1);
+  document.getElementById('massDisplay').textContent = massRatio + '×';
+}
+
+// ============ LOOP ============
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  if (running) {
+    const subs = 3;
+    for (let i = 0; i < subs; i++) step(dt / subs * 60);
+  }
+  drawChamber();
+  drawDensity();
+  drawPotential();
+  updateStats();
+  requestAnimationFrame(loop);
+}
+
+// ============ EVENTS ============
+document.getElementById('wallSlider').addEventListener('input', e => {
+  wallPhi = parseFloat(e.target.value);
+});
+document.getElementById('tempSlider').addEventListener('input', e => {
+  Te = parseFloat(e.target.value);
+});
+document.getElementById('massSlider').addEventListener('input', e => {
+  massRatio = parseInt(e.target.value);
+  // re-init only ions to apply new mass without disrupting whole sim
+  for (const p of ions) p.mass = massRatio;
+});
+document.getElementById('resetBtn').addEventListener('click', initParticles);
+document.getElementById('pauseBtn').addEventListener('click', e => {
+  running = !running;
+  e.target.textContent = running ? '⏸ Pause' : '▶ Resume';
+});
+
+initParticles();
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>

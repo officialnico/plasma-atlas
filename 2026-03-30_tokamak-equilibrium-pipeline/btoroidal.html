@@ -1,0 +1,467 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>btoroidal</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function BtoroidalExplained() {
+  const [step, setStep] = useState(0);
+
+  const svgW = 580, svgH = 480;
+  const cx = svgW / 2, cy = svgH / 2 + 20;
+  const scale = 120;
+
+  const rcentr = 1.15;
+  const bcentr = 12.2;
+  const constant = bcentr * rcentr; // = 14.03 T·m
+
+  const steps = [
+    {
+      title: "Step 1: You build coils around the donut",
+      desc: "The toroidal field coils are physical loops of superconducting wire. They go up, over, and around the vacuum vessel. 12-18 of them evenly spaced around the torus. You pump current through them.",
+    },
+    {
+      title: "Step 2: Current in coils → magnetic field inside",
+      desc: "Basic physics: current flowing through a wire creates a magnetic field around it. When you arrange many coils in a circle around a torus, the fields add up inside the donut to create a strong field pointing AROUND the ring. This is B_toroidal.",
+    },
+    {
+      title: "Step 3: The field is stronger near the center",
+      desc: `The field strength falls off as 1/R. At R = 0.76m (inner plasma edge): B = ${(constant / 0.76).toFixed(1)}T. At R = 1.18m (plasma center): B = ${(constant / 1.18).toFixed(1)}T. At R = 1.60m (outer edge): B = ${(constant / 1.60).toFixed(1)}T. Same coils, same current — just geometry.`,
+    },
+    {
+      title: "Step 4: bcentr captures one measurement",
+      desc: `We pick a reference point (rcentr = ${rcentr}m) and record the field there (bcentr = ${bcentr}T). From these two numbers: B at any R = ${bcentr} × ${rcentr} / R = ${constant.toFixed(2)} / R.`,
+    },
+    {
+      title: "Step 5: fpol = R × B_toroidal (the profile)",
+      desc: `In vacuum, R × B = ${constant.toFixed(2)} everywhere (constant). But the plasma current modifies B slightly, so R × B varies a little from surface to surface. fpol stores that small variation. It's almost flat — the plasma barely changes the toroidal field.`,
+    },
+  ];
+
+  const current = steps[step];
+
+  // Calculate B at various R values for display
+  const samplePoints = [
+    { R: 0.76, label: "inner edge" },
+    { R: 0.90, label: "" },
+    { R: 1.00, label: "" },
+    { R: 1.18, label: "plasma center" },
+    { R: 1.40, label: "" },
+    { R: 1.60, label: "outer edge" },
+  ];
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          WHERE DOES B_TOROIDAL COME FROM?
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          FROM PHYSICAL COILS TO THE NUMBERS IN THE EQDSK FILE
+        </p>
+
+        {/* Step navigation */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 16 }}>
+          {steps.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => setStep(i)}
+              style={{
+                padding: "8px 12px",
+                background: step === i ? "#1a2a3a" : "#12171f",
+                border: step === i ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: step === i ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 10, fontFamily: "inherit", cursor: "pointer",
+                fontWeight: step === i ? 700 : 400,
+              }}
+            >
+              Step {i + 1}
+            </button>
+          ))}
+        </div>
+
+        {/* Title and description */}
+        <div style={{
+          padding: "12px 16px",
+          background: "#1a2a3a",
+          borderRadius: "6px 6px 0 0",
+          borderLeft: "3px solid #4ecdc4",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#4ecdc4" }}>{current.title}</div>
+          <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.7, marginTop: 6 }}>{current.desc}</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
+          {/* Main visualization */}
+          <div style={{
+            background: "#0d1117",
+            borderRadius: "0 0 0 6px",
+            border: "1px solid #1e2630",
+            borderTop: "none",
+            padding: 10,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" />
+
+              {/* Central axis */}
+              <circle cx={cx} cy={cy} r={4} fill="#ff6b6b" />
+              <text x={cx} y={cy - 10} textAnchor="middle" fill="#ff6b6b" fontSize={9}>R=0</text>
+
+              {/* Central solenoid */}
+              <circle cx={cx} cy={cy} r={0.15 * scale} fill="rgba(201,124,76,0.15)" stroke="#c97c4c" strokeWidth={1.5} />
+
+              {/* TF Coils (step 1+) */}
+              {step >= 0 && Array.from({ length: 14 }, (_, i) => {
+                const angle = (i / 14) * Math.PI * 2;
+                const innerR = 0.55 * scale;
+                const outerR = 1.75 * scale;
+                return (
+                  <g key={`coil${i}`}>
+                    <line
+                      x1={cx + Math.cos(angle) * innerR} y1={cy + Math.sin(angle) * innerR}
+                      x2={cx + Math.cos(angle) * outerR} y2={cy + Math.sin(angle) * outerR}
+                      stroke={step >= 1 ? "#c9b87c" : "#c9b87c"}
+                      strokeWidth={step >= 1 ? 4 : 3}
+                      opacity={step >= 1 ? 0.7 : 0.4}
+                    />
+                    {/* Current direction indicators */}
+                    {step >= 1 && (
+                      <circle
+                        cx={cx + Math.cos(angle) * (innerR + 15)}
+                        cy={cy + Math.sin(angle) * (innerR + 15)}
+                        r={3}
+                        fill="#c9b87c"
+                      />
+                    )}
+                  </g>
+                );
+              })}
+              {step >= 0 && (
+                <text x={cx + 1.8 * scale} y={cy - 1.4 * scale} fill="#c9b87c" fontSize={10}>
+                  TF coils (14)
+                </text>
+              )}
+
+              {/* Plasma ring outline */}
+              <circle cx={cx} cy={cy} r={rcentr * scale}
+                fill="none" stroke="rgba(78,205,196,0.1)" strokeWidth={0.42 * 2 * scale} />
+              <circle cx={cx} cy={cy} r={(rcentr - 0.42) * scale}
+                fill="none" stroke="rgba(78,205,196,0.2)" strokeWidth={1} />
+              <circle cx={cx} cy={cy} r={(rcentr + 0.42) * scale}
+                fill="none" stroke="rgba(78,205,196,0.2)" strokeWidth={1} />
+
+              {/* Field arrows going around the torus (step 2+) */}
+              {step >= 1 && Array.from({ length: 20 }, (_, i) => {
+                const angle = (i / 20) * Math.PI * 2;
+                const R = rcentr;
+                const px = cx + Math.cos(angle) * R * scale;
+                const py = cy + Math.sin(angle) * R * scale;
+                // Tangent direction (around the circle)
+                const tx = -Math.sin(angle);
+                const ty = Math.cos(angle);
+                const arrowLen = 14;
+                return (
+                  <g key={`arrow${i}`}>
+                    <line
+                      x1={px - tx * arrowLen} y1={py - ty * arrowLen}
+                      x2={px + tx * arrowLen} y2={py + ty * arrowLen}
+                      stroke="#4ecdc4" strokeWidth={2} opacity={0.7}
+                    />
+                    <polygon
+                      points={`${px + tx * arrowLen},${py + ty * arrowLen} ${px + tx * (arrowLen - 5) - ty * 3},${py + ty * (arrowLen - 5) + tx * 3} ${px + tx * (arrowLen - 5) + ty * 3},${py + ty * (arrowLen - 5) - tx * 3}`}
+                      fill="#4ecdc4" opacity={0.7}
+                    />
+                  </g>
+                );
+              })}
+              {step >= 1 && (
+                <text x={cx + rcentr * scale + 25} y={cy - 10} fill="#4ecdc4" fontSize={10} fontWeight={700}>
+                  B_toroidal
+                </text>
+              )}
+              {step >= 1 && (
+                <text x={cx + rcentr * scale + 25} y={cy + 5} fill="#4ecdc4" fontSize={9}>
+                  field goes AROUND
+                </text>
+              )}
+
+              {/* Field strength variation (step 3+) */}
+              {step >= 2 && (
+                <>
+                  {/* Inner field - stronger, shown as thicker/brighter */}
+                  {Array.from({ length: 8 }, (_, i) => {
+                    const angle = (i / 8) * Math.PI * 2 + 0.2;
+                    const R = rcentr - 0.42;
+                    const px = cx + Math.cos(angle) * R * scale;
+                    const py = cy + Math.sin(angle) * R * scale;
+                    const tx = -Math.sin(angle);
+                    const ty = Math.cos(angle);
+                    return (
+                      <line key={`inner${i}`}
+                        x1={px - tx * 12} y1={py - ty * 12}
+                        x2={px + tx * 12} y2={py + ty * 12}
+                        stroke="#ff6b6b" strokeWidth={3} opacity={0.6}
+                      />
+                    );
+                  })}
+                  {/* Outer field - weaker, shown as thinner/dimmer */}
+                  {Array.from({ length: 8 }, (_, i) => {
+                    const angle = (i / 8) * Math.PI * 2 + 0.2;
+                    const R = rcentr + 0.42;
+                    const px = cx + Math.cos(angle) * R * scale;
+                    const py = cy + Math.sin(angle) * R * scale;
+                    const tx = -Math.sin(angle);
+                    const ty = Math.cos(angle);
+                    return (
+                      <line key={`outer${i}`}
+                        x1={px - tx * 8} y1={py - ty * 8}
+                        x2={px + tx * 8} y2={py + ty * 8}
+                        stroke="#8ab4f8" strokeWidth={1.5} opacity={0.4}
+                      />
+                    );
+                  })}
+                  <text x={cx + (rcentr - 0.42) * scale - 30} y={cy + (rcentr - 0.42) * scale * 0.6}
+                    fill="#ff6b6b" fontSize={10} fontWeight={600}>
+                    {(constant / 0.76).toFixed(1)}T
+                  </text>
+                  <text x={cx + (rcentr - 0.42) * scale - 30} y={cy + (rcentr - 0.42) * scale * 0.6 + 13}
+                    fill="#ff6b6b" fontSize={9}>STRONG</text>
+
+                  <text x={cx + (rcentr + 0.42) * scale + 5} y={cy + (rcentr + 0.42) * scale * 0.5}
+                    fill="#8ab4f8" fontSize={10} fontWeight={600}>
+                    {(constant / 1.60).toFixed(1)}T
+                  </text>
+                  <text x={cx + (rcentr + 0.42) * scale + 5} y={cy + (rcentr + 0.42) * scale * 0.5 + 13}
+                    fill="#8ab4f8" fontSize={9}>WEAK</text>
+                </>
+              )}
+
+              {/* bcentr reference point (step 4+) */}
+              {step >= 3 && (
+                <>
+                  <circle cx={cx + rcentr * scale} cy={cy} r={7}
+                    fill="none" stroke="#e6ecf2" strokeWidth={2.5} />
+                  <circle cx={cx + rcentr * scale} cy={cy} r={2.5} fill="#e6ecf2" />
+                  <rect x={cx + rcentr * scale + 12} y={cy - 28} width={140} height={42} rx={4}
+                    fill="#1a2a3a" stroke="#e6ecf2" />
+                  <text x={cx + rcentr * scale + 18} y={cy - 12} fill="#e6ecf2" fontSize={11} fontWeight={700}>
+                    bcentr = {bcentr}T
+                  </text>
+                  <text x={cx + rcentr * scale + 18} y={cy + 4} fill="#8a95a5" fontSize={10}>
+                    at rcentr = {rcentr}m
+                  </text>
+
+                  {/* The formula */}
+                  <rect x={cx - 120} y={svgH - 55} width={240} height={35} rx={4}
+                    fill="#1a2a3a" stroke="#4ecdc4" />
+                  <text x={cx} y={svgH - 32} textAnchor="middle" fill="#4ecdc4" fontSize={13} fontWeight={700}>
+                    B(R) = {constant.toFixed(2)} / R
+                  </text>
+                </>
+              )}
+
+              {/* fpol visualization (step 5) */}
+              {step >= 4 && (
+                <>
+                  {/* Show R×B values at three locations */}
+                  {[
+                    { R: 0.76, angle: Math.PI * 0.8 },
+                    { R: 1.18, angle: Math.PI * 0.3 },
+                    { R: 1.60, angle: Math.PI * 1.7 },
+                  ].map(({ R, angle }) => {
+                    const B = constant / R;
+                    const RxB = R * B;
+                    const px = cx + Math.cos(angle) * R * scale;
+                    const py = cy + Math.sin(angle) * R * scale;
+                    return (
+                      <g key={R}>
+                        <circle cx={px} cy={py} r={4} fill="#c9a3f5" />
+                        <rect x={px - 55} y={py - 30} width={110} height={22} rx={3}
+                          fill="#1a2a3a" stroke="#c9a3f5" opacity={0.9} />
+                        <text x={px} y={py - 14} textAnchor="middle" fill="#c9a3f5" fontSize={10}>
+                          R×B = {R.toFixed(2)}×{B.toFixed(1)} = {RxB.toFixed(1)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  <text x={cx} y={35} textAnchor="middle" fill="#c9a3f5" fontSize={11} fontWeight={600}>
+                    fpol = R × B = {constant.toFixed(1)} everywhere (in vacuum)
+                  </text>
+                  <text x={cx} y={50} textAnchor="middle" fill="#5c6a7a" fontSize={10}>
+                    Plasma modifies this by ~2% → that's what fpol stores per surface
+                  </text>
+                </>
+              )}
+            </svg>
+          </div>
+
+          {/* Side panel */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            {/* The chain */}
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: "0 6px 6px 0",
+              border: "1px solid #1e2630",
+              borderLeft: "none",
+              minHeight: svgH,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+                The complete chain
+              </div>
+
+              {[
+                { label: "Physical coils", detail: "14 loops of superconducting wire around the torus", color: "#c9b87c", active: step >= 0 },
+                { label: "Current flows", detail: "Millions of amps through each coil", color: "#c9b87c", active: step >= 1 },
+                { label: "Field appears", detail: "B_toroidal: strong field going around the donut", color: "#4ecdc4", active: step >= 1 },
+                { label: "Varies with R", detail: `B = ${constant.toFixed(1)}/R — stronger inboard, weaker outboard`, color: "#4ecdc4", active: step >= 2 },
+                { label: "Pick a reference", detail: `bcentr = ${bcentr}T at rcentr = ${rcentr}m`, color: "#e6ecf2", active: step >= 3 },
+                { label: "Calculate anywhere", detail: `B(any R) = ${bcentr} × ${rcentr} / R`, color: "#e6ecf2", active: step >= 3 },
+                { label: "Multiply by R", detail: `R × B = ${constant.toFixed(1)} T·m (constant in vacuum)`, color: "#c9a3f5", active: step >= 4 },
+                { label: "fpol stores the tweak", detail: "Plasma current modifies R×B by ~2% per surface", color: "#c9a3f5", active: step >= 4 },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  padding: "8px 10px",
+                  marginBottom: 4,
+                  borderLeft: `3px solid ${item.active ? item.color : "#1e2630"}`,
+                  background: item.active ? `${item.color}08` : "transparent",
+                  opacity: item.active ? 1 : 0.3,
+                  transition: "all 0.3s",
+                }}>
+                  <div style={{ fontSize: 11, color: item.color, fontWeight: 600 }}>{item.label}</div>
+                  <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 2 }}>{item.detail}</div>
+                </div>
+              ))}
+
+              {/* B values at different R */}
+              {step >= 2 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                    Field strength across the plasma
+                  </div>
+                  {samplePoints.map(({ R, label }) => {
+                    const B = constant / R;
+                    const barWidth = (B / 20) * 100;
+                    return (
+                      <div key={R} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 4,
+                        fontSize: 10,
+                      }}>
+                        <span style={{ color: "#5c6a7a", minWidth: 45, textAlign: "right" }}>
+                          R={R.toFixed(2)}
+                        </span>
+                        <div style={{
+                          width: barWidth,
+                          height: 10,
+                          borderRadius: 2,
+                          background: `linear-gradient(90deg, #ff6b6b, #8ab4f8)`,
+                          opacity: 0.6,
+                        }} />
+                        <span style={{ color: "#e6ecf2", fontWeight: 600 }}>{B.toFixed(1)}T</span>
+                        {label && <span style={{ color: "#3a4a5a", fontSize: 9 }}>{label}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* fpol values */}
+              {step >= 4 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 10, color: "#c9a3f5", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                    fpol = R × B (almost constant)
+                  </div>
+                  {samplePoints.map(({ R, label }) => {
+                    const B = constant / R;
+                    const RxB = R * B;
+                    return (
+                      <div key={R} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 3,
+                        fontSize: 10,
+                      }}>
+                        <span style={{ color: "#5c6a7a", minWidth: 45, textAlign: "right" }}>
+                          R={R.toFixed(2)}
+                        </span>
+                        <span style={{ color: "#8a95a5" }}>
+                          {R.toFixed(2)} × {B.toFixed(1)} =
+                        </span>
+                        <span style={{ color: "#c9a3f5", fontWeight: 700 }}>
+                          {RxB.toFixed(2)}
+                        </span>
+                        <span style={{ color: "#3a4a5a", fontSize: 9 }}>T·m</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ fontSize: 10, color: "#5c6a7a", marginTop: 6, fontStyle: "italic" }}>
+                    All the same! In vacuum, R×B = {constant.toFixed(2)} everywhere.
+                    Plasma makes these differ by ~2%.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
+          <button
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            style={{
+              padding: "8px 20px",
+              background: step === 0 ? "#12171f" : "#1a2a3a",
+              border: "1px solid #1e2630",
+              borderRadius: 4,
+              color: step === 0 ? "#3a4550" : "#4ecdc4",
+              fontFamily: "inherit", fontSize: 12, cursor: step === 0 ? "default" : "pointer",
+            }}
+          >
+            ← Previous
+          </button>
+          <span style={{ fontSize: 11, color: "#3a4550", alignSelf: "center" }}>
+            {step + 1} / {steps.length}
+          </span>
+          <button
+            onClick={() => setStep(Math.min(steps.length - 1, step + 1))}
+            disabled={step === steps.length - 1}
+            style={{
+              padding: "8px 20px",
+              background: step === steps.length - 1 ? "#12171f" : "#1a2a3a",
+              border: "1px solid #1e2630",
+              borderRadius: 4,
+              color: step === steps.length - 1 ? "#3a4550" : "#4ecdc4",
+              fontFamily: "inherit", fontSize: 12, cursor: step === steps.length - 1 ? "default" : "pointer",
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(BtoroidalExplained));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

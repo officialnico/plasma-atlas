@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Fourier in y? — GENE coordinate symmetries</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  p { margin-bottom:1rem; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+
+  .viz {
+    background:#12151c;
+    border:1px solid #252a36;
+    border-radius:8px;
+    overflow:hidden;
+    margin:1.5rem 0;
+  }
+  .viz canvas { width:100%; display:block; }
+  .viz-tag {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#f0a050;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 4px;
+  }
+
+  .ctrl {
+    display:flex; gap:8px; padding:10px 14px;
+    border-top:1px solid #252a36;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .ctrl button {
+    padding:6px 14px;
+    border-radius:4px;
+    border:1px solid #252a36;
+    background:transparent;
+    color:#8a8f9f;
+    font-size:0.78rem;
+    cursor:pointer;
+    font-family:'DM Sans',sans-serif;
+    transition:all 0.15s;
+  }
+  .ctrl button.on {
+    border-color:#f0a050;
+    color:#f0a050;
+    background:rgba(240,160,80,0.1);
+  }
+
+  .row {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:1px;
+    background:#252a36;
+  }
+  .row > div { background:#12151c; padding:0; }
+  @media (max-width:600px) {
+    .row { grid-template-columns:1fr; }
+  }
+
+  .panel-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.62rem;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    padding:10px 14px 6px;
+  }
+  .panel-label.x { color:#fb7185; }
+  .panel-label.y { color:#4ade80; }
+  .panel-label.z { color:#5cb8f0; }
+
+  .verdict {
+    padding:8px 14px 12px;
+    font-size:0.82rem;
+    font-family:'IBM Plex Mono',monospace;
+    color:#8a8f9f;
+  }
+  .verdict.fourier { color:#4ade80; }
+  .verdict.no { color:#fb7185; }
+
+  .note {
+    background:#12151c;
+    border-left:3px solid #5cb8f0;
+    border-radius:0 4px 4px 0;
+    padding:0.9rem 1.1rem;
+    margin:1.2rem 0;
+    font-size:0.92rem;
+  }
+  .note-label {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.6rem;
+    color:#5cb8f0;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    margin-bottom:0.4rem;
+    display:block;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Why Fourier in y?</h1>
+<p class="sub">The three directions look different to a translation — only y is symmetric</p>
+
+<p>A Fourier transform is the natural representation when the physics is invariant under translation. Plane waves <code>exp(i k·r)</code> are eigenstates of d/dr only when the medium itself doesn't depend on r. So the question for each coordinate is simple: <strong>walk a step in this direction. Did anything change?</strong></p>
+
+<div class="viz">
+  <div class="viz-tag">Walking a step in each direction — does the background change?</div>
+  <div class="row">
+    <div>
+      <div class="panel-label x">x · radial</div>
+      <canvas id="c-x" height="200"></canvas>
+      <div class="verdict no">→ background changes. NOT Fourier.</div>
+    </div>
+    <div>
+      <div class="panel-label y">y · binormal</div>
+      <canvas id="c-y" height="200"></canvas>
+      <div class="verdict fourier">→ identical. FOURIER ✓</div>
+    </div>
+  </div>
+  <div class="row" style="grid-template-columns:1fr">
+    <div>
+      <div class="panel-label z">z · along B</div>
+      <canvas id="c-z" height="200"></canvas>
+      <div class="verdict no">→ |B|, curvature vary. NOT Fourier.</div>
+    </div>
+  </div>
+</div>
+
+<p>Walk in <strong style="color:#fb7185">x</strong> and the temperature drops, the density drops — the gradient <em>is</em> the direction. Walk in <strong style="color:#5cb8f0">z</strong> and the magnetic geometry changes: |B| varies, the curvature flips between good and bad. Walk in <strong style="color:#4ade80">y</strong> and... nothing. Same plasma, same field strength, same gradients. The flux surface is symmetric around its perpendicular contour.</p>
+
+<div class="viz">
+  <div class="viz-tag">Linear eigenmodes — do different k modes couple?</div>
+  <canvas id="c-modes" height="380"></canvas>
+  <div class="ctrl">
+    <button id="btn-y" class="on">show k_y modes</button>
+    <button id="btn-x">show k_x modes</button>
+  </div>
+</div>
+
+<p>Because y is the symmetry direction, <strong>different k_y modes evolve independently</strong> — solve each one in parallel, no coupling. This is the computational jackpot: a 3D problem becomes a stack of 2D problems indexed by k_y.</p>
+
+<p>In x, modes look superficially similar but they're <em>not</em> independent — the inhomogeneous background mixes them together. GENE still uses pseudo-spectral methods in x for taking derivatives, but the modes don't decouple, so it's not the same kind of win.</p>
+
+<div class="note">
+  <span class="note-label">The GENE recipe</span>
+  <p style="margin-bottom:0.6rem"><strong style="color:#4ade80">y</strong> → Fourier. Symmetric direction, modes decouple, embarrassingly parallel.</p>
+  <p style="margin-bottom:0.6rem"><strong style="color:#fb7185">x</strong> → real space (with pseudo-spectral derivatives). Inhomogeneous, modes don't decouple, but the radial domain is small in flux-tube simulations.</p>
+  <p style="margin-bottom:0"><strong style="color:#5cb8f0">z</strong> → real space along the field line. Geometry varies poloidally so a single k_z is meaningless; you need the full z-profile to capture how |B| and curvature change.</p>
+</div>
+
+<script>
+(function(){
+  const C = {
+    bg:'#0c0e13', surface:'#12151c', border:'#252a36',
+    text:'#b8bcc8', dim:'#6b7084', heading:'#e2e5ed',
+    accent:'#f0a050', blue:'#5cb8f0', green:'#4ade80', red:'#fb7185', purple:'#a388f0'
+  };
+  const F = "'DM Sans',sans-serif";
+  const M = "'IBM Plex Mono',monospace";
+
+  function init(id) {
+    const cv = document.getElementById(id);
+    if (!cv) return null;
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth;
+    const H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H + 'px';
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    ctx.scale(dpr, dpr);
+    return {c:cv, x:ctx, W, H};
+  }
+
+  // ── PANEL 1: x direction (radial) ──
+  // Show a heatmap with strong gradient in x. Walking right = colder.
+  (function(){
+    const s = init('c-x'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 30, padR = 30, padT = 20, padB = 50;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      // Heatmap: T(x) decreases with x
+      const cellW = plotW / 80;
+      const cellH = plotH;
+      for (let i = 0; i < 80; i++) {
+        const xFrac = i / 79;
+        const T = 1 - xFrac * 0.85; // hot → cold
+        const r = Math.floor(60 + T * 195);
+        const g = Math.floor(40 + T * 80);
+        const b = Math.floor(60 + (1-T) * 100);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(padL + i * cellW, padT, cellW + 0.5, cellH);
+      }
+
+      // Arrows showing two adjacent positions
+      const phase = (t * 0.5) % 1;
+      const x1Frac = 0.2 + 0.4 * phase;
+      const x2Frac = x1Frac + 0.15;
+      const x1 = padL + x1Frac * plotW;
+      const x2 = padL + x2Frac * plotW;
+      const yMid = padT + plotH / 2;
+
+      // Position 1
+      ctx.beginPath(); ctx.arc(x1, yMid, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = C.red; ctx.lineWidth = 2; ctx.stroke();
+
+      // Position 2
+      ctx.beginPath(); ctx.arc(x2, yMid, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = C.red; ctx.lineWidth = 2; ctx.stroke();
+
+      // Arrow between
+      ctx.beginPath();
+      ctx.moveTo(x1 + 8, yMid);
+      ctx.lineTo(x2 - 8, yMid);
+      ctx.strokeStyle = C.red; ctx.lineWidth = 2; ctx.stroke();
+      const ax = x2 - 8;
+      ctx.beginPath();
+      ctx.moveTo(ax, yMid);
+      ctx.lineTo(ax - 6, yMid - 4);
+      ctx.lineTo(ax - 6, yMid + 4);
+      ctx.closePath(); ctx.fillStyle = C.red; ctx.fill();
+
+      // Labels
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'left';
+      ctx.fillText('HOT (core)', padL, padT - 6);
+      ctx.textAlign = 'right';
+      ctx.fillText('COLD (edge)', W - padR, padT - 6);
+      ctx.textAlign = 'center';
+      ctx.fillText('x →', W / 2, H - 28);
+
+      // Temperature readouts
+      const T1 = 1 - x1Frac * 0.85;
+      const T2 = 1 - x2Frac * 0.85;
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      ctx.fillText(`T = ${(T1*5).toFixed(2)}`, x1, padT + plotH + 14);
+      ctx.fillStyle = C.red;
+      ctx.fillText(`T = ${(T2*5).toFixed(2)}`, x2, padT + plotH + 14);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 2: y direction (binormal) ──
+  // Background is uniform; walking right = same.
+  (function(){
+    const s = init('c-y'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 30, padR = 30, padT = 20, padB = 50;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      // Uniform background — same color everywhere
+      // Same hot color as the middle of the x panel for visual consistency
+      const T = 0.6;
+      const r = Math.floor(60 + T * 195);
+      const g = Math.floor(40 + T * 80);
+      const b = Math.floor(60 + (1-T) * 100);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(padL, padT, plotW, plotH);
+
+      // Subtle stripes to suggest the y direction (around the surface)
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 20; i++) {
+        const x = padL + i * plotW / 20;
+        ctx.beginPath();
+        ctx.moveTo(x, padT);
+        ctx.lineTo(x, padT + plotH);
+        ctx.stroke();
+      }
+
+      // Two positions, walking
+      const phase = (t * 0.5) % 1;
+      const y1Frac = 0.2 + 0.4 * phase;
+      const y2Frac = y1Frac + 0.15;
+      const y1 = padL + y1Frac * plotW;
+      const y2 = padL + y2Frac * plotW;
+      const yMid = padT + plotH / 2;
+
+      ctx.beginPath(); ctx.arc(y1, yMid, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.beginPath(); ctx.arc(y2, yMid, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(y1 + 8, yMid);
+      ctx.lineTo(y2 - 8, yMid);
+      ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.stroke();
+      const ax = y2 - 8;
+      ctx.beginPath();
+      ctx.moveTo(ax, yMid);
+      ctx.lineTo(ax - 6, yMid - 4);
+      ctx.lineTo(ax - 6, yMid + 4);
+      ctx.closePath(); ctx.fillStyle = C.green; ctx.fill();
+
+      // Labels
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'left';
+      ctx.fillText('around flux surface →', padL, padT - 6);
+      ctx.textAlign = 'right';
+      ctx.fillText('(periodic)', W - padR, padT - 6);
+      ctx.textAlign = 'center';
+      ctx.fillText('y →', W / 2, H - 28);
+
+      // Same T at both
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      ctx.fillText(`T = 3.00`, y1, padT + plotH + 14);
+      ctx.fillStyle = C.green;
+      ctx.fillText(`T = 3.00`, y2, padT + plotH + 14);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 3: z direction (along B) ──
+  // Show |B| varying along the field line — good/bad curvature.
+  (function(){
+    const s = init('c-z'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+
+    function draw() {
+      t += 0.012;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 30, padR = 30, padT = 25, padB = 55;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      // |B| profile: B = B0 / (1 + epsilon cos(theta))
+      // Plot as curve and as background gradient
+      const epsilon = 0.3;
+      const cellW = plotW / 100;
+      for (let i = 0; i < 100; i++) {
+        const zFrac = i / 99;
+        const theta = zFrac * Math.PI * 4; // two poloidal turns
+        const Bnorm = 1 / (1 + epsilon * Math.cos(theta));
+        const intensity = (Bnorm - 0.77) / 0.46;
+        const r = Math.floor(20 + intensity * 60);
+        const g = Math.floor(30 + intensity * 100);
+        const bl = Math.floor(50 + intensity * 150);
+        ctx.fillStyle = `rgb(${r},${g},${bl})`;
+        ctx.fillRect(padL + i * cellW, padT, cellW + 0.5, plotH);
+      }
+
+      // |B| curve overlaid
+      ctx.beginPath();
+      ctx.strokeStyle = C.blue;
+      ctx.lineWidth = 2;
+      for (let i = 0; i <= 100; i++) {
+        const zFrac = i / 100;
+        const theta = zFrac * Math.PI * 4;
+        const Bnorm = 1 / (1 + epsilon * Math.cos(theta));
+        const px = padL + zFrac * plotW;
+        const py = padT + plotH * 0.85 - (Bnorm - 0.77) / 0.46 * plotH * 0.5;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      // Two walking positions
+      const phase = (t * 0.4) % 1;
+      const z1Frac = 0.15 + 0.5 * phase;
+      const z2Frac = z1Frac + 0.12;
+      const z1 = padL + z1Frac * plotW;
+      const z2 = padL + z2Frac * plotW;
+
+      const theta1 = z1Frac * Math.PI * 4;
+      const theta2 = z2Frac * Math.PI * 4;
+      const B1 = 1 / (1 + epsilon * Math.cos(theta1));
+      const B2 = 1 / (1 + epsilon * Math.cos(theta2));
+
+      const y1 = padT + plotH * 0.85 - (B1 - 0.77) / 0.46 * plotH * 0.5;
+      const y2 = padT + plotH * 0.85 - (B2 - 0.77) / 0.46 * plotH * 0.5;
+
+      ctx.beginPath(); ctx.arc(z1, y1, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.beginPath(); ctx.arc(z2, y2, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.stroke();
+
+      // Curved arrow between
+      ctx.beginPath();
+      ctx.moveTo(z1 + 6, y1);
+      const cmx = (z1 + z2) / 2;
+      const cmy = (y1 + y2) / 2 - 12;
+      ctx.quadraticCurveTo(cmx, cmy, z2 - 6, y2);
+      ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.stroke();
+
+      // Labels
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'left';
+      ctx.fillText('high field side ←  along field line  → low field side', padL, padT - 8);
+      ctx.textAlign = 'center';
+      ctx.fillText('z (poloidal angle along B) →', W / 2, H - 30);
+
+      ctx.font = '500 10px ' + M;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      ctx.fillText(`|B| = ${B1.toFixed(2)}`, z1, padT + plotH + 14);
+      ctx.fillStyle = C.blue;
+      ctx.fillText(`|B| = ${B2.toFixed(2)}`, z2, padT + plotH + 14);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+  // ── PANEL 4: linear eigenmodes ──
+  // Show stacked sinusoids (k_y modes), each evolving independently.
+  // vs k_x modes which mix.
+  (function(){
+    const s = init('c-modes'); if (!s) return;
+    const ctx = s.x, W = s.W, H = s.H;
+    let t = 0;
+    let mode = 'y'; // 'y' or 'x'
+
+    document.getElementById('btn-y').addEventListener('click', () => {
+      mode = 'y';
+      document.getElementById('btn-y').classList.add('on');
+      document.getElementById('btn-x').classList.remove('on');
+    });
+    document.getElementById('btn-x').addEventListener('click', () => {
+      mode = 'x';
+      document.getElementById('btn-x').classList.add('on');
+      document.getElementById('btn-y').classList.remove('on');
+    });
+
+    function draw() {
+      t += 0.015;
+      ctx.clearRect(0, 0, W, H);
+
+      const padL = 70, padR = 30, padT = 30, padB = 30;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      const N_MODES = 4;
+      const rowH = plotH / N_MODES;
+      const ks = [1, 2, 3, 5];
+      const omegas = [0.7, 1.2, 1.6, 2.4];
+
+      // Background gradient for x-mode panel (to remind viewer of inhomogeneity)
+      if (mode === 'x') {
+        for (let i = 0; i < 80; i++) {
+          const xFrac = i / 79;
+          const intensity = 1 - xFrac * 0.5;
+          const r = Math.floor(20 + intensity * 30);
+          ctx.fillStyle = `rgba(${r}, 20, 30, 0.3)`;
+          ctx.fillRect(padL + i * plotW / 80, padT, plotW / 80 + 0.5, plotH);
+        }
+      }
+
+      // Title
+      ctx.font = '500 11px ' + F;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign = 'center';
+      const title = mode === 'y'
+        ? 'Modes in y · uniform background · independent evolution'
+        : 'Modes in x · gradient background · modes mix';
+      ctx.fillText(title, W / 2, padT - 12);
+
+      const accentColor = mode === 'y' ? C.green : C.red;
+
+      for (let m = 0; m < N_MODES; m++) {
+        const k = ks[m];
+        const omega = omegas[m];
+        const yMid = padT + rowH * (m + 0.5);
+
+        // Mode label on left
+        ctx.font = '500 11px ' + M;
+        ctx.fillStyle = accentColor;
+        ctx.textAlign = 'right';
+        ctx.fillText(`k${mode === 'y' ? '_y' : '_x'} = ${k}`, padL - 10, yMid + 4);
+
+        // Center axis line
+        ctx.strokeStyle = C.border;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(padL, yMid);
+        ctx.lineTo(padL + plotW, yMid);
+        ctx.stroke();
+
+        // The wave
+        ctx.beginPath();
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 1.8;
+        const amp = rowH * 0.32;
+
+        if (mode === 'y') {
+          // Pure sinusoid evolving with its own omega
+          for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW) * Math.PI * 2 * k - t * omega;
+            const y = yMid + amp * Math.sin(phase);
+            if (i === 0) ctx.moveTo(padL + i, y);
+            else ctx.lineTo(padL + i, y);
+          }
+        } else {
+          // k_x mode: amplitude varies with x (background mixing)
+          // Show distortion: wave changes shape across x
+          for (let i = 0; i <= plotW; i++) {
+            const xFrac = i / plotW;
+            // Mixing: this k_x has some component of higher k that grows with x
+            const localAmp = amp * (1 - xFrac * 0.3);
+            const localK = k * (1 + xFrac * 0.4); // wavelength shrinks with x
+            const phase = (i / plotW) * Math.PI * 2 * localK - t * omega
+                          + Math.sin(t * 0.3 + m) * 0.5; // phase wandering = coupling
+            const y = yMid + localAmp * Math.sin(phase);
+            // Add coupling from neighbor mode
+            const coupling = amp * 0.15 * Math.sin((i / plotW) * Math.PI * 2 * (k+1) - t * omegas[(m+1)%N_MODES] + m);
+            const yTotal = y + coupling;
+            if (i === 0) ctx.moveTo(padL + i, yTotal);
+            else ctx.lineTo(padL + i, yTotal);
+          }
+        }
+        ctx.stroke();
+      }
+
+      // Bottom annotation
+      ctx.font = '500 9px ' + M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign = 'center';
+      const note = mode === 'y'
+        ? 'each k_y has its own ω(k_y) — clean sinusoids, no coupling'
+        : 'background varies with x → modes distort and couple to neighbors';
+      ctx.fillText(note, W / 2, H - 8);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+
+})();
+</script>
+
+</body>
+</html>

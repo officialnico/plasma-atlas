@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ky and the binormal — why Fourier works</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #08080d; color: #e8e6e0; font-family: 'Fraunces', serif; }
+
+#c { position: fixed; inset: 0; }
+
+.panel {
+  position: fixed;
+  background: rgba(12, 12, 18, 0.88);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 16px 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  z-index: 10;
+}
+
+#title { top: 16px; left: 16px; max-width: 360px; }
+#title h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; margin-bottom: 6px; color: #fff; }
+#title p { font-size: 11px; color: #a8a59c; line-height: 1.55; }
+.kw { color: #d4a04a; font-weight: 600; }
+.kw-bin { color: #4a9d6e; font-weight: 600; }
+.kw-rad { color: #c44545; font-weight: 600; }
+
+#controls {
+  bottom: 16px; left: 16px; right: 16px;
+  max-width: 720px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.section-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px; letter-spacing: 0.18em; color: #d4a04a;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.slider-row { display: flex; align-items: center; gap: 14px; }
+.slider-row label { min-width: 120px; font-size: 11px; color: #d4cfc0; }
+.slider-row input[type=range] {
+  flex: 1; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: rgba(255,255,255,0.1); border-radius: 2px; outline: none;
+}
+.slider-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #d4a04a; cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(212, 160, 74, 0.2);
+}
+.slider-row input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #d4a04a; cursor: pointer; border: none;
+}
+.slider-row .val {
+  min-width: 70px; text-align: right;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: #4a9d6e; font-weight: 600;
+}
+
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+.toggle {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #e8e6e0; padding: 6px 12px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  cursor: pointer; transition: all 0.15s;
+}
+.toggle:hover { background: rgba(255,255,255,0.12); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+
+#explainer {
+  top: 16px; right: 16px; max-width: 320px;
+  font-family: 'Fraunces', serif; font-size: 13px; line-height: 1.6;
+  color: #d4cfc0;
+}
+#explainer .step {
+  color: #d4a04a; font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: 0.15em; margin-bottom: 8px;
+}
+#explainer h2 {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px;
+  color: #fff; margin-bottom: 6px; letter-spacing: -0.01em;
+}
+#explainer p { margin-bottom: 8px; }
+#explainer .nav { display: flex; gap: 8px; margin-top: 12px; }
+
+.tag-x { color: #ff6b6b; font-weight: 600; }
+.tag-y { color: #5fc28e; font-weight: 600; }
+.tag-z { color: #7badd6; font-weight: 600; }
+
+.formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: rgba(212, 160, 74, 0.08);
+  border-left: 2px solid #d4a04a;
+  padding: 8px 12px;
+  margin: 10px 0;
+  color: #f0e6d0;
+  border-radius: 2px;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="title" class="panel">
+  <h1>ky and the binormal</h1>
+  <p>The flux tube cross-section: <span class="kw-rad">x</span> radial, <span class="kw-bin">y</span> binormal. We're looking at one slice; the field line z pokes out of the screen. Adjust ky below to see Fourier modes in y.</p>
+</div>
+
+<div id="explainer" class="panel">
+  <div class="step" id="stepLabel">STEP 1 / 6</div>
+  <h2 id="stepTitle">The cross-section</h2>
+  <div id="stepText">This is the rectangular cross-section of the flux tube. The horizontal axis is <span class="tag-x">x (radial)</span>, vertical is <span class="tag-y">y (binormal)</span>. Equilibrium temperature/density vary across <span class="tag-x">x</span> — colder on the right, hotter on the left.</div>
+  <div class="nav">
+    <button class="toggle" id="prev">← prev</button>
+    <button class="toggle" id="next">next →</button>
+  </div>
+</div>
+
+<div id="controls" class="panel">
+  <div class="section-title">Fourier mode controls</div>
+
+  <div class="slider-row">
+    <label>k<sub>y</sub> (binormal)</label>
+    <input type="range" id="ky" min="0" max="8" step="0.1" value="2">
+    <div class="val" id="kyVal">2.0</div>
+  </div>
+
+  <div class="slider-row">
+    <label>k<sub>x</sub> (radial)</label>
+    <input type="range" id="kx" min="0" max="8" step="0.1" value="0">
+    <div class="val" id="kxVal">0.0</div>
+  </div>
+
+  <div class="slider-row">
+    <label>amplitude</label>
+    <input type="range" id="amp" min="0" max="1" step="0.02" value="0.7">
+    <div class="val" id="ampVal">0.70</div>
+  </div>
+
+  <div class="slider-row">
+    <label>animate phase</label>
+    <input type="range" id="omega" min="0" max="3" step="0.05" value="0">
+    <div class="val" id="omegaVal">0.0</div>
+  </div>
+
+  <div class="toggles">
+    <button class="toggle on" data-key="grid">grid</button>
+    <button class="toggle on" data-key="bgGrad">bg gradient (T₀)</button>
+    <button class="toggle" data-key="contours">contours</button>
+    <button class="toggle on" data-key="arrows">x,y arrows</button>
+    <button class="toggle" data-key="multi">show 3 modes</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// State
+const state = {
+  ky: 2.0, kx: 0.0, amp: 0.7, omega: 0.0,
+  grid: true, bgGrad: true, contours: false, arrows: true, multi: false,
+  time: 0
+};
+
+// Bind sliders
+['ky','kx','amp','omega'].forEach(key => {
+  const sl = document.getElementById(key);
+  const val = document.getElementById(key+'Val');
+  sl.addEventListener('input', () => {
+    state[key] = parseFloat(sl.value);
+    val.textContent = state[key].toFixed(key==='amp' ? 2 : 1);
+  });
+});
+
+document.querySelectorAll('.toggle[data-key]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.key;
+    state[k] = !state[k];
+    btn.classList.toggle('on', state[k]);
+  });
+});
+
+// Color helpers
+function lerp(a, b, t) { return a + (b - a) * t; }
+function divergingColor(v) {
+  // v in [-1, 1]; red for positive, blue for negative
+  const t = Math.max(-1, Math.min(1, v));
+  if (t >= 0) {
+    // white -> warm red
+    const r = lerp(245, 230, t);
+    const g = lerp(240, 80, t);
+    const b = lerp(225, 80, t);
+    return `rgb(${r|0},${g|0},${b|0})`;
+  } else {
+    const r = lerp(245, 80, -t);
+    const g = lerp(240, 130, -t);
+    const b = lerp(225, 210, -t);
+    return `rgb(${r|0},${g|0},${b|0})`;
+  }
+}
+
+// Layout: cross-section box centered, leaving room for explainer/title
+function getBoxRect() {
+  const padTop = 90, padBottom = 240, padLeft = 80, padRight = 360;
+  const availW = W - padLeft - padRight;
+  const availH = H - padTop - padBottom;
+  const size = Math.min(availW, availH * 1.6, 720);
+  const w = size, h = size * 0.62;
+  const x0 = padLeft + (availW - w) / 2;
+  const y0 = padTop + (availH - h) / 2;
+  return { x0, y0, w, h };
+}
+
+function draw() {
+  state.time += 0.016;
+  ctx.clearRect(0, 0, W, H);
+
+  const { x0, y0, w, h } = getBoxRect();
+
+  // Background equilibrium gradient (T0 varies across x — only across x!)
+  if (state.bgGrad) {
+    const grad = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+    grad.addColorStop(0, 'rgba(220, 70, 70, 0.18)');     // hot side
+    grad.addColorStop(1, 'rgba(70, 130, 220, 0.18)');    // cold side
+    ctx.fillStyle = grad;
+    ctx.fillRect(x0, y0, w, h);
+  } else {
+    ctx.fillStyle = 'rgba(20, 20, 28, 0.5)';
+    ctx.fillRect(x0, y0, w, h);
+  }
+
+  // Sample the perturbation field f(x, y, t) and draw as colored cells
+  const Nx = 80, Ny = 50;
+  const cellW = w / Nx, cellH = h / Ny;
+
+  function sampleField(xi, yi) {
+    // xi in [0,1] across x, yi in [0,1] across y
+    const phase = state.omega * state.time;
+    let v = state.amp * Math.cos(state.ky * yi * 2 * Math.PI - phase) * Math.cos(state.kx * xi * 2 * Math.PI);
+    if (state.multi) {
+      // add ky=4 and ky=1 modes
+      v += 0.3 * state.amp * Math.cos(4 * yi * 2 * Math.PI - phase * 1.2);
+      v += 0.4 * state.amp * Math.cos(1 * yi * 2 * Math.PI - phase * 0.6);
+      v *= 0.6;
+    }
+    return v;
+  }
+
+  for (let i = 0; i < Nx; i++) {
+    for (let j = 0; j < Ny; j++) {
+      const xi = (i + 0.5) / Nx;
+      const yi = (j + 0.5) / Ny;
+      const v = sampleField(xi, yi);
+      ctx.fillStyle = divergingColor(v);
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(x0 + i * cellW, y0 + j * cellH, cellW + 0.5, cellH + 0.5);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Contour lines
+  if (state.contours) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 0.8;
+    const levels = [-0.6, -0.3, 0, 0.3, 0.6];
+    for (const L of levels) {
+      ctx.beginPath();
+      // sample on finer grid and draw approximate contours
+      const N = 200, M = 120;
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < M; j++) {
+          const xi = i/N, yi = j/M;
+          const xi2 = (i+1)/N;
+          const v1 = sampleField(xi, yi);
+          const v2 = sampleField(xi2, yi);
+          if ((v1 - L) * (v2 - L) < 0) {
+            const px = x0 + xi * w + (w/N) * 0.5;
+            const py = y0 + yi * h;
+            ctx.moveTo(px, py);
+            ctx.lineTo(px, py + h/M);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Box outline
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x0, y0, w, h);
+
+  // Grid
+  if (state.grid) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i < 16; i++) {
+      const x = x0 + (i/16) * w;
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + h); ctx.stroke();
+    }
+    for (let j = 1; j < 10; j++) {
+      const y = y0 + (j/10) * h;
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + w, y); ctx.stroke();
+    }
+  }
+
+  // Arrows for x and y
+  if (state.arrows) {
+    drawArrow(x0 - 30, y0 + h + 20, x0 + 80, y0 + h + 20, '#ff6b6b', 'x (radial)');
+    drawArrow(x0 - 30, y0 + h + 20, x0 - 30, y0 + h - 60, '#5fc28e', 'y (binormal)');
+
+    // little label about z
+    ctx.fillStyle = '#7badd6';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('z out of screen ⊙', x0 + w - 130, y0 - 12);
+  }
+
+  // axis tick labels — show the wavelength of ky
+  if (state.ky > 0.05) {
+    const lambda = 1 / state.ky; // fraction of box height
+    const lambdaPx = lambda * h;
+    ctx.strokeStyle = '#5fc28e';
+    ctx.lineWidth = 1;
+    const lx = x0 + w + 14;
+    const ly = y0 + 20;
+    ctx.beginPath();
+    ctx.moveTo(lx, ly); ctx.lineTo(lx, ly + lambdaPx);
+    ctx.stroke();
+    // tick marks
+    ctx.beginPath();
+    ctx.moveTo(lx - 4, ly); ctx.lineTo(lx + 4, ly);
+    ctx.moveTo(lx - 4, ly + lambdaPx); ctx.lineTo(lx + 4, ly + lambdaPx);
+    ctx.stroke();
+    ctx.fillStyle = '#5fc28e';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText(`λy=${lambda.toFixed(2)}`, lx + 8, ly + lambdaPx/2);
+  }
+
+  // T0 label
+  if (state.bgGrad) {
+    ctx.fillStyle = 'rgba(220, 130, 130, 0.7)';
+    ctx.font = 'italic 10px Fraunces';
+    ctx.fillText('hot (T₀ high)', x0 + 6, y0 - 8);
+    ctx.fillStyle = 'rgba(130, 170, 220, 0.7)';
+    ctx.fillText('cold (T₀ low)', x0 + w - 80, y0 - 8);
+    ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
+    ctx.font = 'italic 10px Fraunces';
+    ctx.fillText('— equilibrium varies in x, NOT in y —', x0 + w/2 - 100, y0 + h + 50);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function drawArrow(x1, y1, x2, y2, color, label) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  // arrowhead
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const ah = 8;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - ah * Math.cos(angle - 0.4), y2 - ah * Math.sin(angle - 0.4));
+  ctx.lineTo(x2 - ah * Math.cos(angle + 0.4), y2 - ah * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = 'bold 11px JetBrains Mono';
+  ctx.fillText(label, x2 + 6, y2 + 4);
+}
+
+// Steps
+const steps = [
+  {
+    t: 'The cross-section',
+    h: `This is the rectangular cross-section of the flux tube. Horizontal: <span class="tag-x">x (radial)</span>. Vertical: <span class="tag-y">y (binormal)</span>. <span class="tag-z">z</span> pokes out of the screen.<br><br>The red→blue background is the equilibrium temperature: <em>hot on the left, cold on the right</em>. T₀ varies in x but is constant in y. That's the asymmetry.`
+  },
+  {
+    t: 'A ky mode is a wave in y',
+    h: `The colored pattern is a single Fourier mode — a sine wave in y. Drag the <span class="kw-bin">ky</span> slider. Watch the wavelength shrink as ky grows.<br><br>This is what GENE solves: instead of representing fluctuations as values on a y-grid, it represents them as a sum of sine waves with different ky.`
+  },
+  {
+    t: 'Why y and not x',
+    h: `Try cranking <span class="kw-rad">kx</span>. You can have kx modes too — but here's the thing: because T₀ <em>varies</em> across x, a kx mode at one x sees different physics than at another x. Modes with different kx <em>couple</em>.<br><br>In y, T₀ is constant. A ky=2 mode stays a ky=2 mode forever. That's why GENE uses Fourier in y but a real-space grid in x.`
+  },
+  {
+    t: 'Translational symmetry',
+    h: `Slide the box up or down in y mentally — the equilibrium looks identical. That's translational symmetry in y.<br><br><div class="formula">symmetry → conserved Fourier mode<br>(Noether's theorem, basically)</div>Each ky evolves independently of every other ky at the linear level. That decoupling is the entire computational win.`
+  },
+  {
+    t: 'Phase velocity',
+    h: `Turn up <span class="kw">animate phase</span> — the mode drifts. That drift is the diamagnetic / E×B velocity in the y direction. Eddies physically <em>move</em> in the binormal direction.<br><br>This is also where the famous "drift waves" get their name: they propagate in y at the diamagnetic drift speed.`
+  },
+  {
+    t: 'Real turbulence = sum of modes',
+    h: `Toggle <span class="kw">show 3 modes</span>. Real fluctuations are a superposition of many ky modes evolving together (with weak nonlinear coupling).<br><br>GENE solves the linear evolution exactly per ky, then computes the nonlinear coupling between modes. Turning on the contour view shows the level sets — those eddies have characteristic widths in y set by which ky dominates.`
+  }
+];
+
+let stepI = 0;
+function setStep(i) {
+  stepI = (i + steps.length) % steps.length;
+  document.getElementById('stepLabel').textContent = `STEP ${stepI+1} / ${steps.length}`;
+  document.getElementById('stepTitle').textContent = steps[stepI].t;
+  document.getElementById('stepText').innerHTML = steps[stepI].h;
+
+  // Auto-set parameters per step for emphasis
+  if (stepI === 0) { setSlider('ky', 0); setSlider('kx', 0); setSlider('amp', 0); setSlider('omega', 0); }
+  if (stepI === 1) { setSlider('ky', 2); setSlider('kx', 0); setSlider('amp', 0.7); setSlider('omega', 0); state.multi = false; updateToggle('multi'); }
+  if (stepI === 2) { setSlider('ky', 2); setSlider('kx', 2); setSlider('amp', 0.7); setSlider('omega', 0); }
+  if (stepI === 3) { setSlider('ky', 3); setSlider('kx', 0); setSlider('amp', 0.7); setSlider('omega', 0); }
+  if (stepI === 4) { setSlider('ky', 3); setSlider('kx', 0); setSlider('amp', 0.7); setSlider('omega', 1.2); }
+  if (stepI === 5) { setSlider('ky', 2); setSlider('kx', 0); setSlider('amp', 0.7); setSlider('omega', 0.8); state.multi = true; updateToggle('multi'); state.contours = true; updateToggle('contours'); }
+}
+function setSlider(key, value) {
+  document.getElementById(key).value = value;
+  document.getElementById(key+'Val').textContent = value.toFixed(key==='amp' ? 2 : 1);
+  state[key] = value;
+}
+function updateToggle(key) {
+  const btn = document.querySelector(`[data-key="${key}"]`);
+  if (btn) btn.classList.toggle('on', state[key]);
+}
+document.getElementById('next').addEventListener('click', () => setStep(stepI+1));
+document.getElementById('prev').addEventListener('click', () => setStep(stepI-1));
+
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,733 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fusion walkthrough</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+  yellow: "#fff176",
+  warm: "#ff8a65",
+  cool: "#4dd0e1",
+  pink: "#f48fb1",
+};
+
+// ---- Geometry helpers ----
+function fluxSurface(psiNorm, theta) {
+  const r0 = 2.0, kappa = 1.6, delta = 0.35, shaf = 0.25;
+  const a = 0.7 * psiNorm;
+  const shift = shaf * (1 - psiNorm * psiNorm);
+  return {
+    R: r0 + shift + a * Math.cos(theta + delta * Math.sin(theta)),
+    Z: kappa * a * Math.sin(theta),
+  };
+}
+
+function computeGrads(psi, theta) {
+  const eps = 0.005;
+  const pp = fluxSurface(psi + eps, theta), pm = fluxSurface(psi - eps, theta);
+  const tp = fluxSurface(psi, theta + eps), tm = fluxSurface(psi, theta - eps);
+  const dRdpsi = (pp.R - pm.R) / (2 * eps), dZdpsi = (pp.Z - pm.Z) / (2 * eps);
+  const dRdth = (tp.R - tm.R) / (2 * eps), dZdth = (tp.Z - tm.Z) / (2 * eps);
+  const gxx = dRdpsi * dRdpsi + dZdpsi * dZdpsi;
+  const gyy = dRdth * dRdth + dZdth * dZdth;
+  const gxy = dRdpsi * dRdth + dZdpsi * dZdth;
+  const J = Math.abs(dRdpsi * dZdth - dZdpsi * dRdth);
+  const gpMag = Math.sqrt(dRdpsi * dRdpsi + dZdpsi * dZdpsi);
+  return { dRdpsi, dZdpsi, dRdth, dZdth, gxx, gyy, gxy, J, gpMag };
+}
+
+function psiValue(R, Z) {
+  const r0 = 2.15, kappa = 1.6;
+  const dR = R - r0, dZ = Z / kappa;
+  return Math.min(1, Math.sqrt(dR * dR + dZ * dZ) / 0.7);
+}
+
+// ---- Chapter definitions ----
+const CHAPTERS = [
+  {
+    id: "flux",
+    title: "1. Flux Surfaces",
+    subtitle: "the nested contours inside a tokamak",
+    panels: [
+      {
+        text: "Inside a tokamak, the magnetic field creates nested surfaces called flux surfaces. Each one is labeled by a value ψ — like elevation lines on a map.",
+        draw: "flux-intro",
+      },
+      {
+        text: "ψ = 0 at the magnetic axis (center). ψ = 1 at the edge. The plasma \"lives\" on these surfaces — particles spiral around them thousands of times per second.",
+        draw: "flux-labeled",
+      },
+      {
+        text: "The D-shape comes from shaping coils. Notice the surfaces aren't evenly spaced — they're compressed on the outboard side (right) and spread apart on the inboard side (left).",
+        draw: "flux-spacing",
+      },
+    ],
+  },
+  {
+    id: "pipeline",
+    title: "2. CHEASE → GENE",
+    subtitle: "how geometry gets communicated",
+    panels: [
+      {
+        text: "CHEASE solves the equilibrium — it figures out where these flux surfaces sit in (R,Z) space. It writes the result as a 2D grid of ψ values: the eqdsk file.",
+        draw: "pipeline-chease",
+      },
+      {
+        text: "GENE simulates turbulence on a thin flux tube at ONE surface. It asks: \"give me the geometry at ψ = 0.6.\" An interface code reads the eqdsk and extracts what GENE needs.",
+        draw: "pipeline-extract",
+      },
+      {
+        text: "GENE receives 1D arrays — metric coefficients and the Jacobian as functions of θ (angle around the surface). These encode ALL the geometry GENE needs. No 2D map, no surface shapes — just curves.",
+        draw: "pipeline-output",
+      },
+    ],
+  },
+  {
+    id: "gradient",
+    title: "3. The Gradient",
+    subtitle: "\"which way is uphill and how steep\"",
+    panels: [
+      {
+        text: "Think of ψ(R,Z) as a topographic map. Each flux surface is a contour line — every point on it has the same \"elevation\" ψ. The center is the peak, the edge is sea level.",
+        draw: "topo-map",
+      },
+      {
+        text: "The gradient ∇ψ is an arrow pointing uphill — perpendicular to the contour lines, toward higher ψ. Its length tells you how steep the slope is. Steep = contours close together.",
+        draw: "topo-gradient",
+      },
+      {
+        text: "∇ψ = (∂ψ/∂R, ∂ψ/∂Z). Two numbers: how fast ψ changes in R, and how fast it changes in Z. Pack them into a vector — that's the gradient. It points across flux surfaces (radially).",
+        draw: "gradient-formula",
+      },
+    ],
+  },
+  {
+    id: "parallelogram",
+    title: "4. The Parallelogram",
+    subtitle: "what a coordinate step looks like in real space",
+    panels: [
+      {
+        text: "Take a small step in ψ (radially, across surfaces) and a small step in θ (poloidally, along the surface). In nice rectangular coordinates these would form a rectangle.",
+        draw: "para-rect",
+      },
+      {
+        text: "But flux coordinates aren't rectangular. The ψ and θ directions aren't perpendicular everywhere, and the step sizes map to different real distances at different locations. So the \"rectangle\" becomes a parallelogram.",
+        draw: "para-skewed",
+      },
+      {
+        text: "The metric coefficients describe this parallelogram's shape. g_xx = how long the ψ side is (squared). g_yy = how long the θ side is (squared). g_xy = how tilted the two sides are relative to each other.",
+        draw: "para-labeled",
+      },
+      {
+        text: "Drag θ to watch the parallelogram change as you move around the surface. At the outboard midplane it's nearly rectangular. At other angles it skews and stretches.",
+        draw: "para-interactive",
+      },
+    ],
+  },
+  {
+    id: "dotproduct",
+    title: "5. The Dot Product",
+    subtitle: "\"how much do two vectors overlap\"",
+    panels: [
+      {
+        text: "The dot product takes two vectors and returns a single number. If a = (a₁, a₂) and b = (b₁, b₂), then a · b = a₁b₁ + a₂b₂. Multiply matching parts, add up.",
+        draw: "dot-basic",
+      },
+      {
+        text: "What the number means: if both vectors point the same direction → large positive. Perpendicular → zero. Opposite directions → large negative. It measures overlap.",
+        draw: "dot-meaning",
+      },
+      {
+        text: "The metric coefficients ARE dot products.\n\ng_xx = ∇ψ · ∇ψ  (length² of radial direction)\ng_yy = ∇θ · ∇θ  (length² of poloidal direction)\ng_xy = ∇ψ · ∇θ  (overlap = skew of grid)",
+        draw: "dot-metrics",
+      },
+    ],
+  },
+  {
+    id: "jacobian",
+    title: "6. The Jacobian",
+    subtitle: "the area of that same parallelogram",
+    panels: [
+      {
+        text: "The Jacobian J is the area of the parallelogram formed by the ψ and θ steps. Same shape the metric coefficients describe — but J just extracts the area.",
+        draw: "jac-area",
+      },
+      {
+        text: "J = √(g_xx · g_yy − g_xy²). The area comes from the metric coefficients — side lengths and angle determine area. The g's contain strictly more info than J alone.",
+        draw: "jac-formula",
+      },
+      {
+        text: "GENE uses g's for derivatives (distances and directions matter). GENE uses J for integrals (only area matters). Together they let GENE do all the math it needs on a curved flux tube.",
+        draw: "jac-usage",
+      },
+      {
+        text: "Sweep θ to see everything together — the parallelogram changing shape, the metric coefficients updating, and J (area) varying. This is the complete picture.",
+        draw: "jac-sweep",
+      },
+    ],
+  },
+];
+
+// Count total panels
+const allPanels = [];
+CHAPTERS.forEach((ch, ci) => {
+  ch.panels.forEach((p, pi) => {
+    allPanels.push({ chapter: ci, panel: pi, ...p, chapterData: ch });
+  });
+});
+
+function FusionWalkthrough() {
+  const [idx, setIdx] = useState(0);
+  const [anim, setAnim] = useState(0);
+  const [theta, setTheta] = useState(0.3);
+  const [draggingTheta, setDraggingTheta] = useState(false);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const camRef = useRef({ cx: 2.1, cy: 0.0, zoom: 400 });
+  const containerRef = useRef(null);
+  const touchRef = useRef({ dragging: false, pinching: false, lastX: 0, lastY: 0, dist: 0 });
+
+  const current = allPanels[idx];
+  const chosenPsi = 0.6;
+
+  // Animation
+  useEffect(() => {
+    const start = Date.now();
+    const tick = () => {
+      const t = (Date.now() - start) / 1000;
+      setAnim(t);
+      if (!draggingTheta && (current.draw === "jac-sweep" || current.draw === "pipeline-output")) {
+        setTheta((t * 0.5) % (Math.PI * 2));
+      }
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [idx, draggingTheta]);
+
+  // Reset camera per chapter
+  useEffect(() => {
+    const ch = current.chapterData.id;
+    if (ch === "flux" || ch === "pipeline") {
+      camRef.current = { cx: 2.1, cy: 0.0, zoom: 400 };
+    } else if (ch === "gradient") {
+      camRef.current = { cx: 2.1, cy: 0.0, zoom: 400 };
+    } else if (ch === "parallelogram" || ch === "dotproduct" || ch === "jacobian") {
+      camRef.current = { cx: 2.25, cy: 0.15, zoom: 500 };
+    }
+  }, [current.chapterData.id]);
+
+  // Touch/mouse handlers
+  const handleTouchStart = useCallback((e) => {
+    e.preventDefault();
+    const t = touchRef.current;
+    if (e.touches.length === 1) {
+      t.dragging = true; t.pinching = false;
+      t.lastX = e.touches[0].clientX; t.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      t.dragging = false; t.pinching = true;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      t.dist = Math.sqrt(dx * dx + dy * dy);
+      t.lastX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      t.lastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    e.preventDefault();
+    const t = touchRef.current, cam = camRef.current, canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const sc = canvas.width / rect.width;
+    if (e.touches.length === 1 && t.dragging && !t.pinching) {
+      cam.cx -= ((e.touches[0].clientX - t.lastX) * sc) / cam.zoom;
+      cam.cy += ((e.touches[0].clientY - t.lastY) * sc) / cam.zoom;
+      t.lastX = e.touches[0].clientX; t.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2 && t.pinching) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const nd = Math.sqrt(dx * dx + dy * dy);
+      cam.zoom = Math.max(150, Math.min(4000, cam.zoom * (nd / t.dist)));
+      t.dist = nd;
+      const cx2 = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy2 = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      cam.cx -= ((cx2 - t.lastX) * sc) / cam.zoom;
+      cam.cy += ((cy2 - t.lastY) * sc) / cam.zoom;
+      t.lastX = cx2; t.lastY = cy2;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    e.preventDefault();
+    if (e.touches.length === 0) { touchRef.current.dragging = false; touchRef.current.pinching = false; }
+    else if (e.touches.length === 1) {
+      touchRef.current.pinching = false; touchRef.current.dragging = true;
+      touchRef.current.lastX = e.touches[0].clientX; touchRef.current.lastY = e.touches[0].clientY;
+    }
+  }, []);
+
+  const handleWheel = useCallback((e) => {
+    e.preventDefault();
+    camRef.current.zoom = Math.max(150, Math.min(4000, camRef.current.zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+  }, []);
+
+  const handleMouseDown = useCallback((e) => { touchRef.current.dragging = true; touchRef.current.lastX = e.clientX; touchRef.current.lastY = e.clientY; }, []);
+  const handleMouseMove = useCallback((e) => {
+    const t = touchRef.current, cam = camRef.current, canvas = canvasRef.current;
+    if (!t.dragging || !canvas) return;
+    const rect = canvas.getBoundingClientRect(); const sc = canvas.width / rect.width;
+    cam.cx -= ((e.clientX - t.lastX) * sc) / cam.zoom;
+    cam.cy += ((e.clientY - t.lastY) * sc) / cam.zoom;
+    t.lastX = e.clientX; t.lastY = e.clientY;
+  }, []);
+  const handleMouseUp = useCallback(() => { touchRef.current.dragging = false; }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const o = { passive: false };
+    el.addEventListener("touchstart", handleTouchStart, o);
+    el.addEventListener("touchmove", handleTouchMove, o);
+    el.addEventListener("touchend", handleTouchEnd, o);
+    el.addEventListener("wheel", handleWheel, o);
+    return () => { el.removeEventListener("touchstart", handleTouchStart); el.removeEventListener("touchmove", handleTouchMove); el.removeEventListener("touchend", handleTouchEnd); el.removeEventListener("wheel", handleWheel); };
+  }, []);
+
+  // ---- DRAWING ----
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const cam = camRef.current;
+    const toX = (R) => W / 2 + (R - cam.cx) * cam.zoom;
+    const toY = (Z) => H / 2 - (Z - cam.cy) * cam.zoom;
+    const fs = (base) => Math.max(8, Math.min(base, cam.zoom / 40));
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const nTh = 200;
+    const drawId = current.draw;
+
+    // Helper: draw flux surfaces
+    const drawSurfaces = (opts = {}) => {
+      const { highlightPsi, showLabels, showSpacing, dimmed } = opts;
+      for (let si = 1; si <= 8; si++) {
+        const psi = si / 8;
+        const isHL = highlightPsi && Math.abs(psi - highlightPsi) < 0.08;
+        ctx.beginPath();
+        for (let j = 0; j <= nTh; j++) {
+          const th = (j / nTh) * 2 * Math.PI;
+          const { R, Z } = fluxSurface(psi, th);
+          if (j === 0) ctx.moveTo(toX(R), toY(Z));
+          else ctx.lineTo(toX(R), toY(Z));
+        }
+        ctx.closePath();
+        if (isHL) {
+          ctx.strokeStyle = C.accent; ctx.lineWidth = 3;
+          ctx.shadowColor = C.accent; ctx.shadowBlur = 12;
+        } else {
+          const alpha = dimmed ? "30" : "60";
+          ctx.strokeStyle = C.fluxBright ? "#4a90d9" + alpha : C.accent + alpha;
+          ctx.lineWidth = 1; ctx.shadowBlur = 0;
+        }
+        ctx.stroke(); ctx.shadowBlur = 0;
+
+        if (showLabels && si % 2 === 0) {
+          const { R: lR } = fluxSurface(psi, 0);
+          ctx.font = fs(11) + "px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = C.textDim;
+          ctx.fillText(`ψ=${psi.toFixed(1)}`, toX(lR) + 5, toY(0) - 4);
+        }
+      }
+      // Axis
+      const { R: axR, Z: axZ } = fluxSurface(0, 0);
+      ctx.beginPath(); ctx.arc(toX(axR), toY(axZ), 3, 0, Math.PI * 2);
+      ctx.fillStyle = C.textDim; ctx.fill();
+    };
+
+    // Helper: draw gradient arrows on chosen surface
+    const drawGradients = (psi, nArr, showLabels) => {
+      for (let k = 0; k < nArr; k++) {
+        const th = (k / nArr) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(psi, th);
+        const g = computeGrads(psi, th);
+        const cx2 = toX(R), cy2 = toY(Z);
+        const mag = g.gpMag;
+        const len = Math.min(40, cam.zoom * 0.04);
+        const ax = (g.dRdpsi / mag) * len, ay = -(g.dZdpsi / mag) * len;
+
+        ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(cx2 + ax, cy2 + ay);
+        ctx.strokeStyle = C.green; ctx.lineWidth = 2.5; ctx.stroke();
+        const a1 = Math.atan2(ay, ax);
+        ctx.beginPath();
+        ctx.moveTo(cx2 + ax, cy2 + ay);
+        ctx.lineTo(cx2 + ax - 8 * Math.cos(a1 - 0.35), cy2 + ay - 8 * Math.sin(a1 - 0.35));
+        ctx.moveTo(cx2 + ax, cy2 + ay);
+        ctx.lineTo(cx2 + ax - 8 * Math.cos(a1 + 0.35), cy2 + ay - 8 * Math.sin(a1 + 0.35));
+        ctx.stroke();
+
+        ctx.beginPath(); ctx.arc(cx2, cy2, 3, 0, Math.PI * 2);
+        ctx.fillStyle = C.highlight; ctx.fill();
+      }
+      if (showLabels) {
+        ctx.font = "bold " + fs(11) + "px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.green;
+        const { R: lR, Z: lZ } = fluxSurface(psi, 0.2);
+        ctx.fillText("∇ψ", toX(lR) + 30, toY(lZ) - 15);
+      }
+    };
+
+    // Helper: draw parallelogram at theta
+    const drawParallelogram = (psi, th, opts = {}) => {
+      const { showLabels, showArea, scale: pScale } = opts;
+      const { R, Z } = fluxSurface(psi, th);
+      const g = computeGrads(psi, th);
+      const cx2 = toX(R), cy2 = toY(Z);
+      const sc = (pScale || 0.1) * cam.zoom / 400;
+
+      const px = g.dRdpsi * sc * cam.zoom * 0.25;
+      const py = -g.dZdpsi * sc * cam.zoom * 0.25;
+      const qx = g.dRdth * sc * cam.zoom * 0.25;
+      const qy = -g.dZdth * sc * cam.zoom * 0.25;
+
+      // Fill
+      ctx.beginPath();
+      ctx.moveTo(cx2, cy2); ctx.lineTo(cx2 + px, cy2 + py);
+      ctx.lineTo(cx2 + px + qx, cy2 + py + qy); ctx.lineTo(cx2 + qx, cy2 + qy);
+      ctx.closePath();
+      ctx.fillStyle = showArea ? C.purple + "45" : C.purple + "25";
+      ctx.fill();
+      ctx.strokeStyle = C.purple; ctx.lineWidth = 1.5; ctx.stroke();
+
+      // ψ side
+      ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(cx2 + px, cy2 + py);
+      ctx.strokeStyle = C.green; ctx.lineWidth = 3; ctx.stroke();
+
+      // θ side
+      ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(cx2 + qx, cy2 + qy);
+      ctx.strokeStyle = C.orange; ctx.lineWidth = 3; ctx.stroke();
+
+      // Point
+      ctx.beginPath(); ctx.arc(cx2, cy2, 5, 0, Math.PI * 2);
+      ctx.fillStyle = C.highlight; ctx.shadowColor = C.highlight; ctx.shadowBlur = 10; ctx.fill(); ctx.shadowBlur = 0;
+
+      if (showLabels) {
+        const f = fs(10);
+        ctx.font = f + "px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.green;
+        ctx.fillText(`g_xx=${g.gxx.toFixed(3)}`, cx2 + px + 5, cy2 + py - 5);
+        ctx.fillStyle = C.orange;
+        ctx.fillText(`g_yy=${g.gyy.toFixed(3)}`, cx2 + qx + 5, cy2 + qy + 14);
+        ctx.fillStyle = C.yellow;
+        ctx.fillText(`g_xy=${g.gxy.toFixed(3)}`, cx2 + (px + qx) / 2 + 8, cy2 + (py + qy) / 2);
+      }
+      if (showArea) {
+        ctx.font = "bold " + fs(13) + "px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.purple;
+        ctx.textAlign = "center";
+        ctx.fillText(`J=${g.J.toFixed(3)}`, cx2 + (px + qx) / 2, cy2 + (py + qy) / 2 - 2);
+        ctx.font = fs(9) + "px 'IBM Plex Mono', monospace";
+        ctx.fillText("(area)", cx2 + (px + qx) / 2, cy2 + (py + qy) / 2 + 12);
+        ctx.textAlign = "left";
+      }
+      return g;
+    };
+
+    // ---- Draw per panel ----
+    if (drawId === "flux-intro") {
+      drawSurfaces({ showLabels: false });
+    } else if (drawId === "flux-labeled") {
+      drawSurfaces({ showLabels: true });
+    } else if (drawId === "flux-spacing") {
+      drawSurfaces({ showLabels: true });
+      // Spacing arrows
+      const { R: r1 } = fluxSurface(0.5, 0), { R: r2 } = fluxSurface(0.625, 0);
+      const { R: r3 } = fluxSurface(0.5, Math.PI), { R: r4 } = fluxSurface(0.625, Math.PI);
+      // Outboard
+      ctx.beginPath(); ctx.moveTo(toX(r1), toY(0)); ctx.lineTo(toX(r2), toY(0));
+      ctx.strokeStyle = C.warm; ctx.lineWidth = 3; ctx.stroke();
+      ctx.font = fs(10) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.warm; ctx.fillText("compressed", toX(r1) + 5, toY(0) - 10);
+      // Inboard
+      ctx.beginPath(); ctx.moveTo(toX(r3), toY(0)); ctx.lineTo(toX(r4), toY(0));
+      ctx.strokeStyle = C.cool; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = C.cool; ctx.fillText("spread out", toX(r4) - 50, toY(0) - 10);
+    } else if (drawId === "pipeline-chease") {
+      // Show psi grid
+      const nG = 20, Rm = 0.95, RX = 3.15, Zm = -1.1, ZX = 1.1;
+      for (let i = 0; i < nG; i++) for (let j = 0; j < nG; j++) {
+        const R = Rm + (i + 0.5) * (RX - Rm) / nG, Z2 = Zm + (j + 0.5) * (ZX - Zm) / nG;
+        const psi = psiValue(R, Z2);
+        if (psi > 1.05) continue;
+        const t = Math.min(1, psi);
+        ctx.fillStyle = `rgba(${10 + 60 * t},${20 + 70 * (1 - t)},${80 + 140 * (1 - t)},0.5)`;
+        const s = cam.zoom * (RX - Rm) / nG;
+        ctx.fillRect(toX(Rm + i * (RX - Rm) / nG), toY(Zm + (j + 1) * (ZX - Zm) / nG), s, s);
+      }
+      drawSurfaces({ showLabels: false, dimmed: false });
+      ctx.font = "bold " + fs(12) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.yellow;
+      ctx.fillText("ψ(R,Z) grid → eqdsk file", toX(1.3), toY(0.9));
+    } else if (drawId === "pipeline-extract") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      ctx.font = "bold " + fs(12) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.accent;
+      const { R: lR } = fluxSurface(chosenPsi, 0.3);
+      ctx.fillText("extract geometry here", toX(lR) + 10, toY(0.3));
+    } else if (drawId === "pipeline-output") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      const { R: sR, Z: sZ } = fluxSurface(chosenPsi, theta);
+      ctx.beginPath(); ctx.arc(toX(sR), toY(sZ), 6, 0, Math.PI * 2);
+      ctx.fillStyle = C.highlight; ctx.shadowColor = C.highlight; ctx.shadowBlur = 10; ctx.fill(); ctx.shadowBlur = 0;
+      // Trail
+      ctx.beginPath();
+      for (let i = 0; i < 30; i++) {
+        const th2 = theta - i * 0.03;
+        const { R: tR, Z: tZ } = fluxSurface(chosenPsi, th2);
+        if (i === 0) ctx.moveTo(toX(tR), toY(tZ)); else ctx.lineTo(toX(tR), toY(tZ));
+      }
+      ctx.strokeStyle = C.highlight + "50"; ctx.lineWidth = 3; ctx.stroke();
+    } else if (drawId === "topo-map") {
+      // Show psi as topo with contours
+      drawSurfaces({ showLabels: true });
+      ctx.font = fs(10) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      ctx.fillText("contour lines of ψ", toX(2.5), toY(0.9));
+      ctx.fillText("= topographic map", toX(2.5), toY(0.8));
+    } else if (drawId === "topo-gradient" || drawId === "gradient-formula") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawGradients(chosenPsi, 10, true);
+      if (drawId === "gradient-formula") {
+        ctx.font = fs(10) + "px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = C.green;
+        ctx.fillText("∇ψ = (∂ψ/∂R, ∂ψ/∂Z)", toX(1.2), toY(-0.7));
+        ctx.fillStyle = C.textDim;
+        ctx.fillText("perpendicular to surface", toX(1.2), toY(-0.8));
+        ctx.fillText("points radially outward", toX(1.2), toY(-0.9));
+      }
+    } else if (drawId === "para-rect") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      // Show a nice rectangle
+      const { R, Z } = fluxSurface(chosenPsi, 0);
+      const cx2 = toX(R), cy2 = toY(Z);
+      const s = 40;
+      ctx.strokeStyle = C.green; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(cx2 + s, cy2); ctx.stroke();
+      ctx.strokeStyle = C.orange;
+      ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(cx2, cy2 - s); ctx.stroke();
+      ctx.strokeStyle = C.purple + "60"; ctx.lineWidth = 1;
+      ctx.strokeRect(cx2, cy2 - s, s, s);
+      ctx.fillStyle = C.purple + "20"; ctx.fillRect(cx2, cy2 - s, s, s);
+      ctx.font = fs(10) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green; ctx.fillText("dψ", cx2 + s / 2 - 8, cy2 + 14);
+      ctx.fillStyle = C.orange; ctx.fillText("dθ", cx2 - 20, cy2 - s / 2 + 4);
+      ctx.fillStyle = C.textDim; ctx.fillText("rectangle (if coordinates were nice)", cx2 - 50, cy2 + 30);
+    } else if (drawId === "para-skewed") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, 0.8, {});
+      ctx.font = fs(10) + "px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      ctx.fillText("parallelogram (in real coordinates)", toX(1.3), toY(-0.85));
+    } else if (drawId === "para-labeled") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, theta, { showLabels: true });
+    } else if (drawId === "para-interactive") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, theta, { showLabels: true });
+    } else if (drawId === "dot-basic") {
+      // Show two simple vectors and their dot product
+      const ox = W * 0.35, oy = H * 0.5;
+      const ax2 = 80, ay2 = -30, bx = 40, by = -70;
+      // Grid
+      ctx.strokeStyle = C.border + "30"; ctx.lineWidth = 0.5;
+      for (let i = -5; i <= 5; i++) {
+        ctx.beginPath(); ctx.moveTo(ox + i * 30, oy - 150); ctx.lineTo(ox + i * 30, oy + 150); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox - 150, oy + i * 30); ctx.lineTo(ox + 150, oy + i * 30); ctx.stroke();
+      }
+      // Vector a
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + ax2, oy + ay2);
+      ctx.strokeStyle = C.green; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = C.green; ctx.font = "bold 14px 'IBM Plex Mono', monospace";
+      ctx.fillText("a", ox + ax2 + 5, oy + ay2 - 5);
+      // Vector b
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + bx, oy + by);
+      ctx.strokeStyle = C.orange; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = C.orange; ctx.fillText("b", ox + bx + 5, oy + by - 5);
+      // Dot
+      ctx.beginPath(); ctx.arc(ox, oy, 4, 0, Math.PI * 2); ctx.fillStyle = C.textBright; ctx.fill();
+      // Formula
+      ctx.font = "13px 'IBM Plex Mono', monospace"; ctx.fillStyle = C.textBright;
+      ctx.fillText("a · b = a₁b₁ + a₂b₂", ox - 60, oy + 50);
+      ctx.fillStyle = C.textDim; ctx.font = "11px 'IBM Plex Mono', monospace";
+      ctx.fillText("multiply matching parts, add up", ox - 80, oy + 70);
+    } else if (drawId === "dot-meaning") {
+      const ox = W * 0.3, oy = H * 0.25;
+      const cases = [
+        { label: "same direction → positive", ax: 70, ay: 0, bx: 50, by: 0, col: C.green, y: 0 },
+        { label: "perpendicular → zero", ax: 70, ay: 0, bx: 0, by: -50, col: C.yellow, y: 130 },
+        { label: "opposite → negative", ax: 70, ay: 0, bx: -50, by: 0, col: C.highlight, y: 260 },
+      ];
+      cases.forEach((c) => {
+        const cy2 = oy + c.y;
+        ctx.beginPath(); ctx.moveTo(ox, cy2); ctx.lineTo(ox + c.ax, cy2 + c.ay);
+        ctx.strokeStyle = C.green; ctx.lineWidth = 3; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox, cy2); ctx.lineTo(ox + c.bx, cy2 + c.by);
+        ctx.strokeStyle = C.orange; ctx.lineWidth = 3; ctx.stroke();
+        ctx.beginPath(); ctx.arc(ox, cy2, 4, 0, Math.PI * 2); ctx.fillStyle = C.textBright; ctx.fill();
+        ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.fillStyle = c.col;
+        ctx.fillText(c.label, ox + 90, cy2 + 5);
+      });
+    } else if (drawId === "dot-metrics") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, theta, { showLabels: true });
+      // Formula box
+      const bx2 = 15, by2 = H - 80;
+      ctx.fillStyle = C.surface + "e0"; ctx.beginPath(); ctx.roundRect(bx2, by2, W - 30, 70, 6); ctx.fill();
+      ctx.strokeStyle = C.border; ctx.lineWidth = 1; ctx.stroke();
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green; ctx.fillText("g_xx = ∇ψ · ∇ψ  (radial length²)", bx2 + 10, by2 + 18);
+      ctx.fillStyle = C.orange; ctx.fillText("g_yy = ∇θ · ∇θ  (poloidal length²)", bx2 + 10, by2 + 36);
+      ctx.fillStyle = C.yellow; ctx.fillText("g_xy = ∇ψ · ∇θ  (skew / overlap)", bx2 + 10, by2 + 54);
+    } else if (drawId === "jac-area") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, theta, { showArea: true });
+    } else if (drawId === "jac-formula") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, theta, { showArea: true, showLabels: true });
+      const bx2 = 15, by2 = H - 55;
+      ctx.fillStyle = C.surface + "e0"; ctx.beginPath(); ctx.roundRect(bx2, by2, W - 30, 45, 6); ctx.fill();
+      ctx.strokeStyle = C.border; ctx.lineWidth = 1; ctx.stroke();
+      ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.fillStyle = C.purple;
+      ctx.fillText("J = √(g_xx · g_yy − g_xy²)", bx2 + 10, by2 + 18);
+      ctx.fillStyle = C.textDim; ctx.font = "9px 'IBM Plex Mono', monospace";
+      ctx.fillText("area from side lengths + angle", bx2 + 10, by2 + 36);
+    } else if (drawId === "jac-usage") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      drawParallelogram(chosenPsi, theta, { showArea: true, showLabels: true });
+      const bx2 = 15, by2 = H - 55;
+      ctx.fillStyle = C.surface + "e0"; ctx.beginPath(); ctx.roundRect(bx2, by2, W - 30, 45, 6); ctx.fill();
+      ctx.strokeStyle = C.border; ctx.lineWidth = 1; ctx.stroke();
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.accent;
+      ctx.fillText("g's → derivatives (distances)", bx2 + 10, by2 + 18);
+      ctx.fillStyle = C.purple;
+      ctx.fillText("J  → integrals (areas)", bx2 + 10, by2 + 36);
+    } else if (drawId === "jac-sweep") {
+      drawSurfaces({ highlightPsi: chosenPsi, dimmed: true });
+      const g = drawParallelogram(chosenPsi, theta, { showArea: true, showLabels: true });
+      // Trail
+      ctx.beginPath();
+      for (let i = 0; i < 30; i++) {
+        const th2 = theta - i * 0.04;
+        const { R: tR, Z: tZ } = fluxSurface(chosenPsi, th2);
+        if (i === 0) ctx.moveTo(toX(tR), toY(tZ)); else ctx.lineTo(toX(tR), toY(tZ));
+      }
+      ctx.strokeStyle = C.highlight + "40"; ctx.lineWidth = 3; ctx.stroke();
+    }
+
+    // Zoom hint
+    ctx.font = "8px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = C.textDim + "50";
+    ctx.fillText("pinch zoom · drag pan", 8, H - 6);
+  }, [idx, anim, theta]);
+
+  // Show theta slider for interactive panels
+  const showSlider = ["para-labeled", "para-interactive", "dot-metrics", "jac-area", "jac-formula", "jac-usage", "jac-sweep"].includes(current.draw);
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 10px", fontFamily: "'IBM Plex Mono', monospace", color: C.text }}>
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        {/* Chapter title */}
+        <div style={{ textAlign: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.textBright }}>{current.chapterData.title}</div>
+          <div style={{ fontSize: 9, color: C.textDim }}>{current.chapterData.subtitle}</div>
+        </div>
+
+        {/* Progress */}
+        <div style={{ display: "flex", gap: 2, justifyContent: "center", marginBottom: 8, flexWrap: "wrap" }}>
+          {allPanels.map((p, i) => {
+            const isChapterStart = i === 0 || allPanels[i - 1].chapter !== p.chapter;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center" }}>
+                {isChapterStart && i > 0 && <div style={{ width: 4 }} />}
+                <button onClick={() => setIdx(i)} style={{
+                  width: 18, height: 4, borderRadius: 2, border: "none",
+                  background: i === idx ? C.accent : i < idx ? C.accentDim : C.surface,
+                  cursor: "pointer",
+                }} />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Canvas */}
+        <div ref={containerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+          style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 8, touchAction: "none", cursor: "grab" }}>
+          <canvas ref={canvasRef} width={500} height={400} style={{ width: "100%", height: "auto", display: "block", pointerEvents: "none" }} />
+        </div>
+
+        {/* Theta slider */}
+        {showSlider && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 10px", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: C.textDim }}>θ</div>
+            <input type="range" min="0" max={Math.PI * 2} step="0.03" value={theta}
+              onChange={(e) => { setDraggingTheta(true); setTheta(parseFloat(e.target.value)); }}
+              onMouseUp={() => setDraggingTheta(false)} onTouchEnd={() => setDraggingTheta(false)}
+              style={{ flex: 1, accentColor: C.accent }} />
+            <div style={{ fontSize: 10, color: C.accent }}>{((theta * 180) / Math.PI).toFixed(0)}°</div>
+          </div>
+        )}
+
+        {/* Text */}
+        <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: C.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{current.text}</div>
+        </div>
+
+        {/* Nav */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0} style={{
+            padding: "8px 20px", borderRadius: 6, border: `1px solid ${C.border}`,
+            background: idx === 0 ? C.surface : C.bgPanel, color: idx === 0 ? C.textDim : C.text,
+            cursor: idx === 0 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>← Back</button>
+          <div style={{ fontSize: 10, color: C.textDim, alignSelf: "center" }}>{idx + 1}/{allPanels.length}</div>
+          <button onClick={() => setIdx(Math.min(allPanels.length - 1, idx + 1))} disabled={idx === allPanels.length - 1} style={{
+            padding: "8px 20px", borderRadius: 6,
+            border: `1px solid ${idx === allPanels.length - 1 ? C.border : C.accent}`,
+            background: idx === allPanels.length - 1 ? C.surface : C.accentDim,
+            color: idx === allPanels.length - 1 ? C.textDim : C.accent,
+            cursor: idx === allPanels.length - 1 ? "default" : "pointer", fontSize: 12, fontFamily: "inherit",
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FusionWalkthrough));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,424 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>geometry quantities</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function GeometryQuantities() {
+  const [quantity, setQuantity] = useState("jacobian");
+  const [level, setLevel] = useState(null);
+
+  const R0 = 1.18, a = 0.42, kappa = 1.7, delta = 0.35;
+
+  const quantities = {
+    jacobian: {
+      title: "Jacobian",
+      color: "#c9b87c",
+      oneLiner: "How big is this grid cell in real space?",
+      simple: (
+        <>
+          Remember the flux coordinate grid from CHEASE — the concentric D-shapes with spokes? Each cell in that grid spans the same Δs and Δθ. But the cells aren't the same physical size.
+          <br /><br />
+          Think of it like pizza slices. You cut a pizza into equal-angle slices. The slices near the crust are wide. The slices near the center are narrow. Same angle, different area.
+          <br /><br />
+          Same thing here. On the outboard side (far from the central axis, high R), the cells are physically big. On the inboard side (close to the central axis, low R), the cells are physically small. Same Δs and Δθ, different real-world volume.
+          <br /><br />
+          The Jacobian is just the number that converts between "coordinate size" (Δs × Δθ) and "real size" (actual square meters). Big Jacobian = big cell. Small Jacobian = small cell.
+        </>
+      ),
+      technical: (
+        <>
+          The Jacobian J is the determinant of the coordinate transformation from (R, Z, ϕ) to (s, θ, ϕ). It appears every time you integrate over volume in flux coordinates:
+          <br /><br />
+          <span style={{ color: "#e6ecf2" }}>∫ f dV = ∫∫∫ f · J · ds dθ dϕ</span>
+          <br /><br />
+          Without J, the integral would give wrong answers because equal-sized coordinate cells correspond to different physical volumes.
+          <br /><br />
+          Computed from: J = R / |∇ψ|, which requires ∂ψ/∂R and ∂ψ/∂Z — exactly the derivatives CHEASE stores at each Hermite node.
+          <br /><br />
+          J varies as roughly ~R, so it's ~1.6× larger on the outboard side than the inboard side for SPARC-like geometry.
+        </>
+      ),
+      quantum: (
+        <>
+          The collision operator in GENE operates at each spatial grid point. When GENE computes the effect of collisions on the distribution function, it needs to weight each point by its physical volume — that's J.
+          <br /><br />
+          When you compute transport coefficients (the end product of a GENE run), you're integrating the turbulent fluxes over flux surfaces. That integral needs J. Wrong J → wrong transport → wrong prediction of how well the reactor confines heat.
+          <br /><br />
+          For your quantum collision operator: the collision kernel itself doesn't directly use J (it operates in velocity space). But the spatial integration that connects the collision result back to the transport coefficient does. So J must be accurate for the overall result to be meaningful.
+        </>
+      ),
+    },
+    curvature: {
+      title: "Curvature",
+      color: "#ff6b6b",
+      oneLiner: "How much do the magnetic field lines bend?",
+      simple: (
+        <>
+          A magnetic field line in a tokamak spirals around the donut. At every point, it's curving — like a road going around a hill. The curvature measures how sharp that curve is.
+          <br /><br />
+          Why does this matter? Because curvature is what drives turbulence. Here's the intuition:
+          <br /><br />
+          Imagine you're on a merry-go-round. You feel pushed outward (centrifugal force). If there's a hill of heavy stuff on the outside, it wants to slide further out — unstable. If the heavy stuff is on the inside, it stays put — stable.
+          <br /><br />
+          In a tokamak, the "heavy stuff" is the high-pressure plasma core. On the <span style={{ color: "#ff6b6b" }}>outboard side</span>, the curvature pushes the plasma outward, where it wants to go anyway (toward lower pressure). That's <span style={{ color: "#ff6b6b" }}>unstable — bad curvature</span>. Turbulence grows here.
+          <br /><br />
+          On the <span style={{ color: "#4ecdc4" }}>inboard side</span>, the curvature pushes inward, against the pressure gradient. That's <span style={{ color: "#4ecdc4" }}>stable — good curvature</span>. Turbulence is suppressed here.
+          <br /><br />
+          This is why turbulence "balloons" outward — it's strongest on the outboard side. That ballooning pattern is one of the main things GENE calculates.
+        </>
+      ),
+      technical: (
+        <>
+          The magnetic curvature vector is κ = (b̂ · ∇)b̂ where b̂ = B/|B|. It has two components that matter for gyrokinetics:
+          <br /><br />
+          <span style={{ color: "#e6ecf2" }}>κ_normal</span> — curvature in the direction of ∇ψ (radial). This is the "bad curvature" drive that excites ballooning modes and ITG turbulence. It varies around each flux surface, peaking at the outboard midplane.
+          <br /><br />
+          <span style={{ color: "#e6ecf2" }}>κ_geodesic</span> — curvature perpendicular to both B and ∇ψ. Drives geodesic acoustic modes and affects zonal flow dynamics.
+          <br /><br />
+          Both are computed from second derivatives of ψ (∂²ψ/∂R², ∂²ψ/∂Z², ∂²ψ/∂R∂Z). This is why CHEASE matters — these second derivatives are the noisiest quantities from EFIT.
+          <br /><br />
+          In the gyrokinetic equation, curvature appears in the ∇B and curvature drift terms: v_κ = (v∥²/Ω) × (b̂ × κ). Particles drift across field lines because of curvature, and this drift drives the instabilities that create turbulence.
+        </>
+      ),
+      quantum: (
+        <>
+          Curvature determines which instabilities are active, and that determines what the collision operator needs to handle.
+          <br /><br />
+          In regions of bad curvature (outboard), ITG (ion temperature gradient) and TEM (trapped electron mode) instabilities are active. The collision operator needs to accurately handle the collisional de-trapping of electrons and the pitch-angle scattering of ions to get the growth rates right.
+          <br /><br />
+          The trapped particle fraction (how many particles are bouncing back and forth vs streaming freely) depends directly on the field strength variation along a field line — which is set by the curvature. At the outboard midplane, the field is weakest (B ∝ 1/R, and R is largest there), so more particles get trapped.
+          <br /><br />
+          Your quantum collision operator will need to compute collision rates differently for trapped vs passing particles. The boundary between these two populations is set by the curvature. Noisy curvature → noisy trapped/passing boundary → noisy collision result → unreliable benchmark.
+        </>
+      ),
+    },
+    shear: {
+      title: "Magnetic Shear",
+      color: "#c9a3f5",
+      oneLiner: "How much do neighboring field lines twist differently?",
+      simple: (
+        <>
+          Remember q — the safety factor? It tells you how twisted the field lines are. q is different on each flux surface. The center might have q=1, the edge q=4.
+          <br /><br />
+          Shear is how fast q changes from one surface to the next. If q goes from 1.0 to 1.1 over a small radial distance, that's shear.
+          <br /><br />
+          Why does it matter? Because shear tears apart turbulent eddies.
+          <br /><br />
+          Picture two conveyor belts running side by side at slightly different speeds. If you put a blob of paint across both belts, the blob gets stretched and torn apart because the two sides are moving at different rates.
+          <br /><br />
+          That's what shear does to turbulent eddies. The field lines on adjacent surfaces are twisted at different rates. An eddy that spans two surfaces gets sheared apart — stretched along the field lines until it breaks up.
+          <br /><br />
+          Strong shear → eddies get destroyed quickly → less turbulence → better confinement.
+          <br />
+          Weak shear → eddies persist and grow → more turbulence → worse confinement.
+        </>
+      ),
+      technical: (
+        <>
+          Global magnetic shear: ŝ = (r/q)(dq/dr) where r is the minor radius coordinate.
+          <br /><br />
+          This is a flux-surface-averaged quantity. But GENE needs the <span style={{ color: "#e6ecf2" }}>local magnetic shear</span>, which varies around each surface in θ. On the outboard side, local shear is typically weaker than the global average. On the inboard side, it's stronger. This variation matters because it modulates the turbulence drive — weak shear on the outboard side (where bad curvature is strongest) is the worst combination.
+          <br /><br />
+          In the ballooning representation used by flux-tube GENE, the shear determines how the simulation domain extends along the field line. The "ballooning angle" θ₀ parameterizes different parallel positions, and shear controls how the radial wavenumber k_x evolves along the field line: k_x(θ) = k_x(0) + ŝ·θ·k_y.
+          <br /><br />
+          Computed from: dq/ds (requires differentiating the q profile) plus the local metric from ψ derivatives.
+        </>
+      ),
+      quantum: (
+        <>
+          Shear determines the radial structure of turbulent modes, which affects what the collision operator sees.
+          <br /><br />
+          In strong shear regions, turbulent eddies are narrow radially and elongated along the field line. The collision operator mainly needs to handle pitch-angle scattering within each narrow radial layer.
+          <br /><br />
+          In weak shear regions (like near q_min in reversed-shear scenarios), eddies are wide radially and can span many flux surfaces. The collision operator needs to handle a broader range of particle orbits and energies simultaneously. This is where the collision calculation gets most expensive — and where a quantum speedup would help most.
+          <br /><br />
+          Reversed shear (s-hat &lt; 0) creates internal transport barriers — regions where turbulence is almost completely suppressed. These are the advanced tokamak scenarios that produce the best performance predictions. Getting the collision physics right in these scenarios is critical because small errors can make the barrier appear or disappear in the simulation.
+        </>
+      ),
+    },
+  };
+
+  const q = quantities[quantity];
+  const svgW = 360, svgH = 280;
+  const cx = svgW / 2, cy = svgH / 2 + 10;
+  const sc = 120;
+  const toX = (R) => cx + (R - R0) * sc;
+  const toY = (Z) => cy - Z * sc;
+
+  function plasmaPoint(s, theta) {
+    const r = s * a, rZ = s * a * kappa;
+    const asd = Math.asin(delta);
+    return { R: R0 + r * Math.cos(theta + asd * Math.sin(theta)), Z: rZ * Math.sin(theta) };
+  }
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          CHEASE'S GEOMETRY OUTPUT — WHAT GENE ACTUALLY NEEDS
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 12px", letterSpacing: 1 }}>
+          THESE ARE NOT IN THE EQDSK FILE — CHEASE COMPUTES THEM SEPARATELY
+        </p>
+
+        {/* Quantity selector */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {Object.entries(quantities).map(([id, q]) => (
+            <button key={id} onClick={() => { setQuantity(id); setLevel(null); }}
+              style={{
+                flex: 1, padding: "10px 8px", textAlign: "center",
+                background: quantity === id ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${quantity === id ? q.color : "#1e2630"}`,
+                borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <div style={{ fontSize: 12, color: quantity === id ? q.color : "#5c6a7a", fontWeight: 700 }}>{q.title}</div>
+              <div style={{ fontSize: 8, color: "#3a4a5a", marginTop: 2 }}>{q.oneLiner}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Visual */}
+        <div style={{
+          background: "#0d1117", borderRadius: 6,
+          border: "1px solid #1e2630", padding: 8, marginBottom: 12,
+        }}>
+          <svg width={svgW} height={svgH} style={{ display: "block", margin: "0 auto" }}>
+            <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" rx={4} />
+
+            {/* Flux surfaces */}
+            {[0.2, 0.4, 0.6, 0.8, 1.0].map((s, i) => {
+              const pts = [];
+              for (let t = 0; t <= 100; t++) {
+                const theta = (2 * Math.PI * t) / 100;
+                const p = plasmaPoint(s, theta);
+                pts.push(`${t === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`);
+              }
+              return <path key={i} d={pts.join(" ") + " Z"} fill="none"
+                stroke={`rgba(78,205,196,${s === 1 ? 0.4 : 0.12})`} strokeWidth={s === 1 ? 1.5 : 0.5} />;
+            })}
+
+            {quantity === "jacobian" && (
+              <>
+                {/* Grid cells - visibly bigger on outboard, smaller on inboard */}
+                {Array.from({ length: 5 }, (_, si) => {
+                  const s = 0.3 + si * 0.14;
+                  return Array.from({ length: 16 }, (_, ti) => {
+                    const t1 = (2 * Math.PI * ti) / 16;
+                    const t2 = (2 * Math.PI * (ti + 1)) / 16;
+                    const s2 = s + 0.14;
+                    const c = [plasmaPoint(s, t1), plasmaPoint(s, t2), plasmaPoint(s2, t2), plasmaPoint(s2, t1)];
+                    const pts = c.map(p => `${toX(p.R)},${toY(p.Z)}`).join(" ");
+                    const avgR = c.reduce((sum, p) => sum + p.R, 0) / 4;
+                    const brightness = Math.max(0, (avgR - R0 + 0.5));
+                    return <polygon key={`${si}-${ti}`} points={pts}
+                      fill={`rgba(201,184,124,${0.04 + brightness * 0.12})`}
+                      stroke={`rgba(201,184,124,${0.15 + brightness * 0.2})`} strokeWidth={0.5} />;
+                  });
+                })}
+                <text x={toX(R0 + 0.4)} y={toY(0.45)} fill="#c9b87c" fontSize={10} fontWeight={700}>BIG cells</text>
+                <text x={toX(R0 + 0.4)} y={toY(0.37)} fill="#c9b87c" fontSize={8}>J ≈ 1.6</text>
+                <text x={toX(R0 - 0.45)} y={toY(0.2)} fill="#c9b87c" fontSize={10} fontWeight={700} textAnchor="end">tiny cells</text>
+                <text x={toX(R0 - 0.45)} y={toY(0.12)} fill="#c9b87c" fontSize={8} textAnchor="end">J ≈ 0.8</text>
+                <text x={svgW / 2} y={svgH - 8} textAnchor="middle" fill="#5c6a7a" fontSize={8}>
+                  Same Δs × Δθ everywhere — but outboard cells are 2× the physical area of inboard cells
+                </text>
+              </>
+            )}
+
+            {quantity === "curvature" && (
+              <>
+                {/* Field line on a surface */}
+                {(() => {
+                  const s = 0.6;
+                  const pts = [];
+                  for (let t = 0; t <= 100; t++) {
+                    const theta = (2 * Math.PI * t) / 100;
+                    const p = plasmaPoint(s, theta);
+                    pts.push(`${t === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`);
+                  }
+                  return <path d={pts.join(" ")} fill="none" stroke="#e6ecf2" strokeWidth={2} opacity={0.5} />;
+                })()}
+                {/* Curvature arrows - big red on outboard, small teal on inboard */}
+                {Array.from({ length: 16 }, (_, i) => {
+                  const theta = (2 * Math.PI * i) / 16;
+                  const s = 0.6;
+                  const p = plasmaPoint(s, theta);
+                  const isOutboard = p.R > R0;
+                  const dirR = R0 - p.R, dirZ = -p.Z;
+                  const mag = Math.sqrt(dirR * dirR + dirZ * dirZ) || 1;
+                  const strength = isOutboard ? 20 + ((p.R - R0) / a) * 15 : 8 + ((R0 - p.R) / a) * 3;
+                  const dx = (dirR / mag) * strength;
+                  const dy = -(dirZ / mag) * strength;
+                  const color = isOutboard ? "#ff6b6b" : "#4ecdc4";
+                  return (
+                    <g key={i}>
+                      <line x1={toX(p.R)} y1={toY(p.Z)} x2={toX(p.R) + dx} y2={toY(p.Z) + dy}
+                        stroke={color} strokeWidth={isOutboard ? 2.5 : 1.5} opacity={0.7} />
+                      <circle cx={toX(p.R) + dx} cy={toY(p.Z) + dy} r={isOutboard ? 3 : 1.5}
+                        fill={color} opacity={0.7} />
+                    </g>
+                  );
+                })}
+                <text x={toX(R0 + 0.42)} y={toY(0.35)} fill="#ff6b6b" fontSize={10} fontWeight={700}>Bad κ</text>
+                <text x={toX(R0 + 0.42)} y={toY(0.27)} fill="#ff6b6b" fontSize={8}>drives turbulence</text>
+                <text x={toX(R0 + 0.42)} y={toY(0.19)} fill="#ff6b6b" fontSize={8}>long arrows</text>
+                <text x={toX(R0 - 0.48)} y={toY(0.1)} fill="#4ecdc4" fontSize={10} fontWeight={700} textAnchor="end">Good κ</text>
+                <text x={toX(R0 - 0.48)} y={toY(0.02)} fill="#4ecdc4" fontSize={8} textAnchor="end">stabilizes</text>
+                <text x={toX(R0 - 0.48)} y={toY(-0.06)} fill="#4ecdc4" fontSize={8} textAnchor="end">short arrows</text>
+                <text x={svgW / 2} y={svgH - 8} textAnchor="middle" fill="#5c6a7a" fontSize={8}>
+                  Arrows = curvature vector at each point along the field line
+                </text>
+              </>
+            )}
+
+            {quantity === "shear" && (
+              <>
+                {/* Two surfaces with field line tick marks at different angles */}
+                {[0.45, 0.65].map((s, si) => {
+                  const pts = [];
+                  for (let t = 0; t <= 100; t++) {
+                    const theta = (2 * Math.PI * t) / 100;
+                    const p = plasmaPoint(s, theta);
+                    pts.push(`${t === 0 ? "M" : "L"} ${toX(p.R)} ${toY(p.Z)}`);
+                  }
+                  const color = si === 0 ? "#4ecdc4" : "#c9a3f5";
+                  const qVal = si === 0 ? 1.5 : 3.0;
+                  return (
+                    <g key={si}>
+                      <path d={pts.join(" ") + " Z"} fill="none" stroke={color} strokeWidth={1.5} opacity={0.5} />
+                      {/* Tick marks showing field line direction */}
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const theta = (2 * Math.PI * i) / 12;
+                        const p = plasmaPoint(s, theta);
+                        const angle = theta + Math.PI / 2 + (si === 0 ? 0.25 : 0.55);
+                        const len = 10;
+                        return (
+                          <line key={i}
+                            x1={toX(p.R) - Math.cos(angle) * len} y1={toY(p.Z) + Math.sin(angle) * len}
+                            x2={toX(p.R) + Math.cos(angle) * len} y2={toY(p.Z) - Math.sin(angle) * len}
+                            stroke={color} strokeWidth={2} opacity={0.6} />
+                        );
+                      })}
+                    </g>
+                  );
+                })}
+                {/* Connecting lines between surfaces showing the angular difference */}
+                {Array.from({ length: 6 }, (_, i) => {
+                  const theta = (2 * Math.PI * i) / 6;
+                  const p1 = plasmaPoint(0.45, theta);
+                  const p2 = plasmaPoint(0.65, theta);
+                  return <line key={i} x1={toX(p1.R)} y1={toY(p1.Z)} x2={toX(p2.R)} y2={toY(p2.Z)}
+                    stroke="rgba(255,255,255,0.1)" strokeWidth={0.5} strokeDasharray="2,3" />;
+                })}
+                <text x={toX(R0 - 0.1)} y={toY(0.55)} fill="#4ecdc4" fontSize={9}>inner: q=1.5</text>
+                <text x={toX(R0 - 0.1)} y={toY(0.48)} fill="#4ecdc4" fontSize={8}>less twist</text>
+                <text x={toX(R0 + 0.25)} y={toY(-0.42)} fill="#c9a3f5" fontSize={9}>outer: q=3.0</text>
+                <text x={toX(R0 + 0.25)} y={toY(-0.49)} fill="#c9a3f5" fontSize={8}>more twist</text>
+                <text x={svgW / 2} y={svgH - 18} textAnchor="middle" fill="#c9a3f5" fontSize={8}>
+                  Tick marks = field line direction. Different angle on each surface = shear.
+                </text>
+                <text x={svgW / 2} y={svgH - 6} textAnchor="middle" fill="#5c6a7a" fontSize={8}>
+                  Shear tears eddies apart. Strong shear → less turbulence.
+                </text>
+              </>
+            )}
+          </svg>
+        </div>
+
+        {/* Level buttons */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 10 }}>
+          {[
+            { id: "simple", label: "💡 Simple", color: "#4ecdc4" },
+            { id: "technical", label: "🔧 Technical", color: "#8ab4f8" },
+            { id: "quantum", label: "⚡ Why it matters for quantum", color: "#c9a3f5" },
+          ].map(btn => (
+            <button key={btn.id} onClick={() => setLevel(level === btn.id ? null : btn.id)}
+              style={{
+                flex: 1, padding: "8px 10px", fontSize: 10, fontFamily: "inherit",
+                background: level === btn.id ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${level === btn.id ? btn.color : "#1e2630"}`,
+                color: level === btn.id ? btn.color : "#5c6a7a",
+                borderRadius: 4, cursor: "pointer",
+                fontWeight: level === btn.id ? 700 : 400,
+              }}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Expanded explanation */}
+        {level && (
+          <div style={{
+            padding: "14px 16px", marginBottom: 12,
+            background: level === "quantum" ? "rgba(201,163,245,0.05)" : "#12171f",
+            borderRadius: 6,
+            borderLeft: `3px solid ${level === "simple" ? "#4ecdc4" : level === "technical" ? "#8ab4f8" : "#c9a3f5"}`,
+            fontSize: 11, color: "#8a95a5", lineHeight: 1.9,
+          }}>
+            {level === "simple" && q.simple}
+            {level === "technical" && q.technical}
+            {level === "quantum" && (
+              <>
+                <span style={{ color: "#c9a3f5", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>
+                  Connection to quantum collision operator
+                </span>
+                <br /><br />
+                {q.quantum}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Where it lives */}
+        <div style={{
+          padding: 12, background: "#12171f", borderRadius: 6,
+          border: "1px solid #1e2630",
+        }}>
+          <div style={{ fontSize: 10, color: q.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            Where does the {q.title.toLowerCase()} live?
+          </div>
+          {[
+            { file: "EQDSK file", has: false, note: "Not stored. Format too old." },
+            { file: "CHEASE internal", has: true, note: "Computed from Hermite elements during the solve." },
+            { file: "GENE geometry file", has: true, note: "Written by CHEASE in GENE's format. This is what GENE reads." },
+            { file: "GENE simulation", has: true, note: "Used every timestep to compute drifts, integrate equations." },
+          ].map((row, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "4px 8px", marginBottom: 2,
+              background: row.has ? `${q.color}08` : "#0a0e14",
+              borderRadius: 3, fontSize: 9,
+            }}>
+              <span style={{ color: row.has ? "#4ecdc4" : "#ff6b6b", fontWeight: 700, minWidth: 12 }}>
+                {row.has ? "✓" : "✗"}
+              </span>
+              <span style={{ color: row.has ? "#e6ecf2" : "#3a4a5a", minWidth: 110 }}>{row.file}</span>
+              <span style={{ color: "#5c6a7a" }}>{row.note}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(GeometryQuantities));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

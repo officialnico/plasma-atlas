@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boltzmann Density · Homework Set</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f1e8;
+  --bg-2: #ebe4d2;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --right: #5b8a3a;
+  --wrong: #c8482e;
+  --warn: #d4a017;
+  --highlight: #2e6f9c;
+  --paper-line: rgba(26, 20, 16, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(46, 111, 156, 0.06), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(212, 160, 23, 0.05), transparent 50%),
+    var(--bg);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 56px 32px 100px;
+  position: relative;
+}
+
+/* ---------- HEADER ---------- */
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 28px;
+  margin-bottom: 48px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--highlight);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--highlight);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 60px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(38px, 6vw, 64px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  margin-bottom: 18px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--highlight);
+}
+
+.deck {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+.deck strong { color: var(--ink); font-weight: 400; }
+
+/* ---------- SCORE TRACKER ---------- */
+.score-bar {
+  position: sticky;
+  top: 0;
+  background: rgba(245, 241, 232, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  border-bottom: 1px solid var(--rule);
+  padding: 14px 32px;
+  margin: 0 -32px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.score-bar .score {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+.score-bar .score .right { color: var(--right); font-weight: 500; }
+.progress-bar {
+  flex: 1;
+  max-width: 240px;
+  height: 4px;
+  background: var(--rule-soft);
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar .fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: var(--right);
+  transition: width 0.5s ease;
+}
+
+/* ---------- PROBLEM CARD ---------- */
+.problem {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  margin-bottom: 32px;
+  position: relative;
+  box-shadow: 5px 5px 0 var(--rule);
+  overflow: hidden;
+}
+
+.problem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--paper-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: var(--bg-2);
+}
+.problem-header .num {
+  color: var(--highlight);
+  font-weight: 600;
+}
+.problem-header .difficulty {
+  color: var(--ink-dim);
+}
+
+.problem-body {
+  padding: 28px 28px 24px;
+}
+
+.question {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  font-weight: 400;
+}
+.question em { font-style: italic; color: var(--highlight); }
+.question strong { font-weight: 500; }
+.question code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  background: rgba(46, 111, 156, 0.08);
+  padding: 1px 5px;
+  color: var(--highlight);
+  border-radius: 2px;
+}
+
+.context {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin-bottom: 20px;
+  font-style: italic;
+  padding-left: 16px;
+  border-left: 2px solid var(--rule-soft);
+}
+
+/* ---------- INPUT TYPES ---------- */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 18px;
+  border: 1.5px solid var(--rule-soft);
+  background: var(--paper);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14.5px;
+  line-height: 1.55;
+  gap: 14px;
+  text-align: left;
+  font-family: 'Fraunces', serif;
+  color: var(--ink);
+  border-radius: 2px;
+}
+.option:hover {
+  border-color: var(--rule);
+  background: var(--bg-2);
+}
+.option .letter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  width: 18px;
+  padding-top: 2px;
+}
+.option.selected {
+  border-color: var(--highlight);
+  background: rgba(46, 111, 156, 0.06);
+}
+.option.selected .letter { color: var(--highlight); }
+.option.correct {
+  border-color: var(--right);
+  background: rgba(91, 138, 58, 0.08);
+}
+.option.correct .letter { color: var(--right); }
+.option.incorrect {
+  border-color: var(--wrong);
+  background: rgba(200, 72, 46, 0.06);
+}
+.option.incorrect .letter { color: var(--wrong); }
+.option:disabled {
+  cursor: default;
+}
+
+/* numeric input */
+.numeric-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.numeric-input label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.numeric-input input {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  padding: 12px 16px;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  border-radius: 2px;
+  width: 220px;
+  font-weight: 500;
+}
+.numeric-input input:focus {
+  border-color: var(--highlight);
+}
+.numeric-input .tolerance {
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+/* ---------- BUTTONS ---------- */
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 600;
+  border-radius: 2px;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:hover { background: var(--highlight); border-color: var(--highlight); }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--paper);
+  color: var(--ink-dim);
+  border-color: var(--rule-soft);
+}
+.btn:disabled:hover { background: var(--paper); color: var(--ink-dim); }
+
+.btn.right-state {
+  background: var(--right);
+  color: var(--paper);
+  border-color: var(--right);
+}
+.btn.wrong-state {
+  background: var(--wrong);
+  color: var(--paper);
+  border-color: var(--wrong);
+}
+
+/* ---------- FEEDBACK ---------- */
+.feedback {
+  margin-top: 22px;
+  padding: 22px 26px;
+  border-left: 4px solid var(--right);
+  background: rgba(91, 138, 58, 0.06);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  display: none;
+}
+.feedback.show { display: block; animation: slideIn 0.3s ease; }
+.feedback.wrong { border-color: var(--wrong); background: rgba(200, 72, 46, 0.06); }
+.feedback strong { color: var(--ink); font-weight: 500; }
+.feedback em { color: var(--highlight); font-style: italic; }
+.feedback .verdict {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: var(--right);
+}
+.feedback.wrong .verdict { color: var(--wrong); }
+.feedback code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: rgba(26, 20, 16, 0.06);
+  padding: 1px 5px;
+  color: var(--ink);
+  border-radius: 2px;
+}
+.feedback h4 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 16px;
+  margin: 14px 0 8px;
+  color: var(--ink);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- WORK PANEL ---------- */
+.work {
+  margin-top: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  background: rgba(26, 20, 16, 0.06);
+  padding: 14px 18px;
+  border-radius: 2px;
+  line-height: 1.85;
+  color: var(--ink);
+}
+.work .step-label {
+  color: var(--ink-dim);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.work .ans { color: var(--right); font-weight: 600; }
+
+/* ---------- FINAL ---------- */
+.final-screen {
+  text-align: center;
+  padding: 60px 20px;
+  border-top: 2px solid var(--rule);
+  margin-top: 56px;
+  display: none;
+}
+.final-screen.show { display: block; }
+.final-screen h2 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(32px, 5vw, 48px);
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+.final-screen .grade {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 96px;
+  letter-spacing: -0.04em;
+  color: var(--right);
+  margin: 24px 0;
+  line-height: 1;
+}
+.final-screen p {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 50ch;
+  margin: 0 auto 18px;
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">homework set · self-check</div>
+    <h1>Boltzmann density:<br><em>did you get it?</em></h1>
+    <p class="deck">
+      Eight problems, mixing conceptual checks with concrete calculations.
+      Some are multiple choice, some need a number. Each has feedback that explains
+      <strong>not just the answer, but the reasoning</strong> — so a wrong answer is also useful.
+    </p>
+  </header>
+
+  <div class="score-bar">
+    <span>progress</span>
+    <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+    <span class="score"><span class="right" id="rightCount">0</span> / <span id="totalCount">8</span></span>
+  </div>
+
+  <div id="problems"></div>
+
+  <div class="final-screen" id="finalScreen">
+    <h2>You finished.</h2>
+    <div class="grade" id="finalGrade">—</div>
+    <p id="finalMessage">—</p>
+    <button class="btn primary" id="restartBtn">↻ start over</button>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ============ PROBLEMS ============
+const problems = [
+  // ============================================================
+  {
+    id: 1,
+    type: 'mcq',
+    difficulty: 'warm-up · concept',
+    context: 'A plasma is at thermal equilibrium with k_BT = 1 eV. You move from a region where U = 0 to a region where U = −1 eV (a shallow well for an electron).',
+    question: 'What happens to the electron density at the new spot, compared to the bulk?',
+    options: [
+      'It stays the same — small U doesn\'t affect things.',
+      'It rises by a factor of e ≈ 2.72.',
+      'It drops by a factor of e ≈ 2.72.',
+      'It rises by a factor of 2 (linear with U).'
+    ],
+    correct: 1,
+    explain: `<strong>Right answer: B.</strong>
+      The Boltzmann formula is <code>n = n₀ · exp(−U/k_BT)</code>.
+      Plug in U = −1 eV and k_BT = 1 eV: exponent = −(−1)/1 = +1. exp(+1) = e ≈ <em>2.72</em>.
+      <h4>Why not the others?</h4>
+      <strong>(A)</strong> Small U doesn't mean negligible — once it's a meaningful fraction of k_BT, the exponential kicks in. <br>
+      <strong>(C)</strong> Wrong sign. Negative U (a well) <em>attracts</em> electrons, raising density. <br>
+      <strong>(D)</strong> The formula is exponential, not linear. This is the most important thing to remember.`
+  },
+
+  // ============================================================
+  {
+    id: 2,
+    type: 'numeric',
+    difficulty: 'calculation',
+    context: 'Same plasma: k_BT = 1 eV. Now U = +3 eV (an electron sits on a hill).',
+    question: 'What is n/n₀ at this spot? <em>Round to two decimal places.</em>',
+    answer: 0.0498,
+    tolerance: 0.005,
+    units: '',
+    explain: (yourAns) => `
+      <strong>Setup:</strong> n/n₀ = exp(−U/k_BT) = exp(−3/1) = exp(−3).<br>
+      <strong>Compute:</strong> exp(−3) ≈ <em>0.0498</em>.
+      <div class="work">
+        <span class="step-label">step 1</span> &nbsp; exponent = −U/k_BT = −3/1 = <strong>−3</strong><br>
+        <span class="step-label">step 2</span> &nbsp; exp(−3) ≈ <span class="ans">0.0498</span><br>
+        <span class="step-label">interpretation</span> &nbsp; density is ~5% of bulk — strong depletion
+      </div>
+      <h4>The lesson</h4>
+      Positive U = hill = depletion. Each whole unit of exponent divides density by another factor of e ≈ 2.72.
+      Three units of "hill" means dividing by e three times — about 1/20 of bulk.`
+  },
+
+  // ============================================================
+  {
+    id: 3,
+    type: 'mcq',
+    difficulty: 'concept · k_BT scaling',
+    context: 'You have a fixed potential well of U = −2 eV at some point.',
+    question: 'In which scenario will the density pile-up at that point be <em>greater</em>?',
+    options: [
+      'Cold plasma (k_BT = 0.5 eV)',
+      'Warm plasma (k_BT = 5 eV)',
+      'They\'ll be the same — U is the same.',
+      'Depends on n₀.'
+    ],
+    correct: 0,
+    explain: `<strong>Right answer: A.</strong>
+      The exponent is −U/k_BT, so smaller k_BT means a <em>bigger</em> exponent magnitude.
+      <div class="work">
+        <span class="step-label">cold (k_BT = 0.5)</span> &nbsp; exponent = +2/0.5 = +4 → exp(+4) ≈ <span class="ans">54.6×</span><br>
+        <span class="step-label">warm (k_BT = 5)</span> &nbsp; exponent = +2/5 = +0.4 → exp(+0.4) ≈ <span class="ans">1.5×</span>
+      </div>
+      <h4>Why this matters</h4>
+      Cold plasmas show <em>dramatic</em> structure — electrons cluster tightly in wells.
+      Hot plasmas look uniform — thermal motion overwhelms the wells.
+      <strong>This is why density spikes are exponentially sensitive to temperature.</strong>`
+  },
+
+  // ============================================================
+  {
+    id: 4,
+    type: 'mcq',
+    difficulty: 'concept · what is n₀',
+    context: 'Someone tells you "I computed n/n₀ = 50 for this point in a plasma."',
+    question: 'What does this number actually mean?',
+    options: [
+      'There are 50 electrons at this point.',
+      'The electron density at this point is 50 × the bulk density of this plasma.',
+      'The temperature is 50 K.',
+      'The potential energy is 50 eV.'
+    ],
+    correct: 1,
+    explain: `<strong>Right answer: B.</strong>
+      n/n₀ is a <em>ratio</em>, not an absolute count. It tells you how the local density compares to the
+      bulk density n₀.
+      <h4>To get the absolute density</h4>
+      Multiply by n₀. Different plasmas have different n₀ values:
+      <ul style="margin: 10px 0 0 20px;">
+      <li>Solar corona: n₀ ~ 10¹⁴ /m³ → n_e = 5 × 10¹⁵ /m³</li>
+      <li>Lab plasma: n₀ ~ 10¹⁸ /m³ → n_e = 5 × 10¹⁹ /m³</li>
+      <li>Tokamak: n₀ ~ 10²⁰ /m³ → n_e = 5 × 10²¹ /m³</li>
+      </ul>
+      <strong>The formula is universal because it works in ratios</strong> — n₀ is set by the specific plasma.`
+  },
+
+  // ============================================================
+  {
+    id: 5,
+    type: 'numeric',
+    difficulty: 'calculation · sum over ions',
+    context: `You're computing n_e at a point in space. Two ions contribute:
+      <br>· Ion 1: charge +e, distance 100 → contribution to φ = +50<br>
+      · Ion 2: charge −e, distance 200 → contribution to φ = −25
+      <br>k_BT = 5 (in matched units).`,
+    question: 'What is n/n₀ at this point? <em>Round to one decimal place.</em>',
+    answer: 148.4,
+    tolerance: 5,
+    units: '',
+    explain: (yourAns) => `
+      <div class="work">
+        <span class="step-label">step 1: sum φ</span> &nbsp; φ = (+50) + (−25) = <strong>+25</strong><br>
+        <span class="step-label">step 2: divide by k_BT</span> &nbsp; exponent = e·φ/k_BT = +25/5 = <strong>+5</strong><br>
+        <span class="step-label">step 3: exponentiate</span> &nbsp; exp(+5) ≈ <span class="ans">148.4×</span>
+      </div>
+      <h4>The lesson</h4>
+      Adding contributions from <em>multiple charges</em> works just like a normal sum — sign included.
+      The positive ion contributes positive, the negative ion contributes negative.
+      The net φ goes into the formula. This is the basic plasma calculation.`
+  },
+
+  // ============================================================
+  {
+    id: 6,
+    type: 'mcq',
+    difficulty: 'concept · what gets ignored',
+    context: `When applying the Boltzmann density formula in the simple form
+      <code>n_e = n₀ · exp(eφ/k_BT)</code> with φ computed from ions only:`,
+    question: 'What assumption are we making about electron-electron interactions?',
+    options: [
+      'Electrons don\'t interact with each other at all.',
+      'Electron-electron interactions cancel to a smooth uniform background, absorbed into n₀.',
+      'Electrons only interact with the closest ion.',
+      'Electrons are quantum and don\'t have classical interactions.'
+    ],
+    correct: 1,
+    explain: `<strong>Right answer: B.</strong>
+      This is the heart of <em>mean-field theory</em>. Electrons absolutely interact with each other —
+      but their pulls in random directions <strong>cancel by symmetry</strong> to a smooth uniform background,
+      which gets absorbed into the choice of n₀.
+      <h4>Why this works</h4>
+      In a roughly uniform plasma, an electron at any point is surrounded by other electrons in all directions.
+      Their pulls partially cancel, leaving a constant contribution everywhere. That constant is just n₀.
+      What's left to compute is the <em>deviation</em> caused by the localized ions.
+      <h4>When this fails</h4>
+      Strongly coupled plasmas (Γ > 1) where ions form lattices, or systems with very few particles —
+      then electron correlations matter and you need fancier methods.`
+  },
+
+  // ============================================================
+  {
+    id: 7,
+    type: 'mcq',
+    difficulty: 'concept · ions vs electrons',
+    context: 'You have a plasma in equilibrium. Ions are slow, electrons are fast.',
+    question: 'Why do we usually apply Boltzmann to electrons rather than ions?',
+    options: [
+      'Ions don\'t obey statistical mechanics.',
+      'Electrons thermalize fast enough to actually reach equilibrium; ions often haven\'t.',
+      'The formula doesn\'t work for positive charges.',
+      'Ions don\'t have enough thermal energy.'
+    ],
+    correct: 1,
+    explain: `<strong>Right answer: B.</strong>
+      Ions are <em>~1836× heavier</em> than electrons (for hydrogen). Forces give them much smaller acceleration,
+      so they take much longer to redistribute and reach thermal equilibrium.
+      <h4>Three regimes</h4>
+      <strong>Fast events</strong> (faster than ion-plasma frequency): ions are essentially frozen, only electrons follow Boltzmann.<br>
+      <strong>Slow events</strong> (both species thermalize): apply Boltzmann to both, with opposite signs in the exponent.<br>
+      <strong>Most plasma physics</strong>: somewhere in between — electrons get Boltzmann, ions get a separate kinetic treatment.
+      <h4>If both equilibrate</h4>
+      You'd get two equations:
+      <code>n_e = n₀ · exp(+eφ/k_BT_e)</code> and
+      <code>n_i = n₀ · exp(−eφ/k_BT_i)</code>.
+      Plug both into Poisson's equation → <em>Poisson-Boltzmann equation</em> → Debye screening pops out.`
+  },
+
+  // ============================================================
+  {
+    id: 8,
+    type: 'mcq',
+    difficulty: 'connection to Debye screening',
+    context: 'You drop a single positive ion into a previously uniform plasma at temperature T.',
+    question: 'What does the Boltzmann formula predict, and how does that connect to Debye screening?',
+    options: [
+      'Electron density spikes infinitely at the ion. There is no screening.',
+      'Electrons cluster around the ion in a cloud whose size is roughly λ_D, neutralizing the ion at distances larger than λ_D.',
+      'The ion repels all electrons — Debye screening only works for negative charges.',
+      'Boltzmann formula and Debye screening are unrelated concepts.'
+    ],
+    correct: 1,
+    explain: `<strong>Right answer: B.</strong>
+      The Boltzmann formula says electrons accumulate where U is most negative — right around the positive ion.
+      That accumulating cloud carries enough negative charge to <em>neutralize</em> the ion when viewed from far away.
+      <h4>The Debye length</h4>
+      The cloud's characteristic size is λ_D = √(ε₀k_BT / n₀e²) — the <em>Debye length</em>.
+      <ul style="margin: 10px 0 0 20px;">
+        <li>Within ~λ_D of the ion: you can still see its field</li>
+        <li>Beyond ~λ_D: cloud cancels the ion → looks neutral</li>
+      </ul>
+      <h4>Why this matters</h4>
+      Debye screening is what makes a plasma a <em>plasma</em> — distant charges don't interact directly,
+      they interact through screened potentials. This is the foundation for ion acoustic waves,
+      sheath structure, the Bohm criterion, fusion confinement, and basically all plasma physics.
+      <strong>Boltzmann formula → Debye screening → all of plasma physics.</strong>`
+  }
+];
+
+// ============ STATE ============
+let answers = new Array(problems.length).fill(null);
+let answered = new Array(problems.length).fill(false);
+
+// ============ RENDER ============
+function renderAll() {
+  const container = document.getElementById('problems');
+  container.innerHTML = '';
+  document.getElementById('totalCount').textContent = problems.length;
+
+  problems.forEach((prob, idx) => {
+    const card = document.createElement('div');
+    card.className = 'problem';
+    card.id = `problem-${idx}`;
+
+    let inputHTML = '';
+    if (prob.type === 'mcq') {
+      inputHTML = '<div class="options">';
+      prob.options.forEach((opt, i) => {
+        const letter = String.fromCharCode(65 + i);
+        inputHTML += `
+          <button class="option" data-idx="${idx}" data-opt="${i}">
+            <span class="letter">${letter}</span>
+            <span>${opt}</span>
+          </button>
+        `;
+      });
+      inputHTML += '</div>';
+    } else if (prob.type === 'numeric') {
+      inputHTML = `
+        <div class="numeric-input">
+          <label>your answer (number only)</label>
+          <input type="number" step="any" data-idx="${idx}" placeholder="e.g. 1.23" />
+          <div class="tolerance">tolerance: ±${prob.tolerance}</div>
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="problem-header">
+        <span><span class="num">problem ${idx + 1}</span></span>
+        <span class="difficulty">${prob.difficulty}</span>
+      </div>
+      <div class="problem-body">
+        <div class="context">${prob.context}</div>
+        <div class="question">${prob.question}</div>
+        ${inputHTML}
+        <div class="actions">
+          <button class="btn primary" data-action="check" data-idx="${idx}">check answer</button>
+          <button class="btn" data-action="skip" data-idx="${idx}">show solution</button>
+        </div>
+        <div class="feedback" id="feedback-${idx}"></div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Wire up
+  document.querySelectorAll('.option').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = parseInt(btn.dataset.idx);
+      const opt = parseInt(btn.dataset.opt);
+      if (answered[idx]) return;
+      // deselect siblings
+      document.querySelectorAll(`.option[data-idx="${idx}"]`).forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      answers[idx] = opt;
+    });
+  });
+
+  document.querySelectorAll('input[data-idx]').forEach(input => {
+    input.addEventListener('input', e => {
+      const idx = parseInt(input.dataset.idx);
+      if (answered[idx]) return;
+      answers[idx] = parseFloat(input.value);
+    });
+  });
+
+  document.querySelectorAll('button[data-action="check"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      checkAnswer(idx);
+    });
+  });
+
+  document.querySelectorAll('button[data-action="skip"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      showSolution(idx);
+    });
+  });
+}
+
+function checkAnswer(idx) {
+  const prob = problems[idx];
+  const userAns = answers[idx];
+  const feedback = document.getElementById(`feedback-${idx}`);
+  const card = document.getElementById(`problem-${idx}`);
+
+  if (userAns === null || userAns === undefined || (typeof userAns === 'number' && isNaN(userAns))) {
+    feedback.classList.remove('show');
+    feedback.classList.remove('wrong');
+    feedback.innerHTML = `<span class="verdict" style="color: var(--warn);">— pick something first</span>
+      Make a guess or hit "show solution" if you're stuck.`;
+    feedback.style.display = 'block';
+    feedback.style.borderLeftColor = 'var(--warn)';
+    feedback.style.background = 'rgba(212, 160, 23, 0.06)';
+    return;
+  }
+
+  let isRight = false;
+  if (prob.type === 'mcq') {
+    isRight = userAns === prob.correct;
+  } else if (prob.type === 'numeric') {
+    isRight = Math.abs(userAns - prob.answer) <= prob.tolerance;
+  }
+
+  answered[idx] = true;
+
+  // Disable inputs
+  card.querySelectorAll('.option').forEach(b => {
+    b.disabled = true;
+    if (prob.type === 'mcq') {
+      const optIdx = parseInt(b.dataset.opt);
+      if (optIdx === prob.correct) b.classList.add('correct');
+      if (optIdx === userAns && optIdx !== prob.correct) b.classList.add('incorrect');
+    }
+  });
+  card.querySelectorAll('input').forEach(i => i.disabled = true);
+  card.querySelectorAll('button[data-action]').forEach(b => b.disabled = true);
+
+  // Feedback
+  feedback.style.borderLeftColor = isRight ? 'var(--right)' : 'var(--wrong)';
+  feedback.style.background = isRight ? 'rgba(91, 138, 58, 0.06)' : 'rgba(200, 72, 46, 0.06)';
+  feedback.classList.toggle('wrong', !isRight);
+  let explainText = typeof prob.explain === 'function' ? prob.explain(userAns) : prob.explain;
+
+  let verdictText;
+  if (isRight) {
+    verdictText = '<span class="verdict">✓ correct</span>';
+  } else {
+    if (prob.type === 'numeric') {
+      verdictText = `<span class="verdict">✗ not quite — you gave ${userAns}, answer is ${prob.answer}</span>`;
+    } else {
+      verdictText = '<span class="verdict">✗ not quite</span>';
+    }
+  }
+
+  feedback.innerHTML = verdictText + explainText;
+  feedback.classList.add('show');
+  feedback.style.display = 'block';
+
+  updateProgress();
+  checkAllDone();
+}
+
+function showSolution(idx) {
+  const prob = problems[idx];
+  const feedback = document.getElementById(`feedback-${idx}`);
+  const card = document.getElementById(`problem-${idx}`);
+
+  answered[idx] = true;
+
+  card.querySelectorAll('.option').forEach(b => {
+    b.disabled = true;
+    if (prob.type === 'mcq') {
+      const optIdx = parseInt(b.dataset.opt);
+      if (optIdx === prob.correct) b.classList.add('correct');
+    }
+  });
+  card.querySelectorAll('input').forEach(i => i.disabled = true);
+  card.querySelectorAll('button[data-action]').forEach(b => b.disabled = true);
+
+  feedback.style.borderLeftColor = 'var(--warn)';
+  feedback.style.background = 'rgba(212, 160, 23, 0.06)';
+  feedback.classList.remove('wrong');
+
+  let explainText = typeof prob.explain === 'function' ? prob.explain(null) : prob.explain;
+  feedback.innerHTML = `<span class="verdict" style="color: var(--warn);">— solution shown</span>` + explainText;
+  feedback.classList.add('show');
+  feedback.style.display = 'block';
+
+  updateProgress();
+  checkAllDone();
+}
+
+function updateProgress() {
+  let right = 0;
+  problems.forEach((prob, idx) => {
+    if (!answered[idx]) return;
+    const userAns = answers[idx];
+    if (userAns === null || userAns === undefined) return;
+    if (prob.type === 'mcq' && userAns === prob.correct) right++;
+    else if (prob.type === 'numeric' && Math.abs(userAns - prob.answer) <= prob.tolerance) right++;
+  });
+  document.getElementById('rightCount').textContent = right;
+  const pct = (answered.filter(Boolean).length / problems.length) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function checkAllDone() {
+  if (answered.every(Boolean)) {
+    setTimeout(() => {
+      let right = 0;
+      problems.forEach((prob, idx) => {
+        const userAns = answers[idx];
+        if (userAns === null || userAns === undefined) return;
+        if (prob.type === 'mcq' && userAns === prob.correct) right++;
+        else if (prob.type === 'numeric' && Math.abs(userAns - prob.answer) <= prob.tolerance) right++;
+      });
+      const total = problems.length;
+      const pct = right / total;
+
+      const finalScreen = document.getElementById('finalScreen');
+      finalScreen.classList.add('show');
+
+      const grade = document.getElementById('finalGrade');
+      grade.textContent = `${right}/${total}`;
+      if (pct < 0.5) grade.style.color = 'var(--wrong)';
+      else if (pct < 0.75) grade.style.color = 'var(--warn)';
+      else grade.style.color = 'var(--right)';
+
+      const msg = document.getElementById('finalMessage');
+      if (pct === 1) {
+        msg.textContent = "Perfect. You've absolutely got the Boltzmann density relation. Move on to whatever's next.";
+      } else if (pct >= 0.75) {
+        msg.textContent = "Strong understanding. The wrong ones are worth re-reading the explanations on — the patterns there are subtle.";
+      } else if (pct >= 0.5) {
+        msg.textContent = "You've got the basic idea but some of the deeper conceptual stuff is shaky. Worth going through the explanations carefully.";
+      } else {
+        msg.textContent = "Lots to dig into. Don't worry — these problems probe the tricky parts. Re-read the explanations and try again.";
+      }
+    }, 600);
+  }
+}
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  answers = new Array(problems.length).fill(null);
+  answered = new Array(problems.length).fill(false);
+  document.getElementById('finalScreen').classList.remove('show');
+  renderAll();
+  updateProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+renderAll();
+updateProgress();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chease to metrics</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// --- Math helpers ---
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// Generate flux surfaces (D-shaped nested contours)
+function fluxSurface(psiNorm, theta, shafranov = 0.25) {
+  const r0 = 2.0; // major radius
+  const a = 0.7 * psiNorm; // minor radius scales with psi
+  const kappa = 1.6; // elongation
+  const delta = 0.35; // triangularity
+  const shift = shafranov * (1 - psiNorm * psiNorm); // Shafranov shift
+  const R = r0 + shift + a * Math.cos(theta + delta * Math.sin(theta));
+  const Z = kappa * a * Math.sin(theta);
+  return { R, Z };
+}
+
+// Gradient of psi (approximate, points radially outward)
+function gradPsi(psiNorm, theta) {
+  const eps = 0.01;
+  const p1 = fluxSurface(psiNorm + eps, theta);
+  const p0 = fluxSurface(psiNorm - eps, theta);
+  const dRdpsi = (p1.R - p0.R) / (2 * eps);
+  const dZdpsi = (p1.Z - p0.Z) / (2 * eps);
+  const mag = Math.sqrt(dRdpsi * dRdpsi + dZdpsi * dZdpsi);
+  return { dR: dRdpsi / mag, dZ: dZdpsi / mag, mag };
+}
+
+// Gradient of theta (approximate, points poloidally)
+function gradTheta(psiNorm, theta) {
+  const eps = 0.01;
+  const p1 = fluxSurface(psiNorm, theta + eps);
+  const p0 = fluxSurface(psiNorm, theta - eps);
+  const dRdth = (p1.R - p0.R) / (2 * eps);
+  const dZdth = (p1.Z - p0.Z) / (2 * eps);
+  const mag = Math.sqrt(dRdth * dRdth + dZdth * dZdth);
+  return { dR: -dZdth / (mag * mag), dZ: dRdth / (mag * mag), mag: 1 / mag };
+}
+
+const STEPS = [
+  {
+    id: "equilibrium",
+    title: "1. CHEASE Equilibrium",
+    desc: "CHEASE solves the Grad-Shafranov equation and produces a 2D map of ψ(R,Z) — nested flux surfaces on the poloidal cross-section. This is your D-shaped slice.",
+  },
+  {
+    id: "pick-surface",
+    title: "2. Pick a Flux Surface",
+    desc: "We choose a specific flux surface (a value of ψ) where we want to study turbulence. GENE's flux tube will live here.",
+  },
+  {
+    id: "gradients",
+    title: "3. Compute Gradients",
+    desc: "At each point (θ) on this surface, CHEASE already knows ∇ψ (radial direction, across surfaces) and ∇θ (poloidal direction, along the surface). These come from derivatives of the equilibrium map.",
+  },
+  {
+    id: "parallelogram",
+    title: "4. The Local Parallelogram",
+    desc: "A small step in (ψ, θ) coordinates maps to a parallelogram in real (R,Z) space. The metric coefficients describe this parallelogram — how long each side is and the angle between them.",
+  },
+  {
+    id: "extract",
+    title: "5. Extract Along Field Line",
+    desc: "Following the field line means sweeping θ around the surface. We read off g_xx, g_xy, g_yy at each θ. This gives GENE the 1D arrays it needs — geometry along z.",
+  },
+];
+
+// Color palette — dark scientific aesthetic
+const C = {
+  bg: "#0a0e17",
+  bgPanel: "#0f1520",
+  surface: "#1a2235",
+  border: "#253352",
+  text: "#c8d4e8",
+  textDim: "#5a6e8f",
+  textBright: "#e8eef8",
+  accent: "#4fc3f7",
+  accentDim: "#1a3a52",
+  flux: "#2d5a8e",
+  fluxBright: "#4a90d9",
+  highlight: "#ff6b6b",
+  green: "#66bb6a",
+  orange: "#ffa726",
+  purple: "#ab47bc",
+};
+
+function CheaseToMetrics() {
+  const [step, setStep] = useState(0);
+  const [thetaSweep, setThetaSweep] = useState(0);
+  const [animPhase, setAnimPhase] = useState(0);
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const startTimeRef = useRef(Date.now());
+
+  const currentStep = STEPS[step];
+  const chosenPsi = 0.6;
+
+  // Animation loop
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+    const tick = () => {
+      const elapsed = (Date.now() - startTimeRef.current) / 1000;
+      setAnimPhase(elapsed);
+      if (step === 4) {
+        setThetaSweep((elapsed * 0.8) % (2 * Math.PI));
+      }
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [step]);
+
+  // Canvas drawing
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Transform from (R,Z) to canvas coords
+    const toX = (R) => ((R - 0.8) / 2.6) * W;
+    const toY = (Z) => H / 2 - (Z / 1.8) * (H / 2);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid dots
+    ctx.fillStyle = C.border + "40";
+    for (let gx = 0; gx < W; gx += 30) {
+      for (let gy = 0; gy < H; gy += 30) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const nSurfaces = 8;
+    const nTheta = 120;
+
+    // Draw flux surfaces
+    for (let i = 1; i <= nSurfaces; i++) {
+      const psi = i / nSurfaces;
+      const isChosen = step >= 1 && Math.abs(psi - chosenPsi) < 0.08;
+
+      ctx.beginPath();
+      for (let j = 0; j <= nTheta; j++) {
+        const th = (j / nTheta) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(psi, th);
+        const x = toX(R);
+        const y = toY(Z);
+        if (j === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      if (isChosen) {
+        ctx.strokeStyle = C.accent;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = C.accent;
+        ctx.shadowBlur = 12;
+      } else {
+        const alpha = step >= 1 ? 0.2 : 0.6;
+        ctx.strokeStyle =
+          C.fluxBright + Math.round(alpha * 255).toString(16).padStart(2, "0");
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 0;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Magnetic axis marker
+    const { R: axR, Z: axZ } = fluxSurface(0, 0);
+    ctx.beginPath();
+    ctx.arc(toX(axR), toY(axZ), 3, 0, Math.PI * 2);
+    ctx.fillStyle = C.textDim;
+    ctx.fill();
+
+    // ψ labels
+    if (step === 0) {
+      ctx.font = "11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.textDim;
+      for (let i = 2; i <= nSurfaces; i += 2) {
+        const psi = i / nSurfaces;
+        const { R } = fluxSurface(psi, 0);
+        ctx.fillText(`ψ=${psi.toFixed(1)}`, toX(R) + 5, toY(0) - 5);
+      }
+    }
+
+    // Step-specific overlays
+    if (step >= 2) {
+      // Show gradient arrows at sample points
+      const nArrows = step === 4 ? 1 : 8;
+      const pulse = 0.5 + 0.5 * Math.sin(animPhase * 2);
+
+      for (let k = 0; k < nArrows; k++) {
+        const th = step === 4 ? thetaSweep : (k / nArrows) * 2 * Math.PI;
+        const { R, Z } = fluxSurface(chosenPsi, th);
+        const cx = toX(R);
+        const cy = toY(Z);
+
+        // Draw point
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fillStyle = C.highlight;
+        ctx.shadowColor = C.highlight;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // ∇ψ arrow (radial)
+        const gp = gradPsi(chosenPsi, th);
+        const arrowLen = 35;
+        const gpx = gp.dR * arrowLen;
+        const gpy = -gp.dZ * arrowLen;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + gpx, cy + gpy);
+        ctx.strokeStyle = C.green;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // arrowhead
+        const angle1 = Math.atan2(gpy, gpx);
+        ctx.beginPath();
+        ctx.moveTo(cx + gpx, cy + gpy);
+        ctx.lineTo(
+          cx + gpx - 8 * Math.cos(angle1 - 0.4),
+          cy + gpy - 8 * Math.sin(angle1 - 0.4)
+        );
+        ctx.moveTo(cx + gpx, cy + gpy);
+        ctx.lineTo(
+          cx + gpx - 8 * Math.cos(angle1 + 0.4),
+          cy + gpy - 8 * Math.sin(angle1 + 0.4)
+        );
+        ctx.stroke();
+
+        // ∇θ arrow (poloidal)
+        const gt = gradTheta(chosenPsi, th);
+        const gtLen = 35;
+        const gtx = gt.dR * gtLen * 0.8;
+        const gty = -gt.dZ * gtLen * 0.8;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + gtx, cy + gty);
+        ctx.strokeStyle = C.orange;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        const angle2 = Math.atan2(gty, gtx);
+        ctx.beginPath();
+        ctx.moveTo(cx + gtx, cy + gty);
+        ctx.lineTo(
+          cx + gtx - 8 * Math.cos(angle2 - 0.4),
+          cy + gty - 8 * Math.sin(angle2 - 0.4)
+        );
+        ctx.moveTo(cx + gtx, cy + gty);
+        ctx.lineTo(
+          cx + gtx - 8 * Math.cos(angle2 + 0.4),
+          cy + gty - 8 * Math.sin(angle2 + 0.4)
+        );
+        ctx.stroke();
+
+        // Parallelogram (steps 3+)
+        if (step >= 3) {
+          const pScale = 0.6 + 0.15 * pulse;
+          const px = gpx * pScale;
+          const py = gpy * pScale;
+          const qx = gtx * pScale;
+          const qy = gty * pScale;
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + px, cy + py);
+          ctx.lineTo(cx + px + qx, cy + py + qy);
+          ctx.lineTo(cx + qx, cy + qy);
+          ctx.closePath();
+          ctx.fillStyle = C.purple + "30";
+          ctx.fill();
+          ctx.strokeStyle = C.purple;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Labels
+          if (step >= 3 && (nArrows === 1 || k === 0)) {
+            ctx.font = "bold 11px 'IBM Plex Mono', monospace";
+            ctx.fillStyle = C.green;
+            ctx.fillText("∇ψ → g_xx", cx + gpx + 5, cy + gpy - 3);
+            ctx.fillStyle = C.orange;
+            ctx.fillText("∇θ → g_yy", cx + gtx + 5, cy + gty + 12);
+            ctx.fillStyle = C.purple;
+            ctx.fillText(
+              "skew → g_xy",
+              cx + (px + qx) / 2 + 5,
+              cy + (py + qy) / 2
+            );
+          }
+        }
+      }
+    }
+
+    // Sweep trail for step 4
+    if (step === 4) {
+      ctx.beginPath();
+      const nTrail = 60;
+      for (let i = 0; i < nTrail; i++) {
+        const th = thetaSweep - (i / nTrail) * 1.2;
+        const { R, Z } = fluxSurface(chosenPsi, th);
+        const x = toX(R);
+        const y = toY(Z);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = C.highlight + "60";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // Legend
+    if (step >= 2) {
+      const lx = 12;
+      const ly = H - 55;
+      ctx.font = "11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = C.green;
+      ctx.fillRect(lx, ly, 12, 2);
+      ctx.fillText("∇ψ (radial)", lx + 18, ly + 4);
+      ctx.fillStyle = C.orange;
+      ctx.fillRect(lx, ly + 16, 12, 2);
+      ctx.fillText("∇θ (poloidal)", lx + 18, ly + 20);
+      if (step >= 3) {
+        ctx.fillStyle = C.purple;
+        ctx.fillRect(lx, ly + 32, 12, 2);
+        ctx.fillText("parallelogram (metric)", lx + 18, ly + 36);
+      }
+    }
+  }, [step, animPhase, thetaSweep]);
+
+  // Metric coefficient mini-chart for step 4
+  const renderMiniChart = () => {
+    if (step < 4) return null;
+    const nPts = 80;
+    const data = [];
+    for (let i = 0; i < nPts; i++) {
+      const th = (i / nPts) * 2 * Math.PI;
+      const gp = gradPsi(chosenPsi, th);
+      const gt = gradTheta(chosenPsi, th);
+      const dotRR = gp.dR * gt.dR + gp.dZ * gt.dZ;
+      data.push({
+        theta: th,
+        gxx: gp.mag * gp.mag * 2.5,
+        gyy: 1 / (gt.mag * gt.mag) * 0.3,
+        gxy: dotRR * 1.2,
+      });
+    }
+
+    const w = 280;
+    const h = 100;
+    const pad = 25;
+
+    const maxVal = Math.max(...data.map((d) => Math.max(Math.abs(d.gxx), Math.abs(d.gyy), Math.abs(d.gxy))));
+    const scaleY = (v) => pad + (h - 2 * pad) * (1 - (v + maxVal) / (2 * maxVal));
+    const scaleX = (i) => pad + ((w - 2 * pad) * i) / (nPts - 1);
+
+    const sweepIdx = Math.floor((thetaSweep / (2 * Math.PI)) * nPts) % nPts;
+
+    const makePath = (key) =>
+      data
+        .map((d, i) => `${i === 0 ? "M" : "L"}${scaleX(i).toFixed(1)},${scaleY(d[key]).toFixed(1)}`)
+        .join(" ");
+
+    return (
+      <div
+        style={{
+          background: C.bgPanel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 8,
+          padding: "8px 4px 4px 4px",
+          marginTop: 10,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            color: C.textDim,
+            fontFamily: "'IBM Plex Mono', monospace",
+            textAlign: "center",
+            marginBottom: 4,
+          }}
+        >
+          metric coefficients vs θ (what GENE receives)
+        </div>
+        <svg width={w} height={h} style={{ display: "block", margin: "0 auto" }}>
+          <line x1={pad} x2={w - pad} y1={scaleY(0)} y2={scaleY(0)} stroke={C.border} strokeWidth={0.5} />
+          <path d={makePath("gxx")} fill="none" stroke={C.green} strokeWidth={1.5} />
+          <path d={makePath("gyy")} fill="none" stroke={C.orange} strokeWidth={1.5} />
+          <path d={makePath("gxy")} fill="none" stroke={C.purple} strokeWidth={1.5} />
+          <line
+            x1={scaleX(sweepIdx)}
+            x2={scaleX(sweepIdx)}
+            y1={pad}
+            y2={h - pad}
+            stroke={C.highlight}
+            strokeWidth={1}
+            strokeDasharray="3,3"
+          />
+          <text x={w - pad + 3} y={scaleY(data[nPts - 1].gxx) + 3} fill={C.green} fontSize={9} fontFamily="'IBM Plex Mono', monospace">
+            g_xx
+          </text>
+          <text x={w - pad + 3} y={scaleY(data[nPts - 1].gyy) + 3} fill={C.orange} fontSize={9} fontFamily="'IBM Plex Mono', monospace">
+            g_yy
+          </text>
+          <text x={w - pad + 3} y={scaleY(data[nPts - 1].gxy) + 3} fill={C.purple} fontSize={9} fontFamily="'IBM Plex Mono', monospace">
+            g_xy
+          </text>
+          <text x={pad} y={h - 5} fill={C.textDim} fontSize={9} fontFamily="'IBM Plex Mono', monospace">
+            0
+          </text>
+          <text x={w - pad - 10} y={h - 5} fill={C.textDim} fontSize={9} fontFamily="'IBM Plex Mono', monospace">
+            2π
+          </text>
+        </svg>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      style={{
+        background: C.bg,
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "16px 12px",
+        fontFamily: "'IBM Plex Mono', 'Fira Code', monospace",
+        color: C.text,
+      }}
+    >
+      <div style={{ maxWidth: 500, width: "100%" }}>
+        {/* Title */}
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: 16,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: C.textBright,
+              margin: 0,
+              letterSpacing: "0.04em",
+            }}
+          >
+            CHEASE → Metric Coefficients
+          </h1>
+          <div style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>
+            how equilibrium geometry becomes GENE input
+          </div>
+        </div>
+
+        {/* Step indicator */}
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            justifyContent: "center",
+            marginBottom: 12,
+          }}
+        >
+          {STEPS.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => setStep(i)}
+              style={{
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                border: "none",
+                background: i === step ? C.accent : i < step ? C.accentDim : C.surface,
+                cursor: "pointer",
+                transition: "all 0.3s",
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Canvas */}
+        <div
+          style={{
+            background: C.bgPanel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            overflow: "hidden",
+            marginBottom: 12,
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            width={500}
+            height={400}
+            style={{ width: "100%", height: "auto", display: "block" }}
+          />
+        </div>
+
+        {/* Info panel */}
+        <div
+          style={{
+            background: C.bgPanel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: 16,
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.accent,
+              marginBottom: 6,
+            }}
+          >
+            {currentStep.title}
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: C.text,
+              lineHeight: 1.6,
+            }}
+          >
+            {currentStep.desc}
+          </div>
+          {step === 3 && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: "8px 10px",
+                background: C.surface,
+                borderRadius: 6,
+                fontSize: 11,
+                color: C.textDim,
+                lineHeight: 1.7,
+              }}
+            >
+              <span style={{ color: C.green }}>g_xx = ∇ψ · ∇ψ</span>
+              {" — how fast ψ changes → radial stretching"}
+              <br />
+              <span style={{ color: C.orange }}>g_yy = ∇θ · ∇θ</span>
+              {" — how fast θ changes → poloidal stretching"}
+              <br />
+              <span style={{ color: C.purple }}>g_xy = ∇ψ · ∇θ</span>
+              {" — their dot product → skew/tilt of grid"}
+            </div>
+          )}
+          {renderMiniChart()}
+        </div>
+
+        {/* Navigation */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 6,
+              border: `1px solid ${C.border}`,
+              background: step === 0 ? C.surface : C.bgPanel,
+              color: step === 0 ? C.textDim : C.text,
+              cursor: step === 0 ? "default" : "pointer",
+              fontSize: 12,
+              fontFamily: "inherit",
+            }}
+          >
+            ← Back
+          </button>
+          <button
+            onClick={() => setStep(Math.min(STEPS.length - 1, step + 1))}
+            disabled={step === STEPS.length - 1}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 6,
+              border: `1px solid ${step === STEPS.length - 1 ? C.border : C.accent}`,
+              background: step === STEPS.length - 1 ? C.surface : C.accentDim,
+              color: step === STEPS.length - 1 ? C.textDim : C.accent,
+              cursor: step === STEPS.length - 1 ? "default" : "pointer",
+              fontSize: 12,
+              fontFamily: "inherit",
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CheaseToMetrics));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

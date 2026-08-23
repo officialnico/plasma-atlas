@@ -1,0 +1,477 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vlasov landscape</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// 3D landscape view of f(x, v) as height
+// Move a probe point around to see ∂f/∂x, ∂f/∂v, the gradient vector,
+// and the live computation of v·∂f/∂x + (F/m)·∂f/∂v = -∂f/∂t
+
+const Nx = 40;
+const Nv = 40;
+const xMin = -3, xMax = 3;
+const vMin = -3, vMax = 3;
+const dx = (xMax - xMin) / Nx;
+const dv = (vMax - vMin) / Nv;
+
+const DISTRIBUTIONS = {
+  maxwellian: {
+    name: "Maxwellian × cos",
+    formula: "exp(−v²/2) · (1 + 0.3·cos(x))",
+    func: (x, v) => Math.exp(-v*v/2) * (1 + 0.3 * Math.cos(x)),
+    dfdx: (x, v) => Math.exp(-v*v/2) * (-0.3 * Math.sin(x)),
+    dfdv: (x, v) => Math.exp(-v*v/2) * (-v) * (1 + 0.3 * Math.cos(x))
+  },
+  shifted: {
+    name: "Shifted Gaussian",
+    formula: "exp(−(v−1)²/2 − x²/4)",
+    func: (x, v) => Math.exp(-Math.pow(v-1, 2)/2 - x*x/4),
+    dfdx: (x, v) => Math.exp(-Math.pow(v-1, 2)/2 - x*x/4) * (-x/2),
+    dfdv: (x, v) => Math.exp(-Math.pow(v-1, 2)/2 - x*x/4) * (-(v-1))
+  },
+  twoStream: {
+    name: "Two streams",
+    formula: "exp(−(v−1.2)²) + exp(−(v+1.2)²) · (1 + 0.2·cos(x))",
+    func: (x, v) => (Math.exp(-Math.pow(v-1.2,2)) + Math.exp(-Math.pow(v+1.2,2))) * (1 + 0.2*Math.cos(x)),
+    dfdx: (x, v) => (Math.exp(-Math.pow(v-1.2,2)) + Math.exp(-Math.pow(v+1.2,2))) * (-0.2*Math.sin(x)),
+    dfdv: (x, v) => (Math.exp(-Math.pow(v-1.2,2))*(-2*(v-1.2)) + Math.exp(-Math.pow(v+1.2,2))*(-2*(v+1.2))) * (1 + 0.2*Math.cos(x))
+  },
+  bump: {
+    name: "Maxwellian + bump",
+    formula: "exp(−v²/2) + 0.4·exp(−(v−1.5)²/0.3)",
+    func: (x, v) => Math.exp(-v*v/2) + 0.4*Math.exp(-Math.pow(v-1.5,2)/0.3),
+    dfdx: (x, v) => 0,
+    dfdv: (x, v) => Math.exp(-v*v/2)*(-v) + 0.4*Math.exp(-Math.pow(v-1.5,2)/0.3) * (-2*(v-1.5)/0.3)
+  }
+};
+
+function VlasovLandscape() {
+  const [distName, setDistName] = useState("maxwellian");
+  const [probeX, setProbeX] = useState(0.5);
+  const [probeV, setProbeV] = useState(0.8);
+  const [F, setF] = useState(0.5);
+  const [m, setM] = useState(1.0);
+  const [rotateY, setRotateY] = useState(0.7);
+  const [rotateX, setRotateX] = useState(0.55);
+  const [showGradient, setShowGradient] = useState(true);
+  const [showSlopeX, setShowSlopeX] = useState(true);
+  const [showSlopeV, setShowSlopeV] = useState(true);
+
+  const dist = DISTRIBUTIONS[distName];
+
+  // 3D projection
+  const W = 720, H = 480;
+  const cx = W / 2, cy = H / 2 + 30;
+  const project = (x, y, z) => {
+    const cy_ = Math.cos(rotateY), sy = Math.sin(rotateY);
+    const cx_ = Math.cos(rotateX), sx = Math.sin(rotateX);
+    let x1 = x * cy_ + y * sy;
+    let y1 = z;
+    let z1 = -x * sy + y * cy_;
+    let x2 = x1;
+    let y2 = y1 * cx_ - z1 * sx;
+    let z2 = y1 * sx + z1 * cx_;
+    const scale = 80;
+    return { px: cx + x2 * scale, py: cy - y2 * scale, depth: z2 };
+  };
+
+  // build mesh lines
+  const heightScale = 1.5;
+  const meshLines = (() => {
+    const lines = [];
+    // x-direction lines
+    for (let j = 0; j <= Nv; j += 2) {
+      const v = vMin + (j / Nv) * (vMax - vMin);
+      const pts = [];
+      for (let i = 0; i <= Nx; i++) {
+        const x = xMin + (i / Nx) * (xMax - xMin);
+        const z = dist.func(x, v) * heightScale;
+        const p = project(x, v, z);
+        pts.push({ ...p, x, v, z, fval: dist.func(x, v) });
+      }
+      lines.push({ pts, dir: "x" });
+    }
+    // v-direction lines
+    for (let i = 0; i <= Nx; i += 2) {
+      const x = xMin + (i / Nx) * (xMax - xMin);
+      const pts = [];
+      for (let j = 0; j <= Nv; j++) {
+        const v = vMin + (j / Nv) * (vMax - vMin);
+        const z = dist.func(x, v) * heightScale;
+        const p = project(x, v, z);
+        pts.push({ ...p, x, v, z, fval: dist.func(x, v) });
+      }
+      lines.push({ pts, dir: "v" });
+    }
+    return lines;
+  })();
+
+  // probe point on the surface
+  const fAtProbe = dist.func(probeX, probeV);
+  const dfdxAtProbe = dist.dfdx(probeX, probeV);
+  const dfdvAtProbe = dist.dfdv(probeX, probeV);
+  const streamingTerm = probeV * dfdxAtProbe;
+  const forceTerm = (F / m) * dfdvAtProbe;
+  const dfdt = -(streamingTerm + forceTerm);
+
+  const probePt = project(probeX, probeV, fAtProbe * heightScale);
+  const probeBase = project(probeX, probeV, 0);
+
+  // gradient vector arrow tip
+  const gradLen = 0.6;
+  const gradMag = Math.sqrt(dfdxAtProbe*dfdxAtProbe + dfdvAtProbe*dfdvAtProbe);
+  const ngx = gradMag > 0.001 ? dfdxAtProbe / gradMag : 0;
+  const ngv = gradMag > 0.001 ? dfdvAtProbe / gradMag : 0;
+  const gradTip = project(
+    probeX + ngx * gradLen,
+    probeV + ngv * gradLen,
+    fAtProbe * heightScale
+  );
+
+  // slope-x indicator: line in x direction at probe point, length proportional to dfdx
+  const slopeXLen = 0.5;
+  const slopeXEnd1 = project(probeX - slopeXLen, probeV, (fAtProbe - dfdxAtProbe * slopeXLen) * heightScale);
+  const slopeXEnd2 = project(probeX + slopeXLen, probeV, (fAtProbe + dfdxAtProbe * slopeXLen) * heightScale);
+
+  // slope-v indicator
+  const slopeVLen = 0.5;
+  const slopeVEnd1 = project(probeX, probeV - slopeVLen, (fAtProbe - dfdvAtProbe * slopeVLen) * heightScale);
+  const slopeVEnd2 = project(probeX, probeV + slopeVLen, (fAtProbe + dfdvAtProbe * slopeVLen) * heightScale);
+
+  // drag for rotation
+  const drag3Ref = useRef({ active: false, lastX: 0, lastY: 0 });
+  const handle3dDown = (e) => {
+    drag3Ref.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+  };
+  const handle3dMove = (e) => {
+    if (!drag3Ref.current.active) return;
+    const dx = e.clientX - drag3Ref.current.lastX;
+    const dy = e.clientY - drag3Ref.current.lastY;
+    setRotateY(r => r + dx * 0.01);
+    setRotateX(r => Math.max(0.1, Math.min(1.4, r - dy * 0.01)));
+    drag3Ref.current.lastX = e.clientX;
+    drag3Ref.current.lastY = e.clientY;
+  };
+  const handle3dUp = () => { drag3Ref.current.active = false; };
+
+  // colormap for mesh
+  const heatColor = (v) => {
+    const t = Math.max(0, Math.min(1, v / 1.4));
+    const r = Math.round(20 + t * 235);
+    const g = Math.round(40 + t * 120);
+    const b = Math.round(80 - t * 40);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#08080d",
+      color: "#e8e8ee",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+      padding: "32px 24px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: inherit; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 18px; }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; margin-top: -7px;
+          cursor: grab;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #08080d;
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; cursor: grab;
+          border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+        .stat {
+          background: #0d0d18; border: 1px solid #1f1f2c; padding: 10px 12px;
+        }
+        .stat .lbl { font-size: 9px; letter-spacing: 0.2em; color: #666; margin-bottom: 4px; }
+        .stat .val { font-size: 16px; font-family: 'Fraunces', serif; font-style: italic; color: #fff; }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>
+            VLASOV · LANDSCAPE VIEW · GRADIENTS AS VECTORS
+          </div>
+          <h1 className="display" style={{ fontSize: 36, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            f(x, v) is a landscape
+          </h1>
+          <p style={{ fontSize: 13, color: "#b0b0bc", marginTop: 12, lineHeight: 1.6, maxWidth: 750 }}>
+            Phase space is the floor (x going east, v going north). f is the height. ∂f/∂x and ∂f/∂v are the slopes
+            of the landscape in those two directions. The gradient (∂f/∂x, ∂f/∂v) is a vector that points uphill.
+            ∂f/∂t isn't a slope — it's how fast the landscape is morphing, computed from the others via Vlasov.
+          </p>
+        </div>
+
+        {/* DISTRIBUTION PICKER */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 10 }}>
+            DISTRIBUTION FUNCTION
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {Object.entries(DISTRIBUTIONS).map(([key, spec]) => (
+              <button key={key} className={`control-btn ${distName === key ? "active" : ""}`} onClick={() => setDistName(key)}>
+                {spec.name}
+              </button>
+            ))}
+          </div>
+          <div className="display" style={{ fontSize: 16, fontStyle: "italic", color: "#fff", marginTop: 12 }}>
+            f(x, v) = {dist.formula}
+          </div>
+        </div>
+
+        {/* 3D LANDSCAPE */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666" }}>
+              f(x, v) — DRAG TO ROTATE
+            </div>
+            <div style={{ fontSize: 10, color: "#888" }}>
+              probe at (x = {probeX.toFixed(2)}, v = {probeV.toFixed(2)})
+            </div>
+          </div>
+          <svg
+            width="100%" viewBox={`0 0 ${W} ${H}`}
+            style={{ display: "block", cursor: "grab", touchAction: "none", border: "1px solid #1f1f2c" }}
+            onPointerDown={handle3dDown}
+            onPointerMove={handle3dMove}
+            onPointerUp={handle3dUp}
+            onPointerLeave={handle3dUp}
+          >
+            {/* mesh */}
+            {meshLines.map((line, li) => {
+              let d = "";
+              line.pts.forEach((p, i) => { d += `${i === 0 ? "M" : "L"}${p.px.toFixed(2)},${p.py.toFixed(2)} `; });
+              const avgH = line.pts.reduce((s, p) => s + p.fval, 0) / line.pts.length;
+              const c = heatColor(avgH);
+              return <path key={li} d={d} fill="none" stroke={c} strokeOpacity="0.6" strokeWidth="1" />;
+            })}
+
+            {/* axes */}
+            {(() => {
+              const o = project(0, 0, 0);
+              const ax = project(3, 0, 0);
+              const ay = project(0, 3, 0);
+              const az = project(0, 0, 1.6);
+              return (
+                <g>
+                  <line x1={o.px} y1={o.py} x2={ax.px} y2={ax.py} stroke="#666" strokeWidth="1.5" />
+                  <text x={ax.px + 6} y={ax.py + 4} fontSize="14" fill="#888" fontStyle="italic" fontFamily="Fraunces">x</text>
+                  <line x1={o.px} y1={o.py} x2={ay.px} y2={ay.py} stroke="#666" strokeWidth="1.5" />
+                  <text x={ay.px + 6} y={ay.py + 4} fontSize="14" fill="#888" fontStyle="italic" fontFamily="Fraunces">v</text>
+                  <line x1={o.px} y1={o.py} x2={az.px} y2={az.py} stroke="#666" strokeWidth="1.5" />
+                  <text x={az.px + 6} y={az.py + 4} fontSize="14" fill="#888" fontStyle="italic" fontFamily="Fraunces">f</text>
+                </g>
+              );
+            })()}
+
+            {/* probe pin */}
+            <line x1={probeBase.px} y1={probeBase.py} x2={probePt.px} y2={probePt.py}
+              stroke="#ffd166" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.7" />
+
+            {/* slope in x direction (blue tangent line on surface) */}
+            {showSlopeX && (
+              <g>
+                <line x1={slopeXEnd1.px} y1={slopeXEnd1.py} x2={slopeXEnd2.px} y2={slopeXEnd2.py}
+                  stroke="#5b8def" strokeWidth="3" />
+                <text x={slopeXEnd2.px + 6} y={slopeXEnd2.py - 4} fontSize="11" fill="#5b8def" fontStyle="italic" fontFamily="Fraunces">
+                  ∂f/∂x = {dfdxAtProbe.toFixed(2)}
+                </text>
+              </g>
+            )}
+
+            {/* slope in v direction (green tangent line on surface) */}
+            {showSlopeV && (
+              <g>
+                <line x1={slopeVEnd1.px} y1={slopeVEnd1.py} x2={slopeVEnd2.px} y2={slopeVEnd2.py}
+                  stroke="#7af0a8" strokeWidth="3" />
+                <text x={slopeVEnd2.px + 6} y={slopeVEnd2.py - 4} fontSize="11" fill="#7af0a8" fontStyle="italic" fontFamily="Fraunces">
+                  ∂f/∂v = {dfdvAtProbe.toFixed(2)}
+                </text>
+              </g>
+            )}
+
+            {/* gradient vector (orange, on the floor) */}
+            {showGradient && gradMag > 0.001 && (() => {
+              const base = project(probeX, probeV, 0);
+              const tip = project(probeX + ngx * gradLen, probeV + ngv * gradLen, 0);
+              const ang = Math.atan2(tip.py - base.py, tip.px - base.px);
+              const ah = 8;
+              return (
+                <g>
+                  <line x1={base.px} y1={base.py} x2={tip.px} y2={tip.py} stroke="#ff5c3a" strokeWidth="3" />
+                  <polygon
+                    points={`${tip.px},${tip.py} ${tip.px - ah*Math.cos(ang-0.5)},${tip.py - ah*Math.sin(ang-0.5)} ${tip.px - ah*Math.cos(ang+0.5)},${tip.py - ah*Math.sin(ang+0.5)}`}
+                    fill="#ff5c3a"
+                  />
+                  <text x={tip.px + 6} y={tip.py + 4} fontSize="11" fill="#ff5c3a" fontStyle="italic" fontFamily="Fraunces">
+                    ∇f
+                  </text>
+                </g>
+              );
+            })()}
+
+            {/* probe sphere */}
+            <circle cx={probePt.px} cy={probePt.py} r="6" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+          </svg>
+        </div>
+
+        {/* PROBE CONTROLS */}
+        <div className="viz-card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 12 }}>
+            PROBE LOCATION & FORCE
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 18 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>x</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{probeX.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="-3" max="3" step="0.01"
+                value={probeX} onChange={e => setProbeX(parseFloat(e.target.value))} />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>v</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{probeV.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="-3" max="3" step="0.01"
+                value={probeV} onChange={e => setProbeV(parseFloat(e.target.value))} />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>F</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{F.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="-2" max="2" step="0.01"
+                value={F} onChange={e => setF(parseFloat(e.target.value))} />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+                <span>m</span>
+                <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{m.toFixed(2)}</span>
+              </div>
+              <input className="smooth-slider" type="range" min="0.5" max="3" step="0.01"
+                value={m} onChange={e => setM(parseFloat(e.target.value))} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button className={`control-btn ${showSlopeX ? "active" : ""}`} onClick={() => setShowSlopeX(s => !s)}>
+              ∂f/∂x line
+            </button>
+            <button className={`control-btn ${showSlopeV ? "active" : ""}`} onClick={() => setShowSlopeV(s => !s)}>
+              ∂f/∂v line
+            </button>
+            <button className={`control-btn ${showGradient ? "active" : ""}`} onClick={() => setShowGradient(s => !s)}>
+              ∇f arrow
+            </button>
+          </div>
+        </div>
+
+        {/* LIVE COMPUTATION */}
+        <div className="viz-card" style={{ marginBottom: 14, background: "#0d0d18" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#666", marginBottom: 12 }}>
+            LIVE COMPUTATION AT THE PROBE POINT
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+            <div className="stat">
+              <div className="lbl">f(x, v)</div>
+              <div className="val">{fAtProbe.toFixed(4)}</div>
+            </div>
+            <div className="stat">
+              <div className="lbl">∂f/∂x</div>
+              <div className="val" style={{ color: "#5b8def" }}>{dfdxAtProbe >= 0 ? "+" : ""}{dfdxAtProbe.toFixed(4)}</div>
+            </div>
+            <div className="stat">
+              <div className="lbl">∂f/∂v</div>
+              <div className="val" style={{ color: "#7af0a8" }}>{dfdvAtProbe >= 0 ? "+" : ""}{dfdvAtProbe.toFixed(4)}</div>
+            </div>
+          </div>
+
+          {/* Step-by-step breakdown */}
+          <div style={{ borderTop: "1px solid #1f1f2c", paddingTop: 14, marginTop: 4 }}>
+            <div className="display" style={{ fontSize: 16, fontStyle: "italic", color: "#888", marginBottom: 8 }}>
+              ∂f/∂t = − v · ∂f/∂x − (F/m) · ∂f/∂v
+            </div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 14, color: "#b0b0bc", lineHeight: 2 }}>
+              Streaming term: v · ∂f/∂x = ({probeV.toFixed(2)}) · ({dfdxAtProbe.toFixed(3)}) = <span style={{ color: "#5b8def", fontWeight: 600 }}>{streamingTerm.toFixed(4)}</span>
+              <br/>
+              Force term: (F/m) · ∂f/∂v = ({(F/m).toFixed(2)}) · ({dfdvAtProbe.toFixed(3)}) = <span style={{ color: "#7af0a8", fontWeight: 600 }}>{forceTerm.toFixed(4)}</span>
+              <br/>
+              ∂f/∂t = −({streamingTerm.toFixed(3)}) − ({forceTerm.toFixed(3)}) = <span style={{ color: "#ff5c3a", fontWeight: 600 }}>{dfdt.toFixed(4)}</span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14, padding: "10px 12px", background: "#08080d", borderLeft: `2px solid ${dfdt > 0.01 ? "#7af0a8" : dfdt < -0.01 ? "#ff5c3a" : "#666"}` }}>
+            <div style={{ fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>
+              {Math.abs(dfdt) < 0.001
+                ? "∂f/∂t ≈ 0: f at this exact point is in instantaneous balance. Streaming and force contributions cancel."
+                : dfdt > 0
+                ? `f at this point is rising at rate ${dfdt.toFixed(3)} per unit time. After dt = 0.1, f goes from ${fAtProbe.toFixed(3)} to ≈ ${(fAtProbe + dfdt * 0.1).toFixed(3)}.`
+                : `f at this point is dropping at rate ${(-dfdt).toFixed(3)} per unit time. After dt = 0.1, f goes from ${fAtProbe.toFixed(3)} to ≈ ${(fAtProbe + dfdt * 0.1).toFixed(3)}.`
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* GUIDE */}
+        <div className="viz-card" style={{ background: "#0d0d18" }}>
+          <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 10 }}>
+            What you're looking at
+          </div>
+          <div style={{ display: "grid", gap: 8, fontSize: 12, color: "#b0b0bc", lineHeight: 1.55 }}>
+            <div>· <span style={{color:"#5b8def"}}>Blue line on the surface</span>: tangent in the x-direction. Its slope = ∂f/∂x at the probe.</div>
+            <div>· <span style={{color:"#7af0a8"}}>Green line on the surface</span>: tangent in the v-direction. Its slope = ∂f/∂v at the probe.</div>
+            <div>· <span style={{color:"#ff5c3a"}}>Orange arrow on the floor</span>: gradient vector (∂f/∂x, ∂f/∂v). Points uphill on the surface.</div>
+            <div>· <span style={{color:"#ffd166"}}>Yellow probe</span>: where you're evaluating the equation. Move it with the x and v sliders.</div>
+            <div>· Drag the surface to rotate. Try moving the probe to peaks (gradient → 0) and steep cliffs (gradient large).</div>
+            <div>· The live computation panel shows every number being plugged into the equation.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(VlasovLandscape));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

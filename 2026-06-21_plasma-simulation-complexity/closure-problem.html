@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The closure problem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0C1230; --bg2:#121A3D; --card:#18224A; --line:#2A3670;
+  --ink:#EAEEFF; --muted:#98A4D6; --faint:#5A66A0;
+  --cool:#56D4C8;        /* resolved / known */
+  --field:#6AA6FF;       /* the electric field term — solved exactly */
+  --need:#F6C453;        /* the unknown moment one rung up */
+  --cut:#FF7575;         /* a closure assumption you supply by hand */
+  --grid:#1A2550;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:
+    linear-gradient(var(--grid) 1px,transparent 1px) 0 0/100% 38px,
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/38px 100%,
+    var(--bg);
+  color:var(--ink);
+  font-family:"Inter",system-ui,sans-serif;
+  line-height:1.6;
+  padding:48px 20px 80px;
+}
+.wrap{max-width:880px;margin:0 auto}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--need);margin:0 0 14px;
+}
+h1{
+  font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:clamp(30px,5.5vw,46px);
+  line-height:1.05;margin:0 0 18px;letter-spacing:-.01em;
+}
+.lead{font-size:17px;color:var(--muted);max-width:62ch;margin:0 0 8px}
+.lead b{color:var(--ink);font-weight:500}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:30px 0 8px}
+button{
+  font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:500;
+  color:var(--ink);background:var(--bg2);border:1px solid var(--line);
+  border-radius:9px;padding:10px 16px;cursor:pointer;transition:all .18s ease;
+}
+button:hover{border-color:var(--need);transform:translateY(-1px)}
+button:focus-visible{outline:2px solid var(--need);outline-offset:2px}
+button.primary{background:var(--need);color:#241a00;border-color:var(--need)}
+button.ghost{color:var(--muted)}
+
+/* ladder */
+.ladder{margin:26px 0 0;display:flex;flex-direction:column;gap:0}
+.rung{position:relative;padding-top:34px}
+.rung:first-child{padding-top:6px}
+
+.dep{
+  position:absolute;top:0;left:24px;display:inline-flex;align-items:center;gap:7px;
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--faint);
+  background:var(--bg);padding:3px 10px 3px 6px;border-radius:20px;
+  border:1px solid var(--line);transition:all .25s ease;
+}
+.dep .arrow{font-size:14px;line-height:1}
+.dep b{color:var(--need);font-weight:500}
+.dep::before{
+  content:"";position:absolute;left:18px;top:-18px;width:1px;height:18px;
+  background:var(--line);transition:background .25s ease;
+}
+
+.card{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--line);border-radius:13px;
+  padding:16px 20px;transition:all .3s ease;
+}
+.sym-wrap{display:flex;align-items:baseline;gap:11px;min-width:172px}
+.sym{
+  font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:26px;
+  width:46px;height:46px;display:grid;place-items:center;border-radius:11px;
+  background:rgba(86,212,200,.12);color:var(--cool);border:1px solid rgba(86,212,200,.3);
+}
+.mname{font-family:"Space Grotesk",sans-serif;font-weight:500;font-size:14px;color:var(--muted)}
+.mname small{display:block;color:var(--faint);font-size:11.5px;font-weight:400}
+.eq{
+  font-family:"IBM Plex Mono",monospace;font-size:15px;color:var(--ink);
+  flex:1;min-width:240px;letter-spacing:.01em;
+}
+.eq sub{font-size:.72em}
+.hl-need{color:var(--need);font-weight:500}
+.hl-field{color:var(--field);font-weight:500}
+
+/* the infinity terminal */
+.rung.inf .card{background:transparent;border-style:dashed;border-color:var(--line);justify-content:center}
+.rung.inf .sym{background:transparent;border-color:transparent;color:var(--faint);font-size:32px}
+.rung.inf .mname{color:var(--faint)}
+
+/* cascade highlight */
+.rung.lit .card{border-color:var(--need);box-shadow:0 0 0 1px var(--need),0 6px 26px -12px var(--need)}
+.rung.lit .sym{background:rgba(246,196,83,.16);color:var(--need);border-color:rgba(246,196,83,.5)}
+.rung.lit .dep{color:var(--need);border-color:var(--need)}
+.rung.lit .dep::before{background:var(--need)}
+
+/* cut state */
+.rung.faded{opacity:.28;filter:grayscale(.5)}
+.rung.closed .card{border-color:var(--cut);background:rgba(255,117,117,.06)}
+.rung.closed .sym{background:rgba(255,117,117,.14);color:var(--cut);border-color:rgba(255,117,117,.4)}
+.rung.closed .hl-need{color:var(--cut);text-decoration:line-through;text-decoration-color:rgba(255,117,117,.6);opacity:.7}
+.rung.closed .dep{display:none}
+.closure-chip{
+  display:none;font-family:"IBM Plex Mono",monospace;font-size:12.5px;
+  color:var(--cut);border:1px dashed var(--cut);border-radius:7px;
+  padding:3px 9px;margin-left:6px;white-space:nowrap;
+}
+.rung.closed .closure-chip{display:inline-block}
+
+/* caption */
+.caption{
+  margin-top:26px;background:var(--bg2);border:1px solid var(--line);
+  border-left:3px solid var(--need);border-radius:0 11px 11px 0;
+  padding:16px 20px;font-size:15px;color:var(--muted);min-height:62px;
+}
+.caption b{color:var(--ink);font-weight:500}
+.caption.cut{border-left-color:var(--cut)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:24px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+.dot.n{background:var(--need)} .dot.f{background:var(--field)}
+.dot.c{background:transparent;border:1px dashed var(--cut)}
+
+@media (max-width:560px){
+  .sym-wrap{min-width:0}
+  .eq{font-size:13.5px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+  button:hover{transform:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">the closure problem</p>
+  <h1>Each equation needs the next one up.</h1>
+  <p class="lead">Take velocity moments of the Vlasov equation and you get a ladder of fluid equations. Every rung's rate of change depends on the rung <b>above</b> it — density needs velocity, velocity needs pressure, pressure needs heat flux, on and on. There is no top rung, so a finite fluid model can only exist if you <b>cut the ladder by hand</b> and invent a value for the dangling term. That invented value is a <b>closure</b>.</p>
+
+  <div class="controls">
+    <button class="primary" id="run">Run the cascade</button>
+    <button id="cutP">Cut at pressure</button>
+    <button id="cutQ">Cut at heat flux</button>
+    <button class="ghost" id="reset">Reset</button>
+  </div>
+
+  <div class="ladder" id="ladder">
+
+    <div class="rung inf" data-level="5">
+      <div class="card">
+        <div class="sym-wrap"><span class="sym">∞</span><span class="mname">No top rung<small>the chain never terminates</small></span></div>
+        <div class="eq" style="color:var(--faint)">… every moment leans on a higher one, forever …</div>
+      </div>
+    </div>
+
+    <div class="rung" data-level="4">
+      <div class="dep"><span class="arrow">↑</span> needs the <b>next</b> moment</div>
+      <div class="card">
+        <div class="sym-wrap"><span class="sym">r</span><span class="mname">4th moment<small>and beyond</small></span></div>
+        <div class="eq">∂<sub>t</sub>r + … = −∂<sub>x</sub><span class="hl-need">(next)</span></div>
+      </div>
+    </div>
+
+    <div class="rung" data-level="3" data-close="r → 0, or r ≈ f(n,u,P,q)">
+      <div class="dep"><span class="arrow">↑</span> needs <b>r</b></div>
+      <div class="card">
+        <div class="sym-wrap"><span class="sym">q</span><span class="mname">Heat flux<small>flow of thermal energy</small></span></div>
+        <div class="eq">∂<sub>t</sub>q + … = −∂<sub>x</sub><span class="hl-need">r</span><span class="closure-chip">r supplied by Landau-fluid closure</span></div>
+      </div>
+    </div>
+
+    <div class="rung" data-level="2" data-close="q = 0  (assume a Maxwellian)">
+      <div class="dep"><span class="arrow">↑</span> needs <b>q</b></div>
+      <div class="card">
+        <div class="sym-wrap"><span class="sym">P</span><span class="mname">Pressure<small>spread of velocities</small></span></div>
+        <div class="eq">∂<sub>t</sub>P + ∂<sub>x</sub>(uP) + 2P∂<sub>x</sub>u = −∂<sub>x</sub><span class="hl-need">q</span><span class="closure-chip">q = 0 (adiabatic)</span></div>
+      </div>
+    </div>
+
+    <div class="rung" data-level="1">
+      <div class="dep"><span class="arrow">↑</span> needs <b>P</b></div>
+      <div class="card">
+        <div class="sym-wrap"><span class="sym">u</span><span class="mname">Momentum<small>bulk flow</small></span></div>
+        <div class="eq">∂<sub>t</sub>(nu) + ∂<sub>x</sub>(nu² + <span class="hl-need">P</span>/m) = (e/m)·n·<span class="hl-field">E</span></div>
+      </div>
+    </div>
+
+    <div class="rung" data-level="0">
+      <div class="dep"><span class="arrow">↑</span> needs <b>u</b></div>
+      <div class="card">
+        <div class="sym-wrap"><span class="sym">n</span><span class="mname">Density<small>how many, where</small></span></div>
+        <div class="eq">∂<sub>t</sub>n + ∂<sub>x</sub>(n<span class="hl-need">u</span>) = 0</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="caption" id="caption">The <span style="color:var(--field)">blue E</span> in the momentum equation is the electromagnetic influence — and it's solved exactly by Poisson's equation. The hard part is never the field. It's the <span style="color:var(--need)">amber term</span> in every row: the higher moment you don't have.</div>
+
+  <div class="legend">
+    <span><i class="dot n"></i> the unknown moment, one rung up</span>
+    <span><i class="dot f"></i> electric field — solved exactly</span>
+    <span><i class="dot c"></i> a closure you supply by hand</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var ladder=document.getElementById('ladder');
+  var caption=document.getElementById('caption');
+  var rungs=[].slice.call(ladder.querySelectorAll('.rung'))
+    .sort(function(a,b){return a.dataset.level-b.dataset.level});
+  var reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var timers=[];
+
+  function clearTimers(){timers.forEach(clearTimeout);timers=[];}
+  function reset(){
+    clearTimers();
+    rungs.forEach(function(r){r.classList.remove('lit','faded','closed');});
+    caption.classList.remove('cut');
+    caption.innerHTML='The <span style="color:var(--field)">blue E</span> in the momentum equation is the electromagnetic influence — and it\'s solved exactly by Poisson\'s equation. The hard part is never the field. It\'s the <span style="color:var(--need)">amber term</span> in every row: the higher moment you don\'t have.';
+  }
+
+  function runCascade(){
+    reset();
+    var step=520;
+    rungs.forEach(function(r,i){
+      timers.push(setTimeout(function(){
+        if(i>0) rungs[i-1].classList.remove('lit');
+        r.classList.add('lit');
+      }, reduce?0:i*step));
+    });
+    timers.push(setTimeout(function(){
+      rungs[rungs.length-1].classList.add('lit');
+      caption.classList.remove('cut');
+      caption.innerHTML='Watch the dependency climb: <b>n needs u, u needs P, P needs q, q needs r…</b> and it runs off the top into infinity. No matter how high you go, the last equation always leans on a moment you haven\'t computed. The ladder <b>cannot close on its own</b>.';
+    }, reduce?0:rungs.length*step));
+  }
+
+  function cut(level,note,tagline){
+    reset();
+    rungs.forEach(function(r){
+      var L=+r.dataset.level;
+      if(L>level) r.classList.add('faded');
+      if(L===level) r.classList.add('closed');
+    });
+    caption.classList.add('cut');
+    caption.innerHTML=tagline;
+  }
+
+  document.getElementById('run').onclick=runCascade;
+  document.getElementById('reset').onclick=reset;
+  document.getElementById('cutP').onclick=function(){
+    cut(2,'',
+      'Cut at <b>pressure</b>. You throw away the heat-flux equation and just declare <b style="color:var(--cut)">q = 0</b> — assume the velocity distribution stays Maxwellian. Now the ladder is finite and you can simulate it like a fluid. The catch: it\'s only honest when collisions are strong enough to keep things Maxwellian. This is the <b>MHD-style</b> bargain — fast and cheap, blind to kinetic effects.');
+  };
+  document.getElementById('cutQ').onclick=function(){
+    cut(3,'',
+      'Cut one rung higher, at <b>heat flux</b>. You keep evolving q but supply <b style="color:var(--cut)">r</b> from the lower moments — a <b>Landau-fluid closure</b> (Hammett–Perkins). It\'s built to smuggle a kinetic effect, Landau damping, back into a fluid model. More equations, more accuracy, but the closure is now a deliberate approximation rather than an exact law — which is exactly the gap today\'s machine-learned closures try to fill.');
+  };
+})();
+</script>
+</body>
+</html>

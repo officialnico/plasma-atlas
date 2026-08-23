@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Ring and the Screen — Deriving Gyrokinetic Quasineutrality</title>
+<link rel="stylesheet" href="../_lib/katex/katex.min.css">
+<script defer src="../_lib/katex/katex.min.js"></script>
+<script defer src="../_lib/katex/auto-render.min.js"></script>
+<style>
+  :root{
+    --ink:#0c1020;        /* deep blue-violet ink */
+    --ink2:#141a30;       /* raised panel */
+    --ink3:#1b2342;       /* hairline-lit panel */
+    --field:#38d9c4;      /* cool — the field / gyrocenter */
+    --particle:#ff9e4a;   /* hot — the gyrating charge */
+    --screen:#ff5fb0;     /* magenta — polarization / the payoff */
+    --text:#e7eaf6;
+    --muted:#8b93b4;
+    --faint:#5b6488;
+    --line:rgba(255,255,255,.09);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--ink);color:var(--text);
+    font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+  /* ---------- type ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:12px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--faint);
+  }
+  h1{
+    font-size:clamp(34px,6.5vw,68px);line-height:1.02;font-weight:800;
+    letter-spacing:-.025em;margin:.3em 0 .25em;
+  }
+  h2{
+    font-size:clamp(24px,3.6vw,38px);line-height:1.08;font-weight:780;
+    letter-spacing:-.02em;margin:0 0 .35em;
+  }
+  h1 em,h2 em{font-style:normal}
+  .hot{color:var(--particle)}
+  .cool{color:var(--field)}
+  .mag{color:var(--screen)}
+  p{margin:0 0 1em;color:#cdd3ea}
+  .lede{font-size:clamp(17px,2.1vw,21px);color:#b8c0e0;max-width:58ch}
+  .small{font-size:14px;color:var(--muted)}
+  strong{color:#fff;font-weight:650}
+  .k{font-family:var(--mono);font-size:.92em;color:var(--field)}
+
+  /* ---------- hero ---------- */
+  header{position:relative;padding:96px 0 40px;overflow:hidden}
+  #heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.9}
+  header .wrap{position:relative;z-index:1}
+  .hero-eq{
+    margin-top:30px;padding:22px 26px;border:1px solid var(--line);
+    border-radius:14px;background:rgba(12,16,32,.55);backdrop-filter:blur(3px);
+    max-width:760px;
+  }
+  .hero-eq .label{font-family:var(--mono);font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .scrollcue{margin-top:34px;font-family:var(--mono);font-size:12px;
+    letter-spacing:.18em;color:var(--faint);text-transform:uppercase}
+  .scrollcue span{display:inline-block;animation:bob 1.8s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+
+  /* ---------- acts ---------- */
+  .act{padding:66px 0;border-top:1px solid var(--line)}
+  .act-head{display:flex;align-items:baseline;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .act-num{font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:var(--particle)}
+  .act-tag{font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:var(--faint)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:start}
+  @media(max-width:820px){.grid{grid-template-columns:1fr;gap:24px}}
+
+  .panel{
+    background:var(--ink2);border:1px solid var(--line);border-radius:16px;
+    padding:18px;position:relative;
+  }
+  canvas.viz{width:100%;display:block;border-radius:10px;background:#070a16}
+  .readouts{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:13px}
+  .ro{display:flex;flex-direction:column;gap:2px}
+  .ro b{font-size:20px;font-weight:700;letter-spacing:.01em}
+  .ro span{color:var(--faint);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+
+  /* sliders */
+  .ctrl{margin-top:14px}
+  .ctrl label{font-family:var(--mono);font-size:12px;color:var(--muted);
+    display:flex;justify-content:space-between;letter-spacing:.05em;margin-bottom:6px}
+  .ctrl label b{color:var(--field);font-weight:700}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;
+    border-radius:3px;background:linear-gradient(90deg,var(--field),var(--particle));outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--ink);
+    box-shadow:0 0 0 1px var(--line);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;
+    background:#fff;border:3px solid var(--ink);cursor:pointer}
+
+  /* equation blocks */
+  .eq{background:var(--ink2);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:16px 0;overflow-x:auto}
+  .eq .cap{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .katex{color:#eef1ff}
+
+  .note{border-left:2px solid var(--particle);padding:4px 0 4px 16px;margin:18px 0;
+    color:#b8c0e0;font-size:15px}
+  .note b{color:var(--particle)}
+
+  /* compare table */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;margin:18px 0}
+  @media(max-width:620px){.compare{grid-template-columns:1fr}}
+  .compare>div{padding:20px}
+  .compare .c-em{background:var(--ink2)}
+  .compare .c-gk{background:linear-gradient(180deg,rgba(255,95,176,.07),rgba(20,26,48,.4))}
+  .compare h4{font-family:var(--mono);font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--faint);margin:0 0 12px}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:12px}
+  .legend i{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
+
+  /* closing */
+  .close{padding:74px 0 40px;border-top:1px solid var(--line)}
+  .diag{background:linear-gradient(180deg,rgba(56,217,196,.06),rgba(255,95,176,.05));
+    border:1px solid var(--line);border-radius:16px;padding:26px 28px;margin-top:8px}
+  .diag .q{font-size:clamp(18px,2.4vw,23px);font-weight:650;color:#fff;letter-spacing:-.01em}
+  footer{padding:30px 0 70px;color:var(--faint);font-family:var(--mono);font-size:12px;
+    letter-spacing:.06em;border-top:1px solid var(--line)}
+
+  .recap{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:22px 0}
+  @media(max-width:760px){.recap{grid-template-columns:1fr 1fr}}
+  .recap div{background:var(--ink);padding:16px;font-family:var(--mono);font-size:12px}
+  .recap div .n{color:var(--particle);letter-spacing:.16em}
+  .recap div .t{color:#cdd3ea;margin-top:8px;line-height:1.45;font-family:var(--sans);font-size:13.5px}
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto}
+    .scrollcue span{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <canvas id="heroCanvas"></canvas>
+  <div class="wrap">
+    <div class="eyebrow">A derivation, made visible · from the ring to the screen</div>
+    <h1>Why the field solve<br>isn't <em class="cool">Poisson's</em> equation.</h1>
+    <p class="lede">You can already narrate it: <em>average over the fast gyration</em>. This takes you the rest of the way — to writing down gyrokinetic quasineutrality, knowing where every symbol comes from, and seeing why the vacuum <span class="k">∇²φ</span> term barely matters in a fusion plasma.</p>
+    <div class="hero-eq">
+      <div class="label">Where we're going</div>
+      <div id="targetEq"></div>
+    </div>
+    <div class="scrollcue"><span>↓ scroll to derive it</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ACT 0 -->
+<section class="act" id="act0">
+  <div class="act-head">
+    <span class="act-num">ACT 00</span><span class="act-tag">THE ORDERING — WHAT MAKES THIS LEGAL</span>
+  </div>
+  <h2>One small number, and one that isn't.</h2>
+  <div class="grid">
+    <div>
+      <p>Gyrokinetics is an organized expansion in a single small parameter <span class="k">ε</span>. Everything slow, weak, and stretched-along-the-field is order <span class="k">ε</span>:</p>
+      <div class="eq"><div class="cap">the gyrokinetic ordering</div><div id="eqOrder"></div></div>
+      <p>The trick is the <strong>last</strong> relation. While the gyroradius <span class="k">ρ</span> is tiny next to the machine size <span class="k">L</span>, the turbulence has perpendicular wavelengths <em>comparable to the gyroradius itself</em>:</p>
+      <div class="eq"><div class="cap">the one quantity that stays O(1)</div><div id="eqKrho"></div></div>
+      <p>That is the whole reason finite-Larmor-radius (FLR) physics survives the averaging. A particle doesn't sample the potential at a point — it samples it around a ring whose size is <em>the same order</em> as the wavelength it's smearing over. Keep that ring in mind. It's the protagonist.</p>
+    </div>
+    <div class="panel">
+      <canvas class="viz" id="act0Canvas" height="340"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--field)"></i>equilibrium scale L (slow)</span>
+        <span><i style="background:var(--particle)"></i>gyro-ring ρ ~ wavelength</span>
+      </div>
+      <p class="small" style="margin-top:12px">Big cool envelope: the slowly varying equilibrium. The hot ring is small against it — but the wave packet it sits in has ripples its <em>own</em> size. <span class="k">ρ/L ≪ 1</span>, yet <span class="k">k⊥ρ ~ 1</span>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ACT 1 -->
+<section class="act" id="act1">
+  <div class="act-head">
+    <span class="act-num">ACT 01</span><span class="act-tag">THE RING — A PARTICLE IS NOT ITS GYROCENTER</span>
+  </div>
+  <h2>The charge lives on a ring. The bookkeeping lives at the center.</h2>
+  <div class="grid">
+    <div class="panel">
+      <canvas class="viz" id="act1Canvas" height="300"></canvas>
+      <div class="readouts">
+        <div class="ro"><b class="hot" id="phiNow">+0.00</b><span>φ felt right now</span></div>
+        <div class="ro"><b class="cool" id="phiAvg">+0.00</b><span>φ at gyrocenter</span></div>
+      </div>
+      <p class="small" style="margin-top:12px">Background shading is the potential <span class="k">φ(x)=cos(k·x)</span>. The <span class="hot">hot dot</span> is the real particle; the <span class="cool">cool dot</span> is its gyrocenter <span class="k">R</span>. The particle's true position is <span class="k">x = R + ρ(θ)</span> — offset by the gyroradius vector, spinning at the gyrofrequency <span class="k">Ω</span>.</p>
+    </div>
+    <div>
+      <p>Split the position into the slow part you track and the fast part you want gone:</p>
+      <div class="eq"><div class="cap">particle position = gyrocenter + ring</div><div id="eqPos"></div></div>
+      <p>As the particle whips around at <span class="k">Ω = qB/m</span>, the value of <span class="k">φ</span> it actually feels swings up and down — watch the <span class="hot">hot readout</span>. The gyrocenter sits at one fixed point in the wave; the particle tours a whole ring of values around it.</p>
+      <p>So the physically meaningful quantity isn't <span class="k">φ</span> at a point. It's <strong>φ averaged around the ring</strong>, holding the gyrocenter fixed. That average is the entire game — and remarkably, it has a closed form. That's Act 02.</p>
+      <div class="note"><b>The move:</b> we will never solve for the particle. We solve for the gyrocenter, then ask what the field equation needs back in particle space. Every subtlety lives in that round trip.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ACT 2 -->
+<section class="act" id="act2">
+  <div class="act-head">
+    <span class="act-num">ACT 02</span><span class="act-tag">THE GYROAVERAGE — WHERE J₀ COMES FROM</span>
+  </div>
+  <h2>Average a plane wave over a circle. You get a Bessel function.</h2>
+  <div class="grid">
+    <div>
+      <p>Take a Fourier mode <span class="k">φ ∝ e^{ik·x}</span>. Put the particle at <span class="k">x = R + ρ</span> and average over the gyrophase <span class="k">θ</span> at fixed gyrocenter <span class="k">R</span>. The <span class="k">e^{ik·R}</span> factor is constant under the average and pulls out; what's left is the average of <span class="k">e^{ik·ρ}</span>:</p>
+      <div class="eq"><div class="cap">the gyroaverage of a plane wave</div><div id="eqJ0"></div></div>
+      <p>With <span class="k">|ρ| = v⊥/Ω</span> and <span class="k">k·ρ = k⊥ρ cosθ</span>, that integral is literally the textbook integral representation of <strong>J₀</strong>. No approximation — it's exact. Drag the slider and watch the ring's average trace out the Bessel curve.</p>
+      <div class="note"><b>Read it off:</b> at <span class="k">k⊥ρ → 0</span> the ring is tiny, the wave looks flat, <span class="k">J₀ → 1</span> — no averaging effect. As <span class="k">k⊥ρ</span> grows, the ring spans peaks <em>and</em> troughs that cancel, so <span class="k">J₀</span> falls and rings. That decay <em>is</em> FLR screening, particle by particle.</p>
+    </div>
+    <div class="panel">
+      <canvas class="viz" id="act2Canvas" height="300"></canvas>
+      <div class="ctrl">
+        <label>gyroradius parameter <span class="k">k⊥ρ</span> <b id="krLbl">2.40</b></label>
+        <input type="range" id="krSlide" min="0" max="6" step="0.02" value="2.4">
+      </div>
+      <div class="readouts">
+        <div class="ro"><b class="hot" id="ringMean">0.00</b><span>ring average ⟨cos(k·ρ)⟩</span></div>
+        <div class="ro"><b class="cool" id="j0val">0.00</b><span>J₀(k⊥ρ) exact</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ACT 3 -->
+<section class="act" id="act3">
+  <div class="act-head">
+    <span class="act-num">ACT 03</span><span class="act-tag">POLARIZATION — THE PRICE OF THE ROUND TRIP</span>
+  </div>
+  <h2>Going back to particle space leaves a charge behind.</h2>
+  <div class="grid">
+    <div class="panel">
+      <canvas class="viz" id="act3Canvas" height="320"></canvas>
+      <div class="ctrl">
+        <label>perturbation strength <span class="k">eφ/T</span> <b id="polLbl">0.6</b></label>
+        <input type="range" id="polSlide" min="0" max="1" step="0.01" value="0.6">
+      </div>
+      <p class="small" style="margin-top:10px">Turn on a potential gradient. Each gyro-orbit's center is displaced by the <span class="k">E×B</span> response — and because that displacement depends on <span class="k">φ</span>, the back-transform from gyrocenters to particles leaves a net <span class="mag">polarization charge</span>.</p>
+    </div>
+    <div>
+      <p>The field equation needs charge density at <strong>particle</strong> positions. But we evolved <strong>gyrocenters</strong>. Transforming back isn't free: the gyrocenter coordinate itself was shifted by an amount proportional to <span class="k">φ</span> (that's the generating function of the gyrocenter transform). So the particle density splits into two pieces:</p>
+      <div class="eq"><div class="cap">particle density = gyroaveraged gyrocenter density + polarization</div><div id="eqPol"></div></div>
+      <p>The first term is the honest gyrocenter charge, smeared back out by the same <span class="k">J₀</span> from Act 02. The second term — the <span class="mag">polarization density</span> <span class="k">n_pol</span> — is the part proportional to <span class="k">φ</span>. It's a <em>response</em>, not a source. That's why, in the field equation, it belongs on the left-hand side as a screening operator.</p>
+      <div class="note"><b>Physical picture:</b> a uniform sea of gyrocenters, once you account for finite rings shifting in a field, is <em>not</em> charge-neutral at the particle level. The plasma polarizes — exactly like a dielectric. That dielectric response is what replaces the vacuum <span class="k">ε₀∇²</span>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ACT 4 -->
+<section class="act" id="act4">
+  <div class="act-head">
+    <span class="act-num">ACT 04</span><span class="act-tag">SUMMING THE RINGS — WHERE Γ₀ COMES FROM</span>
+  </div>
+  <h2>Real particles have a spread of speeds. Average J₀² over a Maxwellian.</h2>
+  <div class="grid">
+    <div>
+      <p>Each particle screens by its own <span class="k">J₀(k⊥ρ)</span> on the way in (averaging the potential it feels) and again by <span class="k">J₀</span> on the way out (smearing its charge back). That's a factor of <span class="k">J₀²</span>. But <span class="k">ρ = v⊥/Ω</span> varies with speed — so integrate over the Maxwellian:</p>
+      <div class="eq"><div class="cap">the velocity-space average of J₀²</div><div id="eqGamma"></div></div>
+      <p>The integral collapses to a single named function: <strong>Γ₀(b) = I₀(b)e^{−b}</strong>, with <span class="k">b = (k⊥ρ_i)²</span> set by the thermal gyroradius. The shaded rings on the right are weighted by the Maxwellian; their summed <span class="k">J₀²</span> is computed live and lands exactly on the Γ₀ curve.</p>
+      <div class="note"><b>This is the screening function.</b> <span class="k">Γ₀ → 1</span> at long wavelength (no screening), <span class="k">Γ₀ → 0</span> at short wavelength (the plasma fully shields it). Everything in the field solve is built from <span class="k">1 − Γ₀</span>.</div>
+    </div>
+    <div class="panel">
+      <canvas class="viz" id="act4Canvas" height="300"></canvas>
+      <div class="ctrl">
+        <label>perpendicular wavenumber <span class="k">b = (k⊥ρ_i)²</span> <b id="bLbl">1.50</b></label>
+        <input type="range" id="bSlide" min="0.001" max="6" step="0.02" value="1.5">
+      </div>
+      <div class="readouts">
+        <div class="ro"><b class="hot" id="numInt">0.00</b><span>∫ J₀²·F_M d³v (numeric)</span></div>
+        <div class="ro"><b class="cool" id="gam0">0.00</b><span>Γ₀(b)=I₀(b)e^{−b}</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ACT 5 -->
+<section class="act" id="act5">
+  <div class="act-head">
+    <span class="act-num">ACT 05</span><span class="act-tag">ASSEMBLE — AND MEET THE OLD POISSON LIMIT</span>
+  </div>
+  <h2>Quasineutrality, with the polarization moved to the left.</h2>
+  <p style="max-width:62ch">Set total particle charge density to zero across species. The <span class="mag">φ-proportional polarization</span> from Act 03, now carrying the <span class="k">(1−Γ₀)</span> from Act 04, moves to the left as a screening operator. The honest gyrocenter charge stays on the right as the source:</p>
+  <div class="eq" style="text-align:center"><div class="cap">gyrokinetic quasineutrality — the field equation the codes actually solve</div><div id="eqFinal"></div></div>
+
+  <div class="compare">
+    <div class="c-em">
+      <h4>What you learned in E&M</h4>
+      <div id="eqPoisson"></div>
+      <p class="small" style="margin-top:12px">A Laplacian acting on φ, sourced by the literal charge density. The plasma's own response is nowhere in it.</p>
+    </div>
+    <div class="c-gk">
+      <h4>What gyrokinetics solves</h4>
+      <div id="eqGKshort"></div>
+      <p class="small" style="margin-top:12px">No <span class="k">ε₀∇²</span> in sight — and that's correct. With <span class="k">λ_D ≪ ρ_i</span> the vacuum term is smaller than the polarization term by <span class="k">(λ_D/ρ_i)²</span>. The plasma's <span class="mag">dielectric response</span> <em>is</em> the operator.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <p>One more thing, to connect it to the intuition you arrived with. Expand <span class="k">1−Γ₀</span> for small <span class="k">b</span>:</p>
+      <div class="eq"><div class="cap">the long-wavelength limit recovers a familiar operator</div><div id="eqLW"></div></div>
+      <p>At small <span class="k">b</span>, the screening operator <em>is</em> <span class="k">k⊥²ρ_i²</span> — which back in real space is precisely the <span class="k">−ρ_i²∇⊥²</span> "modified Poisson" term people quote. So your instinct ("it looks like a screened Poisson equation") was the <strong>b ≪ 1 corner</strong> of the exact thing. The full <span class="k">Γ₀</span> is what you need the moment <span class="k">k⊥ρ_i</span> stops being small — which, per Act 00, is exactly the regime turbulence lives in.</p>
+    </div>
+    <div class="panel">
+      <canvas class="viz" id="act5Canvas" height="300"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--screen)"></i>exact: 1 − Γ₀(b)</span>
+        <span><i style="background:var(--field)"></i>long-λ: b = k⊥²ρ²</span>
+      </div>
+      <p class="small" style="margin-top:10px">They kiss at the origin and diverge fast. The straight line (the differential operator) <em>over-screens</em> at high k; the exact <span class="k">Γ₀</span> saturates. Drag Act 04's slider — the marker tracks here too.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CLOSE -->
+<section class="close">
+  <div class="act-head">
+    <span class="act-num">↻</span><span class="act-tag">THE WHOLE CHAIN, IN ONE BREATH</span>
+  </div>
+  <div class="recap">
+    <div><div class="n">00 ORDERING</div><div class="t">ρ/L ≪ 1 but k⊥ρ ~ 1 — the reason FLR survives averaging.</div></div>
+    <div><div class="n">01 THE RING</div><div class="t">x = R + ρ. Track the gyrocenter; the charge tours a ring around it.</div></div>
+    <div><div class="n">02 → J₀</div><div class="t">Average a plane wave over the ring = J₀(k⊥ρ), exactly.</div></div>
+    <div><div class="n">03 POLARIZATION</div><div class="t">The gyrocenter→particle round trip leaves a φ-proportional charge.</div></div>
+    <div><div class="n">04 → Γ₀</div><div class="t">Average J₀² over the Maxwellian = I₀(b)e^{−b}.</div></div>
+    <div><div class="n">05 ASSEMBLE</div><div class="t">(1−Γ₀)φ = gyrocenter charge. No vacuum Laplacian.</div></div>
+    <div><div class="n">↘ LIMIT</div><div class="t">Small b → −ρ²∇⊥²: the "screened Poisson" you guessed.</div></div>
+    <div><div class="n">→ CODE</div><div class="t">In Fourier-perp, J₀ and Γ₀ are just multipliers per k⊥.</div></div>
+  </div>
+
+  <h2 style="margin-top:34px">What this becomes in the code</h2>
+  <p style="max-width:64ch">In a flux-tube code (GENE, GX, stella) the perpendicular plane is spectral, so <span class="k">k⊥</span> is a grid label, not a derivative. That turns <span class="k">J₀(k⊥ρ)</span> and <span class="k">Γ₀(b)</span> into <strong>per-mode scalar multipliers</strong> — you precompute them on the velocity grid and the "Poisson solve" becomes an algebraic division by <span class="k">Σ (q²n₀/T)(1−Γ₀)</span> at each <span class="k">k⊥</span>. The hard part isn't the solve; it's getting the velocity integral, the species sum, and the boundary/zonal-flow piece right.</p>
+
+  <div class="diag">
+    <div class="eyebrow" style="margin-bottom:10px">THE DERIVE-VS-NARRATE LINE</div>
+    <p class="q">Can you now (1) get J₀ from the ring integral in two lines, (2) say why the polarization term sits on the LHS, and (3) write the small-b limit as −ρ²∇⊥²?</p>
+    <p class="small" style="margin-top:14px;margin-bottom:0">If yes, you've crossed the line this guide was built around — you can derive the field equation, not just describe it. The natural next rung is the same treatment for the <span class="k">parallel</span> dynamics and the gyrokinetic Vlasov equation itself: the gyroaverage of the <em>equations of motion</em>, where μ becomes the adiabatic invariant. That's the Vlasov–Maxwell → gyrokinetics bridge you flagged.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  The Ring and the Screen · an interactive derivation of gyrokinetic quasineutrality · numeric values computed live from J₀ and Γ₀ = I₀(b)e<sup>−b</sup>
+</footer>
+
+<script>
+/* ============ math helpers ============ */
+function besselJ0(x){ // series, good to ~1e-12 for |x|<~15
+  if (x<0) x=-x;
+  let term=1, sum=1, x2=(x*x)/4;
+  for(let m=1;m<40;m++){ term*= -x2/(m*m); sum+=term; if(Math.abs(term)<1e-16) break; }
+  return sum;
+}
+function besselI0(x){
+  let term=1, sum=1, x2=(x*x)/4;
+  for(let m=1;m<60;m++){ term*= x2/(m*m); sum+=term; if(term<1e-16*sum) break; }
+  return sum;
+}
+function gamma0(b){ return besselI0(b)*Math.exp(-b); }
+// numeric <J0^2> over Maxwellian: ∫0∞ J0(√b·u)^2 · u e^{-u^2/2} du  == Γ0(b)
+function gamma0numeric(b){
+  const N=600, umax=7; let s=0, du=umax/N, sb=Math.sqrt(b);
+  for(let i=0;i<N;i++){ const u=(i+0.5)*du; const j=besselJ0(sb*u); s+= j*j*u*Math.exp(-u*u/2)*du; }
+  return s;
+}
+
+/* ============ KaTeX render ============ */
+function tex(id,s,display=true){ const el=document.getElementById(id); if(el) katex.render(s,el,{displayMode:display,throwOnError:false}); }
+window.addEventListener('DOMContentLoaded',()=>{
+  // wait for katex
+  const boot=()=>{
+    if(typeof katex==='undefined'){ return setTimeout(boot,40); }
+    tex('targetEq', String.raw`\underbrace{\sum_s \frac{q_s^2 n_{0s}}{T_s}\bigl(1-\Gamma_{0s}(b_s)\bigr)\,\phi_{\mathbf k}}_{\text{polarization · screening}} \;=\; \underbrace{\sum_s q_s\!\int\! J_{0s}\,\delta f_{\mathrm{gc},s}\,d^3v}_{\text{gyrocenter charge}}`);
+    tex('eqOrder', String.raw`\frac{\rho}{L}\,\sim\,\frac{\omega}{\Omega}\,\sim\,\frac{e\phi}{T}\,\sim\,\frac{k_\parallel}{k_\perp}\,\sim\,\varepsilon\,\ll\,1`);
+    tex('eqKrho', String.raw`k_\perp\rho\;\sim\;1`);
+    tex('eqPos', String.raw`\mathbf x \;=\; \underbrace{\mathbf R}_{\text{gyrocenter}} \;+\; \underbrace{\boldsymbol\rho(\theta)}_{\text{ring},\;|\boldsymbol\rho|=v_\perp/\Omega}`);
+    tex('eqJ0', String.raw`\langle e^{i\mathbf k\cdot\boldsymbol\rho}\rangle_\theta=\frac{1}{2\pi}\!\int_0^{2\pi}\! e^{\,i k_\perp\rho\cos\theta}\,d\theta=J_0(k_\perp\rho)`);
+    tex('eqPol', String.raw`n_{\text{part}} \;=\; \underbrace{\langle\, J_0\,\delta f_{\mathrm{gc}}\,\rangle}_{\text{gyrocenter charge}} \;-\; \underbrace{\frac{q\,n_0}{T}\bigl(1-\Gamma_0\bigr)\phi}_{n_{\text{pol}}\;\propto\;\phi}`);
+    tex('eqGamma', String.raw`\int d^3v\; J_0^2\!\Bigl(\tfrac{k_\perp v_\perp}{\Omega}\Bigr)F_M \;=\; I_0(b)\,e^{-b}\;\equiv\;\Gamma_0(b),\qquad b=(k_\perp\rho_i)^2`);
+    tex('eqFinal', String.raw`\sum_s \frac{q_s^2 n_{0s}}{T_s}\bigl(1-\Gamma_{0s}(b_s)\bigr)\,\phi_{\mathbf k} \;=\; \sum_s q_s\!\int\! J_{0s}\,\delta f_{\mathrm{gc},s}\,d^3v`);
+    tex('eqPoisson', String.raw`\varepsilon_0\,k^2\,\phi_{\mathbf k} \;=\; \rho_{\text{charge}}`);
+    tex('eqGKshort', String.raw`\tfrac{q^2 n_0}{T}\bigl(1-\Gamma_0\bigr)\,\phi_{\mathbf k} \;=\; q\,\bar n_{\mathrm{gc}}`);
+    tex('eqLW', String.raw`1-\Gamma_0(b)\;\xrightarrow{\,b\ll1\,}\;b=k_\perp^2\rho_i^2\;\;\Longleftrightarrow\;\;-\rho_i^2\nabla_\perp^2`);
+  };
+  boot();
+});
+
+/* ============ animation engine ============ */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fitDPR(cv){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=cv.clientWidth; const h=cv.height;
+  cv.width=w*dpr; cv.height=h*dpr;
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+const C={field:'#38d9c4',particle:'#ff9e4a',screen:'#ff5fb0',muted:'#8b93b4',faint:'#5b6488',text:'#e7eaf6'};
+
+// generic registrar: pause when offscreen
+const runners=[];
+function register(cv,draw){
+  const r={cv,draw,on:false,t0:performance.now()};
+  runners.push(r);
+  const io=new IntersectionObserver(es=>{es.forEach(e=>{r.on=e.isIntersecting;});},{threshold:0.05});
+  io.observe(cv);
+  return r;
+}
+function loop(now){
+  for(const r of runners){ if(r.on||REDUCED){ r.draw(now); if(REDUCED) r.on=false; } }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---- HERO ---- */
+(function(){
+  const cv=document.getElementById('heroCanvas');
+  function resize(){ cv.width=cv.clientWidth*Math.min(devicePixelRatio||1,2); cv.height=cv.clientHeight*Math.min(devicePixelRatio||1,2);}
+  resize(); window.addEventListener('resize',resize);
+  let trail=[];
+  function draw(now){
+    const dpr=Math.min(devicePixelRatio||1,2);
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    const w=cv.clientWidth,h=cv.clientHeight; ctx.clearRect(0,0,w,h);
+    // faint potential bands
+    const k=0.018;
+    for(let x=0;x<w;x+=4){
+      const v=Math.cos(k*x - now*0.0003);
+      ctx.fillStyle=`rgba(56,217,196,${0.05+0.05*v})`;
+      ctx.fillRect(x,0,4,h);
+    }
+    // drifting gyrocenter
+    const t=now*0.001;
+    const Rx=w*0.5+Math.cos(t*0.5)*w*0.22;
+    const Ry=h*0.52+Math.sin(t*0.7)*h*0.18;
+    const rho=Math.min(w,h)*0.10;
+    const th=t*3.0;
+    const px=Rx+rho*Math.cos(th), py=Ry+rho*Math.sin(th);
+    trail.push([px,py]); if(trail.length>60)trail.shift();
+    // ring
+    ctx.strokeStyle='rgba(255,158,74,.25)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(Rx,Ry,rho,0,7);ctx.stroke();
+    // trail
+    for(let i=0;i<trail.length;i++){
+      const a=i/trail.length;
+      ctx.fillStyle=`rgba(255,158,74,${a*0.5})`;
+      ctx.beginPath();ctx.arc(trail[i][0],trail[i][1],2.2*a+0.5,0,7);ctx.fill();
+    }
+    // gyrocenter + particle
+    ctx.fillStyle=C.field;ctx.beginPath();ctx.arc(Rx,Ry,3,0,7);ctx.fill();
+    ctx.fillStyle=C.particle;ctx.shadowColor=C.particle;ctx.shadowBlur=12;
+    ctx.beginPath();ctx.arc(px,py,4.5,0,7);ctx.fill();ctx.shadowBlur=0;
+  }
+  register(cv,draw);
+})();
+
+/* ---- ACT 0: scales ---- */
+(function(){
+  const cv=document.getElementById('act0Canvas');
+  function draw(now){
+    const {ctx,w,h}=fitDPR(cv); ctx.clearRect(0,0,w,h);
+    const t=now*0.001;
+    // big cool envelope (equilibrium scale L)
+    ctx.strokeStyle='rgba(56,217,196,.6)';ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let x=0;x<=w;x+=3){ const y=h/2 + Math.sin(x/w*Math.PI)*0 - Math.cos((x/w)*Math.PI)* (h*0.30); ctx.lineTo(x, h*0.5 - Math.sin(x/w*Math.PI*1)* (h*0.32)); }
+    ctx.stroke();
+    ctx.fillStyle='rgba(56,217,196,.45)';ctx.font='11px ui-monospace';
+    ctx.fillText('equilibrium scale  L',12,h-12);
+    // small fast ring riding on top, sitting in ripples its own size
+    const cx=w*0.5+Math.cos(t*0.4)*w*0.30;
+    const cy=h*0.5 - Math.sin((cx/w)*Math.PI)*(h*0.32) - 26;
+    const rho=16;
+    // local ripples (k⊥ρ ~ 1): wavelength ~ ring size
+    ctx.strokeStyle='rgba(255,158,74,.18)';ctx.lineWidth=1;
+    for(let x=cx-70;x<cx+70;x+=2){
+      const yy=cy+18+Math.cos((x-cx)/ (rho*0.9) *Math.PI - t*2)*6;
+      if(x===cx-70)ctx.beginPath(); ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+    // the ring
+    const th=t*4;
+    ctx.strokeStyle='rgba(255,158,74,.5)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(cx,cy,rho,0,7);ctx.stroke();
+    const px=cx+rho*Math.cos(th),py=cy+rho*Math.sin(th);
+    ctx.fillStyle=C.field;ctx.beginPath();ctx.arc(cx,cy,2.5,0,7);ctx.fill();
+    ctx.fillStyle=C.particle;ctx.shadowColor=C.particle;ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(px,py,4,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,158,74,.7)';ctx.font='11px ui-monospace';
+    ctx.fillText('ρ ~ wavelength',cx+rho+8,cy-4);
+  }
+  register(cv,draw);
+})();
+
+/* ---- ACT 1: sampling φ around the ring ---- */
+(function(){
+  const cv=document.getElementById('act1Canvas');
+  const phiNow=document.getElementById('phiNow'), phiAvg=document.getElementById('phiAvg');
+  const k=2*Math.PI/120; // wavelength in px
+  function draw(now){
+    const {ctx,w,h}=fitDPR(cv); ctx.clearRect(0,0,w,h);
+    // background potential cos(k x)
+    for(let x=0;x<w;x+=3){
+      const v=Math.cos(k*x);
+      // hot for +, cool for -
+      const r=Math.max(0,v), b=Math.max(0,-v);
+      ctx.fillStyle=`rgb(${20+r*150},${30+ (1-Math.abs(v))*30},${40+b*120})`;
+      ctx.fillRect(x,0,3,h);
+    }
+    const t=now*0.001;
+    const Rx=w*0.5, Ry=h*0.5;
+    const rho=Math.min(w,h)*0.27;
+    const th=t*2.2;
+    const px=Rx+rho*Math.cos(th), py=Ry+rho*Math.sin(th);
+    // ring
+    ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(Rx,Ry,rho,0,7);ctx.stroke();
+    // line from center to particle
+    ctx.strokeStyle='rgba(255,158,74,.4)';ctx.beginPath();ctx.moveTo(Rx,Ry);ctx.lineTo(px,py);ctx.stroke();
+    // gyrocenter
+    ctx.fillStyle=C.field;ctx.shadowColor=C.field;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(Rx,Ry,4,0,7);ctx.fill();ctx.shadowBlur=0;
+    // particle
+    ctx.fillStyle=C.particle;ctx.shadowColor=C.particle;ctx.shadowBlur=12;
+    ctx.beginPath();ctx.arc(px,py,5,0,7);ctx.fill();ctx.shadowBlur=0;
+    // readouts
+    const vNow=Math.cos(k*px), vCtr=Math.cos(k*Rx);
+    phiNow.textContent=(vNow>=0?'+':'')+vNow.toFixed(2);
+    phiAvg.textContent=(vCtr>=0?'+':'')+vCtr.toFixed(2);
+  }
+  register(cv,draw);
+})();
+
+/* ---- ACT 2: gyroaverage -> J0 ---- */
+(function(){
+  const cv=document.getElementById('act2Canvas');
+  const slide=document.getElementById('krSlide'), lbl=document.getElementById('krLbl');
+  const meanOut=document.getElementById('ringMean'), j0Out=document.getElementById('j0val');
+  let kr=parseFloat(slide.value);
+  slide.addEventListener('input',()=>{kr=parseFloat(slide.value);lbl.textContent=kr.toFixed(2);});
+  function draw(now){
+    const {ctx,w,h}=fitDPR(cv); ctx.clearRect(0,0,w,h);
+    const t=now*0.001;
+    // layout: left ring, right J0 plot
+    const splitX=w*0.42;
+    // --- ring (left) ---
+    const cx=splitX*0.5+10, cy=h*0.5, rad=Math.min(splitX,h)*0.32;
+    // color ring by cos(kr cos θ)
+    const segs=120;
+    for(let i=0;i<segs;i++){
+      const a0=i/segs*2*Math.PI, a1=(i+1)/segs*2*Math.PI;
+      const val=Math.cos(kr*Math.cos((a0+a1)/2)); // value felt at that phase
+      const r=Math.max(0,val), b=Math.max(0,-val);
+      ctx.strokeStyle=`rgb(${40+r*215},${60+(1-Math.abs(val))*40},${60+b*195})`;
+      ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(cx,cy,rad,a0,a1);ctx.stroke();
+    }
+    // sweeping dot accumulates running mean (visual)
+    const th=(t*1.5)%(2*Math.PI);
+    const dx=cx+rad*Math.cos(th), dy=cy+rad*Math.sin(th);
+    ctx.fillStyle=C.field;ctx.beginPath();ctx.arc(cx,cy,3,0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(dx,dy,4,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=C.faint;ctx.font='10px ui-monospace';
+    ctx.fillText('average over θ',cx-rad,cy+rad+22);
+    // --- J0 plot (right) ---
+    const px0=splitX+18, px1=w-14, py0=h-30, py1=22;
+    const xmax=6;
+    // axes
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px1,py0);ctx.stroke(); // x
+    // zero line for y (J0 in [-0.4,1])
+    const ymin=-0.45,ymax=1.05;
+    const Y=v=>py0+(v-ymin)/(ymin-ymax)*(py0-py1)*-1; // map
+    const mapY=v=>py1+(ymax-v)/(ymax-ymin)*(py0-py1);
+    ctx.strokeStyle='rgba(255,255,255,.10)';
+    ctx.beginPath();ctx.moveTo(px0,mapY(0));ctx.lineTo(px1,mapY(0));ctx.stroke();
+    // J0 curve
+    ctx.strokeStyle=C.field;ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=120;i++){ const x=i/120*xmax; const X=px0+(x/xmax)*(px1-px0); const yv=besselJ0(x); const Yv=mapY(yv); if(i===0)ctx.moveTo(X,Yv); else ctx.lineTo(X,Yv);}
+    ctx.stroke();
+    // marker at current kr
+    const j0=besselJ0(kr);
+    const Xm=px0+(kr/xmax)*(px1-px0), Ym=mapY(j0);
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(Xm,py0);ctx.lineTo(Xm,Ym);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(Xm,Ym,4,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=C.faint;ctx.font='10px ui-monospace';
+    ctx.fillText('J₀(k⊥ρ)',px1-52,py1+6); ctx.fillText('0',px0-2,py0+14); ctx.fillText('6',px1-6,py0+14);
+    // readouts: running mean ~ J0 (compute true mean)
+    let s=0,N=400; for(let i=0;i<N;i++){const a=i/N*2*Math.PI; s+=Math.cos(kr*Math.cos(a));} s/=N;
+    meanOut.textContent=(s>=0?'+':'')+s.toFixed(3);
+    j0Out.textContent=(j0>=0?'+':'')+j0.toFixed(3);
+  }
+  register(cv,draw);
+})();
+
+/* ---- ACT 3: polarization ---- */
+(function(){
+  const cv=document.getElementById('act3Canvas');
+  const slide=document.getElementById('polSlide'), lbl=document.getElementById('polLbl');
+  let amp=parseFloat(slide.value);
+  slide.addEventListener('input',()=>{amp=parseFloat(slide.value);lbl.textContent=amp.toFixed(2);});
+  // grid of gyrocenters
+  function draw(now){
+    const {ctx,w,h}=fitDPR(cv); ctx.clearRect(0,0,w,h);
+    const t=now*0.001;
+    // potential gradient arrow (E field) pointing right, strength amp
+    // background gradient
+    const g=ctx.createLinearGradient(0,0,w,0);
+    g.addColorStop(0,`rgba(56,217,196,${0.10*amp})`);
+    g.addColorStop(1,`rgba(255,95,176,${0.12*amp})`);
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    const cols=5, rows=3, rho=Math.min(w/cols,h/rows)*0.26;
+    for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+      const Rx=(i+0.5)/cols*w, Ry=(j+0.5)/rows*h;
+      const th=t*2 + (i+j);
+      // E×B displacement of the ring center grows with amp (illustrative)
+      const shift=amp*rho*0.9;
+      const ringCx=Rx+shift, ringCy=Ry;
+      // ring
+      ctx.strokeStyle=`rgba(255,158,74,${0.25+0.3*amp})`;ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(ringCx,ringCy,rho,0,7);ctx.stroke();
+      // particle
+      const px=ringCx+rho*Math.cos(th),py=ringCy+rho*Math.sin(th);
+      ctx.fillStyle=C.particle;ctx.beginPath();ctx.arc(px,py,2.6,0,7);ctx.fill();
+      // original gyrocenter (cool) vs shifted -> polarization charge between them
+      ctx.fillStyle=C.field;ctx.beginPath();ctx.arc(Rx,Ry,2.2,0,7);ctx.fill();
+      if(amp>0.05){
+        // polarization dipole: + on one edge, - on other
+        ctx.fillStyle=`rgba(255,95,176,${0.5*amp})`;
+        ctx.beginPath();ctx.arc(ringCx+rho*0.7,ringCy,3.2,0,7);ctx.fill();
+        ctx.fillStyle=`rgba(56,160,255,${0.5*amp})`;
+        ctx.beginPath();ctx.arc(ringCx-rho*0.7,ringCy,3.2,0,7);ctx.fill();
+      }
+    }
+    // E arrow
+    if(amp>0.03){
+      ctx.strokeStyle=`rgba(255,255,255,${0.4+0.3*amp})`;ctx.lineWidth=2;
+      const ay=18; ctx.beginPath();ctx.moveTo(w*0.5-40,ay);ctx.lineTo(w*0.5+40,ay);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(w*0.5+40,ay);ctx.lineTo(w*0.5+32,ay-5);ctx.lineTo(w*0.5+32,ay+5);ctx.closePath();ctx.fillStyle='#fff';ctx.fill();
+      ctx.fillStyle=C.muted;ctx.font='11px ui-monospace';ctx.fillText('E = −∇φ',w*0.5+50,ay+4);
+    }
+  }
+  register(cv,draw);
+})();
+
+/* ---- ACT 4: stack rings -> Γ0 ---- */
+(function(){
+  const cv=document.getElementById('act4Canvas');
+  const slide=document.getElementById('bSlide'), lbl=document.getElementById('bLbl');
+  const numOut=document.getElementById('numInt'), gamOut=document.getElementById('gam0');
+  let b=parseFloat(slide.value);
+  slide.addEventListener('input',()=>{b=parseFloat(slide.value);lbl.textContent=b.toFixed(2);});
+  function draw(now){
+    const {ctx,w,h}=fitDPR(cv); ctx.clearRect(0,0,w,h);
+    const t=now*0.001;
+    const splitX=w*0.42;
+    // --- ring stack (left): rings of radius ~ u, weighted by maxwellian u e^{-u^2/2}
+    const cx=splitX*0.5+8, cy=h*0.5, maxR=Math.min(splitX,h)*0.40;
+    const sb=Math.sqrt(b);
+    const NU=9;
+    for(let i=0;i<NU;i++){
+      const u=(i+0.5)/NU*4; // speed
+      const wgt=u*Math.exp(-u*u/2); // maxwellian weight
+      const rr=maxR*(u/4);
+      const j=besselJ0(sb*u); const screen=j*j; // J0^2 contribution
+      ctx.strokeStyle=`rgba(56,217,196,${0.12+wgt*0.9})`;
+      ctx.lineWidth=1+wgt*2.5;
+      ctx.beginPath();ctx.arc(cx,cy,rr,0,7);ctx.stroke();
+      // a dot whose color encodes J0^2 (white=1 unscreened, dim=screened)
+      const th=t*2+i;
+      ctx.fillStyle=`rgba(${255*screen+40},${158*screen+40},${74*screen+90},${0.4+wgt})`;
+      ctx.beginPath();ctx.arc(cx+rr*Math.cos(th),cy+rr*Math.sin(th),2.4,0,7);ctx.fill();
+    }
+    ctx.fillStyle=C.faint;ctx.font='10px ui-monospace';
+    ctx.fillText('rings ∝ v⊥ , weighted by F_M',cx-maxR*0.7,cy+maxR+20);
+    // --- Γ0 curve (right) ---
+    const px0=splitX+18, px1=w-14, py0=h-30, py1=22; const xmax=6;
+    const mapY=v=>py1+(1.02-v)/(1.02-0)*(py0-py1);
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px1,py0);ctx.stroke();
+    ctx.strokeStyle=C.field;ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=120;i++){const x=i/120*xmax;const X=px0+(x/xmax)*(px1-px0);const Yv=mapY(gamma0(x));if(i===0)ctx.moveTo(X,Yv);else ctx.lineTo(X,Yv);}
+    ctx.stroke();
+    const g0=gamma0(b); const Xm=px0+(b/xmax)*(px1-px0), Ym=mapY(g0);
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(Xm,py0);ctx.lineTo(Xm,Ym);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=8;ctx.beginPath();ctx.arc(Xm,Ym,4,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=C.faint;ctx.font='10px ui-monospace';
+    ctx.fillText('Γ₀(b)',px1-44,py1+4);ctx.fillText('1',px0-2,py1+4);ctx.fillText('0',px0-2,py0+12);ctx.fillText('6',px1-6,py0+12);
+    numOut.textContent=gamma0numeric(b).toFixed(3);
+    gamOut.textContent=g0.toFixed(3);
+  }
+  register(cv,draw);
+})();
+
+/* ---- ACT 5: 1-Γ0 vs b ---- */
+(function(){
+  const cv=document.getElementById('act5Canvas');
+  const slide=document.getElementById('bSlide'); // shares Act4 slider
+  function draw(now){
+    const {ctx,w,h}=fitDPR(cv); ctx.clearRect(0,0,w,h);
+    const px0=44, px1=w-16, py0=h-28, py1=18; const xmax=6, ytop=3.2;
+    const mapX=x=>px0+(x/xmax)*(px1-px0);
+    const mapY=v=>py1+(ytop-v)/ytop*(py0-py1);
+    // axes
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px1,py0);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px0,py1);ctx.stroke();
+    // line y=b (long wavelength)
+    ctx.strokeStyle=C.field;ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=120;i++){const x=i/120*xmax;const yv=x; if(yv>ytop)continue; const X=mapX(x),Y=mapY(yv); if(i===0||mapY(0)<py1)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+    ctx.stroke();
+    // exact 1-Γ0
+    ctx.strokeStyle=C.screen;ctx.lineWidth=2.5;ctx.beginPath();
+    for(let i=0;i<=160;i++){const x=i/160*xmax;const yv=1-gamma0(x);const X=mapX(x),Y=mapY(yv);if(i===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+    ctx.stroke();
+    // saturation guide at y=1
+    ctx.strokeStyle='rgba(255,255,255,.10)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px0,mapY(1));ctx.lineTo(px1,mapY(1));ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=C.faint;ctx.font='10px ui-monospace';ctx.fillText('saturates → 1',px1-86,mapY(1)-4);
+    // marker
+    const b=parseFloat(slide.value);
+    const Xm=mapX(b), Ye=mapY(1-gamma0(b)), Yl=mapY(Math.min(b,ytop));
+    ctx.strokeStyle='rgba(255,255,255,.22)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(Xm,py0);ctx.lineTo(Xm,Ye);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=C.screen;ctx.beginPath();ctx.arc(Xm,Ye,4,0,7);ctx.fill();
+    ctx.fillStyle=C.field;ctx.beginPath();ctx.arc(Xm,Yl,3.5,0,7);ctx.fill();
+    ctx.fillStyle=C.faint;ctx.font='10px ui-monospace';
+    ctx.fillText('b →',px1-26,py0-6);ctx.fillText('0',px0-2,py0+12);
+  }
+  register(cv,draw);
+})();
+</script>
+</body>
+</html>

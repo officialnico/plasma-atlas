@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Ciprofloxacin Kills Bacteria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06110f;
+    --bg2:#0a1a17;
+    --ink:#dff5ec;
+    --dim:#6f9389;
+    --dna:#3ff0c2;
+    --dna2:#1fbf9a;
+    --strain:#ff5d6c;
+    --danger:#ff3b5c;
+    --cipro:#ff7ac4;
+    --gold:#ffd27a;
+    --panel:rgba(13,32,28,.66);
+    --line:rgba(63,240,194,.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 70% -10%, rgba(63,240,194,.07), transparent 60%),
+      radial-gradient(900px 600px at 10% 110%, rgba(255,122,196,.06), transparent 55%),
+      linear-gradient(160deg,var(--bg),var(--bg2));
+    color:var(--ink);
+    font-family:"Spline Sans Mono",ui-monospace,monospace;
+    min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;
+    padding:24px 16px 48px;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background-image:radial-gradient(rgba(255,255,255,.025) 1px,transparent 1px);
+    background-size:3px 3px;mix-blend-mode:overlay;opacity:.5;
+  }
+  .wrap{width:100%;max-width:960px;position:relative;z-index:2}
+  header{margin-bottom:18px}
+  .kicker{
+    font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);
+    display:flex;align-items:center;gap:10px;
+  }
+  .kicker::before{content:"";width:26px;height:1px;background:var(--dna2)}
+  h1{
+    font-family:"Instrument Serif",serif;font-weight:400;
+    font-size:clamp(34px,6vw,62px);line-height:1.02;letter-spacing:.5px;
+    margin:6px 0 4px;
+  }
+  h1 em{font-style:italic;color:var(--dna)}
+  .sub{color:var(--dim);font-size:13.5px;max-width:62ch;line-height:1.55}
+
+  .stage{
+    position:relative;margin-top:18px;border:1px solid var(--line);
+    border-radius:18px;overflow:hidden;
+    background:linear-gradient(180deg,rgba(8,22,19,.6),rgba(5,14,12,.85));
+    box-shadow:0 30px 80px -40px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  canvas{display:block;width:100%;height:auto}
+
+  .mode{
+    position:absolute;top:14px;left:14px;z-index:5;
+    display:flex;background:rgba(4,12,10,.7);border:1px solid var(--line);
+    border-radius:999px;padding:4px;backdrop-filter:blur(8px);
+  }
+  .mode button{
+    font-family:inherit;font-size:12px;letter-spacing:.04em;
+    color:var(--dim);background:none;border:none;cursor:pointer;
+    padding:7px 14px;border-radius:999px;transition:.25s;white-space:nowrap;
+  }
+  .mode button.on{color:#04110d;background:var(--dna);font-weight:600}
+  .mode button.on.cip{background:var(--cipro);color:#1c0413}
+
+  .tag{
+    position:absolute;top:16px;right:16px;z-index:5;font-size:11px;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--dim);
+    border:1px solid var(--line);border-radius:8px;padding:6px 10px;
+    background:rgba(4,12,10,.5);backdrop-filter:blur(6px);
+  }
+
+  .readout{
+    border:1px solid var(--line);border-top:none;
+    border-radius:0 0 18px 18px;margin-top:-18px;padding:18px 20px 20px;
+    background:var(--panel);backdrop-filter:blur(10px);position:relative;z-index:2;
+  }
+  .phaserow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .phaseno{
+    font-family:"Instrument Serif",serif;font-size:30px;color:var(--dna);
+    line-height:1;min-width:54px;
+  }
+  .phaseno .of{font-size:14px;color:var(--dim)}
+  .ptitle{font-size:16px;font-weight:600;letter-spacing:.01em}
+  .pnarr{color:var(--dim);font-size:13.5px;line-height:1.6;margin-top:10px;min-height:42px}
+  .pnarr b{color:var(--ink);font-weight:600}
+  .cip .phaseno,.cip .ptitle b{color:var(--cipro)}
+
+  .timeline{display:flex;gap:6px;margin-top:16px}
+  .seg{flex:1;height:4px;border-radius:4px;background:rgba(255,255,255,.07);overflow:hidden}
+  .seg i{display:block;height:100%;width:0;background:var(--dna);transition:width .08s linear}
+  .cip .seg i{background:var(--cipro)}
+  .seg.done i{width:100%!important}
+
+  .controls{display:flex;align-items:center;gap:10px;margin-top:18px;flex-wrap:wrap}
+  .controls button{
+    font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+    background:rgba(63,240,194,.07);border:1px solid var(--line);
+    border-radius:10px;padding:10px 16px;transition:.2s;letter-spacing:.02em;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .controls button:hover{background:rgba(63,240,194,.16);border-color:var(--dna2)}
+  .controls button.primary{background:var(--dna);color:#04110d;font-weight:600;border-color:var(--dna)}
+  .controls button.primary:hover{filter:brightness(1.08)}
+  .cip .controls button.primary{background:var(--cipro);color:#1c0413;border-color:var(--cipro)}
+  .spacer{flex:1}
+  .legend{display:flex;gap:16px;font-size:11px;color:var(--dim);flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  .foot{margin-top:22px;color:var(--dim);font-size:12.5px;line-height:1.65;border-left:2px solid var(--dna2);padding-left:14px}
+  .foot b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <header>
+    <div class="kicker">Antibiotic mechanism · animated</div>
+    <h1>How <em>ciprofloxacin</em><br>kills a bacterium</h1>
+    <p class="sub">Bacteria must cut, untwist, and reseal their own DNA to copy it. Cipro freezes the enzyme that does the cutting — mid-cut. Watch the same process play out normally, then with the drug.</p>
+  </header>
+
+  <div class="stage">
+    <div class="mode">
+      <button id="mNormal" class="on">Normal cell</button>
+      <button id="mCipro" class="cip">+ Ciprofloxacin</button>
+    </div>
+    <div class="tag" id="tag">DNA GYRASE · LIVE</div>
+    <canvas id="c"></canvas>
+  </div>
+
+  <div class="readout" id="readout">
+    <div class="phaserow">
+      <div class="phaseno"><span id="pno">1</span><span class="of">/<span id="ptot">6</span></span></div>
+      <div class="ptitle" id="ptitle">Torsional strain builds</div>
+    </div>
+    <div class="pnarr" id="pnarr"></div>
+
+    <div class="timeline" id="timeline"></div>
+
+    <div class="controls">
+      <button class="primary" id="play">► Play</button>
+      <button id="step">Step ›</button>
+      <button id="restart">⟲ Restart</button>
+      <div class="spacer"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--dna)"></i>DNA</span>
+        <span><i class="dot" style="background:var(--strain)"></i>Strain</span>
+        <span><i class="dot" style="background:var(--gold)"></i>Gyrase</span>
+        <span><i class="dot" style="background:var(--cipro)"></i>Cipro</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot"><b>Why it's safe for you:</b> human cells use structurally different topoisomerase enzymes, so cipro barely binds them — it targets the bacterial version and mostly leaves yours alone. That selectivity is the whole reason it's a drug and not a poison. <b>Resistance</b> happens when a tiny mutation reshapes the bacterial enzyme's binding pocket so cipro can't latch on — common now in Campylobacter across SE Asia.</p>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+
+function resize(){
+  const w = document.getElementById('wrap').clientWidth;
+  W = w; H = Math.round(Math.min(460, Math.max(320, w*0.52)));
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+/* ---------- phase scripts ---------- */
+const NORMAL = [
+  {t:"Torsional strain builds", n:"As the cell copies its DNA, the helix ahead of the fork gets <b>over-wound</b> — like twisting a phone cord until it buckles into coils. Left alone, this tension would seize replication up."},
+  {t:"Gyrase docks", n:"The enzyme <b>DNA gyrase</b> (a topoisomerase) clamps onto the strained, over-coiled DNA. Its job is to relieve the twist."},
+  {t:"Double-strand cut", n:"Gyrase deliberately <b>cuts both strands</b>, holding the broken ends. This open state is the <b>cleavage complex</b> — normally it lasts only a split second."},
+  {t:"Swivel — tension releases", n:"With the strand cut, the DNA <b>swivels and passes through</b> the break. The buckled coils unwind and the torsional strain drains away."},
+  {t:"Break resealed", n:"Gyrase immediately <b>stitches the cut back together</b>. The chromosome is whole again, now relaxed."},
+  {t:"Replication resumes", n:"Enzyme releases, DNA is intact and unstrained, copying continues. <b>Cut → untwist → reseal</b>, over and over."}
+];
+const CIPRO = [
+  {t:"Torsional strain builds", n:"Same start: the over-wound DNA buckles into coils as the fork advances. Tension is climbing."},
+  {t:"Gyrase docks", n:"Gyrase clamps onto the strained site, ready to do its cut-untwist-reseal cycle."},
+  {t:"Double-strand cut", n:"Gyrase cuts both strands and forms the <b>cleavage complex</b> — DNA held open, ends free. This is the vulnerable moment."},
+  {t:"Cipro binds the cleavage complex", n:"<b>Ciprofloxacin slips into the cut site</b> and wedges between the enzyme and the broken DNA — locking in at the worst possible instant, <b>after the snip, before the reseal.</b>"},
+  {t:"Religation blocked — enzyme frozen", n:"The enzyme <b>can't stitch the break back together</b>. It's clamped onto broken DNA, frozen mid-action. The cut stays permanently open."},
+  {t:"Breaks accumulate", n:"Every gyrase on the chromosome gets jammed the same way. The DNA piles up with <b>permanent double-strand breaks</b> that never get repaired."},
+  {t:"Replication halts → cell death", n:"The chromosome fragments, replication collapses, and the <b>bacterium dies.</b> That's the kill."}
+];
+
+/* ---------- state ---------- */
+let mode='normal';
+let phase=0;
+let prog=0;            // 0..1 within phase
+let playing=false;
+let last=0;
+const DUR=3200;        // ms per phase
+let twist=0;           // global helix animation phase
+let jitter=0;
+
+function script(){ return mode==='normal'?NORMAL:CIPRO; }
+function clamp(v,a=0,b=1){return Math.max(a,Math.min(b,v));}
+function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+/* visual parameters derived from (mode,phase,prog) */
+function vis(){
+  const p=phase, e=ease(prog);
+  let s={strain:0,enzyme:0,cut:0,cipro:0,frozen:0,breaks:0,health:1,swivel:0};
+  if(mode==='normal'){
+    if(p===0){s.strain=e;}
+    else if(p===1){s.strain=1;s.enzyme=e;}
+    else if(p===2){s.strain=1;s.enzyme=1;s.cut=e;}
+    else if(p===3){s.enzyme=1;s.cut=1;s.strain=1-e;s.swivel=Math.sin(prog*Math.PI*4);}
+    else if(p===4){s.enzyme=1;s.cut=1-e;s.strain=0;}
+    else if(p===5){s.enzyme=1-e;s.cut=0;s.strain=0;}
+  } else {
+    if(p===0){s.strain=e;}
+    else if(p===1){s.strain=1;s.enzyme=e;}
+    else if(p===2){s.strain=1;s.enzyme=1;s.cut=e;}
+    else if(p===3){s.strain=1;s.enzyme=1;s.cut=1;s.cipro=e;s.frozen=e;}
+    else if(p===4){s.strain=1;s.enzyme=1;s.cut=1;s.cipro=1;s.frozen=1;}
+    else if(p===5){s.strain=lerp(1,1.25,e);s.enzyme=1;s.cut=1;s.cipro=1;s.frozen=1;s.breaks=e*5;}
+    else if(p===6){s.strain=1.25;s.enzyme=1;s.cut=1;s.cipro=1;s.frozen=1;s.breaks=5;s.health=1-e;}
+  }
+  return s;
+}
+
+/* ---------- drawing ---------- */
+function helixPoint(x, cx, amp, freq, ph){
+  return cy + amp*Math.sin((x-cx)*freq + ph);
+}
+let cy;
+
+function draw(){
+  const s=vis();
+  ctx.clearRect(0,0,W,H);
+  cy = H*0.52;
+
+  // bacterial cell membrane (vignette)
+  drawCell(s);
+
+  const margin = W*0.10;
+  const x0=margin, x1=W-margin;
+  const enzymeX = lerp(x0+ (x1-x0)*0.5, x0+(x1-x0)*0.5, 1); // center
+  const cutX = enzymeX;
+  const gap = s.cut * Math.min(54, W*0.07);
+
+  // strain visuals: amplitude + extra supercoil loop on the right of enzyme
+  const baseAmp = H*0.085;
+  const amp = baseAmp*(1 + s.strain*0.15);
+  const freq = 0.045*(1 + s.strain*0.5);
+
+  // colour: blend dna -> strain as strain rises
+  const strainMix = clamp(s.strain,0,1);
+  const strandCol = mixCol([63,240,194],[255,93,108],strainMix*0.85);
+
+  // jitter when frozen/dying
+  const jx = (s.frozen?1:0)*Math.sin(jitter*0.5)*1.5 + (s.health<1?(Math.random()-.5)*s.breaks*1.2:0);
+
+  // draw left half [x0, cutX-gap/2]
+  drawStrand(x0, cutX-gap/2, cutX, amp, freq, strandCol, s, jx, 'L');
+  // draw right half [cutX+gap/2, x1]
+  drawStrand(cutX+gap/2, x1, cutX, amp, freq, strandCol, s, jx, 'R');
+
+  // supercoil loop (plectoneme) — grows with strain, on right side
+  if(s.strain>0.02) drawSupercoil(cutX+ (x1-cutX)*0.45, s.strain, strandCol, s.swivel);
+
+  // extra random breaks (cipro phases 5-6)
+  if(s.breaks>0.05) drawBreaks(x0,x1,cutX,s);
+
+  // cut spark / open ends glow
+  if(s.cut>0.05 && gap>2){
+    ctx.save();
+    const cyl = helixPoint(cutX,cutX,amp,freq,twist);
+    const grd=ctx.createRadialGradient(cutX,cy,0,cutX,cy,gap*1.4);
+    const col = s.frozen?[255,59,92]:[255,210,122];
+    grd.addColorStop(0,`rgba(${col[0]},${col[1]},${col[2]},${0.5*s.cut})`);
+    grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=grd;
+    ctx.beginPath();ctx.arc(cutX,cy,gap*1.4,0,7);ctx.fill();
+    ctx.restore();
+  }
+
+  // enzyme (gyrase)
+  if(s.enzyme>0.02) drawEnzyme(cutX, cy, s);
+
+  // cipro molecule
+  if(s.cipro>0.02) drawCipro(cutX, cy, s);
+
+  // death overlay
+  if(mode==='cipro' && phase===6){
+    ctx.save();
+    ctx.globalAlpha = ease(prog)*0.9;
+    ctx.fillStyle='#04110d';
+    // handled by cell rupture; add label
+    ctx.restore();
+  }
+
+  twist += playing?0.012:0.004;
+  jitter += 1;
+}
+
+function drawStrand(xa, xb, cx, amp, freq, col, s, jx, side){
+  if(xb<=xa) return;
+  ctx.save();
+  ctx.translate(jx,0);
+  const step=3;
+  // two backbones
+  for(let strand=0; strand<2; strand++){
+    const phOff = strand*Math.PI;
+    ctx.beginPath();
+    let first=true;
+    for(let x=xa;x<=xb;x+=step){
+      const y=helixPoint(x,cx,amp,freq,twist+phOff);
+      if(first){ctx.moveTo(x,y);first=false;} else ctx.lineTo(x,y);
+    }
+    ctx.lineWidth=3.2;
+    ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},0.95)`;
+    ctx.shadowColor=`rgba(${col[0]},${col[1]},${col[2]},0.6)`;
+    ctx.shadowBlur=12;
+    ctx.stroke();
+  }
+  ctx.shadowBlur=0;
+  // rungs
+  const rstep = 18*(1 - s.strain*0.35);
+  for(let x=xa;x<=xb;x+=rstep){
+    const y1=helixPoint(x,cx,amp,freq,twist);
+    const y2=helixPoint(x,cx,amp,freq,twist+Math.PI);
+    const a=0.25+0.25*Math.abs(Math.sin((x-cx)*freq+twist));
+    ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y2);
+    ctx.lineWidth=1.6;
+    ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},${a})`;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSupercoil(cx, strain, col, swivel){
+  const r = clamp(strain,0,1.3)*H*0.16;
+  if(r<2) return;
+  ctx.save();
+  ctx.translate(cx, cy - r*0.2 + swivel*4);
+  ctx.rotate(swivel*0.25);
+  ctx.globalAlpha=clamp(strain,0,1);
+  // coil drawn as a crossed loop (figure-of-eight-ish plectoneme)
+  ctx.beginPath();
+  ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},0.9)`;
+  ctx.lineWidth=3.2;
+  ctx.shadowColor=`rgba(${col[0]},${col[1]},${col[2]},0.5)`;
+  ctx.shadowBlur=10;
+  for(let i=0;i<=60;i++){
+    const t=i/60*Math.PI*2;
+    const x=Math.sin(t*1)*r*0.8;
+    const y=Math.sin(t*2)*r*0.5;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBreaks(x0,x1,cutX,s){
+  const n=Math.floor(s.breaks);
+  ctx.save();
+  for(let i=0;i<n;i++){
+    const seed=i*97.3;
+    const bx = x0 + ((Math.sin(seed)*0.5+0.5)*(x1-x0));
+    if(Math.abs(bx-cutX)<60) continue;
+    const by = cy + Math.sin(twist+seed)*H*0.09;
+    ctx.translate(bx,by);
+    ctx.rotate(Math.sin(seed)*1.5);
+    ctx.strokeStyle=`rgba(255,59,92,${0.85})`;
+    ctx.lineWidth=2.6;ctx.shadowColor='rgba(255,59,92,.7)';ctx.shadowBlur=8;
+    ctx.beginPath();
+    ctx.moveTo(-9,-9);ctx.lineTo(0,-2);ctx.lineTo(-4,2);ctx.lineTo(4,9);
+    ctx.stroke();
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  ctx.restore();
+}
+
+function drawEnzyme(x,y,s){
+  const frozen=s.frozen;
+  const baseR=H*0.13;
+  ctx.save();
+  ctx.globalAlpha=s.enzyme;
+  // two clamping lobes
+  const open = s.cut*8 + (frozen?0:0);
+  const lobeCol = frozen ? [255,59,92] : [255,210,122];
+  for(let k=-1;k<=1;k+=2){
+    ctx.beginPath();
+    const ly=y+k*(baseR*0.55+open);
+    const grd=ctx.createRadialGradient(x,ly,2,x,ly,baseR);
+    grd.addColorStop(0,`rgba(${lobeCol[0]},${lobeCol[1]},${lobeCol[2]},0.42)`);
+    grd.addColorStop(.6,`rgba(${lobeCol[0]},${lobeCol[1]},${lobeCol[2]},0.16)`);
+    grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=grd;
+    ctx.ellipse(x,ly,baseR*0.95,baseR*0.7,0,0,7);ctx.fill();
+    // rim
+    ctx.beginPath();
+    ctx.ellipse(x,ly,baseR*0.95,baseR*0.7,0,0,7);
+    ctx.strokeStyle=`rgba(${lobeCol[0]},${lobeCol[1]},${lobeCol[2]},${0.55})`;
+    ctx.lineWidth=1.6;ctx.stroke();
+  }
+  // label
+  ctx.globalAlpha=s.enzyme;
+  ctx.font='600 12px "Spline Sans Mono",monospace';
+  ctx.textAlign='center';
+  if(frozen>0.3){
+    ctx.fillStyle='rgba(255,59,92,'+frozen+')';
+    ctx.fillText('⊘ FROZEN', x, y - baseR - 14);
+  } else {
+    ctx.fillStyle='rgba(255,210,122,.9)';
+    ctx.fillText('GYRASE', x, y - baseR - 14);
+  }
+  ctx.restore();
+}
+
+function drawCipro(x,y,s){
+  // flies in from top-right, settles at cut site
+  const startX=W*0.92, startY=-30;
+  const t=s.cipro;
+  const cx=lerp(startX,x,ease(t));
+  const cyy=lerp(startY,y,ease(t));
+  ctx.save();
+  ctx.translate(cx,cyy);
+  ctx.rotate(twist*0.6);
+  const R=13;
+  // fluoroquinolone-ish double ring
+  ctx.strokeStyle='rgba(255,122,196,0.95)';
+  ctx.fillStyle='rgba(255,122,196,0.22)';
+  ctx.lineWidth=2.4;
+  ctx.shadowColor='rgba(255,122,196,.8)';ctx.shadowBlur=16;
+  for(let h=-1;h<=1;h+=2){
+    ctx.beginPath();
+    for(let i=0;i<=6;i++){
+      const a=i/6*Math.PI*2;
+      const px=Math.cos(a)*R + h*R*0.78;
+      const py=Math.sin(a)*R;
+      if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+    }
+    ctx.closePath();ctx.fill();ctx.stroke();
+  }
+  ctx.shadowBlur=0;
+  ctx.restore();
+  // label once landed
+  if(t>0.8){
+    ctx.save();
+    ctx.globalAlpha=(t-0.8)/0.2;
+    ctx.font='600 12px "Spline Sans Mono",monospace';
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,122,196,.95)';
+    ctx.fillText('CIPRO', x, y + H*0.13 + 22);
+    ctx.restore();
+  }
+}
+
+function drawCell(s){
+  // big rounded membrane representing the bacterium
+  const pad=22;
+  const dying = mode==='cipro'? (phase>=6? ease(prog): 0):0;
+  const col = dying>0 ? mixCol([63,240,194],[255,59,92], dying) : [63,240,194];
+  ctx.save();
+  ctx.globalAlpha=0.5 - dying*0.2;
+  ctx.beginPath();
+  roundRect(pad,pad,W-pad*2,H-pad*2,40);
+  ctx.lineWidth=1.4;
+  if(dying>0.3){ ctx.setLineDash([6, 6+dying*14]); }
+  ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},${0.4})`;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  if(dying>0.5){
+    ctx.save();
+    ctx.globalAlpha=(dying-0.5)/0.5;
+    ctx.font='400 26px "Instrument Serif",serif';
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,90,118,.95)';
+    ctx.fillText('cell death', W/2, H-pad-22);
+    ctx.restore();
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+}
+function mixCol(a,b,t){return [Math.round(lerp(a[0],b[0],t)),Math.round(lerp(a[1],b[1],t)),Math.round(lerp(a[2],b[2],t))];}
+
+/* ---------- UI sync ---------- */
+const pno=document.getElementById('pno'),ptot=document.getElementById('ptot');
+const ptitle=document.getElementById('ptitle'),pnarr=document.getElementById('pnarr');
+const timeline=document.getElementById('timeline');
+const readout=document.getElementById('readout');
+const tag=document.getElementById('tag');
+const playBtn=document.getElementById('play');
+
+function buildTimeline(){
+  timeline.innerHTML='';
+  script().forEach((_,i)=>{
+    const seg=document.createElement('div');seg.className='seg';
+    seg.innerHTML='<i></i>';
+    seg.addEventListener('click',()=>{phase=i;prog=0;syncUI();});
+    timeline.appendChild(seg);
+  });
+}
+function syncUI(){
+  const sc=script();
+  pno.textContent=phase+1;
+  ptot.textContent=sc.length;
+  ptitle.innerHTML=sc[phase].t;
+  pnarr.innerHTML=sc[phase].n;
+  readout.className='readout'+(mode==='cipro'?' cip':'');
+  tag.textContent = mode==='cipro'?'DNA GYRASE + CIPRO':'DNA GYRASE · LIVE';
+  [...timeline.children].forEach((seg,i)=>{
+    seg.classList.toggle('done', i<phase);
+    seg.querySelector('i').style.width = (i===phase? prog*100 : (i<phase?100:0))+'%';
+  });
+}
+
+/* ---------- loop ---------- */
+function tick(ts){
+  if(!last)last=ts;
+  const dt=ts-last;last=ts;
+  if(playing){
+    prog += dt/DUR;
+    if(prog>=1){
+      prog=0;
+      const sc=script();
+      if(phase<sc.length-1){phase++;}
+      else { if(mode==='cipro'){playing=false;playBtn.textContent='⟲ Replay';} else {phase=0;} }
+    }
+    syncUI();
+  }
+  draw();
+  requestAnimationFrame(tick);
+}
+
+/* ---------- controls ---------- */
+playBtn.addEventListener('click',()=>{
+  if(!playing && mode==='cipro' && phase===script().length-1 && prog>=0){
+    phase=0;prog=0; // replay
+  }
+  playing=!playing;
+  playBtn.textContent=playing?'❚❚ Pause':'► Play';
+});
+document.getElementById('step').addEventListener('click',()=>{
+  playing=false;playBtn.textContent='► Play';
+  const sc=script();
+  if(prog>0.02 && prog<0.98){prog=1;} // finish current first
+  prog=0;
+  phase=(phase+1)%sc.length;
+  syncUI();
+});
+document.getElementById('restart').addEventListener('click',()=>{
+  phase=0;prog=0;playing=false;playBtn.textContent='► Play';syncUI();
+});
+function setMode(m){
+  mode=m;phase=0;prog=0;playing=false;playBtn.textContent='► Play';
+  document.getElementById('mNormal').classList.toggle('on',m==='normal');
+  document.getElementById('mCipro').classList.toggle('on',m==='cipro');
+  buildTimeline();syncUI();
+}
+document.getElementById('mNormal').addEventListener('click',()=>setMode('normal'));
+document.getElementById('mCipro').addEventListener('click',()=>setMode('cipro'));
+
+/* init */
+resize();buildTimeline();syncUI();requestAnimationFrame(tick);
+</script>
+</body>
+</html>

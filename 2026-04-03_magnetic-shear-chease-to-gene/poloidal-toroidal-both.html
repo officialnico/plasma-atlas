@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>q — Poloidal + Toroidal Cross-Sections</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#05080e;--surface:#0a1020;--border:#162040;--text:#e2e8f0;
+  --dim:#64748b;--muted:#2d3f65;--cyan:#22d3ee;--green:#4ade80;
+  --amber:#fbbf24;--red:#f87171;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;overflow-x:hidden;}
+.wrap{max-width:960px;margin:0 auto;padding:20px 14px 70px;}
+.head{text-align:center;margin-bottom:18px;}
+.head h1{font-size:clamp(20px,4.5vw,32px);font-weight:800;letter-spacing:-0.5px;margin-bottom:5px;}
+.head h1 span{color:var(--amber);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:580px;margin:0 auto;line-height:1.5;}
+
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+@media(max-width:680px){.dual{grid-template-columns:1fr;}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative;}
+.plbl{position:absolute;top:10px;left:14px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;pointer-events:none;z-index:2;}
+.psub{position:absolute;top:24px;left:14px;font-size:10px;color:var(--muted);font-weight:300;pointer-events:none;z-index:2;}
+canvas{display:block;width:100%;}
+.cv2{height:440px;}
+.full{grid-column:1/-1;}
+.full canvas{height:300px;cursor:grab;}
+.full canvas:active{cursor:grabbing;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.cg{flex:1;min-width:130px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.cg-r{display:flex;align-items:center;gap:8px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:32px;text-align:right;color:var(--amber);}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 8px rgba(251,191,36,.35);}
+.btn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:var(--amber);font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;padding:8px 14px;border-radius:7px;cursor:pointer;white-space:nowrap;}
+.btn:hover{background:rgba(251,191,36,.15);}
+.btn2{border-color:rgba(34,211,238,.2);color:var(--cyan);background:rgba(34,211,238,.06);}
+
+.legend{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:12px;}
+.lg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 9px;}
+.ld{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+.expl{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;}
+.expl h3{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--amber);}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:6px;}
+.expl b{color:var(--text);font-weight:600;}
+.ha{color:var(--amber)!important;font-weight:600!important;}
+.hc{color:var(--cyan)!important;font-weight:600!important;}
+.hg{color:var(--green)!important;font-weight:600!important;}
+.hr{color:var(--red)!important;font-weight:600!important;}
+
+/* Slice diagram */
+.slice-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:10px;color:var(--muted);font-weight:300;pointer-events:none;z-index:2;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>Two Slices Through the <span>Torus</span></h1>
+    <p>Left: vertical slice (poloidal cross-section). Right: horizontal slice (toroidal cross-section). Both at the same time, same field lines.</p>
+  </div>
+
+  <div class="ctrls">
+    <div class="cg">
+      <div class="cg-l">Safety Factor q</div>
+      <div class="cg-r"><input type="range" id="sQ" min="1" max="5" step="0.1" value="2"><span class="cg-v" id="vQ">2.0</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Shear ŝ</div>
+      <div class="cg-r"><input type="range" id="sShear" min="0" max="3" step="0.1" value="1.2"><span class="cg-v" id="vShear" style="color:var(--cyan)">1.2</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Speed</div>
+      <div class="cg-r"><input type="range" id="sSpd" min="0.2" max="3" step="0.1" value="1"><span class="cg-v" id="vSpd" style="color:var(--dim)">1.0</span></div>
+    </div>
+    <div class="cg" style="flex:0;display:flex;align-items:flex-end;gap:5px;">
+      <button class="btn" id="bPlay">⏸</button>
+      <button class="btn btn2" id="bReset">↺</button>
+    </div>
+  </div>
+
+  <div class="dual">
+    <!-- Poloidal -->
+    <div class="panel">
+      <div class="plbl">Poloidal Cross-Section</div>
+      <div class="psub">vertical slice — you see the "D" shape</div>
+      <canvas id="cPol" class="cv2"></canvas>
+      <div class="slice-hint">dots trace poloidally (short way around)</div>
+    </div>
+    <!-- Toroidal -->
+    <div class="panel">
+      <div class="plbl">Toroidal Cross-Section</div>
+      <div class="psub">horizontal slice — you see the nested rings</div>
+      <canvas id="cTor" class="cv2"></canvas>
+      <div class="slice-hint">dots trace toroidally (long way around)</div>
+    </div>
+    <!-- 3D -->
+    <div class="panel full">
+      <div class="plbl">3D Reference — drag to rotate · slice planes shown</div>
+      <canvas id="c3D"></canvas>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="lg"><div class="ld" style="background:var(--green);box-shadow:0 0 5px rgba(74,222,128,.4)"></div> Inner surface</div>
+    <div class="lg"><div class="ld" style="background:var(--amber);box-shadow:0 0 5px rgba(251,191,36,.4)"></div> Selected q</div>
+    <div class="lg"><div class="ld" style="background:var(--red);box-shadow:0 0 5px rgba(248,113,113,.4)"></div> Outer surface</div>
+    <div class="lg"><div class="ld" style="background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.3)"></div> Flux surfaces</div>
+  </div>
+
+  <div class="expl">
+    <h3>How the two slices relate</h3>
+    <p><b>Poloidal (left):</b> Slice the donut vertically — like cutting a bagel in half. You see the nested elliptical flux surfaces. Field lines circle around poloidally. The <span class="hg">inner</span> one (low q) goes around fast; the <span class="hr">outer</span> one (high q) goes slow. <b>This is where you see the shear</b> — different speeds on different surfaces.</p>
+    <p><b>Toroidal (right):</b> Slice the donut horizontally through the midplane. You see concentric rings — one per flux surface. All three dots orbit at the <b>exact same toroidal rate</b>, locked together in sync. That's correct! Poloidal motion (where q matters) is vertical, out of this plane — you can't see it from above. The rings stay nested and never cross.</p>
+    <p>The key insight: <b>q only shows up in the poloidal view</b>. The toroidal view proves the surfaces are properly nested. Compare the two: left panel shows action (different speeds), right panel shows order (everything in lockstep). Shear lives entirely in the poloidal picture.</p>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let qMid=2, shat=1.2, spd=1, playing=true, phi=0;
+let camRx=0.5, camRy=0.3;
+let dragging=false, dX=0, dY=0, dRx=0, dRy=0;
+
+function getQ(rFrac){ return qMid * Math.exp(shat*(rFrac-0.5)); }
+
+const surfs=[
+  {rFrac:0.25, c:[74,222,128], name:'Inner'},
+  {rFrac:0.50, c:[251,191,36], name:'Mid'},
+  {rFrac:0.80, c:[248,113,113], name:'Outer'},
+];
+
+const cPol=document.getElementById('cPol');
+const cTor=document.getElementById('cTor');
+const c3D=document.getElementById('c3D');
+const ctxP=cPol.getContext('2d');
+const ctxT=cTor.getContext('2d');
+const ctx3=c3D.getContext('2d');
+let pW,pH,tW,tH,dW,dH,dpr;
+
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  [cPol,cTor,c3D].forEach(c=>{
+    const r=c.getBoundingClientRect();
+    c.width=r.width*dpr; c.height=r.height*dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  });
+  let r=cPol.getBoundingClientRect(); pW=r.width; pH=r.height;
+  r=cTor.getBoundingClientRect(); tW=r.width; tH=r.height;
+  r=c3D.getBoundingClientRect(); dW=r.width; dH=r.height;
+}
+
+// ============ POLOIDAL CROSS-SECTION ============
+function drawPoloidal(){
+  ctxP.clearRect(0,0,pW,pH);
+  const cx=pW/2, cy=pH/2, maxR=Math.min(pW,pH)*0.35, elong=1.3;
+
+  const bg=ctxP.createRadialGradient(cx,cy,0,cx,cy,maxR*1.4);
+  bg.addColorStop(0,'rgba(34,211,238,0.02)'); bg.addColorStop(1,'transparent');
+  ctxP.fillStyle=bg; ctxP.fillRect(0,0,pW,pH);
+
+  // Ghost flux surfaces
+  for(let i=1;i<=7;i++){
+    const f=i/7, rr=maxR*f, sh=5*(1-f);
+    ctxP.beginPath();
+    ctxP.ellipse(cx+sh,cy,rr,rr*elong,0,0,Math.PI*2);
+    ctxP.strokeStyle=`rgba(34,211,238,${0.03+0.012*f})`;
+    ctxP.lineWidth=0.7; ctxP.stroke();
+  }
+
+  // Slice plane indicator (vertical line to show this is a vertical cut)
+  ctxP.strokeStyle='rgba(34,211,238,0.06)';
+  ctxP.lineWidth=0.5;
+  ctxP.setLineDash([6,6]);
+  ctxP.beginPath(); ctxP.moveTo(cx,pH*0.06); ctxP.lineTo(cx,pH*0.94); ctxP.stroke();
+  ctxP.beginPath(); ctxP.moveTo(pW*0.06,cy); ctxP.lineTo(pW*0.94,cy); ctxP.stroke();
+  ctxP.setLineDash([]);
+
+  // Angle labels
+  ctxP.font='300 8px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.2)';
+  ctxP.textAlign='center';
+  ctxP.fillText('outboard', cx+maxR+20, cy+4);
+  ctxP.fillText('inboard', cx-maxR-20, cy+4);
+  ctxP.fillText('top', cx, cy-maxR*elong-10);
+  ctxP.fillText('bottom', cx, cy+maxR*elong+14);
+
+  // Field lines
+  surfs.forEach(s=>{
+    const rr=maxR*s.rFrac, sh=5*(1-s.rFrac), qv=getQ(s.rFrac);
+    const thetaNow=phi/qv;
+    const trailTheta=Math.min(thetaNow, Math.PI*10);
+    const steps=300;
+
+    // Trail
+    for(let i=0;i<steps-1;i++){
+      const f0=i/steps, f1=(i+1)/steps;
+      const th0=thetaNow-trailTheta*(1-f0);
+      const th1=thetaNow-trailTheta*(1-f1);
+      if(th0<0) continue;
+      const x0=cx+sh+rr*Math.cos(th0-Math.PI/2);
+      const y0=cy+rr*elong*Math.sin(th0-Math.PI/2);
+      const x1=cx+sh+rr*Math.cos(th1-Math.PI/2);
+      const y1=cy+rr*elong*Math.sin(th1-Math.PI/2);
+      const alpha=f1*0.55;
+      ctxP.beginPath(); ctxP.moveTo(x0,y0); ctxP.lineTo(x1,y1);
+      ctxP.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${alpha})`;
+      ctxP.lineWidth=2.5; ctxP.stroke();
+    }
+
+    // Head
+    const hx=cx+sh+rr*Math.cos(thetaNow-Math.PI/2);
+    const hy=cy+rr*elong*Math.sin(thetaNow-Math.PI/2);
+    const gr=ctxP.createRadialGradient(hx,hy,0,hx,hy,18);
+    gr.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`);
+    gr.addColorStop(1,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0)`);
+    ctxP.beginPath();ctxP.arc(hx,hy,18,0,Math.PI*2);ctxP.fillStyle=gr;ctxP.fill();
+    ctxP.beginPath();ctxP.arc(hx,hy,5,0,Math.PI*2);
+    ctxP.fillStyle=`rgb(${s.c[0]},${s.c[1]},${s.c[2]})`;ctxP.fill();
+
+    // q label
+    ctxP.font='600 10px "JetBrains Mono",monospace';
+    ctxP.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.7)`;
+    ctxP.textAlign='left'; ctxP.textBaseline='middle';
+    ctxP.fillText(`q=${qv.toFixed(1)}`, cx+sh+rr+8, cy+(s.rFrac-0.5)*55);
+  });
+
+  ctxP.font='500 9px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.3)';
+  ctxP.textAlign='center'; ctxP.fillText('AXIS',cx+5,cy);
+}
+
+// ============ TOROIDAL CROSS-SECTION ============
+// Horizontal slice through the midplane: you see concentric circles (flux surfaces)
+// Each dot moves toroidally around its ring at the same angular rate
+// The rings have different radii corresponding to R₀ ± r for each surface
+function drawToroidal(){
+  ctxT.clearRect(0,0,tW,tH);
+  const cx=tW/2, cy=tH/2;
+
+  // In the midplane slice, the torus appears as a ring (annulus)
+  // Major radius R₀, each flux surface at minor radius r
+  // appears as TWO circles: one at R₀+r (outboard) and one at R₀-r (inboard)
+  // But we'll show the outboard half since that's the more intuitive view
+
+  const R0 = Math.min(tW,tH)*0.28; // major radius in pixels
+  const rMaxPx = R0*0.4; // max minor radius in pixels
+
+  // Bg
+  const bg=ctxT.createRadialGradient(cx,cy,R0-rMaxPx*1.2,cx,cy,R0+rMaxPx*1.5);
+  bg.addColorStop(0,'rgba(34,211,238,0.015)'); bg.addColorStop(1,'transparent');
+  ctxT.fillStyle=bg; ctxT.fillRect(0,0,tW,tH);
+
+  // Draw the torus outline (outer wall and inner wall)
+  ctxT.beginPath();
+  ctxT.arc(cx,cy,R0+rMaxPx,0,Math.PI*2);
+  ctxT.strokeStyle='rgba(34,211,238,0.07)';
+  ctxT.lineWidth=1; ctxT.stroke();
+
+  ctxT.beginPath();
+  ctxT.arc(cx,cy,R0-rMaxPx,0,Math.PI*2);
+  ctxT.strokeStyle='rgba(34,211,238,0.07)';
+  ctxT.lineWidth=1; ctxT.stroke();
+
+  // Magnetic axis ring
+  ctxT.beginPath();
+  ctxT.arc(cx,cy,R0,0,Math.PI*2);
+  ctxT.strokeStyle='rgba(34,211,238,0.04)';
+  ctxT.lineWidth=0.5;
+  ctxT.setLineDash([4,8]); ctxT.stroke(); ctxT.setLineDash([]);
+
+  // Label center
+  ctxT.font='300 8px "JetBrains Mono",monospace';
+  ctxT.fillStyle='rgba(100,116,139,0.2)';
+  ctxT.textAlign='center';
+  ctxT.fillText('torus hole',cx,cy-4);
+  ctxT.fillText('(center)',cx,cy+7);
+
+  // Poloidal slice indicator (radial line showing where the left panel cuts)
+  const slicePhi = 0; // the poloidal slice is at φ=0
+  ctxT.beginPath();
+  ctxT.moveTo(cx+(R0-rMaxPx-8)*Math.cos(slicePhi), cy+(R0-rMaxPx-8)*Math.sin(slicePhi));
+  ctxT.lineTo(cx+(R0+rMaxPx+8)*Math.cos(slicePhi), cy+(R0+rMaxPx+8)*Math.sin(slicePhi));
+  ctxT.strokeStyle='rgba(251,191,36,0.2)';
+  ctxT.lineWidth=1.5;
+  ctxT.setLineDash([5,5]); ctxT.stroke(); ctxT.setLineDash([]);
+  ctxT.font='300 8px "JetBrains Mono",monospace';
+  ctxT.fillStyle='rgba(251,191,36,0.35)';
+  ctxT.textAlign='left';
+  ctxT.fillText('poloidal',cx+R0+rMaxPx+12,cy-5);
+  ctxT.fillText('slice ↑',cx+R0+rMaxPx+12,cy+6);
+
+  // Toroidal angle markers
+  ctxT.font='8px "JetBrains Mono",monospace';
+  ctxT.fillStyle='rgba(100,116,139,0.15)';
+  ctxT.textAlign='center'; ctxT.textBaseline='middle';
+  for(let i=0;i<8;i++){
+    const ang=(i/8)*Math.PI*2;
+    // Tick marks
+    const inner=R0-rMaxPx-3, outer=R0+rMaxPx+3;
+    ctxT.beginPath();
+    ctxT.moveTo(cx+inner*Math.cos(ang),cy+inner*Math.sin(ang));
+    ctxT.lineTo(cx+outer*Math.cos(ang),cy+outer*Math.sin(ang));
+    ctxT.strokeStyle='rgba(34,211,238,0.04)';
+    ctxT.lineWidth=0.5; ctxT.stroke();
+  }
+
+  // Draw flux surface rings for each surface
+  surfs.forEach(s=>{
+    const rPx = rMaxPx * s.rFrac;
+    const qv = getQ(s.rFrac);
+
+    // In the midplane, this surface appears as a circle at radius R₀ + r (outboard midplane)
+    // Actually at the midplane (θ=0), the surface is at R = R₀ + r·cos(0) = R₀ + r
+    // We show the outboard ring
+    const ringR = R0 + rPx;
+
+    // Flux surface ring
+    ctxT.beginPath();
+    ctxT.arc(cx,cy,ringR,0,Math.PI*2);
+    ctxT.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.1)`;
+    ctxT.lineWidth=1; ctxT.stroke();
+
+    // Also show inboard ring
+    const ringRin = R0 - rPx;
+    ctxT.beginPath();
+    ctxT.arc(cx,cy,ringRin,0,Math.PI*2);
+    ctxT.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.06)`;
+    ctxT.lineWidth=0.5; ctxT.stroke();
+
+    // The field line in the midplane: at θ=0 (midplane), the field line
+    // is going purely toroidally. So it just orbits around the ring.
+    // ALL surfaces move toroidally at the same rate (that's the whole point).
+    // The toroidal position = phi (same for all)
+
+    // Trail on the outboard ring — dot stays on its own ring, no radial oscillation
+    // In a horizontal midplane slice, poloidal motion is vertical (out of plane)
+    // so you only see the toroidal orbit on a fixed-radius circle
+    const trailPhi = Math.min(phi, Math.PI*6);
+    const steps = 200;
+
+    for(let i=0;i<steps-1;i++){
+      const f0=i/steps, f1=(i+1)/steps;
+      const ph0=phi-trailPhi*(1-f0);
+      const ph1=phi-trailPhi*(1-f1);
+      if(ph0<0) continue;
+
+      const x0=cx+ringR*Math.cos(ph0), y0=cy+ringR*Math.sin(ph0);
+      const x1=cx+ringR*Math.cos(ph1), y1=cy+ringR*Math.sin(ph1);
+
+      const alpha=f1*0.5;
+      ctxT.beginPath(); ctxT.moveTo(x0,y0); ctxT.lineTo(x1,y1);
+      ctxT.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${alpha})`;
+      ctxT.lineWidth=2; ctxT.stroke();
+    }
+
+    // Head dot — fixed on its ring
+    const hx=cx+ringR*Math.cos(phi);
+    const hy=cy+ringR*Math.sin(phi);
+
+    const gr=ctxT.createRadialGradient(hx,hy,0,hx,hy,16);
+    gr.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`);
+    gr.addColorStop(1,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0)`);
+    ctxT.beginPath();ctxT.arc(hx,hy,16,0,Math.PI*2);ctxT.fillStyle=gr;ctxT.fill();
+    ctxT.beginPath();ctxT.arc(hx,hy,4.5,0,Math.PI*2);
+    ctxT.fillStyle=`rgb(${s.c[0]},${s.c[1]},${s.c[2]})`;ctxT.fill();
+
+    // Label
+    ctxT.font='600 9px "JetBrains Mono",monospace';
+    ctxT.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.5)`;
+    ctxT.textAlign='center'; ctxT.textBaseline='middle';
+    const labelAng = -Math.PI/2 + (surfs.indexOf(s))*0.3;
+    ctxT.fillText(`q=${qv.toFixed(1)}`, cx+(ringR+14)*Math.cos(labelAng), cy+(ringR+14)*Math.sin(labelAng));
+  });
+
+  // Arrow showing toroidal direction
+  ctxT.font='300 9px Outfit';
+  ctxT.fillStyle='rgba(100,116,139,0.3)';
+  ctxT.textAlign='center';
+  ctxT.fillText('φ (toroidal) →', cx, cy+R0+rMaxPx+28);
+}
+
+// ============ 3D ============
+function proj(x,y,z){
+  let x1=x*Math.cos(camRy)-z*Math.sin(camRy);
+  let z1=x*Math.sin(camRy)+z*Math.cos(camRy);
+  let y1=y*Math.cos(camRx)-z1*Math.sin(camRx);
+  let z2=y*Math.sin(camRx)+z1*Math.cos(camRx);
+  const fov=460,d=fov/(fov+z2+200);
+  return{x:dW/2+x1*d, y:dH/2+y1*d, z:z2, d};
+}
+function torusP(R,r,ph,th){
+  return{
+    x:(R+r*Math.cos(th))*Math.cos(ph),
+    y:r*Math.sin(th),
+    z:(R+r*Math.cos(th))*Math.sin(ph)
+  };
+}
+
+function draw3D(){
+  ctx3.clearRect(0,0,dW,dH);
+  const R=100,rMax=34;
+
+  // Wireframe
+  for(let i=0;i<22;i++){
+    const ph=(i/22)*Math.PI*2, pts=[];
+    for(let j=0;j<=16;j++){
+      const th=(j/16)*Math.PI*2;
+      const p=torusP(R,rMax,ph,th);
+      pts.push(proj(p.x,p.y,p.z));
+    }
+    ctx3.beginPath();
+    pts.forEach((p,k)=>k===0?ctx3.moveTo(p.x,p.y):ctx3.lineTo(p.x,p.y));
+    ctx3.closePath();
+    ctx3.strokeStyle='rgba(34,211,238,0.03)';
+    ctx3.lineWidth=0.5; ctx3.stroke();
+  }
+
+  // Show slice planes in 3D
+  // Poloidal slice plane (vertical, at φ=0)
+  const slicePts=[];
+  for(let j=0;j<=20;j++){
+    const th=(j/20)*Math.PI*2;
+    const p=torusP(R,rMax*1.1,0,th);
+    slicePts.push(proj(p.x,p.y,p.z));
+  }
+  ctx3.beginPath();
+  slicePts.forEach((p,k)=>k===0?ctx3.moveTo(p.x,p.y):ctx3.lineTo(p.x,p.y));
+  ctx3.closePath();
+  ctx3.fillStyle='rgba(251,191,36,0.04)';
+  ctx3.fill();
+  ctx3.strokeStyle='rgba(251,191,36,0.12)';
+  ctx3.lineWidth=0.8; ctx3.stroke();
+
+  // Toroidal slice plane (horizontal, y=0) — just a filled ring
+  const hPts1=[], hPts2=[];
+  for(let i=0;i<=40;i++){
+    const ph=(i/40)*Math.PI*2;
+    const p1=torusP(R,rMax*1.05,ph,0);
+    const p2=torusP(R,rMax*1.05,ph,Math.PI);
+    hPts1.push(proj(p1.x,p1.y,p1.z));
+    hPts2.push(proj(p2.x,p2.y,p2.z));
+  }
+  ctx3.beginPath();
+  hPts1.forEach((p,k)=>k===0?ctx3.moveTo(p.x,p.y):ctx3.lineTo(p.x,p.y));
+  for(let i=hPts2.length-1;i>=0;i--) ctx3.lineTo(hPts2[i].x,hPts2[i].y);
+  ctx3.closePath();
+  ctx3.fillStyle='rgba(34,211,238,0.03)';
+  ctx3.fill();
+
+  // Field lines
+  surfs.forEach(s=>{
+    const lr=rMax*s.rFrac, qv=getQ(s.rFrac);
+    const steps=Math.min(Math.floor(phi*26),1000);
+    const pts=[];
+    for(let i=0;i<=steps;i++){
+      const ph=i/26;
+      if(ph>phi) break;
+      const th=ph/qv;
+      const p3=torusP(R,lr,ph,th);
+      pts.push(proj(p3.x,p3.y,p3.z));
+    }
+    if(pts.length<2) return;
+
+    for(let i=1;i<pts.length;i++){
+      const p0=pts[i-1],p1=pts[i];
+      const age=1-i/pts.length;
+      const dA=0.2+0.8*Math.max(0,Math.min(1,(p1.d-0.3)/0.6));
+      const fA=1-age*0.4;
+      const a=Math.max(0.04,dA*fA);
+      ctx3.beginPath();ctx3.moveTo(p0.x,p0.y);ctx3.lineTo(p1.x,p1.y);
+      ctx3.strokeStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${a})`;
+      ctx3.lineWidth=2*p1.d; ctx3.stroke();
+    }
+
+    const hd=pts[pts.length-1];
+    const gr=ctx3.createRadialGradient(hd.x,hd.y,0,hd.x,hd.y,10*hd.d);
+    gr.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.6)`);
+    gr.addColorStop(1,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0)`);
+    ctx3.beginPath();ctx3.arc(hd.x,hd.y,10*hd.d,0,Math.PI*2);ctx3.fillStyle=gr;ctx3.fill();
+    ctx3.beginPath();ctx3.arc(hd.x,hd.y,3*hd.d,0,Math.PI*2);
+    ctx3.fillStyle=`rgb(${s.c[0]},${s.c[1]},${s.c[2]})`;ctx3.fill();
+  });
+
+  // Slice plane labels
+  ctx3.font='300 9px "JetBrains Mono",monospace';
+  ctx3.fillStyle='rgba(251,191,36,0.4)';
+  ctx3.textAlign='left';
+  const lp=proj(R+rMax*1.15,0,0);
+  ctx3.fillText('poloidal slice',lp.x+6,lp.y);
+  ctx3.fillStyle='rgba(34,211,238,0.3)';
+  ctx3.fillText('toroidal slice',10,dH-10);
+}
+
+// ============ LOOP ============
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  const dt=(ts-lastT)/1000; lastT=ts;
+  if(playing) phi+=dt*spd*1.2;
+  drawPoloidal(); drawToroidal(); draw3D();
+  requestAnimationFrame(frame);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sQ').addEventListener('input',e=>{qMid=parseFloat(e.target.value);document.getElementById('vQ').textContent=qMid.toFixed(1);});
+document.getElementById('sShear').addEventListener('input',e=>{shat=parseFloat(e.target.value);document.getElementById('vShear').textContent=shat.toFixed(1);});
+document.getElementById('sSpd').addEventListener('input',e=>{spd=parseFloat(e.target.value);document.getElementById('vSpd').textContent=spd.toFixed(1);});
+document.getElementById('bPlay').addEventListener('click',()=>{playing=!playing;document.getElementById('bPlay').textContent=playing?'⏸':'▶';});
+document.getElementById('bReset').addEventListener('click',()=>{phi=0;});
+
+c3D.addEventListener('mousedown',e=>{dragging=true;dX=e.clientX;dY=e.clientY;dRx=camRx;dRy=camRy;});
+window.addEventListener('mousemove',e=>{if(!dragging)return;camRy=dRy+(e.clientX-dX)*0.005;camRx=Math.max(-1.2,Math.min(1.2,dRx+(e.clientY-dY)*0.005));});
+window.addEventListener('mouseup',()=>{dragging=false;});
+c3D.addEventListener('touchstart',e=>{dragging=true;dX=e.touches[0].clientX;dY=e.touches[0].clientY;dRx=camRx;dRy=camRy;},{passive:true});
+c3D.addEventListener('touchmove',e=>{if(!dragging)return;e.preventDefault();camRy=dRy+(e.touches[0].clientX-dX)*0.005;camRx=Math.max(-1.2,Math.min(1.2,dRx+(e.touches[0].clientY-dY)*0.005));},{passive:false});
+c3D.addEventListener('touchend',()=>{dragging=false;});
+
+window.addEventListener('resize',resize);
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

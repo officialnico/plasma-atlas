@@ -1,0 +1,709 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tokamak pipeline</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const stages = [
+  {
+    id: 1,
+    name: "Machine Design",
+    subtitle: "Physical geometry → digital representation",
+    color: "#2d5a3d",
+    accent: "#5cb87a",
+    codes: [
+      {
+        name: "CAD / Engineering Tools",
+        type: "Commercial / Custom",
+        desc: "The physical tokamak starts as a 3D engineering model — coil geometry, vessel shape, divertor surfaces, port locations. Tools like CATIA, SolidWorks, or custom parametric codes define the machine boundary. For a company like Commonwealth Fusion, this is where SPARC's geometry lives.",
+        inputs: "Engineering specifications, coil currents, material constraints",
+        outputs: "Machine boundary surfaces, coil filament positions, wall geometry",
+        compute: "Trivial — desktop-scale",
+      },
+      {
+        name: "Coil Field Solvers (Biot-Savart)",
+        type: "Custom codes",
+        desc: "From the coil geometry, you compute the vacuum magnetic field — the field that exists before any plasma. This is a straightforward Biot-Savart integration over the coil filaments. Some codes like FOCUS optimize coil shapes to produce desired field configurations.",
+        inputs: "Coil geometry, coil currents",
+        outputs: "Vacuum magnetic field on a 3D grid (Bvac)",
+        compute: "Minutes to hours depending on resolution",
+      },
+    ],
+  },
+  {
+    id: 2,
+    name: "MHD Equilibrium",
+    subtitle: "Where is the plasma and what shape is it?",
+    color: "#4a3d5c",
+    accent: "#9b7cc9",
+    codes: [
+      {
+        name: "EFIT / kinetic EFIT",
+        type: "Standard — GA / widely used",
+        desc: "The workhorse for tokamak equilibrium reconstruction. Solves the Grad-Shafranov equation — a nonlinear PDE that balances plasma pressure against magnetic forces. In experimental settings, EFIT takes real diagnostic measurements (magnetics, MSE, Thomson scattering) and reconstructs what the plasma equilibrium actually looks like. For predictive work, you specify pressure and current profiles and it gives you the equilibrium. Outputs the EQDSK file format that almost every downstream code reads.",
+        inputs: "Magnetic probe data OR pressure/current profiles + machine boundary",
+        outputs: "Poloidal flux map ψ(R,Z), safety factor q(r), pressure P(r), magnetic geometry — all in EQDSK format",
+        compute: "Seconds to minutes per reconstruction",
+      },
+      {
+        name: "CHEASE",
+        type: "Open — EPFL",
+        desc: "A high-accuracy fixed-boundary Grad-Shafranov solver. Often used as a post-processor after EFIT to generate smoother, more precise equilibria on finer grids. Many gyrokinetic codes prefer CHEASE-processed equilibria because the metric quantities are smoother.",
+        inputs: "EQDSK from EFIT or specified profiles + boundary shape",
+        outputs: "High-resolution equilibrium with accurate metric coefficients, also EQDSK format",
+        compute: "Seconds",
+      },
+      {
+        name: "VMEC",
+        type: "Open — PPPL",
+        desc: "The standard for 3D equilibria. Unlike EFIT (which assumes axisymmetry), VMEC handles stellarators and tokamaks with 3D perturbations. It minimizes the total MHD energy assuming nested flux surfaces. Essential if you're ever thinking beyond pure tokamaks.",
+        inputs: "Pressure profile, current/rotational transform profile, boundary shape (possibly from coil optimization)",
+        outputs: "3D equilibrium: flux surfaces, magnetic field components, metric tensors",
+        compute: "Minutes to hours for 3D",
+      },
+      {
+        name: "DESC",
+        type: "Open — Princeton",
+        desc: "A newer, modern alternative to VMEC written in Python with auto-differentiation. Solves the same 3D equilibrium problem but with spectral methods and optimization-based approach. Growing in popularity because it's more flexible and provides analytical derivatives.",
+        inputs: "Same as VMEC",
+        outputs: "Same as VMEC but with high-precision derivatives",
+        compute: "Comparable to VMEC, sometimes faster for optimization",
+      },
+    ],
+  },
+  {
+    id: 3,
+    name: "Geometry Interface",
+    subtitle: "Translate equilibrium into coordinates gyrokinetic codes understand",
+    color: "#5c3d3d",
+    accent: "#c97c7c",
+    codes: [
+      {
+        name: "GIST (Geometry Interface for Stellarators & Tokamaks)",
+        type: "Coupled with GENE",
+        desc: "Takes the MHD equilibrium and constructs the field-aligned coordinate system that GENE needs. Computes all the geometric coefficients: metric tensor components, magnetic field curvature, local shear, Jacobian. This is the critical translation layer between 'here is the equilibrium' and 'here are the numbers the gyrokinetic equation needs.'",
+        inputs: "VMEC or EFIT equilibrium + flux surface selection",
+        outputs: "Geometric coefficients on the field-aligned grid: gxx, gxy, gyy, gyz, Bfield, curvature, etc.",
+        compute: "Seconds to minutes",
+      },
+      {
+        name: "Miller parameterization",
+        type: "Analytical model",
+        desc: "A simplified local equilibrium model that parameterizes the flux surface shape with a few numbers: elongation κ, triangularity δ, Shafranov shift, etc. Many flux-tube codes use Miller instead of full numerical geometry for faster setup. Good for parameter scans, less accurate for detailed predictions.",
+        inputs: "Local plasma parameters at a single flux surface",
+        outputs: "Analytic geometric coefficients",
+        compute: "Instantaneous",
+      },
+      {
+        name: "Field Line Tracing (FLT)",
+        type: "Built into various codes",
+        desc: "An alternative method to construct geometry by literally tracing magnetic field lines through the equilibrium and computing geometric quantities along the way. Used as a cross-check for GIST or as the primary method in some codes.",
+        inputs: "Equilibrium magnetic field",
+        outputs: "Geometric coefficients along field lines",
+        compute: "Seconds",
+      },
+    ],
+  },
+  {
+    id: 4,
+    name: "Neoclassical Transport",
+    subtitle: "Collisional transport before turbulence enters",
+    color: "#3d4a5c",
+    accent: "#7ca3c9",
+    codes: [
+      {
+        name: "NEO",
+        type: "Open — General Atomics (GACODE suite)",
+        desc: "Solves the drift-kinetic equation to compute neoclassical (collisional) transport: the transport you'd get even without turbulence, from particles drifting off flux surfaces due to magnetic geometry. Computes particle, energy, and momentum fluxes from collisions in toroidal geometry. This is the 'baseline' transport that turbulence adds on top of.",
+        inputs: "Equilibrium geometry, plasma profiles (density, temperature, rotation), collision frequencies",
+        outputs: "Neoclassical particle flux, heat flux, bootstrap current, poloidal rotation",
+        compute: "Minutes per flux surface",
+      },
+      {
+        name: "DKES / SFINCS",
+        type: "Various — used for stellarators mainly",
+        desc: "Drift kinetic equation solvers optimized for 3D geometries where neoclassical transport is much more complex and important (stellarators). SFINCS handles full linearized Fokker-Planck collisions.",
+        inputs: "3D equilibrium geometry, plasma profiles",
+        outputs: "Neoclassical transport coefficients in 3D geometry",
+        compute: "Minutes to hours",
+      },
+    ],
+  },
+  {
+    id: 5,
+    name: "Gyrokinetic Turbulence",
+    subtitle: "THE expensive part — this is where your quantum play lives",
+    color: "#1a3a4a",
+    accent: "#4ecdc4",
+    isTarget: true,
+    codes: [
+      {
+        name: "GENE",
+        type: "Open source — IPP Garching",
+        desc: "The gold standard Eulerian (grid-based) gyrokinetic code. Solves the nonlinear gyrokinetic Vlasov-Maxwell system on a 5D phase-space grid (3 spatial + 2 velocity). Can run in local flux-tube mode (simulating a thin magnetic tube) or global mode (covering a radial extent). Computes turbulent fluctuations and the heat/particle transport they cause. This is where millions of CPU-hours go.",
+        inputs: "Geometric coefficients from GIST, plasma profiles (gradients of T, n, rotation), collision model parameters",
+        outputs: "Turbulent heat flux, particle flux, momentum flux, fluctuation spectra, distribution function",
+        compute: "10K–10M+ CPU-hours per nonlinear run",
+        quantumTarget: true,
+        kernels: [
+          { name: "Nonlinear E×B term", pct: "30-40%", quantum: "Hard — inherently nonlinear, poor quantum fit today" },
+          { name: "Collision operator", pct: "20-50%", quantum: "YOUR TARGET — linear operator, scales with species², separable kernel" },
+          { name: "Field solver (Poisson/Ampère)", pct: "5-15%", quantum: "Possible — sparse linear system, but FFTs are very fast classically" },
+          { name: "Parallel advection", pct: "10-20%", quantum: "Unlikely target — well-suited to classical parallelism" },
+          { name: "Communication / I/O", pct: "5-15%", quantum: "N/A" },
+        ],
+      },
+      {
+        name: "CGYRO",
+        type: "Open — General Atomics (GACODE suite)",
+        desc: "Redesigned successor to GYRO, specifically optimized for GPU architectures and high-collisionality edge plasmas. Uses a spectral radial formulation. Currently the main code used for SPARC/ITER predictions at General Atomics. Same physics as GENE, different numerical approach.",
+        inputs: "Same physics inputs as GENE, via GACODE input.gacode format",
+        outputs: "Same physics outputs — turbulent fluxes, spectra",
+        compute: "Similar scale to GENE, better GPU utilization",
+        quantumTarget: true,
+      },
+      {
+        name: "GX",
+        type: "Open source — GPU-native",
+        desc: "A newer GPU-native flux-tube code using Laguerre-Hermite spectral velocity-space formulation. Can produce useful turbulence results in minutes on a few GPUs. Interesting because the spectral velocity-space basis naturally maps to a 'moment' hierarchy — fewer basis functions needed means smaller matrices, which could be advantageous for quantum.",
+        inputs: "Equilibrium geometry, plasma parameters",
+        outputs: "Turbulent fluxes, benchmarked against GENE/GS2",
+        compute: "Minutes to hours on GPUs — much faster than GENE for flux-tube",
+      },
+      {
+        name: "XGC",
+        type: "Open — PPPL / US DOE",
+        desc: "A particle-in-cell (PIC) gyrokinetic code, as opposed to the grid-based (Eulerian) approach of GENE/CGYRO. Pushes billions of marker particles through phase space. Specialized for the plasma edge and scrape-off-layer where flux-tube assumptions break down. The main US exascale gyrokinetic code.",
+        inputs: "Full equilibrium, plasma profiles, wall geometry for SOL",
+        outputs: "Turbulent transport, edge/SOL dynamics, divertor heat loads",
+        compute: "Full exascale machine runs — Frontier, Aurora",
+        quantumTarget: true,
+      },
+      {
+        name: "GS2",
+        type: "Open — US/UK community",
+        desc: "One of the oldest and most trusted flux-tube codes. Excellent for linear stability analysis and well-benchmarked for nonlinear turbulence. Foundation of much of modern gyrokinetic understanding.",
+        inputs: "Miller geometry or numerical equilibrium, plasma parameters",
+        outputs: "Growth rates, frequencies, nonlinear fluxes",
+        compute: "Moderate — smaller than GENE global but still substantial",
+      },
+    ],
+  },
+  {
+    id: 6,
+    name: "Transport Solvers",
+    subtitle: "Close the loop — predict profiles across the whole plasma",
+    color: "#4a4a2d",
+    accent: "#c9b87c",
+    codes: [
+      {
+        name: "TANGO",
+        type: "Open — coupled with GENE",
+        desc: "A transport solver that couples to GENE to do self-consistent profile prediction. The idea: GENE computes turbulent fluxes at several radial locations, TANGO adjusts the profiles until the fluxes match the sources (heating power, fueling). This iterative loop converges to the predicted temperature and density profiles.",
+        inputs: "Heating power, fueling rate, boundary conditions + GENE turbulent fluxes",
+        outputs: "Predicted temperature, density, rotation profiles across the plasma",
+        compute: "Requires ~10-50 GENE runs to converge — so 100K–500M CPU-hours total",
+      },
+      {
+        name: "TRINITY",
+        type: "Coupled with GS2/GENE",
+        desc: "Similar concept to TANGO but with a different numerical approach. Couples flux-tube gyrokinetic calculations to a 1D radial transport equation.",
+        inputs: "Same as TANGO",
+        outputs: "Self-consistent plasma profiles",
+        compute: "Similar scale",
+      },
+      {
+        name: "TGLF / QuaLiKiz",
+        type: "Reduced models — GA / DIFFER",
+        desc: "These are NOT full gyrokinetic codes. They're reduced (quasi-linear) transport models trained/calibrated against GENE/CGYRO results. They approximate the turbulent fluxes in seconds instead of weeks. Used for rapid design iteration, but they sacrifice accuracy — especially in regimes they haven't been calibrated for.",
+        inputs: "Local plasma parameters",
+        outputs: "Approximate turbulent fluxes (fast but approximate)",
+        compute: "Seconds per flux surface — 1000x+ faster than GENE",
+      },
+      {
+        name: "ASTRA / JINTRAC / TRANSP",
+        type: "Integrated modeling suites",
+        desc: "These are the 'whole device' simulation frameworks. They combine equilibrium, transport, heating (NBI, ICRH, ECRH), fueling, radiation, and MHD stability into one time-evolving simulation. They typically use TGLF/QuaLiKiz for turbulent transport (because full gyrokinetic is too expensive to call in the inner loop). The ultimate goal of fusion simulation.",
+        inputs: "Machine geometry, heating systems, fueling, wall conditions",
+        outputs: "Time-evolving plasma profiles, fusion power, stored energy, confinement time — everything",
+        compute: "Hours to days with reduced transport models",
+      },
+    ],
+  },
+  {
+    id: 7,
+    name: "Stability & MHD",
+    subtitle: "Will the plasma stay together or disrupt?",
+    color: "#5c4a3d",
+    accent: "#c9a37c",
+    codes: [
+      {
+        name: "NOVA / NOVA-K",
+        type: "PPPL",
+        desc: "Computes ideal MHD stability and Alfvén eigenmodes. Determines whether the predicted equilibrium is stable to large-scale instabilities that could cause disruptions.",
+        inputs: "MHD equilibrium, pressure/current profiles",
+        outputs: "Stability boundaries, mode structure, growth rates",
+        compute: "Minutes to hours",
+      },
+      {
+        name: "M3D-C1",
+        type: "Open — PPPL",
+        desc: "Extended MHD code for nonlinear simulations of large-scale instabilities, disruptions, and edge-localized modes (ELMs). Fully 3D, handles resistive effects, two-fluid physics.",
+        inputs: "Equilibrium, profiles, resistivity model",
+        outputs: "Nonlinear MHD evolution, disruption dynamics",
+        compute: "Thousands to millions of CPU-hours",
+      },
+      {
+        name: "NIMROD / JOREK",
+        type: "Open MHD codes",
+        desc: "Similar to M3D-C1 — nonlinear extended MHD for tokamak instabilities. JOREK is widely used in the European community, NIMROD in the US. Used for ELM simulation, disruption modeling, runaway electron dynamics.",
+        inputs: "Equilibrium, profiles, boundary conditions",
+        outputs: "MHD mode evolution, disruption scenarios",
+        compute: "Large HPC runs",
+      },
+    ],
+  },
+];
+
+const pipelineFlow = [
+  { from: "CAD Design", to: "Coil Fields", label: "geometry" },
+  { from: "Coil Fields", to: "EFIT/VMEC", label: "Bvac" },
+  { from: "EFIT/VMEC", to: "GIST/Miller", label: "EQDSK" },
+  { from: "GIST/Miller", to: "GENE/CGYRO", label: "metric coefficients" },
+  { from: "EFIT/VMEC", to: "NEO", label: "equilibrium" },
+  { from: "NEO", to: "GENE/CGYRO", label: "neoclassical baseline" },
+  { from: "GENE/CGYRO", to: "TANGO/TRINITY", label: "turbulent fluxes" },
+  { from: "TANGO/TRINITY", to: "GENE/CGYRO", label: "updated profiles", loop: true },
+  { from: "TANGO/TRINITY", to: "ASTRA/TRANSP", label: "converged profiles" },
+  { from: "EFIT/VMEC", to: "NOVA/M3D-C1", label: "stability check" },
+];
+
+function TokamakPipeline() {
+  const [activeStage, setActiveStage] = useState(4);
+  const [activeCode, setActiveCode] = useState(null);
+
+  const currentStage = stages[activeStage];
+  const currentCode = activeCode !== null ? currentStage.codes[activeCode] : null;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "24px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: "#e6ecf2",
+            margin: 0,
+            letterSpacing: "-0.5px",
+          }}>
+            TOKAMAK SIMULATION PIPELINE
+          </h1>
+          <p style={{
+            fontSize: 12,
+            color: "#5c6a7a",
+            margin: "6px 0 0 0",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+          }}>
+            From CAD model to fusion power prediction — every code, every step
+          </p>
+        </div>
+
+        {/* Stage Navigation */}
+        <div style={{
+          display: "flex",
+          gap: 2,
+          marginBottom: 24,
+          flexWrap: "wrap",
+        }}>
+          {stages.map((stage, i) => (
+            <button
+              key={stage.id}
+              onClick={() => { setActiveStage(i); setActiveCode(null); }}
+              style={{
+                flex: 1,
+                minWidth: 100,
+                padding: "10px 8px",
+                background: activeStage === i ? stage.color : "#12171f",
+                border: `1px solid ${activeStage === i ? stage.accent : "#1e2630"}`,
+                borderRadius: 4,
+                color: activeStage === i ? stage.accent : "#5c6a7a",
+                fontSize: 10,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                textAlign: "center",
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                fontWeight: activeStage === i ? 700 : 400,
+                transition: "all 0.2s",
+                position: "relative",
+              }}
+            >
+              {stage.isTarget && (
+                <span style={{
+                  position: "absolute",
+                  top: -4,
+                  right: -4,
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "#4ecdc4",
+                  boxShadow: "0 0 8px #4ecdc4",
+                }} />
+              )}
+              <div style={{ fontSize: 14, marginBottom: 2, fontWeight: 700 }}>{stage.id}</div>
+              {stage.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Stage Header */}
+        <div style={{
+          padding: "16px 20px",
+          background: currentStage.color,
+          borderRadius: "6px 6px 0 0",
+          borderLeft: `3px solid ${currentStage.accent}`,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h2 style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: currentStage.accent,
+                margin: 0,
+              }}>
+                Stage {currentStage.id}: {currentStage.name}
+                {currentStage.isTarget && (
+                  <span style={{
+                    marginLeft: 10,
+                    fontSize: 10,
+                    padding: "2px 8px",
+                    background: "rgba(78, 205, 196, 0.15)",
+                    border: "1px solid rgba(78, 205, 196, 0.4)",
+                    borderRadius: 3,
+                    color: "#4ecdc4",
+                    verticalAlign: "middle",
+                  }}>
+                    QUANTUM TARGET
+                  </span>
+                )}
+              </h2>
+              <p style={{ fontSize: 13, color: "#8a95a5", margin: "4px 0 0 0" }}>
+                {currentStage.subtitle}
+              </p>
+            </div>
+            <div style={{
+              fontSize: 11,
+              color: "#5c6a7a",
+              textAlign: "right",
+            }}>
+              {currentStage.codes.length} code{currentStage.codes.length > 1 ? "s" : ""}
+            </div>
+          </div>
+        </div>
+
+        {/* Code List */}
+        <div style={{
+          background: "#12171f",
+          borderRadius: "0 0 6px 6px",
+          border: `1px solid ${currentStage.color}`,
+          borderTop: "none",
+        }}>
+          {currentStage.codes.map((code, i) => (
+            <div key={i}>
+              <button
+                onClick={() => setActiveCode(activeCode === i ? null : i)}
+                style={{
+                  width: "100%",
+                  padding: "14px 20px",
+                  background: activeCode === i ? "#1a2030" : "transparent",
+                  border: "none",
+                  borderBottom: i < currentStage.codes.length - 1 ? "1px solid #1a2030" : "none",
+                  color: "#c5cdd9",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: currentStage.accent,
+                  }}>
+                    {code.name}
+                  </span>
+                  <span style={{
+                    fontSize: 10,
+                    color: "#5c6a7a",
+                    padding: "1px 6px",
+                    background: "#0a0e14",
+                    borderRadius: 3,
+                  }}>
+                    {code.type}
+                  </span>
+                  {code.quantumTarget && (
+                    <span style={{
+                      fontSize: 9,
+                      color: "#4ecdc4",
+                      padding: "1px 6px",
+                      background: "rgba(78, 205, 196, 0.1)",
+                      borderRadius: 3,
+                      border: "1px solid rgba(78, 205, 196, 0.25)",
+                    }}>
+                      ⚡ QUANTUM
+                    </span>
+                  )}
+                </div>
+                <span style={{
+                  color: "#5c6a7a",
+                  fontSize: 12,
+                  transform: activeCode === i ? "rotate(180deg)" : "rotate(0)",
+                  transition: "transform 0.2s",
+                }}>
+                  ▼
+                </span>
+              </button>
+
+              {activeCode === i && (
+                <div style={{
+                  padding: "0 20px 20px 20px",
+                  background: "#1a2030",
+                }}>
+                  <p style={{
+                    fontSize: 13,
+                    lineHeight: 1.7,
+                    color: "#a0aab8",
+                    margin: "0 0 16px 0",
+                  }}>
+                    {code.desc}
+                  </p>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{
+                      padding: 12,
+                      background: "#0a0e14",
+                      borderRadius: 4,
+                      border: "1px solid #1e2630",
+                    }}>
+                      <div style={{ fontSize: 9, color: "#5c6a7a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                        Inputs
+                      </div>
+                      <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.5 }}>
+                        {code.inputs}
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: 12,
+                      background: "#0a0e14",
+                      borderRadius: 4,
+                      border: "1px solid #1e2630",
+                    }}>
+                      <div style={{ fontSize: 9, color: "#5c6a7a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                        Outputs
+                      </div>
+                      <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.5 }}>
+                        {code.outputs}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    marginTop: 12,
+                    padding: 12,
+                    background: "#0a0e14",
+                    borderRadius: 4,
+                    border: "1px solid #1e2630",
+                  }}>
+                    <div style={{ fontSize: 9, color: "#5c6a7a", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+                      Compute Cost
+                    </div>
+                    <div style={{ fontSize: 12, color: currentStage.accent, lineHeight: 1.5 }}>
+                      {code.compute}
+                    </div>
+                  </div>
+
+                  {/* Kernel breakdown for GENE */}
+                  {code.kernels && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{
+                        fontSize: 11,
+                        color: currentStage.accent,
+                        fontWeight: 700,
+                        marginBottom: 10,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}>
+                        Computational Kernel Breakdown
+                      </div>
+                      {code.kernels.map((k, ki) => (
+                        <div key={ki} style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 12,
+                          padding: "10px 12px",
+                          background: k.name === "Collision operator" ? "rgba(78, 205, 196, 0.08)" : "#0a0e14",
+                          border: k.name === "Collision operator" ? "1px solid rgba(78, 205, 196, 0.25)" : "1px solid #1e2630",
+                          borderRadius: 4,
+                          marginBottom: 6,
+                        }}>
+                          <div style={{ minWidth: 70 }}>
+                            <div style={{
+                              fontSize: 16,
+                              fontWeight: 700,
+                              color: k.name === "Collision operator" ? "#4ecdc4" : "#5c6a7a",
+                            }}>
+                              {k.pct}
+                            </div>
+                            <div style={{ fontSize: 9, color: "#5c6a7a" }}>of runtime</div>
+                          </div>
+                          <div>
+                            <div style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: k.name === "Collision operator" ? "#4ecdc4" : "#a0aab8",
+                              marginBottom: 3,
+                            }}>
+                              {k.name}
+                              {k.name === "Collision operator" && " ← YOUR ENTRY POINT"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#5c6a7a", lineHeight: 1.5 }}>
+                              {k.quantum}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Data Flow Summary */}
+        <div style={{
+          marginTop: 24,
+          padding: 20,
+          background: "#12171f",
+          borderRadius: 6,
+          border: "1px solid #1e2630",
+        }}>
+          <h3 style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#e6ecf2",
+            margin: "0 0 14px 0",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}>
+            End-to-End Data Flow
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[
+              { step: "1", text: "Machine geometry + coil currents", arrow: "→", next: "Vacuum B-field" },
+              { step: "2", text: "Vacuum B + plasma profiles", arrow: "→", next: "MHD equilibrium (EFIT/VMEC → EQDSK)" },
+              { step: "3", text: "EQDSK equilibrium", arrow: "→", next: "Geometric coefficients (GIST/Miller)" },
+              { step: "4", text: "Geometry + profiles", arrow: "→", next: "Neoclassical transport baseline (NEO)" },
+              { step: "5", text: "Geometry + profiles + collisions", arrow: "→", next: "Gyrokinetic turbulence (GENE/CGYRO) ← QUANTUM HERE", highlight: true },
+              { step: "6", text: "Turbulent fluxes", arrow: "⟷", next: "Profile solver (TANGO) — iterates with step 5" },
+              { step: "7", text: "Converged profiles", arrow: "→", next: "Integrated modeling (ASTRA/TRANSP) + stability (NOVA)" },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 12px",
+                background: item.highlight ? "rgba(78, 205, 196, 0.06)" : "#0a0e14",
+                border: item.highlight ? "1px solid rgba(78, 205, 196, 0.2)" : "1px solid transparent",
+                borderRadius: 4,
+                fontSize: 12,
+              }}>
+                <span style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: item.highlight ? "#4ecdc4" : "#1e2630",
+                  color: item.highlight ? "#0a0e14" : "#5c6a7a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}>
+                  {item.step}
+                </span>
+                <span style={{ color: "#8a95a5", minWidth: 0 }}>
+                  {item.text}
+                </span>
+                <span style={{ color: "#5c6a7a", flexShrink: 0 }}>{item.arrow}</span>
+                <span style={{
+                  color: item.highlight ? "#4ecdc4" : "#c5cdd9",
+                  fontWeight: item.highlight ? 600 : 400,
+                  minWidth: 0,
+                }}>
+                  {item.next}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Key Insight */}
+        <div style={{
+          marginTop: 24,
+          padding: 20,
+          background: "rgba(78, 205, 196, 0.05)",
+          borderRadius: 6,
+          border: "1px solid rgba(78, 205, 196, 0.15)",
+        }}>
+          <h3 style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#4ecdc4",
+            margin: "0 0 10px 0",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}>
+            Where You Fit In
+          </h3>
+          <p style={{ fontSize: 13, lineHeight: 1.7, color: "#8a95a5", margin: 0 }}>
+            Your quantum acceleration layer sits inside Stage 5 — specifically inside the collision operator kernel of GENE, CGYRO, or XGC. You don't need to touch Stages 1-4 (those are fast and classical). You don't need to build a transport solver. You build a drop-in replacement for one computational kernel that consumes 20-50% of the most expensive step in the entire pipeline. Every code upstream feeds into you. Every code downstream benefits from you. The TANGO iteration loop (Stage 6) calls GENE 10-50 times per profile prediction — so every speedup you provide on the collision operator gets multiplied by 10-50x in the integrated workflow.
+          </p>
+        </div>
+
+        <div style={{
+          marginTop: 16,
+          fontSize: 10,
+          color: "#3a4550",
+          textAlign: "center",
+        }}>
+          Click each stage tab to explore codes · Click code names to expand details
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TokamakPipeline));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D Plasma Density — Interactive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #06080f;
+    --bg-panel: #0d111c;
+    --ink: #e8ebf2;
+    --ink-dim: #8a92a8;
+    --ink-faint: #4a5168;
+    --accent: #ff6b35;
+    --accent-2: #4ecdc4;
+    --accent-3: #ffd166;
+    --line: #1a2034;
+    --line-strong: #2a3148;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', Georgia, serif;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--line);
+    padding: 24px 22px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .header { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 8px;
+  }
+  h1 {
+    font-weight: 300; font-size: 24px; line-height: 1.1; letter-spacing: -0.02em;
+  }
+  h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+  .subtitle {
+    font-size: 12px; color: var(--ink-dim); margin-top: 8px;
+    line-height: 1.5; font-style: italic;
+  }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 10px;
+  }
+
+  .view-toggle {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    background: #050810; border: 1px solid var(--line);
+    border-radius: 4px; padding: 3px;
+  }
+  .view-toggle button {
+    background: transparent; border: none; color: var(--ink-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 9px 8px; cursor: pointer; border-radius: 3px;
+    transition: all 0.2s ease;
+  }
+  .view-toggle button.active {
+    background: var(--accent); color: #050810; font-weight: 500;
+  }
+  .view-toggle button:not(.active):hover { color: var(--ink); }
+
+  .control { display: flex; flex-direction: column; gap: 8px; }
+  .control-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .control-label { font-size: 13px; color: var(--ink); }
+  .control-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--accent); font-weight: 500;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 2px;
+    background: var(--line-strong); outline: none; border-radius: 1px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: 2px solid var(--bg-panel);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: 2px solid var(--bg-panel);
+  }
+
+  .checkbox-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--ink-dim); cursor: pointer;
+  }
+  .checkbox-row input { accent-color: var(--accent); cursor: pointer; }
+  .checkbox-row:hover { color: var(--ink); }
+
+  .ions-buttons { display: flex; gap: 6px; }
+  .ion-btn {
+    flex: 1; background: transparent; border: 1px solid var(--line-strong);
+    color: var(--ink-dim); font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 8px; cursor: pointer; border-radius: 3px;
+    transition: all 0.15s ease;
+  }
+  .ion-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .ion-btn.active { background: var(--accent); color: #050810; border-color: var(--accent); }
+
+  .info {
+    background: #050810; border: 1px solid var(--line);
+    border-radius: 4px; padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--ink-dim); line-height: 1.7;
+  }
+  .info .accent { color: var(--accent); }
+  .info .accent-2 { color: var(--accent-2); }
+  .info strong { color: var(--ink); font-weight: 500; }
+
+  /* ---------- Stage ---------- */
+  .stage {
+    position: relative;
+    background: radial-gradient(ellipse at center, #0a0e1a 0%, #050810 80%);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+  }
+  .stage-half {
+    position: relative;
+    overflow: hidden;
+  }
+  .stage-half.top {
+    border-bottom: 1px solid var(--line);
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .stage-overlay {
+    position: absolute; pointer-events: none;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink-faint);
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+  }
+  .stage-overlay.tl { top: 20px; left: 24px; }
+  .stage-overlay.tr {
+    top: 20px; right: 24px;
+    font-family: 'Fraunces', serif; font-style: italic;
+    text-transform: none; letter-spacing: 0; font-size: 13px;
+    color: var(--ink-dim);
+  }
+  .stage-overlay.tr .strong { color: var(--accent); font-weight: 400; }
+  .stage-overlay.bl {
+    bottom: 20px; left: 24px;
+    background: rgba(13, 17, 28, 0.85);
+    padding: 8px 12px; border-radius: 3px;
+    border: 1px solid var(--line);
+    pointer-events: auto;
+  }
+  .stage-overlay.bl kbd {
+    background: var(--bg-panel); border: 1px solid var(--line-strong);
+    padding: 1px 5px; border-radius: 2px; color: var(--ink-dim);
+    font-family: inherit; font-size: 9px;
+  }
+
+  .legend {
+    display: flex; gap: 14px; align-items: center;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--ink-dim);
+  }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  @media (max-width: 768px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .panel { max-height: 45vh; border-right: none; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<aside class="panel">
+  <div class="header">
+    <div class="eyebrow">3D plasma · density profile</div>
+    <h1>How <em>density</em> emerges from particles</h1>
+    <p class="subtitle">Watch real electrons cluster around ions in 3D, then see the same data become the Boltzmann curve.</p>
+  </div>
+
+  <div>
+    <div class="section-title">Number of ions</div>
+    <div class="ions-buttons" id="ions-buttons">
+      <button class="ion-btn active" data-n="1">1</button>
+      <button class="ion-btn" data-n="2">2</button>
+      <button class="ion-btn" data-n="3">3</button>
+      <button class="ion-btn" data-n="5">5</button>
+    </div>
+  </div>
+
+  <div class="control">
+    <div class="control-row">
+      <span class="control-label">Temperature kT</span>
+      <span class="control-value" id="T-out">1.0</span>
+    </div>
+    <input type="range" id="T" min="0.3" max="3" step="0.05" value="1.0">
+  </div>
+
+  <div class="control">
+    <div class="control-row">
+      <span class="control-label">Particle count</span>
+      <span class="control-value" id="N-out">800</span>
+    </div>
+    <input type="range" id="N" min="200" max="2000" step="50" value="800">
+  </div>
+
+  <div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="show-shells" checked>
+      <span>show counting shells</span>
+    </label>
+    <label class="checkbox-row" style="margin-top: 8px;">
+      <input type="checkbox" id="show-errors" checked>
+      <span>show statistical noise (±√N)</span>
+    </label>
+    <label class="checkbox-row" style="margin-top: 8px;">
+      <input type="checkbox" id="auto-rotate" checked>
+      <span>auto-rotate</span>
+    </label>
+  </div>
+
+  <div class="info">
+    <div><strong>What you're seeing</strong></div>
+    <div style="margin-top: 6px;"><span class="accent">Top:</span> the actual particles in 3D. Each electron jitters randomly, biased toward ions.</div>
+    <div style="margin-top: 6px;"><span class="accent-2">Bottom:</span> count those particles in spherical shells, divide by shell volume. Same data, statistical view.</div>
+    <div style="margin-top: 8px;">Boltzmann is <strong>probabilistic</strong>: it predicts the average density, not where any one electron sits.</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#ff6b35"></span>
+      ion (+)
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#4ecdc4"></span>
+      electron (−)
+    </div>
+  </div>
+</aside>
+
+<main class="stage">
+  <div class="stage-half top">
+    <div class="stage-overlay tl">3D space · drag to orbit</div>
+    <div class="stage-overlay tr"><span class="strong" style="color:var(--accent)">live particles</span></div>
+    <canvas id="stage-3d"></canvas>
+    <div class="stage-overlay bl" id="hint">drag to orbit · scroll to zoom · <kbd>R</kbd> reset</div>
+  </div>
+  <div class="stage-half">
+    <div class="stage-overlay tl">density vs distance · live measurement</div>
+    <div class="stage-overlay tr"><span class="strong" style="color:var(--accent-2)">averaged from above</span></div>
+    <canvas id="stage-profile"></canvas>
+  </div>
+</main>
+
+<script>
+(() => {
+  const state = {
+    nIons: 1,
+    T: 1.0,
+    N: 800,
+    showShells: true,
+    showErrors: true,
+    autoRotate: true,
+
+    // Camera (for 3D)
+    rotX: 0.4,
+    rotY: 0.7,
+    zoom: 1.0,
+    dragging: false,
+    lastMx: 0, lastMy: 0,
+
+    ions: [],
+    particles: [],
+
+    boxSize: 8,
+    time: 0,
+  };
+
+  const canvas3d = document.getElementById('stage-3d');
+  const ctx3d = canvas3d.getContext('2d');
+  const canvasP = document.getElementById('stage-profile');
+  const ctxP = canvasP.getContext('2d');
+
+  function setupCanvases() {
+    const dpr = window.devicePixelRatio || 1;
+    [canvas3d, canvasP].forEach(c => {
+      const rect = c.parentElement.getBoundingClientRect();
+      c.width = rect.width * dpr;
+      c.height = rect.height * dpr;
+      c.style.width = rect.width + 'px';
+      c.style.height = rect.height + 'px';
+      c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+  }
+  window.addEventListener('resize', setupCanvases);
+  setupCanvases();
+
+  // ------------- Ion arrangements -------------
+  function arrangeIons(n) {
+    state.ions = [];
+    if (n === 1) {
+      state.ions.push({ x: 0, y: 0, z: 0 });
+    } else if (n === 2) {
+      state.ions.push({ x: -2, y: 0, z: 0 });
+      state.ions.push({ x: +2, y: 0, z: 0 });
+    } else if (n === 3) {
+      const r = 2.2;
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        state.ions.push({ x: r * Math.cos(a), y: 0, z: r * Math.sin(a) });
+      }
+    } else if (n === 5) {
+      // Random-ish but stable
+      const positions = [
+        { x: 0, y: 0, z: 0 },
+        { x: 2.5, y: 0.5, z: -1 },
+        { x: -2, y: -0.8, z: 1.5 },
+        { x: 1, y: 1.5, z: 2.5 },
+        { x: -1.5, y: 1, z: -2.2 },
+      ];
+      state.ions = positions;
+    }
+  }
+
+  // ------------- Initialize particles -------------
+  function initParticles() {
+    state.particles = [];
+    for (let i = 0; i < state.N; i++) {
+      state.particles.push({
+        x: (Math.random() - 0.5) * 2 * state.boxSize,
+        y: (Math.random() - 0.5) * 2 * state.boxSize,
+        z: (Math.random() - 0.5) * 2 * state.boxSize,
+        vx: 0, vy: 0, vz: 0,
+      });
+    }
+  }
+
+  // ------------- Physics step -------------
+  function stepPhysics(dt) {
+    const T = state.T;
+    const dampening = 0.88;
+    const thermalKick = Math.sqrt(T) * 14;
+
+    for (const p of state.particles) {
+      // Force from each ion (attractive, since particles are electrons and ions are positive)
+      let fx = 0, fy = 0, fz = 0;
+      for (const ion of state.ions) {
+        const dx = p.x - ion.x;
+        const dy = p.y - ion.y;
+        const dz = p.z - ion.z;
+        const r2 = dx*dx + dy*dy + dz*dz;
+        const r = Math.sqrt(r2);
+        // Soft-cored attraction: weakens at small r so electrons don't collapse
+        // Force ~ r / (r² + a²)^1.5 — finite at origin
+        const a2 = 0.5;  // softening length squared
+        const denom = Math.pow(r2 + a2, 1.5);
+        const fmag = 2.5 / denom;
+        fx -= fmag * dx;
+        fy -= fmag * dy;
+        fz -= fmag * dz;
+      }
+
+      // Thermal random kicks
+      fx += (Math.random() - 0.5) * thermalKick * 2;
+      fy += (Math.random() - 0.5) * thermalKick * 2;
+      fz += (Math.random() - 0.5) * thermalKick * 2;
+
+      p.vx = (p.vx + fx * dt) * dampening;
+      p.vy = (p.vy + fy * dt) * dampening;
+      p.vz = (p.vz + fz * dt) * dampening;
+
+      // Velocity cap to prevent runaway
+      const vmax = 8;
+      const vmag = Math.sqrt(p.vx*p.vx + p.vy*p.vy + p.vz*p.vz);
+      if (vmag > vmax) {
+        p.vx *= vmax / vmag;
+        p.vy *= vmax / vmag;
+        p.vz *= vmax / vmag;
+      }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+
+      // Periodic boundary so the soup doesn't deplete
+      const B = state.boxSize;
+      if (p.x > B) p.x -= 2 * B;
+      if (p.x < -B) p.x += 2 * B;
+      if (p.y > B) p.y -= 2 * B;
+      if (p.y < -B) p.y += 2 * B;
+      if (p.z > B) p.z -= 2 * B;
+      if (p.z < -B) p.z += 2 * B;
+    }
+  }
+
+  // ------------- 3D projection -------------
+  function project(x, y, z) {
+    const cosY = Math.cos(state.rotY), sinY = Math.sin(state.rotY);
+    const cosX = Math.cos(state.rotX), sinX = Math.sin(state.rotX);
+    let x1 = x * cosY - z * sinY;
+    let z1 = x * sinY + z * cosY;
+    let y1 = y * cosX - z1 * sinX;
+    let z2 = y * sinX + z1 * cosX;
+
+    const rect = canvas3d.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const scale = Math.min(w, h) / 18 * state.zoom;
+    return {
+      sx: w / 2 + x1 * scale,
+      sy: h / 2 + y1 * scale,
+      depth: z2,
+      scale: scale
+    };
+  }
+
+  // ------------- Drawing 3D view -------------
+  function draw3D() {
+    const rect = canvas3d.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx3d.fillStyle = '#050810';
+    ctx3d.fillRect(0, 0, w, h);
+
+    drawBox();
+
+    if (state.showShells && state.ions.length > 0) {
+      drawShells(state.ions[0]);
+    }
+
+    const items = [];
+    for (const p of state.particles) {
+      const proj = project(p.x, p.y, p.z);
+      items.push({ type: 'particle', proj, ref: p });
+    }
+    for (const ion of state.ions) {
+      const proj = project(ion.x, ion.y, ion.z);
+      items.push({ type: 'ion', proj, ref: ion });
+    }
+    items.sort((a, b) => a.proj.depth - b.proj.depth);
+
+    for (const item of items) {
+      if (item.type === 'particle') {
+        drawParticle3D(item.proj);
+      } else {
+        drawIon3D(item.proj);
+      }
+    }
+  }
+
+  function drawBox() {
+    const B = state.boxSize;
+    const corners = [
+      [-B,-B,-B],[+B,-B,-B],[+B,+B,-B],[-B,+B,-B],
+      [-B,-B,+B],[+B,-B,+B],[+B,+B,+B],[-B,+B,+B]
+    ];
+    const projected = corners.map(c => project(c[0], c[1], c[2]));
+    const edges = [
+      [0,1],[1,2],[2,3],[3,0],
+      [4,5],[5,6],[6,7],[7,4],
+      [0,4],[1,5],[2,6],[3,7]
+    ];
+    ctx3d.strokeStyle = 'rgba(74, 81, 104, 0.3)';
+    ctx3d.lineWidth = 1;
+    ctx3d.setLineDash([3, 5]);
+    for (const [a, b] of edges) {
+      ctx3d.beginPath();
+      ctx3d.moveTo(projected[a].sx, projected[a].sy);
+      ctx3d.lineTo(projected[b].sx, projected[b].sy);
+      ctx3d.stroke();
+    }
+    ctx3d.setLineDash([]);
+  }
+
+  function drawShells(center) {
+    const radii = [1, 2, 3, 4];
+    const N = 32;
+    for (const r of radii) {
+      ctx3d.strokeStyle = 'rgba(255, 209, 102, 0.18)';
+      ctx3d.lineWidth = 1;
+
+      // xz plane
+      ctx3d.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const proj = project(center.x + r * Math.cos(a), center.y, center.z + r * Math.sin(a));
+        if (i === 0) ctx3d.moveTo(proj.sx, proj.sy);
+        else ctx3d.lineTo(proj.sx, proj.sy);
+      }
+      ctx3d.stroke();
+
+      // xy plane
+      ctx3d.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const proj = project(center.x + r * Math.cos(a), center.y + r * Math.sin(a), center.z);
+        if (i === 0) ctx3d.moveTo(proj.sx, proj.sy);
+        else ctx3d.lineTo(proj.sx, proj.sy);
+      }
+      ctx3d.stroke();
+
+      // yz plane
+      ctx3d.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const proj = project(center.x, center.y + r * Math.cos(a), center.z + r * Math.sin(a));
+        if (i === 0) ctx3d.moveTo(proj.sx, proj.sy);
+        else ctx3d.lineTo(proj.sx, proj.sy);
+      }
+      ctx3d.stroke();
+    }
+  }
+
+  function drawParticle3D(proj) {
+    const depthFactor = Math.max(0.3, Math.min(1.5, 1 + proj.depth * 0.05));
+    const size = 2.2 * depthFactor;
+    const alpha = Math.min(1, depthFactor * 0.85);
+    ctx3d.fillStyle = `rgba(78, 205, 196, ${alpha})`;
+    ctx3d.beginPath();
+    ctx3d.arc(proj.sx, proj.sy, size, 0, Math.PI * 2);
+    ctx3d.fill();
+  }
+
+  function drawIon3D(proj) {
+    const depthFactor = Math.max(0.5, Math.min(1.6, 1 + proj.depth * 0.04));
+    const size = 7 * depthFactor;
+    const grad = ctx3d.createRadialGradient(proj.sx, proj.sy, 0, proj.sx, proj.sy, size * 3);
+    grad.addColorStop(0, 'rgba(255, 107, 53, 0.5)');
+    grad.addColorStop(1, 'rgba(255, 107, 53, 0)');
+    ctx3d.fillStyle = grad;
+    ctx3d.beginPath();
+    ctx3d.arc(proj.sx, proj.sy, size * 3, 0, Math.PI * 2);
+    ctx3d.fill();
+    ctx3d.fillStyle = '#ff6b35';
+    ctx3d.beginPath();
+    ctx3d.arc(proj.sx, proj.sy, size, 0, Math.PI * 2);
+    ctx3d.fill();
+    ctx3d.strokeStyle = '#050810';
+    ctx3d.lineWidth = 1.8;
+    ctx3d.beginPath();
+    ctx3d.moveTo(proj.sx - size * 0.5, proj.sy);
+    ctx3d.lineTo(proj.sx + size * 0.5, proj.sy);
+    ctx3d.moveTo(proj.sx, proj.sy - size * 0.5);
+    ctx3d.lineTo(proj.sx, proj.sy + size * 0.5);
+    ctx3d.stroke();
+  }
+
+  // ------------- Density profile view -------------
+  const histAvg = {
+    smoothedDensity: null,    // running avg density per bin
+    smoothedCount: null,      // running avg raw count per bin (for error bars)
+    nBins: 50,
+    rMax: 6,
+    alpha: 0.04
+  };
+
+  function drawProfile() {
+    const rect = canvasP.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctxP.fillStyle = '#050810';
+    ctxP.fillRect(0, 0, w, h);
+
+    const nBins = histAvg.nBins;
+    const rMax = histAvg.rMax;
+    if (!histAvg.smoothedDensity) {
+      histAvg.smoothedDensity = new Array(nBins).fill(0);
+      histAvg.smoothedCount = new Array(nBins).fill(0);
+    }
+
+    // Frame histogram
+    const counts = new Array(nBins).fill(0);
+    const binEdges = [];
+    for (let i = 0; i <= nBins; i++) binEdges.push((i / nBins) * rMax);
+
+    for (const p of state.particles) {
+      let minR = Infinity;
+      for (const ion of state.ions) {
+        const dx = p.x - ion.x, dy = p.y - ion.y, dz = p.z - ion.z;
+        const r = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        if (r < minR) minR = r;
+      }
+      if (minR < rMax) {
+        const idx = Math.min(nBins - 1, Math.floor(minR / rMax * nBins));
+        counts[idx]++;
+      }
+    }
+
+    const densities = [];
+    for (let i = 0; i < nBins; i++) {
+      const r1 = binEdges[i], r2 = binEdges[i + 1];
+      const shellVol = (4/3) * Math.PI * (r2*r2*r2 - r1*r1*r1);
+      densities.push(counts[i] / shellVol);
+    }
+
+    // Exponential moving average
+    for (let i = 0; i < nBins; i++) {
+      histAvg.smoothedDensity[i] = histAvg.smoothedDensity[i] * (1 - histAvg.alpha) + densities[i] * histAvg.alpha;
+      histAvg.smoothedCount[i] = histAvg.smoothedCount[i] * (1 - histAvg.alpha) + counts[i] * histAvg.alpha;
+    }
+
+    const smoothedDensities = histAvg.smoothedDensity;
+    const smoothedCounts = histAvg.smoothedCount;
+
+    // Layout
+    const padL = 70, padR = 30, padT = 50, padB = 40;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // Baseline
+    let n0 = 0, n0Count = 0;
+    for (let i = Math.floor(nBins * 0.65); i < nBins; i++) {
+      n0 += smoothedDensities[i];
+      n0Count++;
+    }
+    n0 = n0Count > 0 ? n0 / n0Count : 1;
+    if (n0 < 0.01) n0 = 0.5;
+
+    const yMax = n0 * 6;
+
+    // Axes
+    ctxP.strokeStyle = 'rgba(74, 81, 104, 0.6)';
+    ctxP.lineWidth = 1;
+    ctxP.beginPath();
+    ctxP.moveTo(padL, padT);
+    ctxP.lineTo(padL, padT + plotH);
+    ctxP.lineTo(padL + plotW, padT + plotH);
+    ctxP.stroke();
+
+    // Baseline
+    const yBase = padT + plotH - (n0 / yMax) * plotH;
+    ctxP.strokeStyle = 'rgba(138, 146, 168, 0.4)';
+    ctxP.setLineDash([4, 5]);
+    ctxP.beginPath();
+    ctxP.moveTo(padL, yBase);
+    ctxP.lineTo(padL + plotW, yBase);
+    ctxP.stroke();
+    ctxP.setLineDash([]);
+    ctxP.fillStyle = '#8a92a8';
+    ctxP.font = '10px "JetBrains Mono", monospace';
+    ctxP.textAlign = 'left';
+    ctxP.fillText('n₀', padL + 4, yBase - 3);
+
+    // Histogram bars (faint background)
+    const barW = plotW / nBins;
+    for (let i = 0; i < nBins; i++) {
+      const density = Math.min(yMax, smoothedDensities[i]);
+      const barH = (density / yMax) * plotH;
+      const x = padL + i * barW;
+      const y = padT + plotH - barH;
+      ctxP.fillStyle = 'rgba(78, 205, 196, 0.12)';
+      ctxP.fillRect(x, y, barW, barH);
+    }
+
+    // ===== Error bars (Poisson noise: sigma = sqrt(N)) =====
+    if (state.showErrors) {
+      ctxP.strokeStyle = 'rgba(255, 209, 102, 0.5)';
+      ctxP.lineWidth = 1;
+      for (let i = 0; i < nBins; i++) {
+        const N = smoothedCounts[i];
+        if (N < 0.5) continue;
+        const sigmaN = Math.sqrt(N);
+        const r1 = binEdges[i], r2 = binEdges[i + 1];
+        const shellVol = (4/3) * Math.PI * (r2*r2*r2 - r1*r1*r1);
+        const sigmaDensity = sigmaN / shellVol;
+
+        const r = (i + 0.5) / nBins * rMax;
+        const x = padL + (r / rMax) * plotW;
+        const yCenter = padT + plotH - Math.min(plotH, (smoothedDensities[i] / yMax) * plotH);
+        const yTop = padT + plotH - Math.min(plotH, ((smoothedDensities[i] + sigmaDensity) / yMax) * plotH);
+        const yBot = padT + plotH - Math.min(plotH, (Math.max(0, smoothedDensities[i] - sigmaDensity) / yMax) * plotH);
+
+        ctxP.beginPath();
+        ctxP.moveTo(x, yTop);
+        ctxP.lineTo(x, yBot);
+        ctxP.stroke();
+        // tiny caps
+        ctxP.beginPath();
+        ctxP.moveTo(x - 2, yTop);
+        ctxP.lineTo(x + 2, yTop);
+        ctxP.moveTo(x - 2, yBot);
+        ctxP.lineTo(x + 2, yBot);
+        ctxP.stroke();
+      }
+    }
+
+    // Connected line through bin midpoints (the measured density)
+    ctxP.strokeStyle = '#4ecdc4';
+    ctxP.lineWidth = 2;
+    ctxP.beginPath();
+    for (let i = 0; i < nBins; i++) {
+      const r = (i + 0.5) / nBins * rMax;
+      const x = padL + (r / rMax) * plotW;
+      const density = Math.min(yMax, smoothedDensities[i]);
+      const y = padT + plotH - (density / yMax) * plotH;
+      if (i === 0) ctxP.moveTo(x, y);
+      else ctxP.lineTo(x, y);
+    }
+    ctxP.stroke();
+
+    // Theory curve
+    ctxP.strokeStyle = '#ff6b35';
+    ctxP.lineWidth = 2;
+    ctxP.setLineDash([6, 4]);
+    ctxP.beginPath();
+    const nPts = 200;
+    const aSoft = Math.sqrt(0.5);
+    for (let i = 0; i <= nPts; i++) {
+      const r = (i / nPts) * rMax;
+      const phi = 1.0 / Math.sqrt(r*r + aSoft*aSoft);
+      const phiInf = 1.0 / Math.sqrt(rMax*rMax + aSoft*aSoft);
+      const ne = n0 * Math.exp((phi - phiInf) / state.T);
+      const x = padL + (r / rMax) * plotW;
+      const y = padT + plotH - Math.min(plotH, (ne / yMax) * plotH);
+      if (i === 0) ctxP.moveTo(x, y);
+      else ctxP.lineTo(x, y);
+    }
+    ctxP.stroke();
+    ctxP.setLineDash([]);
+
+    // Legend (top right area)
+    const legX = padL + plotW - 200;
+    let legY = padT + 6;
+    ctxP.font = '11px "JetBrains Mono", monospace';
+    ctxP.textAlign = 'left';
+    ctxP.fillStyle = '#ff6b35';
+    ctxP.fillText('— — Boltzmann theory', legX, legY); legY += 14;
+    ctxP.fillStyle = '#4ecdc4';
+    ctxP.fillText('—— measured', legX, legY); legY += 14;
+    if (state.showErrors) {
+      ctxP.fillStyle = '#ffd166';
+      ctxP.fillText('⊥ ±√N noise', legX, legY);
+    }
+
+    // Axis labels
+    ctxP.fillStyle = '#8a92a8';
+    ctxP.font = '10px "JetBrains Mono", monospace';
+    ctxP.textAlign = 'center';
+    ctxP.fillText('distance r (to nearest ion)', padL + plotW / 2, padT + plotH + 24);
+    ctxP.save();
+    ctxP.translate(18, padT + plotH / 2);
+    ctxP.rotate(-Math.PI / 2);
+    ctxP.fillText('density n(r)', 0, 0);
+    ctxP.restore();
+
+    // Tick marks
+    ctxP.fillStyle = '#4a5168';
+    ctxP.font = '9px "JetBrains Mono", monospace';
+    ctxP.textAlign = 'center';
+    for (let r = 0; r <= rMax; r += 1) {
+      const x = padL + (r / rMax) * plotW;
+      ctxP.beginPath();
+      ctxP.moveTo(x, padT + plotH);
+      ctxP.lineTo(x, padT + plotH + 3);
+      ctxP.strokeStyle = '#4a5168';
+      ctxP.stroke();
+      ctxP.fillText(r.toString(), x, padT + plotH + 14);
+    }
+  }
+
+  // ------------- Animation loop -------------
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    state.time += dt;
+
+    if (state.autoRotate) state.rotY += 0.003;
+
+    stepPhysics(dt);
+    draw3D();
+    drawProfile();
+
+    requestAnimationFrame(loop);
+  }
+
+  // ------------- Interaction (3D canvas only) -------------
+  canvas3d.addEventListener('mousedown', (e) => {
+    state.dragging = true;
+    state.lastMx = e.clientX;
+    state.lastMy = e.clientY;
+    state.autoRotate = false;
+    document.getElementById('auto-rotate').checked = false;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!state.dragging) return;
+    state.rotY += (e.clientX - state.lastMx) * 0.008;
+    state.rotX += (e.clientY - state.lastMy) * 0.008;
+    state.rotX = Math.max(-1.4, Math.min(1.4, state.rotX));
+    state.lastMx = e.clientX;
+    state.lastMy = e.clientY;
+  });
+  window.addEventListener('mouseup', () => state.dragging = false);
+
+  canvas3d.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    state.zoom *= Math.exp(-e.deltaY * 0.001);
+    state.zoom = Math.max(0.3, Math.min(3, state.zoom));
+  }, { passive: false });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') {
+      state.rotX = 0.4;
+      state.rotY = 0.7;
+      state.zoom = 1.0;
+    }
+  });
+
+  // ------------- UI bindings -------------
+  document.querySelectorAll('#ions-buttons .ion-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#ions-buttons .ion-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      state.nIons = parseInt(b.dataset.n);
+      arrangeIons(state.nIons);
+      histAvg.smoothedDensity = null;
+    });
+  });
+
+  document.getElementById('T').addEventListener('input', e => {
+    state.T = parseFloat(e.target.value);
+    document.getElementById('T-out').textContent = state.T.toFixed(2);
+    histAvg.smoothedDensity = null;
+  });
+  document.getElementById('N').addEventListener('input', e => {
+    state.N = parseInt(e.target.value);
+    document.getElementById('N-out').textContent = state.N;
+    initParticles();
+    histAvg.smoothedDensity = null;
+  });
+  document.getElementById('show-shells').addEventListener('change', e => {
+    state.showShells = e.target.checked;
+  });
+  document.getElementById('show-errors').addEventListener('change', e => {
+    state.showErrors = e.target.checked;
+  });
+  document.getElementById('auto-rotate').addEventListener('change', e => {
+    state.autoRotate = e.target.checked;
+  });
+
+  // ------------- Init -------------
+  arrangeIons(state.nIons);
+  initParticles();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

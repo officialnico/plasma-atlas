@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tokamak Confinement Console — L-mode · H-mode · ELMs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06090f;
+    --panel:#0c121c;
+    --panel2:#0a0f18;
+    --line:rgba(140,170,200,0.10);
+    --line2:rgba(140,170,200,0.18);
+    --txt:#cdd9e6;
+    --mut:#6b7c92;
+    --dim:#46566a;
+    --L:#f6a64b;       /* L-mode amber */
+    --Lglow:rgba(246,166,75,0.5);
+    --H:#27e7d4;       /* H-mode teal */
+    --Hglow:rgba(39,231,212,0.5);
+    --elm:#ff3d6e;     /* ELM crash */
+    --elmglow:rgba(255,61,110,0.55);
+    --warn:#ff5a3c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{
+    font-family:"Bricolage Grotesque",sans-serif;
+    color:var(--txt);
+    line-height:1.5;
+    overflow-x:hidden;
+    background:
+      radial-gradient(900px 500px at 78% -8%, rgba(39,231,212,0.10), transparent 60%),
+      radial-gradient(700px 480px at 10% 4%, rgba(246,166,75,0.08), transparent 60%),
+      var(--bg);
+  }
+  .grain{position:fixed;inset:0;pointer-events:none;z-index:50;opacity:0.5;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 16px 70px;position:relative;z-index:1;}
+
+  header{margin-bottom:22px;}
+  .kicker{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--mut);display:flex;align-items:center;gap:9px;}
+  .kicker::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--H);
+    box-shadow:0 0 10px var(--Hglow);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{font-size:clamp(28px,7vw,46px);line-height:1.02;font-weight:800;letter-spacing:-0.02em;
+    margin:10px 0 8px;background:linear-gradient(95deg,#fff 10%,var(--H) 55%,var(--L) 110%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{color:var(--mut);max-width:62ch;font-size:14.5px;}
+
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:16px;padding:16px 15px 14px;margin-top:16px;
+    box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 18px 40px -28px rgba(0,0,0,0.9);position:relative;overflow:hidden;}
+  .panel::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:30px 30px;opacity:.35;mask-image:radial-gradient(circle at 50% 0%,#000,transparent 78%);}
+  .ptitle{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--mut);display:flex;align-items:center;gap:8px;position:relative;z-index:2;}
+  .ptitle .id{color:var(--dim);}
+  .pdesc{font-size:13px;color:var(--mut);margin:7px 0 4px;position:relative;z-index:2;}
+
+  /* master control */
+  .console{display:grid;grid-template-columns:1fr;gap:14px;}
+  .regime{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .regbig{font-size:clamp(30px,9vw,52px);font-weight:800;letter-spacing:-0.02em;line-height:1;
+    transition:color .4s, text-shadow .4s;}
+  .regbig.L{color:var(--L);text-shadow:0 0 26px var(--Lglow);}
+  .regbig.H{color:var(--H);text-shadow:0 0 26px var(--Hglow);}
+  .regtag{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--mut);}
+  .sliderrow{margin-top:6px;}
+  .slabel{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--mut);display:flex;justify-content:space-between;margin-bottom:8px;}
+  .slabel b{color:var(--txt);font-weight:700;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;cursor:pointer;}
+  input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:6px;
+    background:linear-gradient(90deg,#1a2433 0%,#1a2433 42%,rgba(39,231,212,.25) 42%,rgba(39,231,212,.25) 100%);
+    border:1px solid var(--line2);}
+  input[type=range]::-moz-range-track{height:8px;border-radius:6px;background:#1a2433;border:1px solid var(--line2);}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;
+    margin-top:-10px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--H));
+    border:2px solid #04140f;box-shadow:0 0 16px var(--Hglow);}
+  input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--H));border:2px solid #04140f;box-shadow:0 0 16px var(--Hglow);}
+  .threshmark{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--dim);margin-top:2px;
+    position:relative;height:14px;}
+  .threshmark span{position:absolute;left:42%;transform:translateX(-50%);color:var(--mut);}
+  .threshmark span::before{content:"▲";display:block;text-align:center;color:var(--L);font-size:8px;}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+  .preset{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.05em;
+    background:#101824;border:1px solid var(--line2);color:var(--mut);padding:7px 11px;border-radius:9px;
+    cursor:pointer;transition:.18s;}
+  .preset:hover,.preset:active{color:var(--txt);border-color:var(--H);box-shadow:0 0 14px -4px var(--Hglow);}
+
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px;}
+  .metric{background:#0a111b;border:1px solid var(--line);border-radius:11px;padding:11px 10px;text-align:left;}
+  .metric .mk{font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--dim);}
+  .metric .mv{font-family:"JetBrains Mono",monospace;font-size:21px;font-weight:700;color:var(--txt);
+    margin-top:3px;transition:color .3s;}
+  .metric .mu{font-size:10px;color:var(--mut);}
+
+  canvas{display:block;width:100%;position:relative;z-index:2;border-radius:8px;touch-action:pan-y;}
+  .cv-profile{height:280px;}
+  .cv-tau{height:230px;}
+  .cv-elm{height:230px;}
+  .cv-div{height:120px;}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-family:"JetBrains Mono",monospace;
+    font-size:11px;color:var(--mut);margin-top:10px;position:relative;z-index:2;}
+  .legend i{display:inline-block;width:13px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px;}
+
+  .note{font-size:13px;color:var(--mut);margin-top:11px;position:relative;z-index:2;border-left:2px solid var(--line2);padding-left:11px;}
+  .note b{color:var(--txt);font-weight:600;}
+  .hi-L{color:var(--L);font-weight:600;}
+  .hi-H{color:var(--H);font-weight:600;}
+  .hi-E{color:var(--elm);font-weight:600;}
+
+  footer{margin-top:26px;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--dim);
+    text-align:center;letter-spacing:.08em;}
+  .warnbadge{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;
+    color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:2px 7px;margin-left:8px;
+    opacity:0;transition:.3s;letter-spacing:.1em;}
+  .warnbadge.on{opacity:1;box-shadow:0 0 14px -4px var(--warn);}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Tokamak diagnostics console · plasma edge physics</div>
+    <h1>Confinement Regimes &amp; Edge-Localized Modes</h1>
+    <p class="sub">Turn up the heating power and watch the plasma bifurcate from the leaky <span class="hi-L">L-mode</span> into the high-performance <span class="hi-H">H-mode</span> — then deal with the bursts (<span class="hi-E">ELMs</span>) that come with it. One knob drives every panel.</p>
+  </header>
+
+  <!-- MASTER CONTROL -->
+  <div class="panel">
+    <div class="ptitle"><span class="id">[00]</span> Master control · auxiliary heating</div>
+    <div class="console">
+      <div class="regime">
+        <div id="regbig" class="regbig L">L-MODE</div>
+        <div class="regtag" id="regtag">below L–H power threshold</div>
+      </div>
+
+      <div class="sliderrow">
+        <div class="slabel"><span>Heating power P<sub>aux</sub></span><span><b id="pval">28</b> %</span></div>
+        <input type="range" id="power" min="0" max="100" value="28">
+        <div class="threshmark"><span>L–H threshold</span></div>
+      </div>
+
+      <div class="presets">
+        <button class="preset" data-p="22">↘ L-mode</button>
+        <button class="preset" data-p="55">↗ H-mode</button>
+        <button class="preset" data-p="92">⚡ High power · big ELMs</button>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><div class="mk">Energy confinement τ<sub>E</sub></div><div class="mv" id="m-tau">0.82</div><div class="mu">relative to baseline</div></div>
+        <div class="metric"><div class="mk">Edge pedestal height</div><div class="mv" id="m-ped">0.00</div><div class="mu">norm. pressure</div></div>
+        <div class="metric"><div class="mk">ELM frequency</div><div class="mv" id="m-elm">0.0</div><div class="mu">events / sec</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="panel">
+    <div class="ptitle"><span class="id">[01]</span> Radial pressure profile · the pedestal</div>
+    <p class="pdesc">Plasma pressure from the hot core (left) to the cool edge (right). In H-mode an <span class="hi-H">edge transport barrier</span> suppresses turbulence and lets a steep <b>pedestal</b> stand up — lifting the whole profile.</p>
+    <canvas id="cvProfile" class="cv-profile"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--L)"></i>L-mode profile</span>
+      <span><i style="background:var(--H)"></i>H-mode profile</span>
+      <span><i style="background:var(--Hglow);box-shadow:0 0 8px var(--Hglow)"></i>transport barrier</span>
+      <span><i style="background:var(--mut)"></i>edge turbulence (eddies)</span>
+    </div>
+    <p class="note"><b>What to notice:</b> below threshold the edge pressure droops to ~zero and eddies churn freely. Cross the threshold and the eddies near the edge calm into sheared layers — turbulence is sheared apart — producing the steep pedestal cliff.</p>
+  </div>
+
+  <!-- TAU vs POWER -->
+  <div class="panel">
+    <div class="ptitle"><span class="id">[02]</span> Confinement bifurcation · τ<sub>E</sub> vs power</div>
+    <p class="pdesc">Energy confinement time degrades with power on <em>both</em> branches, but crossing the threshold makes the plasma jump to a roughly <b>2× higher</b> H-mode branch.</p>
+    <canvas id="cvTau" class="cv-tau"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--L)"></i>L-mode branch</span>
+      <span><i style="background:var(--H)"></i>H-mode branch</span>
+      <span><i style="background:#fff"></i>current operating point</span>
+    </div>
+  </div>
+
+  <!-- ELM CYCLE -->
+  <div class="panel">
+    <div class="ptitle"><span class="id">[03]</span> ELM cycle · pedestal build-up &amp; crash <span id="warn" class="warnbadge">⚠ DIVERTOR HEAT LIMIT</span></div>
+    <p class="pdesc">Live trace. The pedestal pressure ramps up until it hits the <span class="hi-E">peeling–ballooning stability limit</span> — then the edge crashes, dumping a burst of heat onto the divertor. Higher power → faster, bigger Type-I ELMs.</p>
+    <canvas id="cvElm" class="cv-elm"></canvas>
+    <canvas id="cvDiv" class="cv-div"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--H)"></i>pedestal pressure</span>
+      <span><i style="background:var(--elm)"></i>stability limit / ELM crash</span>
+      <span><i style="background:var(--L)"></i>divertor heat flux</span>
+    </div>
+    <p class="note"><b>The trade-off:</b> ELMs flush out impurities and helium ash (good), but each Type-I burst can erode or melt divertor surfaces (bad). On a reactor like ITER they must be mitigated — pacing them smaller and more frequent, or suppressing them with magnetic perturbations.</p>
+  </div>
+
+  <footer>interactive model · normalized units · physics simplified for intuition, not quantitative prediction</footer>
+</div>
+
+<script>
+"use strict";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const PTH=0.42;                 // normalized L–H power threshold
+const lhTarget=P=>clamp((P-PTH)/0.06,0,1);
+
+const state={
+  power:0.28,
+  lh:0,                          // eased L->H fraction (0=L,1=H)
+  wped:0.35,                     // ELM-panel pedestal energy
+  elmHist:[],                    // {t,w}
+  divQ:0.0,                      // divertor heat flux
+  divHist:[],                    // {t,q}
+  qPeak:0,
+  elmTimes:[],                   // timestamps of recent ELMs (for freq)
+  t:0,
+  flash:0                        // ELM flash intensity
+};
+
+/* ---------- canvas helpers ---------- */
+function setup(cv){
+  const r=cv.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(r.width*dpr));
+  cv.height=Math.max(1,Math.round(r.height*dpr));
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cv._w=r.width; cv._h=r.height; cv._ctx=ctx;
+}
+const cvP=document.getElementById('cvProfile');
+const cvT=document.getElementById('cvTau');
+const cvE=document.getElementById('cvElm');
+const cvD=document.getElementById('cvDiv');
+function fitAll(){[cvP,cvT,cvE,cvD].forEach(setup);}
+window.addEventListener('resize',fitAll);
+
+/* ---------- physics ---------- */
+function pressureAt(rho,P,lh){
+  const pcL=0.42+0.30*P;
+  const pL=pcL*Math.pow(Math.max(0,1-rho*rho),1.3);
+  const rhoPed=0.93;
+  const pPed=0.18+0.45*clamp((P-PTH)/(1-PTH),0,1);
+  const pSep=0.015;
+  const pcH=0.50+0.42*P;
+  let pH;
+  if(rho<rhoPed){
+    pH=pPed+pcH*Math.pow(Math.max(0,1-(rho/rhoPed)*(rho/rhoPed)),1.15);
+  }else{
+    const f=(rho-rhoPed)/(1-rhoPed);
+    pH=pPed+(pSep-pPed)*f;
+  }
+  return lerp(pL,pH,lh);
+}
+const tauL=P=>0.95-0.30*P;
+const tauH=P=>1.85-0.45*P;
+
+/* ---------- turbulence particles ---------- */
+const parts=[];
+for(let i=0;i<46;i++){
+  parts.push({rho:0.55+Math.random()*0.45, h:Math.random(), ph:Math.random()*6.28, sp:0.6+Math.random()*1.4});
+}
+
+/* ---------- profile panel ---------- */
+function drawProfile(dt){
+  const ctx=cvP._ctx,W=cvP._w,H=cvP._h;
+  ctx.clearRect(0,0,W,H);
+  const padL=40,padR=14,padT=16,padB=30;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const x=rho=>padL+rho*plotW;
+  const ymax=1.25;
+  const y=p=>padT+plotH-(p/ymax)*plotH;
+
+  // grid
+  ctx.strokeStyle='rgba(140,170,200,0.08)';ctx.lineWidth=1;
+  ctx.font='10px "JetBrains Mono",monospace';ctx.fillStyle='#46566a';
+  for(let g=0;g<=4;g++){const yy=padT+plotH*g/4;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();}
+  // pedestal barrier band (intensity ~ lh)
+  if(state.lh>0.02){
+    const bx0=x(0.86),bx1=x(1.0);
+    const grd=ctx.createLinearGradient(bx0,0,bx1,0);
+    grd.addColorStop(0,'rgba(39,231,212,0)');
+    grd.addColorStop(1,'rgba(39,231,212,'+(0.16*state.lh)+')');
+    ctx.fillStyle=grd;ctx.fillRect(bx0,padT,bx1-bx0,plotH);
+    ctx.fillStyle='rgba(39,231,212,'+(0.55*state.lh)+')';
+    ctx.fillText('barrier',bx0+4,padT+12);
+  }
+
+  // L reference (faint) when in H to show the lift
+  function plot(color,P,lh,width,glow,fill){
+    ctx.beginPath();
+    for(let i=0;i<=120;i++){const rho=i/120;const p=pressureAt(rho,P,lh);
+      const px=x(rho),py=y(p);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+    if(fill){
+      ctx.lineTo(x(1),y(0));ctx.lineTo(x(0),y(0));ctx.closePath();
+      const g=ctx.createLinearGradient(0,padT,0,padT+plotH);
+      g.addColorStop(0,fill);g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g;ctx.fill();
+      ctx.beginPath();
+      for(let i=0;i<=120;i++){const rho=i/120;const p=pressureAt(rho,P,lh);
+        const px=x(rho),py=y(p);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+    }
+    ctx.lineWidth=width;ctx.strokeStyle=color;
+    if(glow){ctx.shadowColor=glow;ctx.shadowBlur=14;}
+    ctx.stroke();ctx.shadowBlur=0;
+  }
+  // ghost L-mode curve when in H-mode
+  if(state.lh>0.15){
+    ctx.setLineDash([3,5]);
+    plot('rgba(246,166,75,'+(0.45*state.lh)+')',state.power,0,1.4,null,null);
+    ctx.setLineDash([]);
+  }
+  // main curve, color blended L->H
+  const curCol=state.lh<0.5?'var':'';
+  const cr=Math.round(lerp(246,39,state.lh)),cg=Math.round(lerp(166,231,state.lh)),cb=Math.round(lerp(75,212,state.lh));
+  const main=`rgb(${cr},${cg},${cb})`;
+  const fillc=`rgba(${cr},${cg},${cb},0.22)`;
+  const glowc=`rgba(${cr},${cg},${cb},0.55)`;
+  plot(main,state.power,state.lh,2.6,glowc,fillc);
+
+  // turbulence particles in edge region
+  const turb=1-state.lh;             // strong in L, suppressed in H
+  for(const pt of parts){
+    pt.ph+=dt*pt.sp*(0.6+1.8*turb);
+    const jit=(0.5+turb*2.2);
+    const rr=pt.rho+0.0;
+    const baseP=pressureAt(rr,state.power,state.lh);
+    const px=x(rr)+Math.sin(pt.ph*1.7)*jit*3;
+    const py=y(baseP*pt.h*0.9+0.04)+Math.cos(pt.ph)*jit*4;
+    const sz=turb>0.4?2.2:1.4;
+    ctx.beginPath();ctx.arc(px,py,sz,0,6.2832);
+    ctx.fillStyle=turb>0.4?`rgba(246,166,75,${0.25+0.4*turb})`:`rgba(39,231,212,0.5)`;
+    ctx.fill();
+  }
+
+  // axes labels
+  ctx.fillStyle='#6b7c92';ctx.font='10px "JetBrains Mono",monospace';
+  ctx.fillText('core',padL,H-10);
+  ctx.fillText('edge',W-padR-26,H-10);
+  ctx.save();ctx.translate(12,padT+plotH/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillText('PRESSURE',0,0);ctx.restore();
+  ctx.textAlign='left';
+}
+
+/* ---------- tau vs power ---------- */
+function drawTau(){
+  const ctx=cvT._ctx,W=cvT._w,H=cvT._h;
+  ctx.clearRect(0,0,W,H);
+  const padL=40,padR=16,padT=16,padB=30;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const x=P=>padL+P*plotW;
+  const ymax=2.0;
+  const y=t=>padT+plotH-(t/ymax)*plotH;
+
+  ctx.strokeStyle='rgba(140,170,200,0.08)';ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){const yy=padT+plotH*g/4;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();}
+
+  // threshold line
+  ctx.setLineDash([4,5]);ctx.strokeStyle='rgba(246,166,75,0.5)';
+  ctx.beginPath();ctx.moveTo(x(PTH),padT);ctx.lineTo(x(PTH),padT+plotH);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(246,166,75,0.8)';ctx.font='10px "JetBrains Mono",monospace';
+  ctx.fillText('threshold',x(PTH)+4,padT+11);
+
+  // L branch (full range)
+  ctx.lineWidth=2.4;ctx.strokeStyle='var(--L)';ctx.strokeStyle='#f6a64b';
+  ctx.shadowColor='rgba(246,166,75,0.4)';ctx.shadowBlur=8;
+  ctx.beginPath();for(let i=0;i<=100;i++){const P=i/100;const px=x(P),py=y(tauL(P));i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.stroke();
+  // H branch (from threshold)
+  ctx.strokeStyle='#27e7d4';ctx.shadowColor='rgba(39,231,212,0.4)';
+  ctx.beginPath();let started=false;for(let i=0;i<=100;i++){const P=i/100;if(P<PTH)continue;const px=x(P),py=y(tauH(P));started?ctx.lineTo(px,py):ctx.moveTo(px,py);started=true;}ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // jump connector at threshold
+  ctx.setLineDash([2,4]);ctx.strokeStyle='rgba(205,217,230,0.45)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(x(PTH),y(tauL(PTH)));ctx.lineTo(x(PTH),y(tauH(PTH)));ctx.stroke();ctx.setLineDash([]);
+  // arrow head
+  ctx.fillStyle='rgba(205,217,230,0.7)';
+  const ax=x(PTH),ay=y(tauH(PTH));
+  ctx.beginPath();ctx.moveTo(ax,ay-1);ctx.lineTo(ax-4,ay+7);ctx.lineTo(ax+4,ay+7);ctx.fill();
+
+  // operating point
+  const P=state.power;
+  const tcur=lerp(tauL(P),tauH(P),state.lh);
+  const opx=x(P),opy=y(tcur);
+  ctx.beginPath();ctx.arc(opx,opy,7,0,6.2832);
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=16;ctx.fill();ctx.shadowBlur=0;
+  ctx.strokeStyle='#04140f';ctx.lineWidth=2;ctx.stroke();
+
+  // axes labels
+  ctx.fillStyle='#6b7c92';ctx.font='10px "JetBrains Mono",monospace';
+  ctx.fillText('heating power →',padL,H-10);
+  ctx.save();ctx.translate(12,padT+plotH/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillText('τE',0,0);ctx.restore();ctx.textAlign='left';
+}
+
+/* ---------- ELM cycle + divertor ---------- */
+const WINDOW=9.0;                  // seconds shown
+function updateElm(dt){
+  const P=state.power;
+  const inH=state.lh>0.5;
+  if(inH){
+    const rate=0.16+0.62*P;        // build-up rate: faster at higher power
+    state.wped+=rate*dt;
+    if(state.wped>=1.0){           // hit peeling-ballooning limit -> crash
+      const crash=0.16+0.40*clamp((P-PTH)/(1-PTH),0,1); // bigger at higher power (Type I)
+      state.wped-=crash;
+      state.flash=1.0;
+      const spike=crash*7.0;
+      state.divQ+=spike;
+      state.elmTimes.push(state.t);
+    }
+  }else{
+    // L-mode: low, noisy, no crashes
+    const target=0.30+0.04*P;
+    state.wped+=(target-state.wped)*Math.min(1,dt*3)+ (Math.random()-0.5)*0.012;
+    state.wped=clamp(state.wped,0.1,0.6);
+  }
+  // divertor decay
+  state.divQ*=Math.exp(-dt/0.16);
+  state.divQ=Math.max(state.divQ,0.04+0.02*P);  // baseline conducted flux
+  state.flash*=Math.exp(-dt/0.18);
+
+  // history
+  state.elmHist.push({t:state.t,w:state.wped});
+  state.divHist.push({t:state.t,q:state.divQ});
+  const cut=state.t-WINDOW-0.3;
+  while(state.elmHist.length&&state.elmHist[0].t<cut)state.elmHist.shift();
+  while(state.divHist.length&&state.divHist[0].t<cut)state.divHist.shift();
+  while(state.elmTimes.length&&state.elmTimes[0]<state.t-4)state.elmTimes.shift();
+}
+function drawElm(){
+  const ctx=cvE._ctx,W=cvE._w,H=cvE._h;
+  ctx.clearRect(0,0,W,H);
+  const padL=40,padR=14,padT=14,padB=22;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const t0=state.t-WINDOW;
+  const x=t=>padL+clamp((t-t0)/WINDOW,0,1)*plotW;
+  const ymax=1.15;
+  const y=w=>padT+plotH-(w/ymax)*plotH;
+
+  // flash background on crash
+  if(state.flash>0.02){ctx.fillStyle=`rgba(255,61,110,${0.12*state.flash})`;ctx.fillRect(0,0,W,H);}
+
+  ctx.strokeStyle='rgba(140,170,200,0.08)';ctx.lineWidth=1;
+  for(let g=0;g<=3;g++){const yy=padT+plotH*g/3;ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();}
+
+  // stability limit
+  ctx.setLineDash([5,5]);ctx.strokeStyle='#ff3d6e';ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(padL,y(1.0));ctx.lineTo(W-padR,y(1.0));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,61,110,0.85)';ctx.font='10px "JetBrains Mono",monospace';
+  ctx.fillText('peeling–ballooning limit',padL+4,y(1.0)-5);
+
+  // trace
+  if(state.elmHist.length>1){
+    ctx.beginPath();
+    state.elmHist.forEach((d,i)=>{const px=x(d.t),py=y(d.w);i?ctx.lineTo(px,py):ctx.moveTo(px,py);});
+    ctx.lineWidth=2.4;ctx.strokeStyle='#27e7d4';ctx.shadowColor='rgba(39,231,212,0.5)';ctx.shadowBlur=10;ctx.stroke();ctx.shadowBlur=0;
+    // fill
+    ctx.lineTo(x(state.elmHist[state.elmHist.length-1].t),y(0));
+    ctx.lineTo(x(state.elmHist[0].t),y(0));ctx.closePath();
+    const g=ctx.createLinearGradient(0,padT,0,padT+plotH);
+    g.addColorStop(0,'rgba(39,231,212,0.18)');g.addColorStop(1,'rgba(39,231,212,0)');ctx.fillStyle=g;ctx.fill();
+  }
+
+  if(state.lh<=0.5){
+    ctx.fillStyle='rgba(246,166,75,0.85)';ctx.font='12px "JetBrains Mono",monospace';
+    ctx.fillText('L-MODE — no pedestal, no ELMs',padL+plotW/2-110,padT+plotH/2);
+  }
+  ctx.fillStyle='#6b7c92';ctx.font='10px "JetBrains Mono",monospace';
+  ctx.save();ctx.translate(12,padT+plotH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+  ctx.fillText('PEDESTAL',0,0);ctx.restore();ctx.textAlign='left';
+}
+function drawDiv(){
+  const ctx=cvD._ctx,W=cvD._w,H=cvD._h;
+  ctx.clearRect(0,0,W,H);
+  const padL=40,padR=14,padT=14,padB=18;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const t0=state.t-WINDOW;
+  const x=t=>padL+clamp((t-t0)/WINDOW,0,1)*plotW;
+  const ymax=3.4;
+  const y=q=>padT+plotH-(clamp(q,0,ymax)/ymax)*plotH;
+
+  ctx.strokeStyle='rgba(140,170,200,0.08)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(padL,padT+plotH);ctx.lineTo(W-padR,padT+plotH);ctx.stroke();
+
+  // material limit
+  const matLim=2.4;
+  ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(255,90,60,0.6)';ctx.lineWidth=1.3;
+  ctx.beginPath();ctx.moveTo(padL,y(matLim));ctx.lineTo(W-padR,y(matLim));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,90,60,0.8)';ctx.font='9.5px "JetBrains Mono",monospace';
+  ctx.fillText('material damage threshold',padL+4,y(matLim)-4);
+
+  if(state.divHist.length>1){
+    ctx.beginPath();
+    state.divHist.forEach((d,i)=>{const px=x(d.t),py=y(d.q);i?ctx.lineTo(px,py):ctx.moveTo(px,py);});
+    ctx.lineTo(x(state.divHist[state.divHist.length-1].t),y(0));
+    ctx.lineTo(x(state.divHist[0].t),y(0));ctx.closePath();
+    const g=ctx.createLinearGradient(0,padT,0,padT+plotH);
+    g.addColorStop(0,'rgba(246,166,75,0.55)');g.addColorStop(1,'rgba(246,166,75,0.02)');ctx.fillStyle=g;ctx.fill();
+    ctx.beginPath();
+    state.divHist.forEach((d,i)=>{const px=x(d.t),py=y(d.q);i?ctx.lineTo(px,py):ctx.moveTo(px,py);});
+    ctx.lineWidth=1.8;ctx.strokeStyle='#f6a64b';ctx.stroke();
+  }
+  ctx.fillStyle='#6b7c92';ctx.font='10px "JetBrains Mono",monospace';
+  ctx.save();ctx.translate(12,padT+plotH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';
+  ctx.fillText('DIVERTOR q',0,0);ctx.restore();ctx.textAlign='left';
+}
+
+/* ---------- HUD ---------- */
+const regbig=document.getElementById('regbig'),regtag=document.getElementById('regtag');
+const mTau=document.getElementById('m-tau'),mPed=document.getElementById('m-ped'),mElm=document.getElementById('m-elm');
+const warn=document.getElementById('warn');
+function updateHud(){
+  const P=state.power,inH=state.lh>0.5;
+  regbig.className='regbig '+(inH?'H':'L');
+  regbig.textContent=inH?'H-MODE':'L-MODE';
+  regtag.textContent=inH?'edge transport barrier active · pedestal formed':'below L–H power threshold';
+  const tcur=lerp(tauL(P),tauH(P),state.lh);
+  mTau.textContent=tcur.toFixed(2);
+  mTau.style.color=inH?'#27e7d4':'#f6a64b';
+  const ped=state.lh*(0.18+0.45*clamp((P-PTH)/(1-PTH),0,1));
+  mPed.textContent=ped.toFixed(2);
+  const freq=state.elmTimes.length/4;
+  mElm.textContent=inH?freq.toFixed(1):'0.0';
+  // warn if recent divertor peak crossed threshold
+  if(state.divQ>2.4){warn.classList.add('on');}
+  else if(state.qPeak<2.4){warn.classList.remove('on');}
+  if(state.divQ<0.5)state.qPeak=0; else state.qPeak=Math.max(state.qPeak,state.divQ);
+  if(state.qPeak<2.4)warn.classList.remove('on');
+}
+
+/* ---------- main loop ---------- */
+let last=performance.now();
+function loop(now){
+  let dt=(now-last)/1000;last=now;dt=Math.min(dt,0.05);
+  state.t+=dt;
+  state.lh+=(lhTarget(state.power)-state.lh)*Math.min(1,dt*6);
+  updateElm(dt);
+  drawProfile(dt);
+  drawTau();
+  drawElm();
+  drawDiv();
+  updateHud();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- controls ---------- */
+const power=document.getElementById('power'),pval=document.getElementById('pval');
+function applyPower(v){
+  state.power=v/100;pval.textContent=v;
+  const pct=42; // threshold position for track fill visual
+  power.style.setProperty('--x',v+'%');
+  power.style.background='transparent';
+  // update track gradient via inline (webkit reads pseudo, so set on element bg fallback)
+}
+power.addEventListener('input',e=>applyPower(+e.target.value));
+document.querySelectorAll('.preset').forEach(b=>{
+  b.addEventListener('click',()=>{const v=+b.dataset.p;power.value=v;applyPower(v);});
+});
+
+/* init */
+fitAll();
+applyPower(28);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

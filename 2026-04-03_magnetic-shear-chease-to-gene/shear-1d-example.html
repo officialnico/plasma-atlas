@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shear Profile — 1D vs 2D</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06090f;
+  --surface: #0d1320;
+  --border: #1a2540;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --text-muted: #3a4a6b;
+  --cyan: #22d3ee;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --purple: #a78bfa;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+}
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+h1 {
+  font-size: clamp(22px, 5vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+  text-align: center;
+}
+h1 span { color: var(--cyan); }
+.sub {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 300;
+  margin-bottom: 32px;
+}
+
+/* Code block */
+.code-block {
+  background: #080c14;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,19,32,0.8);
+}
+.code-filename {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--cyan);
+}
+.code-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.code-body {
+  padding: 18px;
+  overflow-x: auto;
+}
+.code-body pre {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-dim);
+}
+.code-body .cm { color: #3a4a6b; }
+.code-body .kw { color: var(--purple); }
+.code-body .num { color: var(--amber); }
+.code-body .str { color: var(--green); }
+.code-body .var-name { color: var(--cyan); }
+.code-body .fn { color: #f0abfc; }
+.code-body .op { color: var(--text-dim); }
+.code-body .arr-val { color: var(--amber); }
+
+/* Plot area */
+.plot-section {
+  margin-bottom: 32px;
+}
+.plot-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.plot-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+}
+canvas { display: block; width: 100%; }
+#plotCanvas { height: 320px; }
+#compareCanvas { height: 300px; }
+
+.plot-footer {
+  padding: 12px 18px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 300;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.plot-footer .tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plot-footer .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+
+/* Comparison section */
+.vs-header {
+  text-align: center;
+  margin: 40px 0 20px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.vs-header span { color: var(--cyan); }
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+@media (max-width: 600px) {
+  .compare-grid { grid-template-columns: 1fr; }
+}
+
+.compare-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.compare-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.compare-card.one-d::before { background: linear-gradient(90deg, var(--cyan), transparent); }
+.compare-card.two-d::before { background: linear-gradient(90deg, var(--amber), transparent); }
+
+.compare-card .dim-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+.one-d .dim-badge { background: rgba(34,211,238,0.1); color: var(--cyan); }
+.two-d .dim-badge { background: rgba(251,191,36,0.1); color: var(--amber); }
+
+.compare-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.one-d h3 { color: var(--cyan); }
+.two-d h3 { color: var(--amber); }
+.compare-card p {
+  font-size: 13px; color: var(--text-dim); font-weight: 300; line-height: 1.6;
+}
+.compare-card .arr-example {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.7;
+}
+.compare-card .arr-example .hl { color: var(--cyan); }
+.compare-card .arr-example .hl-a { color: var(--amber); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Shear is Just a <span>1D Array</span></h1>
+  <p class="sub">One number per flux surface. Here's what that actually looks like in data.</p>
+
+  <!-- Code block -->
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-filename">gene_geometry_data.py</span>
+      <span class="code-badge">Simplified example</span>
+    </div>
+    <div class="code-body"><pre><span class="cm"># Radial grid: 8 flux surfaces from core to edge</span>
+<span class="var-name">rho</span>  <span class="op">=</span> [<span class="num">0.1</span>,  <span class="num">0.2</span>,  <span class="num">0.3</span>,  <span class="num">0.4</span>,  <span class="num">0.5</span>,  <span class="num">0.6</span>,  <span class="num">0.7</span>,  <span class="num">0.8</span>]
+
+<span class="cm"># Safety factor profile — one value per surface</span>
+<span class="var-name">q</span>    <span class="op">=</span> [<span class="num">1.05</span>, <span class="num">1.12</span>, <span class="num">1.28</span>, <span class="num">1.55</span>, <span class="num">1.95</span>, <span class="num">2.52</span>, <span class="num">3.30</span>, <span class="num">4.40</span>]
+
+<span class="cm"># Magnetic shear — one value per surface</span>
+<span class="cm"># ŝ = (ρ/q) · dq/dρ</span>
+<span class="var-name">shat</span> <span class="op">=</span> [<span class="num">0.10</span>, <span class="num">0.29</span>, <span class="num">0.56</span>, <span class="num">0.90</span>, <span class="num">1.28</span>, <span class="num">1.67</span>, <span class="num">2.04</span>, <span class="num">2.35</span>]
+
+<span class="cm"># That's it. Just three 1D arrays.</span>
+<span class="cm"># Compare to curvature which needs κ(ρ, θ) — a 2D array.</span></pre>
+    </div>
+  </div>
+
+  <!-- Plot -->
+  <div class="plot-section">
+    <div class="plot-label">What these profiles look like</div>
+    <div class="plot-wrap">
+      <canvas id="plotCanvas"></canvas>
+      <div class="plot-footer">
+        <div class="tag"><div class="dot" style="background:var(--green)"></div> q(ρ) — safety factor</div>
+        <div class="tag"><div class="dot" style="background:var(--cyan)"></div> ŝ(ρ) — magnetic shear</div>
+        <div class="tag" style="color:var(--text-muted)">Hover to inspect values</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison -->
+  <div class="vs-header">1D vs <span>2D</span> — what's the difference?</div>
+
+  <div class="compare-grid">
+    <div class="compare-card one-d">
+      <div class="dim-badge">1D QUANTITY</div>
+      <h3>Magnetic Shear ŝ</h3>
+      <p>Same value everywhere on a given flux surface. Just depends on radius.</p>
+      <div class="arr-example"><span class="hl">ŝ</span>[surface_index]
+
+surface  0 → 0.10
+surface  1 → 0.29
+surface  2 → 0.56
+  ...
+shape: <span class="hl">(N_surfaces,)</span></div>
+    </div>
+    <div class="compare-card two-d">
+      <div class="dim-badge">2D QUANTITY</div>
+      <h3>Curvature κ</h3>
+      <p>Changes as you go around the flux surface. Depends on radius AND poloidal angle.</p>
+      <div class="arr-example"><span class="hl-a">κ</span>[surface_index, poloidal_index]
+
+surface 0, θ=0°   → +0.8  (outboard)
+surface 0, θ=90°  → +0.1  (top)
+surface 0, θ=180° → −0.6  (inboard)
+  ...
+shape: <span class="hl-a">(N_surfaces, N_theta)</span></div>
+    </div>
+  </div>
+
+  <!-- 2D heatmap comparison -->
+  <div class="plot-section">
+    <div class="plot-label">Visual comparison — 1D shear vs 2D curvature</div>
+    <div class="plot-wrap">
+      <canvas id="compareCanvas"></canvas>
+      <div class="plot-footer">
+        <div class="tag"><div class="dot" style="background:var(--cyan)"></div> Left: shear — uniform color per row (same value along θ)</div>
+        <div class="tag"><div class="dot" style="background:var(--amber)"></div> Right: curvature — varies across each row</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Data
+const rho  = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+const q    = [1.05, 1.12, 1.28, 1.55, 1.95, 2.52, 3.30, 4.40];
+const shat = [0.10, 0.29, 0.56, 0.90, 1.28, 1.67, 2.04, 2.35];
+
+// =========== PROFILE PLOT ===========
+const pc = document.getElementById('plotCanvas');
+const pctx = pc.getContext('2d');
+let pW, pH;
+
+let hoverX = -1;
+
+function resizePlot() {
+  const r = pc.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  pc.width = r.width * dpr;
+  pc.height = r.height * dpr;
+  pctx.setTransform(dpr,0,0,dpr,0,0);
+  pW = r.width; pH = r.height;
+}
+
+function drawPlot() {
+  pctx.clearRect(0, 0, pW, pH);
+
+  const pad = { l: 55, r: 30, t: 30, b: 45 };
+  const w = pW - pad.l - pad.r;
+  const h = pH - pad.t - pad.b;
+
+  // Background
+  pctx.fillStyle = '#0d1320';
+  pctx.fillRect(0, 0, pW, pH);
+
+  // Grid
+  pctx.strokeStyle = 'rgba(26,37,64,0.8)';
+  pctx.lineWidth = 0.5;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.t + (h / 5) * i;
+    pctx.beginPath(); pctx.moveTo(pad.l, y); pctx.lineTo(pad.l + w, y); pctx.stroke();
+    pctx.fillStyle = '#3a4a6b';
+    pctx.font = '10px "JetBrains Mono", monospace';
+    pctx.textAlign = 'right';
+    pctx.textBaseline = 'middle';
+    pctx.fillText((5 - i).toFixed(0), pad.l - 8, y);
+  }
+
+  // X axis labels
+  pctx.textAlign = 'center';
+  pctx.textBaseline = 'top';
+  rho.forEach((r, i) => {
+    const x = pad.l + (i / (rho.length - 1)) * w;
+    pctx.fillStyle = '#3a4a6b';
+    pctx.fillText(r.toFixed(1), x, pad.t + h + 8);
+
+    // Vertical grid
+    pctx.strokeStyle = 'rgba(26,37,64,0.5)';
+    pctx.beginPath(); pctx.moveTo(x, pad.t); pctx.lineTo(x, pad.t + h); pctx.stroke();
+  });
+
+  // Axis label
+  pctx.fillStyle = '#3a4a6b';
+  pctx.font = '11px "JetBrains Mono", monospace';
+  pctx.textAlign = 'center';
+  pctx.fillText('ρ (normalized radius)', pad.l + w / 2, pad.t + h + 28);
+
+  const maxY = 5;
+
+  function toX(i) { return pad.l + (i / (rho.length - 1)) * w; }
+  function toY(v) { return pad.t + h - (v / maxY) * h; }
+
+  // Draw q profile
+  pctx.beginPath();
+  q.forEach((v, i) => {
+    const x = toX(i), y = toY(v);
+    i === 0 ? pctx.moveTo(x, y) : pctx.lineTo(x, y);
+  });
+  pctx.strokeStyle = '#4ade80';
+  pctx.lineWidth = 2.5;
+  pctx.stroke();
+
+  // q dots
+  q.forEach((v, i) => {
+    const x = toX(i), y = toY(v);
+    pctx.beginPath();
+    pctx.arc(x, y, 4, 0, Math.PI * 2);
+    pctx.fillStyle = '#4ade80';
+    pctx.fill();
+  });
+
+  // Draw shat profile
+  pctx.beginPath();
+  shat.forEach((v, i) => {
+    const x = toX(i), y = toY(v);
+    i === 0 ? pctx.moveTo(x, y) : pctx.lineTo(x, y);
+  });
+  pctx.strokeStyle = '#22d3ee';
+  pctx.lineWidth = 2.5;
+  pctx.stroke();
+
+  // shat dots
+  shat.forEach((v, i) => {
+    const x = toX(i), y = toY(v);
+    pctx.beginPath();
+    pctx.arc(x, y, 4, 0, Math.PI * 2);
+    pctx.fillStyle = '#22d3ee';
+    pctx.fill();
+  });
+
+  // Area fills
+  pctx.beginPath();
+  q.forEach((v, i) => {
+    const x = toX(i), y = toY(v);
+    i === 0 ? pctx.moveTo(x, y) : pctx.lineTo(x, y);
+  });
+  pctx.lineTo(toX(q.length - 1), toY(0));
+  pctx.lineTo(toX(0), toY(0));
+  pctx.closePath();
+  pctx.fillStyle = 'rgba(74,222,128,0.06)';
+  pctx.fill();
+
+  pctx.beginPath();
+  shat.forEach((v, i) => {
+    const x = toX(i), y = toY(v);
+    i === 0 ? pctx.moveTo(x, y) : pctx.lineTo(x, y);
+  });
+  pctx.lineTo(toX(shat.length - 1), toY(0));
+  pctx.lineTo(toX(0), toY(0));
+  pctx.closePath();
+  pctx.fillStyle = 'rgba(34,211,238,0.06)';
+  pctx.fill();
+
+  // Hover tooltip
+  if (hoverX >= 0 && hoverX <= 1) {
+    const idx = Math.round(hoverX * (rho.length - 1));
+    const x = toX(idx);
+
+    // Vertical line
+    pctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    pctx.lineWidth = 1;
+    pctx.setLineDash([4,4]);
+    pctx.beginPath(); pctx.moveTo(x, pad.t); pctx.lineTo(x, pad.t + h); pctx.stroke();
+    pctx.setLineDash([]);
+
+    // Tooltip background
+    const tx = Math.min(x + 12, pW - 140);
+    const ty = pad.t + 10;
+    pctx.fillStyle = 'rgba(6,9,15,0.9)';
+    pctx.strokeStyle = 'rgba(34,211,238,0.3)';
+    pctx.lineWidth = 1;
+    pctx.beginPath();
+    pctx.roundRect(tx, ty, 125, 70, 8);
+    pctx.fill(); pctx.stroke();
+
+    pctx.font = '600 11px "JetBrains Mono", monospace';
+    pctx.textAlign = 'left';
+    pctx.textBaseline = 'top';
+    pctx.fillStyle = '#64748b';
+    pctx.fillText(`ρ = ${rho[idx].toFixed(1)}`, tx + 10, ty + 10);
+    pctx.fillStyle = '#4ade80';
+    pctx.fillText(`q = ${q[idx].toFixed(2)}`, tx + 10, ty + 28);
+    pctx.fillStyle = '#22d3ee';
+    pctx.fillText(`ŝ = ${shat[idx].toFixed(2)}`, tx + 10, ty + 46);
+
+    // Highlight dots
+    [
+      { arr: q, color: '#4ade80' },
+      { arr: shat, color: '#22d3ee' },
+    ].forEach(({ arr, color }) => {
+      const y = toY(arr[idx]);
+      pctx.beginPath();
+      pctx.arc(x, y, 7, 0, Math.PI * 2);
+      pctx.fillStyle = color + '33';
+      pctx.fill();
+      pctx.beginPath();
+      pctx.arc(x, y, 5, 0, Math.PI * 2);
+      pctx.fillStyle = color;
+      pctx.fill();
+    });
+  }
+
+  // Labels on lines
+  pctx.font = '700 12px Outfit';
+  pctx.textAlign = 'left';
+  pctx.fillStyle = '#4ade80';
+  pctx.fillText('q', toX(q.length - 1) + 8, toY(q[q.length - 1]));
+  pctx.fillStyle = '#22d3ee';
+  pctx.fillText('ŝ', toX(shat.length - 1) + 8, toY(shat[shat.length - 1]));
+}
+
+pc.addEventListener('mousemove', (e) => {
+  const rect = pc.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const pad = { l: 55, r: 30 };
+  const w = rect.width - pad.l - pad.r;
+  hoverX = (mx - pad.l) / w;
+  drawPlot();
+});
+
+pc.addEventListener('mouseleave', () => { hoverX = -1; drawPlot(); });
+
+// Touch support
+pc.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const rect = pc.getBoundingClientRect();
+  const mx = e.touches[0].clientX - rect.left;
+  const pad = { l: 55, r: 30 };
+  const w = rect.width - pad.l - pad.r;
+  hoverX = (mx - pad.l) / w;
+  drawPlot();
+}, { passive: false });
+
+pc.addEventListener('touchend', () => { hoverX = -1; drawPlot(); });
+
+// =========== COMPARISON HEATMAP ===========
+const cc = document.getElementById('compareCanvas');
+const cctx = cc.getContext('2d');
+let cW, cH;
+
+function resizeCompare() {
+  const r = cc.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cc.width = r.width * dpr;
+  cc.height = r.height * dpr;
+  cctx.setTransform(dpr,0,0,dpr,0,0);
+  cW = r.width; cH = r.height;
+}
+
+function drawCompare() {
+  cctx.clearRect(0, 0, cW, cH);
+  cctx.fillStyle = '#0d1320';
+  cctx.fillRect(0, 0, cW, cH);
+
+  const gap = 24;
+  const pad = { l: 50, r: 16, t: 40, b: 40 };
+  const totalW = cW - pad.l - pad.r - gap;
+  const halfW = totalW / 2;
+  const h = cH - pad.t - pad.b;
+
+  const nRho = 8;
+  const nTheta = 24;
+  const cellH = h / nRho;
+  const cellW1 = halfW / nTheta;
+  const cellW2 = halfW / nTheta;
+
+  // Titles
+  cctx.font = '700 12px "JetBrains Mono", monospace';
+  cctx.textAlign = 'center';
+  cctx.textBaseline = 'bottom';
+  cctx.fillStyle = '#22d3ee';
+  cctx.fillText('SHEAR ŝ(ρ)', pad.l + halfW / 2, pad.t - 10);
+  cctx.fillStyle = '#3a4a6b';
+  cctx.font = '300 10px Outfit';
+  cctx.fillText('same across θ', pad.l + halfW / 2, pad.t - 0);
+
+  const x2 = pad.l + halfW + gap;
+  cctx.font = '700 12px "JetBrains Mono", monospace';
+  cctx.fillStyle = '#fbbf24';
+  cctx.fillText('CURVATURE κ(ρ,θ)', x2 + halfW / 2, pad.t - 10);
+  cctx.fillStyle = '#3a4a6b';
+  cctx.font = '300 10px Outfit';
+  cctx.fillText('varies with θ', x2 + halfW / 2, pad.t - 0);
+
+  // Y axis
+  cctx.font = '10px "JetBrains Mono", monospace';
+  cctx.textAlign = 'right';
+  cctx.textBaseline = 'middle';
+  for (let i = 0; i < nRho; i++) {
+    const y = pad.t + i * cellH + cellH / 2;
+    cctx.fillStyle = '#3a4a6b';
+    cctx.fillText(rho[i].toFixed(1), pad.l - 8, y);
+  }
+  // Y label
+  cctx.save();
+  cctx.translate(12, pad.t + h / 2);
+  cctx.rotate(-Math.PI / 2);
+  cctx.font = '11px "JetBrains Mono", monospace';
+  cctx.textAlign = 'center';
+  cctx.fillStyle = '#3a4a6b';
+  cctx.fillText('ρ', 0, 0);
+  cctx.restore();
+
+  // X labels
+  cctx.textAlign = 'center';
+  cctx.textBaseline = 'top';
+  cctx.font = '10px "JetBrains Mono", monospace';
+  cctx.fillStyle = '#3a4a6b';
+  cctx.fillText('θ →', pad.l + halfW / 2, pad.t + h + 6);
+  cctx.fillText('θ →', x2 + halfW / 2, pad.t + h + 6);
+
+  // Draw shear heatmap (1D — uniform per row)
+  for (let i = 0; i < nRho; i++) {
+    const val = shat[i] / 2.5; // normalize to 0-1
+    for (let j = 0; j < nTheta; j++) {
+      const x = pad.l + j * cellW1;
+      const y = pad.t + i * cellH;
+      const r = Math.round(13 + val * (34 - 13));
+      const g = Math.round(19 + val * (211 - 19));
+      const b = Math.round(32 + val * (238 - 32));
+      cctx.fillStyle = `rgb(${r},${g},${b})`;
+      cctx.fillRect(x, y, cellW1 + 0.5, cellH + 0.5);
+    }
+    // Value annotation on the right edge of the block
+    cctx.font = '600 9px "JetBrains Mono", monospace';
+    cctx.textAlign = 'left';
+    cctx.textBaseline = 'middle';
+    cctx.fillStyle = 'rgba(255,255,255,0.6)';
+    const annotX = pad.l + halfW + 3;
+    const annotY = pad.t + i * cellH + cellH / 2;
+  }
+
+  // Draw curvature heatmap (2D — varies per cell)
+  for (let i = 0; i < nRho; i++) {
+    const rhoVal = rho[i];
+    for (let j = 0; j < nTheta; j++) {
+      const theta = (j / nTheta) * 2 * Math.PI;
+      // Model: κ ≈ cos(θ) * (1 + 0.5*ρ) — positive outboard, negative inboard
+      const kappa = Math.cos(theta) * (0.5 + 0.8 * rhoVal);
+      const norm = (kappa + 1.5) / 3; // map roughly -1.5..1.5 to 0..1
+
+      const x = x2 + j * cellW2;
+      const y = pad.t + i * cellH;
+
+      // Color: blue(negative/good) → neutral → red(positive/bad)
+      let r_, g_, b_;
+      if (norm < 0.5) {
+        const t = norm / 0.5;
+        r_ = Math.round(20 + t * 40);
+        g_ = Math.round(80 + t * 80);
+        b_ = Math.round(200 - t * 80);
+      } else {
+        const t = (norm - 0.5) / 0.5;
+        r_ = Math.round(60 + t * 190);
+        g_ = Math.round(160 - t * 100);
+        b_ = Math.round(120 - t * 80);
+      }
+      cctx.fillStyle = `rgb(${r_},${g_},${b_})`;
+      cctx.fillRect(x, y, cellW2 + 0.5, cellH + 0.5);
+    }
+  }
+
+  // Borders
+  cctx.strokeStyle = 'rgba(26,37,64,0.8)';
+  cctx.lineWidth = 1;
+  cctx.strokeRect(pad.l, pad.t, halfW, h);
+  cctx.strokeRect(x2, pad.t, halfW, h);
+
+  // "Uniform!" annotation
+  cctx.font = '300 11px Outfit';
+  cctx.fillStyle = 'rgba(34,211,238,0.5)';
+  cctx.textAlign = 'center';
+  cctx.fillText('← each row is one color', pad.l + halfW / 2, pad.t + h + 20);
+
+  cctx.fillStyle = 'rgba(251,191,36,0.5)';
+  cctx.fillText('← each row varies', x2 + halfW / 2, pad.t + h + 20);
+}
+
+// Init
+function init() {
+  resizePlot();
+  drawPlot();
+  resizeCompare();
+  drawCompare();
+}
+
+window.addEventListener('resize', init);
+init();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Equation of Everything — An Evolution</title>
+<link rel="stylesheet" href="../_lib/katex/katex.min.css">
+<script src="../_lib/katex/katex.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400&family=Spectral:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#e9b949;
+    --bg:#070710;
+    --ink:#f4f1ea;
+    --dim:#8b8aa0;
+    --panel:rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Spectral',Georgia,serif;
+    overflow:hidden;
+    position:relative;
+    -webkit-font-smoothing:antialiased;
+  }
+  #stars{position:fixed;inset:0;z-index:0;display:block}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(ellipse 90% 70% at 50% 42%,transparent 30%,rgba(4,4,10,.55) 78%,rgba(2,2,6,.92) 100%);}
+  .grain{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+  .wrap{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;
+    padding:clamp(14px,3.5vw,40px);}
+
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--accent);transition:color .9s ease}
+  h1{font-family:'Fraunces',serif;font-weight:340;font-size:clamp(20px,3.4vw,32px);line-height:1.02;
+    letter-spacing:-.01em;font-optical-sizing:auto}
+  h1 em{font-style:italic;color:var(--dim)}
+  .meterbox{text-align:right;min-width:180px}
+  .meterlabel{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+  .meter{height:4px;width:200px;max-width:46vw;margin-left:auto;background:rgba(255,255,255,.08);border-radius:9px;overflow:hidden}
+  .meter > i{display:block;height:100%;width:0;border-radius:9px;
+    background:linear-gradient(90deg,var(--accent),#fff);transition:width 1s cubic-bezier(.6,0,.2,1),background .9s ease}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;position:relative;min-height:0}
+
+  .era{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:14px;transition:color .9s ease}
+  .year{font-family:'Fraunces',serif;font-weight:300;font-size:clamp(40px,9vw,86px);line-height:.85;
+    letter-spacing:-.03em;color:var(--ink);position:relative;font-optical-sizing:auto}
+  .year::after{content:attr(data-y);position:absolute;inset:0;color:var(--accent);opacity:.13;
+    filter:blur(14px);transition:color .9s ease}
+  .person{font-family:'Spectral',serif;font-style:italic;font-size:clamp(14px,2vw,19px);color:var(--dim);margin-top:10px}
+
+  .eqbox{margin:clamp(20px,4vh,42px) 0 clamp(14px,3vh,26px);width:100%;max-width:1000px;
+    overflow-x:auto;overflow-y:hidden;padding:6px 8px 12px;}
+  .eqbox::-webkit-scrollbar{height:5px}
+  .eqbox::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:9px}
+  .eq{display:inline-block;min-width:100%;color:var(--ink);
+    filter:drop-shadow(0 0 26px color-mix(in srgb,var(--accent) 38%,transparent));transition:filter .9s ease}
+  .eq .katex{font-size:clamp(1.35rem,4.4vw,2.5rem)}
+  .eq.dense .katex{font-size:clamp(.78rem,2.5vw,1.35rem)}
+
+  .desc{max-width:680px;font-size:clamp(15px,2vw,19px);line-height:1.55;color:#d8d4ce;font-weight:300}
+  .desc b{color:var(--accent);font-weight:500;transition:color .9s ease}
+
+  /* entrance animation */
+  .anim > *{opacity:0;transform:translateY(16px);animation:rise .85s cubic-bezier(.16,1,.3,1) forwards}
+  .anim .era{animation-delay:.02s}
+  .anim .year{animation-delay:.10s}
+  .anim .person{animation-delay:.18s}
+  .anim .eqbox{animation-delay:.30s}
+  .anim .desc{animation-delay:.46s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .leaving{animation:fade .4s ease forwards}
+  @keyframes fade{to{opacity:0;transform:translateY(-14px) scale(.985)}}
+
+  /* timeline */
+  footer{padding-top:14px}
+  .controls{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px}
+  .btn{appearance:none;border:1px solid rgba(255,255,255,.16);background:var(--panel);color:var(--ink);
+    width:44px;height:44px;border-radius:50%;cursor:pointer;display:grid;place-items:center;
+    transition:.25s;backdrop-filter:blur(6px)}
+  .btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
+  .btn.play{width:54px;height:54px;border-color:var(--accent);
+    box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent)}
+  .btn svg{width:18px;height:18px;fill:currentColor}
+  .btn.play svg{width:22px;height:22px}
+
+  .timeline{position:relative;display:flex;align-items:center;gap:0;max-width:980px;margin:0 auto;
+    padding:0 4px}
+  .track{position:absolute;left:8px;right:8px;top:50%;height:2px;background:rgba(255,255,255,.10);border-radius:9px}
+  .progress{position:absolute;left:8px;top:50%;height:2px;width:0;background:linear-gradient(90deg,#e9b949,var(--accent));
+    border-radius:9px;transform:translateY(-50%);transition:width .8s cubic-bezier(.6,0,.2,1),background .9s ease}
+  .node{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;align-items:center;
+    cursor:pointer;padding:10px 0}
+  .dot{width:9px;height:9px;border-radius:50%;background:#3a3a4d;border:2px solid #0a0a14;
+    transition:.35s;box-shadow:0 0 0 0 transparent}
+  .node:hover .dot{transform:scale(1.4);background:var(--accent)}
+  .node.done .dot{background:var(--accent)}
+  .node.active .dot{background:#fff;transform:scale(1.7);
+    box-shadow:0 0 14px 3px color-mix(in srgb,var(--accent) 70%,transparent)}
+  .nlabel{position:absolute;bottom:100%;margin-bottom:6px;font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;letter-spacing:.04em;color:var(--dim);white-space:nowrap;opacity:0;transition:.25s;
+    transform:translateY(4px);pointer-events:none}
+  .node:hover .nlabel,.node.active .nlabel{opacity:1;transform:none;color:var(--ink)}
+
+  .hint{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;
+    color:#55556a;margin-top:14px;text-transform:uppercase}
+
+  @media (max-width:640px){
+    .meterbox{display:none}
+    .nlabel{display:none}
+    .person{margin-top:6px}
+    .timeline{gap:0}
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="kicker" id="kicker">Loading…</span>
+      <h1>The Equation of Everything <em>— an evolution</em></h1>
+    </div>
+    <div class="meterbox">
+      <div class="meterlabel">Mathematical Complexity</div>
+      <div class="meter"><i id="meterfill"></i></div>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div id="card" class="anim">
+      <div class="era" id="era"></div>
+      <div class="year" id="year" data-y=""></div>
+      <div class="person" id="person"></div>
+      <div class="eqbox"><div class="eq" id="eq"></div></div>
+      <div class="desc" id="desc"></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="controls">
+      <button class="btn" id="prev" aria-label="Previous">
+        <svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6V6z"/><rect x="6" y="6" width="2" height="12"/></svg>
+      </button>
+      <button class="btn play" id="play" aria-label="Play / Pause"></button>
+      <button class="btn" id="next" aria-label="Next">
+        <svg viewBox="0 0 24 24"><path d="M10 6l6 6-6 6V6z"/><rect x="16" y="6" width="2" height="12"/></svg>
+      </button>
+    </div>
+    <div class="timeline" id="timeline">
+      <div class="track"></div>
+      <div class="progress" id="progress"></div>
+    </div>
+    <div class="hint">use ← → keys · tap a node to jump</div>
+  </footer>
+</div>
+
+<script>
+const R = String.raw;
+const DATA = [
+  { era:"Classical Mechanics", year:1687, person:"Isaac Newton · Principia", accent:"#e9b949", c:6,
+    tex:R`F = G\,\frac{m_1 m_2}{r^2}`,
+    desc:`<b>Universal gravitation.</b> Any two masses pull on each other; the force grows with mass and falls off with distance squared. One law for the apple and the Moon.` },
+
+  { era:"Classical Mechanics", year:1687, person:"Isaac Newton · Laws of Motion", accent:"#ed9a3c", c:9,
+    tex:R`\vec{F} = m\vec{a} = \frac{d\vec{p}}{dt}`,
+    desc:`<b>The second law.</b> Force changes motion. Combined with gravity, this predicts planets, tides and cannonballs with stunning precision.` },
+
+  { era:"Analytical Mechanics", year:1788, person:"Joseph-Louis Lagrange", accent:"#f07c3a", c:16,
+    tex:R`\frac{d}{dt}\!\left(\frac{\partial L}{\partial \dot{q}}\right) - \frac{\partial L}{\partial q} = 0`,
+    desc:`<b>Least action.</b> Mechanics is re-cast as a principle: nature follows the path that minimises a quantity called the <em>action</em>. This idea quietly becomes the backbone of all later physics.` },
+
+  { era:"Electromagnetism", year:1865, person:"James Clerk Maxwell", accent:"#f15f54", c:30,
+    tex:R`\nabla\!\cdot\!\vec{E}=\frac{\rho}{\varepsilon_0},\;\; \nabla\!\cdot\!\vec{B}=0,\;\; \nabla\!\times\!\vec{E}=-\frac{\partial\vec{B}}{\partial t},\;\; \nabla\!\times\!\vec{B}=\mu_0\vec{J}+\mu_0\varepsilon_0\frac{\partial\vec{E}}{\partial t}`,
+    dense:true,
+    desc:`<b>Light is electromagnetism.</b> Four equations unify electricity and magnetism — and reveal that light is a wave travelling at one fixed speed. That fixed speed will break Newton's universe.` },
+
+  { era:"Special Relativity", year:1905, person:"Albert Einstein", accent:"#e85a8c", c:22,
+    tex:R`E^2 = (pc)^2 + (mc^2)^2`,
+    desc:`<b>Space and time merge.</b> To keep light's speed constant for everyone, time stretches and lengths shrink. Mass and energy become the same thing — the famous <em>E = mc²</em> is the resting case.` },
+
+  { era:"General Relativity", year:1915, person:"Albert Einstein", accent:"#cf60be", c:55,
+    tex:R`R_{\mu\nu} - \tfrac{1}{2}R\,g_{\mu\nu} + \Lambda g_{\mu\nu} = \frac{8\pi G}{c^4}\,T_{\mu\nu}`,
+    desc:`<b>Gravity is geometry.</b> Mass and energy bend spacetime; that curvature <em>is</em> gravity. The left side is the shape of space, the right side is the stuff in it. Black holes live in here.` },
+
+  { era:"Quantum Mechanics", year:1926, person:"Erwin Schrödinger", accent:"#a96fe6", c:34,
+    tex:R`i\hbar\,\frac{\partial}{\partial t}\,\Psi = \hat{H}\,\Psi`,
+    desc:`<b>Particles are waves of probability.</b> Instead of a definite position, a particle carries a wavefunction Ψ telling you the odds of finding it anywhere. The smooth, certain world starts to dissolve.` },
+
+  { era:"Relativistic Quantum Theory", year:1928, person:"Paul Dirac", accent:"#7e84f2", c:48,
+    tex:R`\left(i\hbar\,\gamma^{\mu}\partial_{\mu} - mc\right)\psi = 0`,
+    desc:`<b>Quantum meets relativity.</b> Dirac fuses Schrödinger's quantum world with Einstein's speed limit — and the math demands a mirror world of <em>antimatter</em>, found in the lab a few years later.` },
+
+  { era:"Quantum Field Theory", year:1948, person:"Feynman · Schwinger · Tomonaga", accent:"#569ef0", c:60,
+    tex:R`\langle x_f \,|\, x_i\rangle = \int \mathcal{D}x\;\, e^{\,\frac{i}{\hbar}S[x]}`,
+    desc:`<b>Sum over every history.</b> A particle doesn't take one path — it takes <em>all</em> of them at once, and you add up the possibilities. This "path integral" becomes the master tool of modern physics.` },
+
+  { era:"The Standard Model", year:1973, person:"Glashow · Weinberg · Salam · ⋯", accent:"#38bfe0", c:86,
+    tex:R`\mathcal{L} = -\tfrac{1}{4}F_{\mu\nu}^{a}F^{a\,\mu\nu} + i\,\bar{\psi}\,\gamma^{\mu}D_{\mu}\psi + \left(D_{\mu}\phi\right)^{\dagger}\!\left(D^{\mu}\phi\right) - V(\phi) - \big(y\,\bar{\psi}\phi\psi + \text{h.c.}\big)`,
+    dense:true,
+    desc:`<b>Almost everything, in one line.</b> Every known particle and three of the four forces, packed into a single Lagrangian. It works to absurd precision — but gravity refuses to fit inside it.` },
+
+  { era:"String Theory", year:1981, person:"Polyakov · Nambu · Goto", accent:"#3ad6b0", c:78,
+    tex:R`S = -\frac{T}{2}\int d^{2}\sigma\,\sqrt{-h}\;h^{\alpha\beta}\,\partial_{\alpha}X^{\mu}\,\partial_{\beta}X^{\nu}\,g_{\mu\nu}`,
+    desc:`<b>Particles become strings.</b> Replace point particles with tiny vibrating strings. Each note is a different particle — and one note is automatically the <em>graviton</em>. Gravity finally joins the quantum club.` },
+
+  { era:"The Frontier · M-Theory", year:"2020s", person:"Type IIB Superstring / Supergravity", accent:"#b388ff", c:100,
+    tex:R`S_{\text{IIB}} = \frac{1}{2\kappa^{2}}\!\int\! d^{10}x\,\sqrt{-g}\,\Big[\,e^{-2\phi}\big(R + 4\,\partial_{\mu}\phi\,\partial^{\mu}\phi - \tfrac{1}{2}|H_{3}|^{2}\big) - \tfrac{1}{2}|F_{1}|^{2} - \tfrac{1}{2}|\tilde{F}_{3}|^{2} - \tfrac{1}{4}|\tilde{F}_{5}|^{2}\,\Big] - \frac{1}{4\kappa^{2}}\!\int\! C_{4}\wedge H_{3}\wedge F_{3}`,
+    dense:true,
+    desc:`<b>The bleeding edge.</b> The low-energy action of type IIB superstrings in ten dimensions — gravity, extra dimensions, and exotic fields woven together. Even this is only an <em>approximation</em>: the full equations of M-theory are not yet known.` },
+];
+
+// ---------- starfield ----------
+const cv = document.getElementById('stars'), cx = cv.getContext('2d');
+let stars=[], W,H, tint=[233,185,73];
+function resize(){ W=cv.width=innerWidth; H=cv.height=innerHeight;
+  const n=Math.min(220,Math.floor(W*H/9000)); stars=[];
+  for(let i=0;i<n;i++) stars.push({x:Math.random()*W,y:Math.random()*H,
+    z:Math.random()*.9+.1,tw:Math.random()*Math.PI*2,sp:Math.random()*.02+.004}); }
+resize(); addEventListener('resize',resize);
+function draw(){ cx.clearRect(0,0,W,H);
+  for(const s of stars){ s.tw+=s.sp; const a=(.35+.65*(Math.sin(s.tw)*.5+.5))*s.z;
+    const r=s.z*1.5;
+    cx.beginPath(); cx.arc(s.x,s.y,r,0,6.28);
+    cx.fillStyle=`rgba(${tint[0]},${tint[1]},${tint[2]},${a*.5})`; cx.fill();
+    cx.beginPath(); cx.arc(s.x,s.y,r*.5,0,6.28);
+    cx.fillStyle=`rgba(255,255,255,${a*.8})`; cx.fill();
+    s.x+=s.z*.06; if(s.x>W+2)s.x=-2; }
+  requestAnimationFrame(draw); }
+draw();
+function hexToRgb(h){const m=h.replace('#','');return [parseInt(m.slice(0,2),16),parseInt(m.slice(2,4),16),parseInt(m.slice(4,6),16)];}
+
+// ---------- build timeline ----------
+const tl=document.getElementById('timeline');
+DATA.forEach((d,i)=>{
+  const n=document.createElement('div'); n.className='node'; n.dataset.i=i;
+  n.innerHTML=`<span class="nlabel">${d.year}</span><span class="dot"></span>`;
+  n.addEventListener('click',()=>go(i));
+  tl.appendChild(n);
+});
+const nodes=[...tl.querySelectorAll('.node')];
+
+// ---------- state ----------
+let idx=0, playing=true, timer=null;
+const DUR=6200;
+const el={era:e('era'),year:e('year'),person:e('person'),eq:e('eq'),desc:e('desc'),
+  card:e('card'),kicker:e('kicker'),meter:e('meterfill'),prog:e('progress'),play:e('play')};
+function e(id){return document.getElementById(id);}
+
+const PLAY_ICON=`<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+const PAUSE_ICON=`<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`;
+
+function render(i,instant){
+  const d=DATA[i];
+  document.documentElement.style.setProperty('--accent',d.accent);
+  tint=hexToRgb(d.accent);
+  el.kicker.textContent=d.era;
+  el.era.textContent=d.era;
+  el.year.textContent=d.year; el.year.dataset.y=d.year;
+  el.person.textContent=d.person;
+  el.desc.innerHTML=d.desc;
+  el.eq.className='eq'+(d.dense?' dense':'');
+  try{ katex.render(d.tex, el.eq, {displayMode:true,throwOnError:false}); }
+  catch(err){ el.eq.textContent=d.tex; }
+  el.eq.parentElement.scrollLeft=0;
+
+  // meter + timeline
+  el.meter.style.width=d.c+'%';
+  const pct=DATA.length>1 ? (i/(DATA.length-1))*100 : 0;
+  el.prog.style.width=`calc(${pct}% )`;
+  nodes.forEach((n,k)=>{ n.classList.toggle('active',k===i); n.classList.toggle('done',k<i); });
+
+  // entrance
+  el.card.classList.remove('anim'); void el.card.offsetWidth;
+  if(!instant) el.card.classList.add('anim');
+}
+
+function go(i){
+  i=(i+DATA.length)%DATA.length;
+  if(i===idx){ render(i); resetTimer(); return; }
+  el.card.classList.add('leaving');
+  setTimeout(()=>{ el.card.classList.remove('leaving'); idx=i; render(i); resetTimer(); },360);
+}
+function next(){ go(idx+1); }
+function prev(){ go(idx-1); }
+
+function resetTimer(){ clearTimeout(timer); if(playing) timer=setTimeout(next,DUR); }
+function setPlay(p){ playing=p; el.play.innerHTML=p?PAUSE_ICON:PLAY_ICON;
+  if(p) resetTimer(); else clearTimeout(timer); }
+
+el.play.addEventListener('click',()=>setPlay(!playing));
+e('next').addEventListener('click',()=>{ next(); });
+e('prev').addEventListener('click',()=>{ prev(); });
+addEventListener('keydown',ev=>{
+  if(ev.key==='ArrowRight'){next();}
+  else if(ev.key==='ArrowLeft'){prev();}
+  else if(ev.key===' '){ev.preventDefault();setPlay(!playing);}
+});
+
+// boot (wait for KaTeX)
+function boot(){
+  if(typeof katex==='undefined'){ return setTimeout(boot,60); }
+  render(0,true); setPlay(true);
+}
+boot();
+</script>
+</body>
+</html>

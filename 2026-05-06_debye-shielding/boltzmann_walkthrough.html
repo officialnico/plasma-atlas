@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Boltzmann Walkthrough · Every Confusion Cleared</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="../_lib/mathjax/tex-svg.js"></script>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --bg-deep: #f0ece4;
+    --bg-card: #ffffff;
+    --ink: #1a1814;
+    --ink-mid: #4a463e;
+    --ink-dim: #8a857a;
+    --ink-faint: #b8b3a8;
+    --accent: #c84a1e;
+    --accent-2: #1d6e7a;
+    --accent-3: #d4a521;
+    --line: #e6e0d4;
+    --line-strong: #c8c2b4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 16px; line-height: 1.65;
+    overflow: hidden;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    height: 100vh;
+  }
+
+  /* ---------- TOC sidebar ---------- */
+  .toc {
+    background: var(--bg-deep);
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 28px 22px;
+  }
+
+  .toc-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+  .toc-title {
+    font-weight: 300; font-size: 22px; line-height: 1.1;
+    letter-spacing: -0.02em; margin-bottom: 6px;
+  }
+  .toc-title em { font-style: italic; color: var(--accent); }
+  .toc-sub {
+    font-style: italic; font-size: 13px; color: var(--ink-dim);
+    margin-bottom: 24px; padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toc-list {
+    list-style: none; counter-reset: toc;
+  }
+  .toc-item {
+    counter-increment: toc;
+    padding: 10px 12px; margin-bottom: 4px;
+    border-radius: 4px; cursor: pointer;
+    font-size: 14px; color: var(--ink-mid);
+    line-height: 1.4;
+    transition: all 0.15s ease;
+    border-left: 2px solid transparent;
+  }
+  .toc-item::before {
+    content: counter(toc, decimal-leading-zero) " ";
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--ink-faint);
+    margin-right: 6px;
+  }
+  .toc-item:hover {
+    background: var(--bg-card); color: var(--ink);
+  }
+  .toc-item.active {
+    background: var(--bg-card); color: var(--ink);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+  .toc-item.done::after {
+    content: " ✓";
+    color: var(--accent-2);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ---------- Main content ---------- */
+  .main {
+    overflow-y: auto;
+    padding: 50px 60px;
+  }
+
+  .step {
+    max-width: 760px; margin: 0 auto;
+    display: none;
+  }
+  .step.active { display: block; }
+
+  .step-header {
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+  }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .step-title {
+    font-weight: 400; font-size: 32px; line-height: 1.15;
+    letter-spacing: -0.015em;
+  }
+  .step-title em { font-style: italic; color: var(--accent); }
+
+  p { margin-bottom: 14px; color: var(--ink-mid); }
+  p strong { color: var(--ink); font-weight: 500; }
+
+  h3 {
+    font-weight: 500; font-size: 19px;
+    margin-top: 28px; margin-bottom: 10px;
+    color: var(--ink);
+  }
+
+  ul, ol { margin: 10px 0 18px 26px; }
+  li { margin-bottom: 6px; color: var(--ink-mid); }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.86em; background: var(--bg-deep);
+    padding: 1px 5px; border-radius: 3px;
+  }
+
+  /* ---------- Interactive container ---------- */
+  .interactive {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin: 24px 0;
+    overflow: hidden;
+  }
+  .viz-header {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-deep);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .viz-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--ink-mid);
+    font-weight: 500;
+  }
+  .viz-hint {
+    font-style: italic; font-size: 12px; color: var(--ink-dim);
+  }
+  .viz-body { padding: 18px; }
+
+  canvas { display: block; }
+
+  .controls {
+    display: flex; flex-direction: column; gap: 12px;
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px dashed var(--line);
+  }
+  .control-row {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .control-label {
+    font-size: 13px; color: var(--ink-mid);
+    flex: 0 0 110px;
+  }
+  .control-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--accent); font-weight: 500;
+    min-width: 60px; text-align: right;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 2px;
+    background: var(--line-strong);
+    outline: none; border-radius: 1px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: 2px solid var(--bg-card);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: 2px solid var(--bg-card);
+  }
+
+  .toggle-group {
+    display: inline-flex;
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 3px; padding: 2px;
+  }
+  .toggle-group button {
+    background: transparent; border: none; color: var(--ink-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 10px; cursor: pointer; border-radius: 2px;
+  }
+  .toggle-group button.active {
+    background: var(--accent); color: white; font-weight: 500;
+  }
+
+  /* ---------- Callout ---------- */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--bg-card);
+    padding: 14px 18px; margin: 18px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 14px;
+  }
+  .callout.teal { border-left-color: var(--accent-2); }
+  .callout.amber { border-left-color: var(--accent-3); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent); margin-bottom: 6px; font-weight: 500;
+  }
+  .callout.teal .callout-label { color: var(--accent-2); }
+  .callout.amber .callout-label { color: var(--accent-3); }
+
+  /* ---------- Symbol cards ---------- */
+  .symbols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .symbol-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 4px; padding: 14px;
+  }
+  .symbol-glyph {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 22px; color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .symbol-name {
+    font-size: 13px; font-weight: 500; color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .symbol-desc {
+    font-size: 12px; color: var(--ink-dim); line-height: 1.45;
+  }
+
+  /* ---------- Nav ---------- */
+  .nav {
+    margin-top: 40px; display: flex; justify-content: space-between;
+    padding-top: 24px; border-top: 1px solid var(--line);
+    gap: 12px;
+  }
+  .nav button {
+    background: transparent; border: 1px solid var(--line-strong);
+    color: var(--ink-mid);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 18px; cursor: pointer; border-radius: 3px;
+    transition: all 0.15s ease;
+  }
+  .nav button:hover:not(:disabled) {
+    border-color: var(--accent); color: var(--accent);
+  }
+  .nav button:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  .nav button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .nav button.primary:hover:not(:disabled) {
+    background: var(--accent); color: white;
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .toc { max-height: 35vh; border-right: none; border-bottom: 1px solid var(--line); }
+    .main { padding: 30px 24px; }
+    .symbols { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- TOC -->
+  <aside class="toc">
+    <div class="toc-eyebrow">Walkthrough</div>
+    <div class="toc-title">Boltzmann <em>cleared up</em></div>
+    <div class="toc-sub">Each step addresses one confusion — click around or use the next button.</div>
+    <ol class="toc-list" id="toc">
+      <li class="toc-item active" data-step="0">What are we even looking at?</li>
+      <li class="toc-item" data-step="1">What every symbol means</li>
+      <li class="toc-item" data-step="2">Where is the ion? What's at r?</li>
+      <li class="toc-item" data-step="3">Why density grows toward r = 0</li>
+      <li class="toc-item" data-step="4">$\phi$ shrinks with r — that's why density does too</li>
+      <li class="toc-item" data-step="5">The dimensionless ratio</li>
+      <li class="toc-item" data-step="6">It's probabilistic — particles vs density</li>
+      <li class="toc-item" data-step="7">Multiple ions: superposition</li>
+      <li class="toc-item" data-step="8">The full picture</li>
+    </ol>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- ============= STEP 0 ============= -->
+    <section class="step active" data-step="0">
+      <div class="step-header">
+        <div class="step-num">Step 00 · The setup</div>
+        <h2 class="step-title">What are we even looking at?</h2>
+      </div>
+
+      <p>Working through the Boltzmann equation:</p>
+      <p>$$n_e(r) = n_0 \cdot e^{\,e\phi(r)/k_B T}$$</p>
+      <p>And honestly, every symbol in there is doing something subtly different from what you might guess at first glance. Across this walkthrough we'll lock down each piece.</p>
+
+      <p>The setup is always the same: <strong>one positive ion is sitting somewhere, and a sea of free electrons is responding to it.</strong> The formula tells you how the electrons distribute themselves around the ion.</p>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">The basic picture</span>
+          <span class="viz-hint">orange = ion · teal = electrons</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c0" width="700" height="280" style="width:100%; max-width:700px; height:280px;"></canvas>
+        </div>
+      </div>
+
+      <p>The orange dot in the middle is the ion. The teal dots are electrons. They're not stuck in place — they jitter around, but they statistically pile up near the ion because of attraction. The Boltzmann formula tells you exactly <em>how much</em> they pile up.</p>
+    </section>
+
+    <!-- ============= STEP 1 ============= -->
+    <section class="step" data-step="1">
+      <div class="step-header">
+        <div class="step-num">Step 01 · Symbols</div>
+        <h2 class="step-title">What every symbol <em>actually</em> means</h2>
+      </div>
+
+      <p>Click each symbol to see what it represents:</p>
+
+      <div class="symbols">
+        <div class="symbol-card" data-sym="ne"><div class="symbol-glyph">$n_e(r)$</div><div class="symbol-name">click for description</div></div>
+        <div class="symbol-card" data-sym="n0"><div class="symbol-glyph">$n_0$</div><div class="symbol-name">click for description</div></div>
+        <div class="symbol-card" data-sym="e"><div class="symbol-glyph">$e$ (in exp)</div><div class="symbol-name">click for description</div></div>
+        <div class="symbol-card" data-sym="phi"><div class="symbol-glyph">$\phi(r)$</div><div class="symbol-name">click for description</div></div>
+        <div class="symbol-card" data-sym="kT"><div class="symbol-glyph">$k_B T$</div><div class="symbol-name">click for description</div></div>
+        <div class="symbol-card" data-sym="r"><div class="symbol-glyph">$r$</div><div class="symbol-name">click for description</div></div>
+      </div>
+
+      <div class="callout" id="symbol-detail" style="display:none;">
+        <div class="callout-label" id="sym-label"></div>
+        <div id="sym-desc"></div>
+      </div>
+
+      <h3>Two different "e"s — annoying but real</h3>
+      <p>Inside the exponential, you'll see two different things called "$e$":</p>
+      <ul>
+        <li><strong>$e$ as a base</strong> (the outer one, like in $e^x$): Euler's number, ≈ 2.718. A pure math constant.</li>
+        <li><strong>$e$ as a charge</strong> (in the exponent, multiplied by $\phi$): the elementary charge, ≈ 1.6×10⁻¹⁹ coulombs. The charge of one proton (and the magnitude of an electron's charge).</li>
+      </ul>
+      <p>Same letter, totally different things. Context tells you which.</p>
+    </section>
+
+    <!-- ============= STEP 2 ============= -->
+    <section class="step" data-step="2">
+      <div class="step-header">
+        <div class="step-num">Step 02 · Geometry</div>
+        <h2 class="step-title">Where is the <em>ion</em>? What's at <em>r</em>?</h2>
+      </div>
+
+      <p>This is the confusion you flagged earlier. Let's nail it.</p>
+
+      <ul>
+        <li><strong>The ion sits at the origin (r = 0).</strong> It's a single fixed positive charge. The "source."</li>
+        <li><strong>$r$ is some distance away from the ion.</strong> A point in space where you want to evaluate things.</li>
+        <li><strong>$\phi(r)$ is the electric potential at distance r — at your destination, NOT at the origin.</strong></li>
+        <li><strong>$n_e(r)$ is the electron density at distance r — also at your destination.</strong></li>
+      </ul>
+
+      <p>So when you "walk to distance r," everything in the formula refers to where you ended up. The ion stays put at the origin. You moved.</p>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">Walk a probe outward</span>
+          <span class="viz-hint">drag the slider</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c2" width="700" height="320" style="width:100%; max-width:700px; height:320px;"></canvas>
+          <div class="controls">
+            <div class="control-row">
+              <span class="control-label">Probe distance r</span>
+              <input type="range" id="c2-r" min="0.3" max="6" step="0.05" value="2">
+              <span class="control-value" id="c2-r-out">2.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p>The orange dot is the <em>ion</em>, fixed at the center. The yellow dot is your <em>probe</em> — a marker for "where r points to." As you move it, watch the readouts update for $\phi(r)$ and $n_e(r)$.</p>
+      <p>Both are properties of <strong>where the probe is</strong>. The ion never moves. You're just measuring stuff at different distances from it.</p>
+    </section>
+
+    <!-- ============= STEP 3 ============= -->
+    <section class="step" data-step="3">
+      <div class="step-header">
+        <div class="step-num">Step 03 · The peak</div>
+        <h2 class="step-title">Why is density highest <em>at</em> the ion?</h2>
+      </div>
+
+      <p>Reasonable confusion: "the ion is positive, so why are electrons piling up there?"</p>
+      <p>Because <strong>opposite charges attract.</strong> Electrons are negative, the ion is positive — so the ion pulls them in. The closer you get, the stronger the pull. So electrons cluster near the ion.</p>
+
+      <p>The Boltzmann formula confirms this: at small r, $\phi$ is large, the exponent is large, so $n_e$ is much bigger than baseline.</p>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">Density profile · single ion</span>
+          <span class="viz-hint">spike near r = 0, decays outward</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c3" width="700" height="300" style="width:100%; max-width:700px; height:300px;"></canvas>
+          <div class="controls">
+            <div class="control-row">
+              <span class="control-label">Temperature kT</span>
+              <input type="range" id="c3-T" min="0.3" max="3" step="0.05" value="1">
+              <span class="control-value" id="c3-T-out">1.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout amber">
+        <div class="callout-label">subtlety</div>
+        <p style="margin:0;">The formula technically predicts density → infinity as r → 0. That's not physical — real ions have finite size, and quantum mechanics + electron-electron repulsion prevent the collapse. The formula is reliable for r more than a few atomic radii out, which is the regime we care about.</p>
+      </div>
+    </section>
+
+    <!-- ============= STEP 4 ============= -->
+    <section class="step" data-step="4">
+      <div class="step-header">
+        <div class="step-num">Step 04 · The drop-off</div>
+        <h2 class="step-title">$\phi$ shrinks with r — so density does too</h2>
+      </div>
+
+      <p>You correctly noticed: density <em>decreases</em> as you walk away from the ion. The orange theory curve drops off. That's right.</p>
+
+      <p>Why? Because $\phi(r)$ itself decreases with r. The ion's potential is largest right next to it and falls off as you move away:</p>
+      <p>$$\phi(r) = \frac{q}{4\pi\varepsilon_0 r}$$</p>
+      <p>That $1/r$ in the denominator means: bigger r → smaller $\phi$.</p>
+
+      <p>Since $\phi$ is what's in the exponent of Boltzmann, and $\phi$ shrinks with r, the whole exponent shrinks with r, and so does density.</p>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">Two curves, side by side</span>
+          <span class="viz-hint">$\phi(r)$ shrinking, density shrinking</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c4" width="700" height="320" style="width:100%; max-width:700px; height:320px;"></canvas>
+        </div>
+      </div>
+
+      <p>Top: $\phi(r)$ — drops as you move out. Bottom: $n_e(r)$ — drops too, more steeply (because exponential of a decreasing thing decreases faster).</p>
+    </section>
+
+    <!-- ============= STEP 5 ============= -->
+    <section class="step" data-step="5">
+      <div class="step-header">
+        <div class="step-num">Step 05 · The ratio</div>
+        <h2 class="step-title">The dimensionless ratio $e\phi/k_BT$</h2>
+      </div>
+
+      <p>Inside the exponential lives this thing: $\dfrac{e\phi(r)}{k_B T}$.</p>
+      <p>It's a <strong>ratio of two energies</strong>:</p>
+      <ul>
+        <li>Top: $e\phi(r)$ — the electric potential energy of an electron at distance r (in joules)</li>
+        <li>Bottom: $k_B T$ — the typical thermal energy (also in joules)</li>
+      </ul>
+
+      <p>Joules ÷ joules = pure number. No units. That's what "dimensionless" means.</p>
+
+      <p>The number tells you which energy is bigger:</p>
+      <ul>
+        <li>Ratio > 1: electric pull stronger than thermal jitter (deep inside, attraction wins)</li>
+        <li>Ratio < 1: thermal jitter stronger than pull (far out, electrons ignore the ion)</li>
+        <li>Ratio = 1: they're equal — this is the crossover</li>
+      </ul>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">Compare the two energies at distance r</span>
+          <span class="viz-hint">where do they cross?</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c5" width="700" height="280" style="width:100%; max-width:700px; height:280px;"></canvas>
+          <div class="controls">
+            <div class="control-row">
+              <span class="control-label">Temperature kT</span>
+              <input type="range" id="c5-T" min="0.2" max="3" step="0.05" value="0.8">
+              <span class="control-value" id="c5-T-out">0.80</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p>Orange = $e\phi(r)$. Teal = $k_B T$ (a flat line). Where they cross is where the ratio = 1. That crossover distance is roughly the screening scale — the famous Debye length in slightly disguised form.</p>
+    </section>
+
+    <!-- ============= STEP 6 ============= -->
+    <section class="step" data-step="6">
+      <div class="step-header">
+        <div class="step-num">Step 06 · Probability</div>
+        <h2 class="step-title">It's <em>probabilistic</em> — particles vs density</h2>
+      </div>
+
+      <p>The Boltzmann formula doesn't track individual electrons. It tells you the <em>average</em> density at each location — which is the same thing as the <em>probability</em> of finding any given electron there.</p>
+
+      <p>For one electron jittering around for a long time, it spends more time near the ion (where density is "high"). For many electrons in one snapshot, more of them happen to be near the ion. Two views, same math.</p>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">Particles → density</span>
+          <span class="viz-hint">watch the histogram fill in</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c6" width="700" height="380" style="width:100%; max-width:700px; height:380px;"></canvas>
+          <div class="controls">
+            <div class="control-row">
+              <span class="control-label">Particle count</span>
+              <input type="range" id="c6-N" min="50" max="800" step="25" value="300">
+              <span class="control-value" id="c6-N-out">300</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p>Top half: actual particles in 2D space, jittering around the ion. Bottom half: a histogram counting them in distance bins.</p>
+      <p>With <strong>few</strong> particles (slide N down), the histogram is noisy — you can see individual events. With <strong>many</strong> particles, the histogram smooths into the Boltzmann curve. The smooth curve is what emerges from many random samples.</p>
+    </section>
+
+    <!-- ============= STEP 7 ============= -->
+    <section class="step" data-step="7">
+      <div class="step-header">
+        <div class="step-num">Step 07 · Many ions</div>
+        <h2 class="step-title">What about <em>multiple</em> ions?</h2>
+      </div>
+
+      <p>Boltzmann doesn't care how many ions there are. It only knows about $\phi$. The trick is: $\phi$ is built by <strong>adding up contributions from every ion</strong>.</p>
+
+      <p>$$\phi(\vec{r}) = \sum_{\text{all ions}} \frac{q_i}{4\pi\varepsilon_0 |\vec{r} - \vec{r}_i|}$$</p>
+
+      <p>Each ion creates its own potential hill. The total potential at any point is just all the hills added together. Then you plug that total into Boltzmann, and you get electron density at that point.</p>
+
+      <div class="interactive">
+        <div class="viz-header">
+          <span class="viz-title">Add ions, watch the potential landscape</span>
+          <span class="viz-hint">click empty space to drop ion · click ion to remove</span>
+        </div>
+        <div class="viz-body">
+          <canvas id="c7" width="700" height="420" style="width:100%; max-width:700px; height:420px;"></canvas>
+          <div class="controls">
+            <div class="control-row">
+              <span class="control-label">Display</span>
+              <div class="toggle-group" id="c7-toggle">
+                <button class="active" data-mode="potential">Potential</button>
+                <button data-mode="density">Density</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p>Each ion contributes its own glowing hill. Where multiple hills overlap, the total potential is bigger — and the electron density there spikes. Switch to "Density" view to see where electrons would pile up.</p>
+    </section>
+
+    <!-- ============= STEP 8 ============= -->
+    <section class="step" data-step="8">
+      <div class="step-header">
+        <div class="step-num">Step 08 · Putting it all together</div>
+        <h2 class="step-title">The full picture</h2>
+      </div>
+
+      <p>Here's the whole pipeline, in three arrows:</p>
+      <p style="text-align:center; font-family: 'JetBrains Mono', monospace; font-size: 14px; margin: 28px 0; color: var(--ink);">
+        ions you place &nbsp;→&nbsp; potential $\phi(\vec{r})$ &nbsp;→&nbsp; density $n_e(\vec{r})$
+      </p>
+      <p>Step 1 is geometry: you decide where the ions are.</p>
+      <p>Step 2 is electromagnetism: superposition gives you the total potential at every point.</p>
+      <p>Step 3 is statistical mechanics: Boltzmann turns potential into density.</p>
+
+      <p>The Boltzmann formula handles only Step 3. It's blind to ions. It just sees $\phi$ as input and outputs $n_e$.</p>
+
+      <h3>The full equation, decoded one last time</h3>
+      <p>$$n_e(r) = n_0 \cdot e^{\,e\phi(r)/k_B T}$$</p>
+      <p>"The electron density at distance r equals the baseline density, multiplied by an exponential whose exponent is the electric potential energy at that location, divided by thermal energy."</p>
+
+      <h3>Sanity checks</h3>
+      <ul>
+        <li>Far away ($r \to \infty$): $\phi \to 0$, exponent $\to 0$, $e^0 = 1$, density → baseline. ✓</li>
+        <li>Close to ion ($r \to 0$): $\phi$ huge, exponent huge, density huge. ✓</li>
+        <li>Hot plasma (big $k_BT$): exponent shrinks, density barely deviates from baseline. Thermal motion wins. ✓</li>
+        <li>Cold plasma (small $k_BT$): exponent blows up, density spikes massively near ion. Attraction wins. ✓</li>
+      </ul>
+
+      <div class="callout teal">
+        <div class="callout-label">you've got it</div>
+        <p style="margin:0;">If those four checks all make sense to you, you fully understand the Boltzmann distribution as it applies to plasma screening. Everything else is bookkeeping.</p>
+      </div>
+    </section>
+
+    <div class="nav">
+      <button id="prev">← Previous</button>
+      <button id="next" class="primary">Next →</button>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Global safety net: prevent negative-radius crashes anywhere in the page.
+// If any code computes a negative radius (often from a 0-width canvas during
+// initial layout), silently clamp to 0 instead of throwing.
+(() => {
+  const proto = CanvasRenderingContext2D.prototype;
+  const origArc = proto.arc;
+  proto.arc = function(x, y, radius, ...rest) {
+    if (!isFinite(radius) || radius < 0) radius = 0;
+    return origArc.call(this, x, y, radius, ...rest);
+  };
+  const origCreateRadialGradient = proto.createRadialGradient;
+  proto.createRadialGradient = function(x0, y0, r0, x1, y1, r1) {
+    if (!isFinite(r0) || r0 < 0) r0 = 0;
+    if (!isFinite(r1) || r1 < 0) r1 = 0;
+    return origCreateRadialGradient.call(this, x0, y0, r0, x1, y1, r1);
+  };
+})();
+</script>
+
+<script>
+// ============================================
+// Step navigation
+// ============================================
+let currentStep = 0;
+const totalSteps = 9;
+
+const tocItems = document.querySelectorAll('.toc-item');
+const stepEls = document.querySelectorAll('.step');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+
+function showStep(n) {
+  currentStep = Math.max(0, Math.min(totalSteps - 1, n));
+  stepEls.forEach(el => el.classList.toggle('active', parseInt(el.dataset.step) === currentStep));
+  tocItems.forEach(item => {
+    const i = parseInt(item.dataset.step);
+    item.classList.toggle('active', i === currentStep);
+    item.classList.toggle('done', i < currentStep);
+  });
+  prevBtn.disabled = currentStep === 0;
+  nextBtn.disabled = currentStep === totalSteps - 1;
+  nextBtn.textContent = currentStep === totalSteps - 1 ? 'Done ✓' : 'Next →';
+  document.querySelector('.main').scrollTo(0, 0);
+}
+tocItems.forEach(item => item.addEventListener('click', () => showStep(parseInt(item.dataset.step))));
+prevBtn.addEventListener('click', () => showStep(currentStep - 1));
+nextBtn.addEventListener('click', () => showStep(currentStep + 1));
+
+// ============================================
+// Helpers
+// ============================================
+function setupCanvas(c) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = c.getBoundingClientRect();
+  c.width = rect.width * dpr;
+  c.height = rect.height * dpr;
+  c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  return rect;
+}
+
+function drawIon(ctx, x, y, size = 10) {
+  size = Math.max(1, size);
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, size * 3);
+  grad.addColorStop(0, 'rgba(200, 74, 30, 0.5)');
+  grad.addColorStop(1, 'rgba(200, 74, 30, 0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, size * 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#c84a1e';
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.5, y);
+  ctx.lineTo(x + size * 0.5, y);
+  ctx.moveTo(x, y - size * 0.5);
+  ctx.lineTo(x, y + size * 0.5);
+  ctx.stroke();
+}
+
+function drawElectron(ctx, x, y, size = 4) {
+  size = Math.max(1, size);
+  ctx.fillStyle = '#1d6e7a';
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.5, y);
+  ctx.lineTo(x + size * 0.5, y);
+  ctx.stroke();
+}
+
+// ============================================
+// Step 0: Basic picture (animated electrons + ion)
+// ============================================
+(() => {
+  const canvas = document.getElementById('c0');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  setupCanvas(canvas);
+
+  const N = 80;
+  let particles = [];
+  let initialized = false;
+
+  function initParticles() {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 50 || rect.height < 50) return false;
+    particles = [];
+    for (let i = 0; i < N; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 60 + Math.random() * Math.min(rect.width, rect.height) * 0.35;
+      particles.push({
+        x: rect.width / 2 + Math.cos(a) * r,
+        y: rect.height / 2 + Math.sin(a) * r,
+        vx: (Math.random() - 0.5) * 30,
+        vy: (Math.random() - 0.5) * 30,
+      });
+    }
+    initialized = true;
+    return true;
+  }
+
+  function step(dt) {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 50) return;
+    if (!initialized) {
+      if (!initParticles()) return;
+    }
+    const cx = rect.width / 2, cy = rect.height / 2;
+
+    for (const p of particles) {
+      const dx = p.x - cx, dy = p.y - cy;
+      const r = Math.hypot(dx, dy) || 0.1;
+
+      const softR = Math.max(r, 18);
+      const fmag = 1500 / (softR * softR);
+      const fx = -fmag * dx / r;
+      const fy = -fmag * dy / r;
+
+      const gamma = 4.0;
+      const sigma = 60;
+      const nx = (Math.random() - 0.5) * sigma;
+      const ny = (Math.random() - 0.5) * sigma;
+
+      p.vx += (fx - gamma * p.vx + nx) * dt;
+      p.vy += (fy - gamma * p.vy + ny) * dt;
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      const margin = 8;
+      if (p.x < margin) p.x = margin;
+      else if (p.x > rect.width - margin) p.x = rect.width - margin;
+      if (p.y < margin) p.y = margin;
+      else if (p.y > rect.height - margin) p.y = rect.height - margin;
+
+      const dx2 = p.x - cx, dy2 = p.y - cy;
+      const r2 = Math.hypot(dx2, dy2);
+      if (r2 < 16) {
+        if (r2 < 0.5) {
+          const a = Math.random() * Math.PI * 2;
+          p.x = cx + Math.cos(a) * 16;
+          p.y = cy + Math.sin(a) * 16;
+        } else {
+          p.x = cx + (dx2 / r2) * 16;
+          p.y = cy + (dy2 / r2) * 16;
+        }
+      }
+    }
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 50) return;
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    const grad = ctx.createRadialGradient(rect.width/2, rect.height/2, 0, rect.width/2, rect.height/2, 200);
+    grad.addColorStop(0, 'rgba(200, 74, 30, 0.1)');
+    grad.addColorStop(1, 'rgba(200, 74, 30, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    for (const p of particles) drawElectron(ctx, p.x, p.y);
+    drawIon(ctx, rect.width / 2, rect.height / 2);
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  window.addEventListener('resize', () => { setupCanvas(canvas); initialized = false; });
+  requestAnimationFrame(loop);
+})();
+
+// ============================================
+// Step 1: Symbol cards
+// ============================================
+(() => {
+  const symbolDescriptions = {
+    ne: { label: 'n_e(r) — electron density at r', desc: 'The number of electrons per unit volume at distance r from the ion. The thing the formula computes — the answer.' },
+    n0: { label: 'n_0 — baseline density', desc: 'The "normal" electron density of the bulk plasma, far away from any ion. A constant set by the overall conditions of the plasma.' },
+    e: { label: 'e — elementary charge', desc: 'The magnitude of an electron\'s charge: ≈ 1.6×10⁻¹⁹ coulombs. Different from the math constant e ≈ 2.718 used as the base of the exponential.' },
+    phi: { label: 'φ(r) — electric potential at r', desc: 'The "altitude" of the electric landscape at distance r. Created by the ion (and any other charges). Has units of volts.' },
+    kT: { label: 'k_B T — thermal energy', desc: 'A measure of typical thermal kinetic energy per particle. k_B is Boltzmann\'s constant; T is temperature in kelvin. Has units of joules.' },
+    r: { label: 'r — distance from ion', desc: 'The location where you\'re asking about density. The ion sits at r = 0; r is how far you walked away from it.' }
+  };
+  const detail = document.getElementById('symbol-detail');
+  const labelEl = document.getElementById('sym-label');
+  const descEl = document.getElementById('sym-desc');
+  document.querySelectorAll('.symbol-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const sym = card.dataset.sym;
+      const info = symbolDescriptions[sym];
+      labelEl.textContent = info.label;
+      descEl.textContent = info.desc;
+      detail.style.display = 'block';
+    });
+  });
+})();
+
+// ============================================
+// Step 2: Probe walking outward
+// ============================================
+(() => {
+  const canvas = document.getElementById('c2');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let rect = setupCanvas(canvas);
+  const slider = document.getElementById('c2-r');
+  const out = document.getElementById('c2-r-out');
+
+  function draw() {
+    rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    const cx = 80, cy = h / 2;
+    const r = parseFloat(slider.value);
+    out.textContent = r.toFixed(2);
+    const pixelPerUnit = (w - 130) / 6;
+
+    // Concentric guide rings
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.15)';
+    ctx.lineWidth = 1;
+    for (let rr = 1; rr <= 6; rr++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr * pixelPerUnit, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#b8b3a8';
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillText(rr.toString(), cx + rr * pixelPerUnit + 2, cy - 4);
+    }
+
+    // Distance line from ion to probe
+    const px = cx + r * pixelPerUnit;
+    ctx.strokeStyle = 'rgba(200, 74, 30, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(px, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Distance label
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('r = ' + r.toFixed(2), (cx + px) / 2, cy - 12);
+
+    // Ion
+    drawIon(ctx, cx, cy);
+    ctx.fillStyle = '#1a1814';
+    ctx.font = '11px "Fraunces", serif';
+    ctx.fillText('ION', cx, cy + 30);
+    ctx.fillStyle = '#8a857a';
+    ctx.font = 'italic 10px "Fraunces", serif';
+    ctx.fillText('(stays here)', cx, cy + 44);
+
+    // Probe
+    ctx.fillStyle = '#d4a521';
+    ctx.beginPath();
+    ctx.arc(px, cy, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(px, cy, 7, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = '#1a1814';
+    ctx.font = '11px "Fraunces", serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('PROBE', px, cy - 30);
+
+    // Readouts
+    const phi = 1 / r;
+    const ne = Math.exp(phi);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#c84a1e';
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.fillText('φ(r) = ' + phi.toFixed(3), w - 180, 30);
+    ctx.fillStyle = '#1d6e7a';
+    ctx.fillText('n_e(r)/n_0 = ' + ne.toFixed(2), w - 180, 50);
+    ctx.fillStyle = '#8a857a';
+    ctx.font = 'italic 11px "Fraunces", serif';
+    ctx.fillText('(at probe location)', w - 180, 68);
+  }
+
+  slider.addEventListener('input', draw);
+  window.addEventListener('resize', () => { setupCanvas(canvas); draw(); });
+  setTimeout(draw, 50);
+})();
+
+// ============================================
+// Step 3: Density profile (single curve, T slider)
+// ============================================
+(() => {
+  const canvas = document.getElementById('c3');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let rect = setupCanvas(canvas);
+  const slider = document.getElementById('c3-T');
+  const out = document.getElementById('c3-T-out');
+
+  function draw() {
+    rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    const padL = 60, padR = 30, padT = 20, padB = 40;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    const T = parseFloat(slider.value);
+    out.textContent = T.toFixed(2);
+
+    // Axes
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    const rMin = 0.3, rMax = 6;
+    const yMax = 6;
+    const xs = (r) => padL + ((r - rMin) / (rMax - rMin)) * plotW;
+    const ys = (y) => padT + plotH - Math.min(1, y / yMax) * plotH;
+
+    // Baseline
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.5)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, ys(1));
+    ctx.lineTo(padL + plotW, ys(1));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillText('n_0 = baseline', padL + 6, ys(1) - 4);
+
+    // Density curve
+    ctx.strokeStyle = '#1d6e7a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const r = rMin + (rMax - rMin) * i / 200;
+      const phi = 1 / r;
+      const ne = Math.exp(phi / T);
+      const y = ys(Math.min(yMax, ne));
+      if (i === 0) ctx.moveTo(xs(r), y);
+      else ctx.lineTo(xs(r), y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#1d6e7a';
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.fillText('n_e(r) = n_0 · exp(φ/kT)', padL + 8, padT + 16);
+
+    // X axis labels
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    for (let r = 1; r <= rMax; r++) {
+      ctx.fillText(r.toString(), xs(r), padT + plotH + 14);
+    }
+    ctx.fillText('distance r →', padL + plotW / 2, padT + plotH + 30);
+    ctx.save();
+    ctx.translate(16, padT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('density n_e(r)', 0, 0);
+    ctx.restore();
+  }
+
+  slider.addEventListener('input', draw);
+  window.addEventListener('resize', () => { setupCanvas(canvas); draw(); });
+  setTimeout(draw, 50);
+})();
+
+// ============================================
+// Step 4: Two stacked plots (φ and density)
+// ============================================
+(() => {
+  const canvas = document.getElementById('c4');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let rect = setupCanvas(canvas);
+
+  function draw() {
+    rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    const padL = 60, padR = 30, padT = 16, padB = 40;
+    const halfH = (h - padT - padB - 30) / 2;
+    const plotW = w - padL - padR;
+
+    const rMin = 0.3, rMax = 6;
+    const xs = (r) => padL + ((r - rMin) / (rMax - rMin)) * plotW;
+
+    // Top plot: phi
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + halfH);
+    ctx.lineTo(padL + plotW, padT + halfH);
+    ctx.stroke();
+
+    const phiMax = 4;
+    const ysPhi = (y) => padT + halfH - Math.min(1, y / phiMax) * halfH;
+
+    ctx.strokeStyle = '#c84a1e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const r = rMin + (rMax - rMin) * i / 200;
+      const phi = 1 / r;
+      const y = ysPhi(Math.min(phiMax, phi));
+      if (i === 0) ctx.moveTo(xs(r), y);
+      else ctx.lineTo(xs(r), y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#c84a1e';
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('φ(r) = 1/r — falls off with r', padL + 8, padT + 14);
+
+    // Bottom plot: density
+    const yPlot2Top = padT + halfH + 30;
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.4)';
+    ctx.beginPath();
+    ctx.moveTo(padL, yPlot2Top);
+    ctx.lineTo(padL, yPlot2Top + halfH);
+    ctx.lineTo(padL + plotW, yPlot2Top + halfH);
+    ctx.stroke();
+
+    const yMax = 6;
+    const ysN = (y) => yPlot2Top + halfH - Math.min(1, y / yMax) * halfH;
+
+    // Baseline
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.5)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, ysN(1));
+    ctx.lineTo(padL + plotW, ysN(1));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = '#1d6e7a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const r = rMin + (rMax - rMin) * i / 200;
+      const phi = 1 / r;
+      const ne = Math.exp(phi);
+      const y = ysN(Math.min(yMax, ne));
+      if (i === 0) ctx.moveTo(xs(r), y);
+      else ctx.lineTo(xs(r), y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#1d6e7a';
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.fillText('n_e(r) = exp(φ/kT) — also falls', padL + 8, yPlot2Top + 14);
+
+    // X axis labels (bottom)
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    for (let r = 1; r <= rMax; r++) {
+      ctx.fillText(r.toString(), xs(r), yPlot2Top + halfH + 14);
+    }
+    ctx.fillText('r →', padL + plotW - 20, yPlot2Top + halfH + 28);
+  }
+
+  window.addEventListener('resize', () => { setupCanvas(canvas); draw(); });
+  setTimeout(draw, 50);
+})();
+
+// ============================================
+// Step 5: Energy crossover
+// ============================================
+(() => {
+  const canvas = document.getElementById('c5');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let rect = setupCanvas(canvas);
+  const slider = document.getElementById('c5-T');
+  const out = document.getElementById('c5-T-out');
+
+  function draw() {
+    rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    const padL = 60, padR = 30, padT = 30, padB = 40;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    const T = parseFloat(slider.value);
+    out.textContent = T.toFixed(2);
+
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    const rMin = 0.3, rMax = 6;
+    const yMax = 3;
+    const xs = (r) => padL + ((r - rMin) / (rMax - rMin)) * plotW;
+    const ys = (y) => padT + plotH - Math.min(1, y / yMax) * plotH;
+
+    // eφ curve
+    ctx.strokeStyle = '#c84a1e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const r = rMin + (rMax - rMin) * i / 200;
+      const ePhi = 1 / r;
+      if (i === 0) ctx.moveTo(xs(r), ys(Math.min(yMax, ePhi)));
+      else ctx.lineTo(xs(r), ys(Math.min(yMax, ePhi)));
+    }
+    ctx.stroke();
+
+    // kT line
+    ctx.strokeStyle = '#1d6e7a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padL, ys(T));
+    ctx.lineTo(padL + plotW, ys(T));
+    ctx.stroke();
+
+    // Crossover
+    const rCross = 1 / T;
+    if (rCross >= rMin && rCross <= rMax) {
+      ctx.strokeStyle = 'rgba(212, 165, 33, 0.6)';
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(xs(rCross), padT);
+      ctx.lineTo(xs(rCross), padT + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#d4a521';
+      ctx.beginPath();
+      ctx.arc(xs(rCross), ys(T), 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#1a1814';
+      ctx.font = '11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('crossover at r ≈ ' + rCross.toFixed(2), xs(rCross) + 10, padT + 18);
+    }
+
+    // Labels
+    ctx.fillStyle = '#c84a1e';
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('eφ(r) — electric energy', padL + 8, padT + 16);
+    ctx.fillStyle = '#1d6e7a';
+    ctx.fillText('kT — thermal energy', padL + plotW - 200, ys(T) - 6);
+
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    for (let r = 1; r <= rMax; r++) {
+      ctx.fillText(r.toString(), xs(r), padT + plotH + 14);
+    }
+    ctx.fillText('distance r →', padL + plotW / 2, padT + plotH + 28);
+  }
+
+  slider.addEventListener('input', draw);
+  window.addEventListener('resize', () => { setupCanvas(canvas); draw(); });
+  setTimeout(draw, 50);
+})();
+
+// ============================================
+// Step 6: Particles → density (split view)
+// ============================================
+(() => {
+  const canvas = document.getElementById('c6');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let rect = setupCanvas(canvas);
+  const slider = document.getElementById('c6-N');
+  const out = document.getElementById('c6-N-out');
+
+  let particles = [];
+  function reinit() {
+    rect = canvas.getBoundingClientRect();
+    const N = parseInt(slider.value);
+    out.textContent = N;
+    particles = [];
+    const cx = rect.width / 2, cy = rect.height / 4;
+    for (let i = 0; i < N; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 30 + Math.random() * 200;
+      particles.push({
+        x: cx + Math.cos(a) * r,
+        y: cy + Math.sin(a) * r,
+        vx: 0, vy: 0
+      });
+    }
+  }
+
+  slider.addEventListener('input', reinit);
+
+  function step(dt) {
+    rect = canvas.getBoundingClientRect();
+    if (rect.width < 50) return;
+    const cx = rect.width / 2, cy = rect.height / 4;
+    const halfH = rect.height / 2 - 10;
+
+    for (const p of particles) {
+      const dx = p.x - cx, dy = p.y - cy;
+      const r = Math.hypot(dx, dy) || 0.1;
+
+      const softR = Math.max(r, 18);
+      const fmag = 1200 / (softR * softR);
+      const fx = -fmag * dx / r;
+      const fy = -fmag * dy / r;
+
+      const gamma = 4.0;
+      const sigma = 50;
+      const nx = (Math.random() - 0.5) * sigma;
+      const ny = (Math.random() - 0.5) * sigma;
+
+      p.vx += (fx - gamma * p.vx + nx) * dt;
+      p.vy += (fy - gamma * p.vy + ny) * dt;
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      const margin = 8;
+      if (p.x < margin) p.x = margin;
+      else if (p.x > rect.width - margin) p.x = rect.width - margin;
+      if (p.y < margin) p.y = margin;
+      else if (p.y > halfH - margin) p.y = halfH - margin;
+
+      const dx2 = p.x - cx, dy2 = p.y - cy;
+      const r2 = Math.hypot(dx2, dy2);
+      if (r2 < 16) {
+        if (r2 < 0.5) {
+          const a = Math.random() * Math.PI * 2;
+          p.x = cx + Math.cos(a) * 16;
+          p.y = cy + Math.sin(a) * 16;
+        } else {
+          p.x = cx + (dx2 / r2) * 16;
+          p.y = cy + (dy2 / r2) * 16;
+        }
+      }
+    }
+  }
+
+  function draw() {
+    rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    const halfH = h / 2 - 10;
+
+    // Top half: particles
+    ctx.fillStyle = 'rgba(245, 240, 232, 0.6)';
+    ctx.fillRect(0, 0, w, halfH);
+    const cx = w / 2, cy = h / 4;
+
+    // Concentric guide rings
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.15)';
+    for (let rr = 50; rr < 250; rr += 50) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    for (const p of particles) drawElectron(ctx, p.x, p.y, 3);
+    drawIon(ctx, cx, cy);
+
+    // Divider
+    ctx.fillStyle = '#e6e0d4';
+    ctx.fillRect(0, halfH, w, 20);
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('PARTICLES', 12, 16);
+    ctx.fillText('HISTOGRAM', 12, halfH + 30);
+
+    // Bottom half: histogram
+    const bottomTop = halfH + 30;
+    const bottomH = h - bottomTop - 30;
+    const padL = 50, padR = 20;
+    const plotW = w - padL - padR;
+
+    // Bin particles by distance from cx, cy
+    const nBins = 25;
+    const rMaxPx = 250;
+    const counts = new Array(nBins).fill(0);
+    for (const p of particles) {
+      const r = Math.hypot(p.x - cx, p.y - cy);
+      if (r < rMaxPx) {
+        counts[Math.min(nBins - 1, Math.floor(r / rMaxPx * nBins))]++;
+      }
+    }
+    // Convert to density (count / shell area for 2D)
+    const densities = [];
+    for (let i = 0; i < nBins; i++) {
+      const r1 = (i / nBins) * rMaxPx;
+      const r2 = ((i + 1) / nBins) * rMaxPx;
+      const area = Math.PI * (r2 * r2 - r1 * r1);
+      densities.push(counts[i] / area);
+    }
+    const maxD = Math.max(...densities, 0.001);
+
+    // Axis
+    ctx.strokeStyle = 'rgba(138, 133, 122, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, bottomTop);
+    ctx.lineTo(padL, bottomTop + bottomH);
+    ctx.lineTo(padL + plotW, bottomTop + bottomH);
+    ctx.stroke();
+
+    // Bars
+    const barW = plotW / nBins;
+    for (let i = 0; i < nBins; i++) {
+      const barH = (densities[i] / maxD) * bottomH * 0.9;
+      ctx.fillStyle = 'rgba(29, 110, 122, 0.6)';
+      ctx.fillRect(padL + i * barW + 1, bottomTop + bottomH - barH, barW - 2, barH);
+    }
+
+    // Theory curve (Boltzmann ~ exp(1/r)) — overlaid for reference
+    ctx.strokeStyle = '#c84a1e';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    let baselineDensity = 0;
+    let baselineCount = 0;
+    for (let i = Math.floor(nBins * 0.7); i < nBins; i++) {
+      baselineDensity += densities[i];
+      baselineCount++;
+    }
+    baselineDensity = baselineCount > 0 ? baselineDensity / baselineCount : 0.001;
+    for (let i = 0; i <= 100; i++) {
+      const rPx = (i / 100) * rMaxPx;
+      if (rPx < 15) continue;
+      const rUnit = rPx / 50;
+      const ne = baselineDensity * Math.exp(1 / Math.max(0.3, rUnit));
+      const x = padL + (rPx / rMaxPx) * plotW;
+      const y = bottomTop + bottomH - Math.min(bottomH * 0.95, (ne / maxD) * bottomH * 0.9);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#c84a1e';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.fillText('— — Boltzmann theory', padL + 8, bottomTop + 14);
+    ctx.fillStyle = '#1d6e7a';
+    ctx.fillText('▮ measured', padL + 180, bottomTop + 14);
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  window.addEventListener('resize', () => { setupCanvas(canvas); reinit(); });
+  setTimeout(() => { reinit(); requestAnimationFrame(loop); }, 50);
+})();
+
+// ============================================
+// Step 7: Multi-ion potential / density
+// ============================================
+(() => {
+  const canvas = document.getElementById('c7');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let rect = setupCanvas(canvas);
+
+  let mode = 'potential';
+  let ions = [
+    { x: 0.4, y: 0.5 },
+    { x: 0.65, y: 0.5 }
+  ];
+
+  document.querySelectorAll('#c7-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#c7-toggle button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      mode = b.dataset.mode;
+      draw();
+    });
+  });
+
+  canvas.addEventListener('click', (e) => {
+    rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width;
+    const my = (e.clientY - rect.top) / rect.height;
+    // Check if clicking existing ion
+    const idx = ions.findIndex(i => Math.hypot(i.x - mx, i.y - my) < 0.04);
+    if (idx >= 0) {
+      ions.splice(idx, 1);
+    } else if (ions.length < 8) {
+      ions.push({ x: mx, y: my });
+    }
+    draw();
+  });
+
+  function potential(x, y) {
+    let phi = 0;
+    for (const ion of ions) {
+      const dx = x - ion.x, dy = y - ion.y;
+      const r = Math.sqrt(dx * dx + dy * dy + 0.002);  // softened
+      phi += 0.05 / r;
+    }
+    return phi;
+  }
+
+  function draw() {
+    rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Sample grid for the field
+    const cellSize = 4;
+    for (let x = 0; x < w; x += cellSize) {
+      for (let y = 0; y < h; y += cellSize) {
+        const ux = x / w, uy = y / h;
+        const phi = potential(ux, uy);
+        let intensity, color;
+        if (mode === 'potential') {
+          intensity = Math.min(1, phi / 4);
+          if (intensity < 0.02) continue;
+          color = `rgba(200, 74, 30, ${intensity * 0.7})`;
+        } else {
+          // density: exp(phi)
+          const ne = Math.exp(phi);
+          intensity = Math.min(1, (ne - 1) / 8);
+          if (intensity < 0.02) continue;
+          color = `rgba(29, 110, 122, ${intensity * 0.7})`;
+        }
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    // Ions
+    for (const ion of ions) {
+      drawIon(ctx, ion.x * w, ion.y * h, 8);
+    }
+
+    // Hint
+    if (ions.length === 0) {
+      ctx.fillStyle = '#b8b3a8';
+      ctx.font = 'italic 14px "Fraunces", serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('click to add ions', w / 2, h / 2);
+    }
+
+    // Legend
+    ctx.fillStyle = '#8a857a';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    if (mode === 'potential') {
+      ctx.fillText('total φ(r) = sum of all ion contributions', 14, h - 14);
+    } else {
+      ctx.fillText('n_e(r) ∝ exp(φ_total / kT)', 14, h - 14);
+    }
+  }
+
+  window.addEventListener('resize', () => { setupCanvas(canvas); draw(); });
+  setTimeout(draw, 50);
+})();
+</script>
+
+</body>
+</html>

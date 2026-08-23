@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Binormal Direction — From Scratch</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0e13;
+    --surface: #12151c;
+    --surface2: #1a1e28;
+    --border: #252a36;
+    --text: #b8bcc8;
+    --text-dim: #6b7084;
+    --heading: #e2e5ed;
+    --accent: #f0a050;
+    --accent2: #5cb8f0;
+    --accent3: #a388f0;
+    --green: #4ade80;
+    --red: #fb7185;
+    --marker: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+  }
+  .header {
+    text-align: center;
+    padding: 2.5rem 0 3rem;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 3rem;
+  }
+  .header-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 1.2rem;
+  }
+  .header h1 {
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: var(--heading);
+    line-height: 1.2;
+    margin-bottom: 0.6rem;
+  }
+  .header .subtitle {
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--text-dim);
+  }
+  .part-header {
+    margin-top: 3.5rem;
+    margin-bottom: 2rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .part-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 0.3rem;
+  }
+  .part-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--heading);
+    line-height: 1.3;
+  }
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--heading);
+    margin-top: 2rem;
+    margin-bottom: 0.6rem;
+  }
+  p { margin-bottom: 1rem; }
+  .aside {
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.3rem 0;
+    font-size: 0.95rem;
+    position: relative;
+  }
+  .aside::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 4px 0 0 4px;
+  }
+  .aside.intuition::before { background: var(--accent); }
+  .aside.math::before { background: var(--accent2); }
+  .aside.important::before { background: var(--green); }
+  .aside.warning::before { background: var(--red); }
+  .aside-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+  .aside.intuition .aside-label { color: var(--accent); }
+  .aside.math .aside-label { color: var(--accent2); }
+  .aside.important .aside-label { color: var(--green); }
+  .aside.warning .aside-label { color: var(--red); }
+  code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.87em;
+    background: var(--surface2);
+    padding: 0.12em 0.4em;
+    border-radius: 3px;
+    color: var(--accent3);
+  }
+  em { color: var(--accent2); font-style: italic; }
+  strong { color: var(--heading); font-weight: 500; }
+  mark {
+    background: linear-gradient(to top, rgba(251,191,36,0.18) 40%, transparent 40%);
+    color: var(--heading);
+    padding: 0 2px;
+  }
+  .viz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+  }
+  .viz canvas { width: 100%; display: block; }
+  .viz-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 8px 12px 0;
+  }
+  .viz-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px 10px;
+    justify-content: center;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .viz-ctrl input[type="range"] {
+    width: 160px;
+    accent-color: var(--accent);
+  }
+  .viz-ctrl button {
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.3rem 0;
+    font-size: 0.92rem;
+  }
+  table.compare th {
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 2px solid var(--heading);
+  }
+  table.compare td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.compare tr:last-child td { border-bottom: none; }
+  ol.steps { list-style: none; counter-reset: s; margin: 1rem 0 1.5rem 0; }
+  ol.steps li {
+    counter-increment: s;
+    margin-bottom: 0.8rem;
+    padding-left: 2.2rem;
+    position: relative;
+  }
+  ol.steps li::before {
+    content: counter(s);
+    position: absolute;
+    left: 0; top: 0.15em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--bg);
+    background: var(--accent);
+    width: 1.5rem; height: 1.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  @media (max-width: 600px) {
+    .container { padding: 2rem 1rem 4rem; }
+    .header h1 { font-size: 1.7rem; }
+    .part-header h2 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div class="header-tag">Foundations Primer</div>
+  <h1>The Binormal Direction</h1>
+  <p class="subtitle">Why this weird third direction matters — and why GENE cares so much about it</p>
+</div>
+
+<p>This primer assumes nothing. We'll start with "why does a tokamak have a magnetic field at all" and end with "why GENE uses 24 Fourier modes in this direction." If you've been confused by the word <em>binormal</em>, this is for you.</p>
+
+<!-- ═══════════ PART I ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part I</div>
+  <h2>Why Tokamaks Need a Magnetic Field</h2>
+</div>
+
+<p>A fusion plasma is unbelievably hot — 100+ million degrees Celsius. Hotter than the core of the Sun. There is no material on Earth that can touch it without instantly vaporizing. So how do you hold it?</p>
+
+<p>You don't touch it. You levitate it with magnetic fields.</p>
+
+<p>This works because plasma is made of charged particles (ions and electrons), and charged particles in a magnetic field <strong>spiral around the field lines</strong> rather than crossing them freely. They're stuck to the field line, like a bead on a wire — but they can slide along the wire freely.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · Particle stuck to a field line</div>
+  <canvas id="c-bead" height="280"></canvas>
+</div>
+
+<p>The particle spirals tightly around the field line. Across the field — basically can't move. Along the field — slides freely.</p>
+
+<div class="aside intuition">
+  <span class="aside-label">The key fact</span>
+  This sets up the <em>fundamental asymmetry</em> of a magnetized plasma. There's one direction (along B) where physics is "easy" — particles stream freely. And there are two other directions (across B) where physics is "hard" — particles are tied to the field. Everything else flows from this.
+</div>
+
+<h3>Why a donut?</h3>
+
+<p>If field lines are straight and the bottle is a tube, particles just slide out the ends. So you bend the tube into a closed loop — a donut (torus). Now field lines wrap around forever and particles can't escape along them.</p>
+
+<p>You've now solved the easy direction. But the <em>hard</em> directions — across B — still leak. Particles drift slowly perpendicular to B due to several mechanisms (gradient drifts, curvature drifts, turbulence). This perpendicular leakage is what fusion engineering is fundamentally about: the closer you get to confining plasma perpendicular to B, the closer you get to working fusion.</p>
+
+<!-- ═══════════ PART II ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part II</div>
+  <h2>One Direction Along, Two Across</h2>
+</div>
+
+<p>Now we have the basic geometry of the problem. At any point inside the plasma:</p>
+
+<ul style="list-style:disc; padding-left:1.5rem; margin:1rem 0;">
+  <li style="margin-bottom:0.5rem"><strong>Along B (one direction):</strong> particles slide freely. This direction is "easy." We don't worry about it much for confinement.</li>
+  <li><strong>Across B (two directions):</strong> particles are tied to field lines, but slowly drift. This is where confinement happens or fails.</li>
+</ul>
+
+<p>"Across B" is a 2D plane (perpendicular to B at that point). And here's a question: <em>are these two perpendicular directions equivalent?</em></p>
+
+<p>In free space, yes — they'd be interchangeable. You could pick any two perpendicular axes in the plane and use them. But in a tokamak, <mark>the plasma itself breaks the symmetry</mark>: it's hot in the middle and cold at the edge. There's a temperature gradient, and that gradient picks out a special direction. Watch:</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · The temperature gradient breaks the symmetry</div>
+  <canvas id="c-gradient" height="320"></canvas>
+</div>
+
+<p>The plane perpendicular to B at any point isn't isotropic — it has a gradient. <strong>The radial direction</strong> is the direction of that gradient (outward, toward colder plasma). <strong>The binormal direction</strong> is the other perpendicular direction — the one along which temperature doesn't change.</p>
+
+<div class="aside important">
+  <span class="aside-label">This is the entire definition of "binormal"</span>
+  Take the plane perpendicular to B. The temperature gradient picks out one direction in that plane (radial). The binormal is the other one — the perpendicular direction along which temperature is constant.
+  <br><br>
+  That's it. It's not some arbitrary mathematical convention — it's the second perpendicular direction, defined by what's <em>not</em> happening (no gradient).
+</div>
+
+<h3>Why these two perpendicular directions behave differently</h3>
+
+<p>Even though both are "perpendicular to B," they're physically very different:</p>
+
+<table class="compare">
+  <tr><th></th><th>Radial</th><th>Binormal</th></tr>
+  <tr><td>Temperature</td><td>changes (gradient)</td><td>same everywhere</td></tr>
+  <tr><td>Where heat wants to go</td><td>outward (this way)</td><td>doesn't, no reason to</td></tr>
+  <tr><td>Symmetry</td><td>broken (inside ≠ outside)</td><td>preserved (every spot identical)</td></tr>
+  <tr><td>Periodic?</td><td>no, has boundaries</td><td>yes, wraps around the donut</td></tr>
+</table>
+
+<p>This table is the source of every later choice GENE makes. Keep it in mind.</p>
+
+<!-- ═══════════ PART III ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part III</div>
+  <h2>Where Is the Binormal, Concretely?</h2>
+</div>
+
+<p>Time to nail down the geometry. Here's a tokamak with the three local directions at a point:</p>
+
+<div class="viz">
+  <div class="viz-tag">Interactive · The three directions on an actual tokamak</div>
+  <canvas id="c-tokamak" height="430"></canvas>
+  <div class="viz-ctrl" id="tok-btns"></div>
+</div>
+
+<p>Hit the buttons to highlight each direction.</p>
+
+<ul style="list-style:disc; padding-left:1.5rem; margin:1rem 0;">
+  <li style="margin-bottom:0.5rem"><strong>Radial (red):</strong> from the magnetic axis (center of the tube) outward toward the wall. Heat is escaping in this direction.</li>
+  <li style="margin-bottom:0.5rem"><strong>Along B (blue):</strong> following the helical field line. Particles stream this way.</li>
+  <li><strong>Binormal (purple):</strong> what's left — perpendicular to both, no temperature gradient.</li>
+</ul>
+
+<div class="aside intuition">
+  <span class="aside-label">Why does the binormal direction look diagonal?</span>
+  Because field lines spiral. They don't just go around the donut the long way — they also wind around the tube's cross-section. That's why "along B" has both toroidal and poloidal components, and why the binormal — being perpendicular to it — also points in a slightly diagonal direction. In a flat 2D cross-section snapshot you can ignore this and treat binormal as roughly "vertical." But in 3D, it's tilted.
+</div>
+
+<h3>The 2D snapshot view</h3>
+
+<p>For most turbulence intuition, you can ignore the 3D donut shape and just look at a thin slice perpendicular to the field line. In that slice you only see two directions — radial and binormal — and turbulence looks like 2D eddies in that plane:</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · Snapshot of turbulent eddies in the (radial, binormal) plane</div>
+  <canvas id="c-eddies" height="320"></canvas>
+</div>
+
+<p>This is what plasma physicists usually mean when they say "turbulent eddy pattern." The eddies live in the perpendicular plane. They're elongated along B (into and out of the screen) and they're structured in the (radial, binormal) plane.</p>
+
+<!-- ═══════════ PART IV ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part IV</div>
+  <h2>Why Turbulence Forms — And Why It Has Binormal Structure</h2>
+</div>
+
+<p>Before talking about why GENE cares about binormal specifically, we need to explain why turbulence even exists. Skipping this makes everything else feel arbitrary.</p>
+
+<h3>Step 1: the gradient is unstable</h3>
+
+<p>You've got hot plasma inside, cold plasma outside, and they're separated by some boundary. This is a wildly unstable configuration. Heat <em>wants</em> to escape outward. The plasma <em>wants</em> to flatten out the gradient. Any tiny perturbation that lets a little hot plasma move outward will be amplified, because it's energetically favorable.</p>
+
+<p>This is analogous to a glass of water sitting on top of a glass of oil: technically stable, but the slightest jiggle and the water (heavier) starts to fall through the oil (lighter). The system reorganizes violently because there's free energy waiting to be released.</p>
+
+<h3>Step 2: the instability creates eddies</h3>
+
+<p>The way this instability manifests is: hot blobs form, push outward, while cold blobs form, push inward. They don't go straight — they swirl. Because of the magnetic field's effect on charged particle motion, the natural unstable mode is a <strong>vortex</strong> (a swirling flow). And vortices come with a characteristic size.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · Hot/cold blobs swap radially — and form vortices</div>
+  <canvas id="c-instability" height="340"></canvas>
+</div>
+
+<p>Watch how the blobs don't move in straight lines — they curl around each other. That curling is the eddy structure. <strong>The eddies are the turbulence.</strong></p>
+
+<h3>Step 3: the eddies have a size in the binormal direction</h3>
+
+<p>Now here's the connection. An eddy isn't a point — it has size. Across the radial direction, the eddy stretches some amount. Across the binormal direction, it stretches some amount too. In fact, eddies tend to be <em>roughly circular</em> in the perpendicular plane, with diameter set by ion physics (a few times the Larmor radius — millimeters in real tokamaks).</p>
+
+<p>So as you sweep along the binormal direction at fixed radius, you encounter <strong>alternating</strong> hot/cold patches:</p>
+
+<div class="viz">
+  <div class="viz-tag">Interactive · Sweep along the binormal direction</div>
+  <canvas id="c-sweep" height="300"></canvas>
+  <div class="viz-ctrl">
+    <span>position along binormal:</span>
+    <input type="range" id="sweep-slider" min="0" max="1" step="0.01" value="0.3">
+  </div>
+</div>
+
+<p>Drag the slider to move along binormal. Watch the bottom panel — the temperature you'd measure as you walk along this direction goes up and down, up and down, in a wave-like pattern. <mark>The binormal direction is where the eddy structure shows up as oscillations.</mark></p>
+
+<div class="aside important">
+  <span class="aside-label">This is why binormal is wave-like</span>
+  Because turbulent eddies are roughly periodic when you sweep across them. The pattern repeats — peak, trough, peak, trough — at a wavelength set by the eddy size. So describing what's happening in the binormal direction with <em>waves</em> (Fourier modes) is exactly the right tool. Different eddy sizes = different wavelengths = different k_y values.
+</div>
+
+<!-- ═══════════ PART V ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part V</div>
+  <h2>The Punchline: Binormal Drives Radial Transport</h2>
+</div>
+
+<p>Here's the part you might already half-know. Heat escapes <em>radially</em> — that's the direction of the gradient, the direction toward the wall. So why obsess over binormal?</p>
+
+<p>Because <mark>radial transport is driven by binormal variation.</mark> Without wiggles in the binormal direction, there's no transport. Let me show you why.</p>
+
+<h3>The E×B mechanism</h3>
+
+<p>Turbulent eddies are essentially patterns of <em>electric potential</em> φ in the plasma. Some regions have higher φ, some lower. Wherever there's a gradient in φ, you get an electric field E pointing perpendicular to the contours of constant φ.</p>
+
+<p>Now here's the magic of magnetized plasma: when you have an electric field E perpendicular to a magnetic field B, charged particles drift in a direction perpendicular to <em>both</em>. This is called the E×B drift, and it's the dominant transport mechanism in tokamaks.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · How an eddy moves plasma radially via E×B</div>
+  <canvas id="c-exb" height="380"></canvas>
+</div>
+
+<p>Watch carefully:</p>
+
+<ol class="steps">
+  <li>The eddy is a blob of high potential φ. Around it, E points outward (down the gradient).</li>
+  <li>The B field points out of the screen (along the field line).</li>
+  <li>E×B (the drift direction) is perpendicular to both — and it goes <em>around</em> the eddy.</li>
+  <li>On one side of the eddy, this drift carries plasma <strong>outward radially</strong>. On the other side, it carries plasma <strong>inward</strong>.</li>
+  <li>If the outward and inward flows carry plasma at the same temperature, they cancel. <strong>But the outward side carries hot plasma and the inward side carries cold plasma.</strong> Net heat flow: outward.</li>
+</ol>
+
+<h3>Now the key question: where does binormal come in?</h3>
+
+<p>The radial component of the E×B drift is determined by <strong>how φ varies in the binormal direction</strong>. Mathematically:</p>
+
+<div class="aside math">
+  <span class="aside-label">The math</span>
+  E×B radial component <code>∝ ∂φ/∂y</code> (the binormal derivative of the potential).
+  <br><br>
+  If φ doesn't change in the binormal direction (∂φ/∂y = 0), there's no radial E×B flow, and no transport. The binormal variation of φ is exactly what drives heat outward.
+</div>
+
+<p>Said differently: an eddy has both a radial size and a binormal size. The fact that it has a <em>binormal</em> size — that you see oscillations as you walk in the binormal direction — is what makes radial transport happen. <strong>A perfectly uniform-in-y plasma would have zero turbulent transport, even with a huge radial gradient.</strong></p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · No binormal variation → no transport</div>
+  <canvas id="c-no-binormal" height="280"></canvas>
+</div>
+
+<p>The left panel has eddies (binormal variation): heat escapes. The right panel has stripes (no binormal variation): nothing moves radially.</p>
+
+<div class="aside important">
+  <span class="aside-label">The whole reason GENE cares</span>
+  Heat loss in fusion = radial transport. Radial transport ∝ binormal variation of φ. So to predict heat loss, you have to accurately resolve binormal variation. This is GENE's central mission.
+</div>
+
+<!-- ═══════════ PART VI ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part VI</div>
+  <h2>Why Fourier Space for the Binormal</h2>
+</div>
+
+<p>Now, finally, the choice of Fourier space makes sense. We've established:</p>
+
+<ol class="steps">
+  <li>Binormal is the perpendicular direction <em>without</em> a gradient — the symmetry direction.</li>
+  <li>Turbulent eddies appear as oscillations in this direction.</li>
+  <li>The plasma wraps around the donut, so binormal is naturally periodic — go far enough in y, you come back to where you started.</li>
+  <li>What we care about (radial transport) is determined by <em>binormal derivatives</em> of φ.</li>
+</ol>
+
+<p>These four facts make Fourier space the obvious tool. Here's why each one matters:</p>
+
+<h3>Periodicity</h3>
+
+<p>Fourier decomposition assumes the function repeats. In binormal, it does (you eventually wrap around the donut). In radial, it doesn't (you'd hit the wall). So Fourier works in binormal but not radial. <em>This alone</em> would be a sufficient reason.</p>
+
+<h3>Symmetry</h3>
+
+<p>Because nothing distinguishes one binormal location from another, the natural representation is wave-like — patterns that look the same shifted along y. That's exactly what Fourier modes are.</p>
+
+<h3>Eddies have characteristic sizes</h3>
+
+<p>Each eddy size corresponds to a single binormal wavelength. By going to Fourier space, you decompose the turbulence into a spectrum where each mode is one eddy size. This matches the physics: different size eddies behave differently (driven differently, damped differently). Fourier space lets you treat them separately.</p>
+
+<h3>Derivatives become trivial</h3>
+
+<p>Remember that radial transport ∝ ∂φ/∂y? In real space, taking that derivative requires comparing neighboring grid points — slow and approximate. In Fourier space, it's a single multiplication: <code>∂/∂y → multiply by i·k_y</code>. Since you're computing this <em>every timestep at every grid point</em>, the speedup is enormous. And it's exact, not approximate.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · ∂/∂y in real space (slow) vs Fourier (instant)</div>
+  <canvas id="c-deriv" height="300"></canvas>
+</div>
+
+<!-- ═══════════ PART VII ═══════════ -->
+
+<div class="part-header">
+  <div class="part-label">Part VII</div>
+  <h2>How GENE Actually Stores It</h2>
+</div>
+
+<p>Putting it all together: in the binormal direction, GENE doesn't store "the value of f at 24 binormal positions." It stores "the amplitude of f's oscillation at 24 different wavelengths." These 24 wavelengths are k_y = 1, 2, ..., 24, where each integer represents one wavelength of binormal oscillation that fits in the simulation box.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · The 24 binormal wavelengths GENE tracks</div>
+  <canvas id="c-ladder" height="380"></canvas>
+</div>
+
+<p>Each row is one mode. Small k_y = giant eddies (long wavelength). Large k_y = tiny eddies (short wavelength). The actual turbulence is a sum of all 24, each with its own amplitude.</p>
+
+<div class="aside intuition">
+  <span class="aside-label">One paragraph summary</span>
+  Plasma is held in a tokamak by spiraling on magnetic field lines. The temperature gradient (hot inside, cold outside) drives instabilities that form turbulent eddies. These eddies live in the plane perpendicular to B. The "radial" direction in this plane is the direction of the gradient (toward the wall). The "binormal" direction is the perpendicular direction along which there's no gradient. Turbulent eddies show up as wave-like oscillations in the binormal direction, and the binormal variation of these waves is precisely what drives heat outward radially. Because binormal is a symmetry direction that wraps around the donut, Fourier decomposition is the natural way to describe what happens in it — and that's why GENE uses k_y as a coordinate instead of y.
+</div>
+
+<div style="text-align:center; font-size:0.75rem; color:var(--text-dim); margin-top:3rem; border-top:1px solid var(--border); padding-top:1.2rem;">
+  Foundations primer for binormal — read before the Fourier intro.
+</div>
+
+</div>
+
+<script>
+(function(){
+  var C = {
+    bg:'#0c0e13', surface:'#12151c', surface2:'#1a1e28',
+    border:'#252a36', text:'#b8bcc8', dim:'#6b7084',
+    heading:'#e2e5ed', accent:'#f0a050', blue:'#5cb8f0',
+    purple:'#a388f0', green:'#4ade80', red:'#fb7185'
+  };
+  var F = "'DM Sans',sans-serif", M = "'IBM Plex Mono',monospace";
+
+  function init(id){
+    var cv = document.getElementById(id);
+    if(!cv) return null;
+    var ctx = cv.getContext('2d');
+    var dpr = window.devicePixelRatio||1;
+    var W = cv.clientWidth;
+    var H = parseInt(cv.getAttribute('height'));
+    cv.style.height = H+'px';
+    cv.width = W*dpr; cv.height = H*dpr;
+    ctx.scale(dpr,dpr);
+    return {c:cv, x:ctx, W:W, H:H};
+  }
+
+  // ── 1. BEAD ON A WIRE ──
+  // Particle spirals tightly around a horizontal field line, slides freely along
+  !function(){
+    var s = init('c-bead'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    !function draw(){
+      t += 0.025;
+      ctx.clearRect(0,0,W,H);
+
+      // Field line (horizontal dashed)
+      ctx.strokeStyle = C.dim;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      ctx.moveTo(30, H/2);
+      ctx.lineTo(W-30, H/2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.font='600 11px '+F;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='right';
+      ctx.fillText('B →', W-20, H/2-10);
+
+      // Helical particle path
+      var R = 28, omega = 4, vP = 38;
+      var nTrail = 200;
+      for(var i=1; i<nTrail; i++){
+        var t0 = t - (nTrail-i)*0.025*0.6;
+        var t1 = t - (nTrail-i-1)*0.025*0.6;
+        var x0 = 50 + ((t0*vP) % (W-100));
+        var x1 = 50 + ((t1*vP) % (W-100));
+        if(Math.abs(x1-x0) > 50) continue;
+        var y0 = H/2 + R*Math.sin(omega*t0);
+        var y1 = H/2 + R*Math.sin(omega*t1);
+        var alpha = i/nTrail;
+        var depth = (Math.cos(omega*t1)+1)/2;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.strokeStyle = 'rgba(240,160,80,'+(alpha*(0.3+0.7*depth))+')';
+        ctx.lineWidth = 1+depth*1.2;
+        ctx.stroke();
+      }
+
+      // Current particle
+      var px = 50 + ((t*vP) % (W-100));
+      var py = H/2 + R*Math.sin(omega*t);
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI*2);
+      ctx.fillStyle = C.accent;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI*2);
+      ctx.strokeStyle = C.accent + '40';
+      ctx.lineWidth = 7;
+      ctx.stroke();
+
+      // Annotations
+      ctx.font='500 11px '+F;
+      ctx.fillStyle = C.green;
+      ctx.textAlign='left';
+      ctx.fillText('slides freely along B →', 40, 30);
+
+      ctx.fillStyle = C.red;
+      ctx.fillText('cannot escape across B', 40, H-20);
+
+      // Across-arrow showing it can't escape
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3,3]);
+      ctx.beginPath();
+      ctx.moveTo(W*0.3, H/2 - 50);
+      ctx.lineTo(W*0.3, H/2 - 80);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(W*0.3, H/2 + 50);
+      ctx.lineTo(W*0.3, H/2 + 80);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // X marks
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 2;
+      var xY = H/2 - 80;
+      ctx.beginPath();
+      ctx.moveTo(W*0.3-5, xY-5); ctx.lineTo(W*0.3+5, xY+5);
+      ctx.moveTo(W*0.3+5, xY-5); ctx.lineTo(W*0.3-5, xY+5);
+      ctx.stroke();
+      xY = H/2 + 80;
+      ctx.beginPath();
+      ctx.moveTo(W*0.3-5, xY-5); ctx.lineTo(W*0.3+5, xY+5);
+      ctx.moveTo(W*0.3+5, xY-5); ctx.lineTo(W*0.3-5, xY+5);
+      ctx.stroke();
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 2. GRADIENT BREAKING SYMMETRY ──
+  // Side view: B coming out of the screen, hot inside (left), cold outside (right).
+  // Show that radial direction is special, binormal is symmetry direction.
+  !function(){
+    var s = init('c-gradient'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    !function draw(){
+      t += 0.015;
+      ctx.clearRect(0,0,W,H);
+
+      // Background: temperature gradient (hot left, cold right)
+      var grad = ctx.createLinearGradient(0,0,W,0);
+      grad.addColorStop(0, 'rgba(251,113,133,0.25)');  // hot red
+      grad.addColorStop(1, 'rgba(92,184,240,0.25)');   // cold blue
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 30, W, H-60);
+
+      // Labels
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='left';
+      ctx.fillText('HOT (core)', 14, 22);
+      ctx.fillStyle = C.blue;
+      ctx.textAlign='right';
+      ctx.fillText('COLD (wall)', W-14, 22);
+
+      // B out of screen indicator (top right)
+      ctx.beginPath();
+      ctx.arc(W-40, 50, 12, 0, Math.PI*2);
+      ctx.strokeStyle = C.dim;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(W-40, 50, 3, 0, Math.PI*2);
+      ctx.fillStyle = C.dim;
+      ctx.fill();
+      ctx.font='500 10px '+F;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='right';
+      ctx.fillText('B ⊙ out of screen', W-58, 53);
+
+      // The point we're discussing
+      var cx = W*0.5, cy = H*0.55;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5, 0, Math.PI*2);
+      ctx.fillStyle = C.accent;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5, 0, Math.PI*2);
+      ctx.strokeStyle = C.accent + '40';
+      ctx.lineWidth = 7;
+      ctx.stroke();
+
+      // Radial arrow (right, with gradient)
+      var arrowL = 90;
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + arrowL, cy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx + arrowL, cy);
+      ctx.lineTo(cx + arrowL - 8, cy - 5);
+      ctx.lineTo(cx + arrowL - 8, cy + 5);
+      ctx.closePath();
+      ctx.fillStyle = C.red;
+      ctx.fill();
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='center';
+      ctx.fillText('RADIAL', cx + arrowL/2, cy - 8);
+      ctx.font='500 9px '+F;
+      ctx.fillText('temperature changes', cx + arrowL/2, cy + 18);
+
+      // Binormal arrow (up, no gradient)
+      ctx.strokeStyle = C.purple;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy - arrowL);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - arrowL);
+      ctx.lineTo(cx - 5, cy - arrowL + 8);
+      ctx.lineTo(cx + 5, cy - arrowL + 8);
+      ctx.closePath();
+      ctx.fillStyle = C.purple;
+      ctx.fill();
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.purple;
+      ctx.textAlign='right';
+      ctx.fillText('BINORMAL', cx - 10, cy - arrowL/2);
+      ctx.font='500 9px '+F;
+      ctx.fillText('temperature constant', cx - 10, cy - arrowL/2 + 14);
+
+      // Animated probe: walking along binormal shows constant temp
+      // Walking along radial shows changing temp
+      var probeOffset = Math.sin(t)*30;
+      // Probe along binormal (up-down)
+      var pbx = cx, pby = cy - arrowL/2 + probeOffset*0.8;
+      ctx.beginPath();
+      ctx.arc(pbx, pby, 3, 0, Math.PI*2);
+      ctx.fillStyle = C.purple;
+      ctx.fill();
+
+      // Probe along radial (left-right)
+      var prx = cx + arrowL/2 + probeOffset*0.8, pry = cy;
+      ctx.beginPath();
+      ctx.arc(prx, pry, 3, 0, Math.PI*2);
+      ctx.fillStyle = C.red;
+      ctx.fill();
+
+      // Bottom callout
+      ctx.font='500 10px '+F;
+      ctx.fillStyle = C.text;
+      ctx.textAlign='center';
+      ctx.fillText('The gradient picks out radial as special. Binormal is the "symmetry" direction.', W/2, H-18);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 3. TOKAMAK DIRECTIONS (3D-ish) ──
+  !function(){
+    var s = init('c-tokamak'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    var R = 1.0, r = 0.45;
+    var phiP = 0.4, thetaP = -0.6;
+    var viewPitch = 0.55, viewYaw = 0.3;
+    var cx0 = W * 0.42, cy0 = H * 0.42;
+    var scale = Math.min(W, H) * 0.26;
+
+    function project(pt){
+      var cy = Math.cos(viewYaw), sy = Math.sin(viewYaw);
+      var rx = pt[0]*cy - pt[1]*sy;
+      var ry = pt[0]*sy + pt[1]*cy;
+      var rz = pt[2];
+      var cp = Math.cos(viewPitch), sp = Math.sin(viewPitch);
+      var fy = ry*cp - rz*sp;
+      var fz = ry*sp + rz*cp;
+      return { x: cx0 + rx*scale, y: cy0 - fz*scale, depth: fy };
+    }
+    function torusPoint(phi, theta){
+      var cx = Math.cos(phi), sx = Math.sin(phi);
+      var ct = Math.cos(theta), st = Math.sin(theta);
+      return [(R + r*ct)*cx, (R + r*ct)*sx, r*st];
+    }
+    function eRadial(phi, theta){
+      var cx = Math.cos(phi), sx = Math.sin(phi);
+      var ct = Math.cos(theta), st = Math.sin(theta);
+      return [ct*cx, ct*sx, st];
+    }
+    function eToroidal(phi){
+      var cx = Math.cos(phi), sx = Math.sin(phi);
+      return [-sx, cx, 0];
+    }
+    function ePoloidal(phi, theta){
+      var cx = Math.cos(phi), sx = Math.sin(phi);
+      var ct = Math.cos(theta), st = Math.sin(theta);
+      return [-st*cx, -st*sx, ct];
+    }
+    function eB(phi, theta){
+      var et = eToroidal(phi);
+      var ep = ePoloidal(phi, theta);
+      var w1 = 0.92, w2 = 0.39;
+      var bx = w1*et[0] + w2*ep[0];
+      var by = w1*et[1] + w2*ep[1];
+      var bz = w1*et[2] + w2*ep[2];
+      var n = Math.sqrt(bx*bx + by*by + bz*bz);
+      return [bx/n, by/n, bz/n];
+    }
+    function eBinormal(phi, theta){
+      var er = eRadial(phi, theta);
+      var eb = eB(phi, theta);
+      var bx = er[1]*eb[2] - er[2]*eb[1];
+      var by = er[2]*eb[0] - er[0]*eb[2];
+      var bz = er[0]*eb[1] - er[1]*eb[0];
+      var n = Math.sqrt(bx*bx + by*by + bz*bz);
+      return [bx/n, by/n, bz/n];
+    }
+    function add(p, v, l){ return [p[0]+v[0]*l, p[1]+v[1]*l, p[2]+v[2]*l]; }
+
+    var highlighted = 'radial';
+    var btnBox = document.getElementById('tok-btns');
+    btnBox.innerHTML = '';
+    var options = [
+      {id:'radial',   label:'Radial',     color:C.red},
+      {id:'parallel', label:'Along B',    color:C.blue},
+      {id:'binormal', label:'Binormal',   color:C.purple},
+      {id:'all',      label:'All 3',      color:C.accent}
+    ];
+    var btns = [];
+    options.forEach(function(o){
+      var b = document.createElement('button');
+      b.textContent = o.label;
+      function upd(){
+        if(highlighted === o.id){
+          b.style.color = o.color;
+          b.style.borderColor = o.color;
+          b.style.background = o.color + '22';
+        } else {
+          b.style.color = '';
+          b.style.borderColor = '';
+          b.style.background = '';
+        }
+      }
+      b.addEventListener('click', function(){
+        highlighted = o.id;
+        btns.forEach(function(x){ x.upd(); });
+      });
+      b.upd = upd;
+      upd();
+      btnBox.appendChild(b);
+      btns.push(b);
+    });
+
+    function drawArrow(from2, to2, color, width, label){
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(from2.x, from2.y);
+      ctx.lineTo(to2.x, to2.y);
+      ctx.stroke();
+      var dx = to2.x - from2.x, dy = to2.y - from2.y;
+      var len = Math.sqrt(dx*dx + dy*dy);
+      if(len < 1) return;
+      var ux = dx/len, uy = dy/len;
+      var ah = 10;
+      ctx.beginPath();
+      ctx.moveTo(to2.x, to2.y);
+      ctx.lineTo(to2.x - ux*ah - uy*ah*0.5, to2.y - uy*ah + ux*ah*0.5);
+      ctx.lineTo(to2.x - ux*ah + uy*ah*0.5, to2.y - uy*ah - ux*ah*0.5);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      if(label){
+        ctx.font = '600 11px '+M;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'left';
+        ctx.fillText(label, to2.x + 8*ux, to2.y + 8*uy + 4);
+      }
+    }
+
+    !function draw(){
+      t += 0.008;
+      ctx.clearRect(0,0,W,H);
+      viewYaw = 0.3 + Math.sin(t*0.3) * 0.25;
+
+      var segs = [];
+      var thetaRings = [-Math.PI*0.8, -Math.PI*0.4, 0, Math.PI*0.4, Math.PI*0.8];
+      thetaRings.forEach(function(th){
+        for(var i=0; i<48; i++){
+          var p1 = torusPoint(i/48*Math.PI*2, th);
+          var p2 = torusPoint((i+1)/48*Math.PI*2, th);
+          var pp1 = project(p1), pp2 = project(p2);
+          segs.push({a:pp1, b:pp2, color: C.dim+'40', width: 0.8, depth:(pp1.depth+pp2.depth)/2});
+        }
+      });
+      for(var p=0; p<8; p++){
+        var ph = p/8*Math.PI*2;
+        for(var i=0; i<32; i++){
+          var p1 = torusPoint(ph, i/32*Math.PI*2);
+          var p2 = torusPoint(ph, (i+1)/32*Math.PI*2);
+          var pp1 = project(p1), pp2 = project(p2);
+          segs.push({a:pp1, b:pp2, color: C.dim+'50', width: 0.8, depth:(pp1.depth+pp2.depth)/2});
+        }
+      }
+
+      // Helical field line through our point
+      var q = 2.5;
+      var theta0 = thetaP - phiP/q;
+      for(var i=0; i<160; i++){
+        var ph1 = i/160*Math.PI*2;
+        var ph2 = (i+1)/160*Math.PI*2;
+        var p1 = torusPoint(ph1, theta0+ph1/q);
+        var p2 = torusPoint(ph2, theta0+ph2/q);
+        var pp1 = project(p1), pp2 = project(p2);
+        var hilite = (highlighted==='parallel' || highlighted==='all');
+        segs.push({a:pp1, b:pp2, color: hilite?C.blue+'d0':C.blue+'50', width: hilite?2:1.2, depth:(pp1.depth+pp2.depth)/2+0.01});
+      }
+
+      segs.sort(function(a,b){ return a.depth - b.depth; });
+      segs.forEach(function(sg){
+        ctx.strokeStyle = sg.color;
+        ctx.lineWidth = sg.width;
+        ctx.beginPath();
+        ctx.moveTo(sg.a.x, sg.a.y);
+        ctx.lineTo(sg.b.x, sg.b.y);
+        ctx.stroke();
+      });
+
+      var P = torusPoint(phiP, thetaP);
+      var PP = project(P);
+      ctx.beginPath();
+      ctx.arc(PP.x, PP.y, 6, 0, Math.PI*2);
+      ctx.fillStyle = C.accent;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(PP.x, PP.y, 6, 0, Math.PI*2);
+      ctx.strokeStyle = C.accent+'50';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      var arrowLen = 0.5;
+      var eR = eRadial(phiP, thetaP);
+      var eBh = eB(phiP, thetaP);
+      var eY = eBinormal(phiP, thetaP);
+      var Pr = add(P, eR, arrowLen);
+      var Pb = add(P, eBh, arrowLen);
+      var Py = add(P, eY, arrowLen);
+
+      var showR = highlighted==='radial' || highlighted==='all';
+      var showB = highlighted==='parallel' || highlighted==='all';
+      var showY = highlighted==='binormal' || highlighted==='all';
+      var faded = 'rgba(107,112,132,0.3)';
+
+      if(!showR) drawArrow(PP, project(Pr), faded, 1.5, null);
+      if(!showB) drawArrow(PP, project(Pb), faded, 1.5, null);
+      if(!showY) drawArrow(PP, project(Py), faded, 1.5, null);
+      if(showR) drawArrow(PP, project(Pr), C.red, 2.5, 'radial');
+      if(showB) drawArrow(PP, project(Pb), C.blue, 2.5, 'along B');
+      if(showY) drawArrow(PP, project(Py), C.purple, 2.5, 'binormal');
+
+      // Bottom info panel
+      var panelY = H-66;
+      ctx.fillStyle = C.surface2;
+      ctx.fillRect(8, panelY, W-16, 58);
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(8, panelY, W-16, 58);
+
+      var texts = {
+        radial:    {title:'Radial — outward toward wall',    body:'Direction of the temperature gradient. Heat escapes here.', color: C.red},
+        parallel:  {title:'Along B — along the field line',  body:'Field lines spiral helically. Particles slide freely this way.', color: C.blue},
+        binormal:  {title:'Binormal — perpendicular to both', body:'No gradient in this direction. Where Fourier modes (k_y) live.', color: C.purple},
+        all:       {title:'Three local directions',           body:'Right-handed frame at every plasma point. GENE uses all three.', color: C.accent}
+      };
+      var info = texts[highlighted];
+      ctx.font='600 11px '+M;
+      ctx.fillStyle = info.color;
+      ctx.textAlign='left';
+      ctx.fillText(info.title, 16, panelY+18);
+      ctx.font='500 10px '+F;
+      ctx.fillStyle = C.text;
+      var words = info.body.split(' ');
+      var lineW = W - 32;
+      var line = '';
+      var lineY = panelY + 34;
+      for(var i=0; i<words.length; i++){
+        var test = line + (line?' ':'') + words[i];
+        if(ctx.measureText(test).width > lineW && line){
+          ctx.fillText(line, 16, lineY);
+          line = words[i];
+          lineY += 14;
+        } else {
+          line = test;
+        }
+      }
+      if(line) ctx.fillText(line, 16, lineY);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 4. EDDIES IN PERPENDICULAR PLANE ──
+  !function(){
+    var s = init('c-eddies'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    var ed = [];
+    for(var i=0; i<14; i++){
+      ed.push({
+        x: 40+Math.random()*(W-80),
+        y: 50+Math.random()*(H-110),
+        r: 12+Math.random()*22,
+        sp: 0.4+Math.random()*1.5,
+        d: Math.random()>0.5?1:-1,
+        p: Math.random()*Math.PI*2,
+        hot: Math.random()>0.5
+      });
+    }
+
+    !function draw(){
+      t += 0.018;
+      ctx.clearRect(0,0,W,H);
+
+      // Background gradient (radial direction = horizontal)
+      var grad = ctx.createLinearGradient(0,0,W,0);
+      grad.addColorStop(0, 'rgba(251,113,133,0.1)');
+      grad.addColorStop(1, 'rgba(92,184,240,0.1)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 30, W, H-50);
+
+      // Axis labels
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='left';
+      ctx.fillText('HOT (core)', 12, 22);
+      ctx.fillStyle = C.blue;
+      ctx.textAlign='right';
+      ctx.fillText('COLD (wall)', W-12, 22);
+
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='center';
+      ctx.font='500 10px '+F;
+      ctx.fillText('← radial →', W/2, H-22);
+
+      ctx.save();
+      ctx.translate(14, H/2);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillStyle = C.purple;
+      ctx.font='600 10px '+M;
+      ctx.textAlign='center';
+      ctx.fillText('binormal', 0, 0);
+      ctx.restore();
+
+      // Eddies as swirling spirals
+      ed.forEach(function(e){
+        var a = e.d*e.sp*t + e.p;
+        ctx.save();
+        ctx.translate(e.x, e.y);
+        for(var arm=0; arm<3; arm++){
+          var ao = (arm/3)*Math.PI*2;
+          ctx.beginPath();
+          for(var ss=0; ss<30; ss++){
+            var fr = ss/30;
+            var sr = e.r*fr;
+            var sa = a + ao + fr*Math.PI*2;
+            if(ss===0) ctx.moveTo(sr*Math.cos(sa), sr*Math.sin(sa));
+            else ctx.lineTo(sr*Math.cos(sa), sr*Math.sin(sa));
+          }
+          var color = e.hot ? C.red : C.blue;
+          ctx.strokeStyle = color + '50';
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+        }
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI*2);
+        ctx.fillStyle = e.hot ? C.red : C.blue;
+        ctx.fill();
+        ctx.restore();
+      });
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 5. INSTABILITY: hot/cold blobs swap ──
+  !function(){
+    var s = init('c-instability'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    !function draw(){
+      t += 0.012;
+      ctx.clearRect(0,0,W,H);
+
+      // Background gradient
+      var grad = ctx.createLinearGradient(0,0,W,0);
+      grad.addColorStop(0, 'rgba(251,113,133,0.18)');
+      grad.addColorStop(1, 'rgba(92,184,240,0.18)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 30, W, H-50);
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='left';
+      ctx.fillText('HOT', 12, 22);
+      ctx.fillStyle = C.blue;
+      ctx.textAlign='right';
+      ctx.fillText('COLD', W-12, 22);
+
+      // Two interleaved blobs swapping radially with vortex motion
+      // Hot blob: starts on the left (hot side) and swirls toward the right
+      // Cold blob: starts on the right (cold side) and swirls toward the left
+      var cycle = (t % 6) / 6; // 0 to 1
+      var swap = Math.sin(cycle * Math.PI*2);
+
+      // Hot blob position
+      var hot_x = W*0.3 + swap * W*0.25;
+      var hot_y = H*0.5 + 25*Math.sin(t*1.5);
+      // Cold blob position
+      var cold_x = W*0.7 - swap * W*0.25;
+      var cold_y = H*0.5 - 25*Math.sin(t*1.5);
+
+      // Draw the curl (path traced)
+      // Hot blob: spiral path
+      function drawSpiralPath(cx0, cy0, color, time){
+        ctx.beginPath();
+        for(var i=0; i<60; i++){
+          var ti = time - i*0.04;
+          var localCycle = (ti % 6) / 6;
+          var localSwap = Math.sin(localCycle * Math.PI*2);
+          var px = cx0 + localSwap*W*0.25 + 18*Math.cos(ti*3);
+          var py = H*0.5 + 25*Math.sin(ti*1.5) + 18*Math.sin(ti*3);
+          if(i===0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = color + '50';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      drawSpiralPath(W*0.3, 0, C.red, t);
+
+      function drawSpiralPathCold(time){
+        ctx.beginPath();
+        for(var i=0; i<60; i++){
+          var ti = time - i*0.04;
+          var localCycle = (ti % 6) / 6;
+          var localSwap = Math.sin(localCycle * Math.PI*2);
+          var px = W*0.7 - localSwap*W*0.25 - 18*Math.cos(ti*3);
+          var py = H*0.5 - 25*Math.sin(ti*1.5) - 18*Math.sin(ti*3);
+          if(i===0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = C.blue + '50';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      drawSpiralPathCold(t);
+
+      // Hot blob (with vortex pattern)
+      var hotPx = hot_x + 18*Math.cos(t*3);
+      var hotPy = hot_y + 18*Math.sin(t*3);
+      ctx.beginPath();
+      ctx.arc(hotPx, hotPy, 16, 0, Math.PI*2);
+      ctx.fillStyle = C.red + '60';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(hotPx, hotPy, 16, 0, Math.PI*2);
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.font='500 10px '+F;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='center';
+      ctx.fillText('hot', hotPx, hotPy+4);
+
+      // Cold blob
+      var coldPx = cold_x - 18*Math.cos(t*3);
+      var coldPy = cold_y - 18*Math.sin(t*3);
+      ctx.beginPath();
+      ctx.arc(coldPx, coldPy, 14, 0, Math.PI*2);
+      ctx.fillStyle = C.blue + '60';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(coldPx, coldPy, 14, 0, Math.PI*2);
+      ctx.strokeStyle = C.blue;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = C.blue;
+      ctx.fillText('cold', coldPx, coldPy+4);
+
+      // Caption
+      ctx.font='500 10px '+F;
+      ctx.fillStyle = C.text;
+      ctx.textAlign='center';
+      ctx.fillText('Hot blobs spiral outward; cold blobs spiral inward. The swirl IS the eddy.', W/2, H-18);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 6. SWEEP ALONG BINORMAL ──
+  !function(){
+    var s = init('c-sweep'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+    var slider = document.getElementById('sweep-slider');
+
+    // Top: 2D snapshot of eddy pattern (radial × binormal)
+    // Bottom: temperature trace as you walk along binormal
+
+    var topY = 16, topH = H*0.55;
+    var botY = topY + topH + 18, botH = H - botY - 18;
+
+    function getTemp(yPos){
+      // Pattern: oscillates in y (binormal). Sum a few modes.
+      return 0.6*Math.sin(yPos*Math.PI*4) + 0.3*Math.sin(yPos*Math.PI*9 + 0.5);
+    }
+
+    !function draw(){
+      t += 0.012;
+      ctx.clearRect(0,0,W,H);
+
+      var pad = 30;
+      var topW = W - 2*pad;
+
+      // ── Top panel: eddy field ──
+      // x-axis = binormal (we sweep along this)
+      // y-axis = radial (different radii, fixed for snapshot)
+      ctx.font='500 10px '+M;
+      ctx.fillStyle = C.purple;
+      ctx.textAlign='center';
+      ctx.fillText('binormal y →', pad+topW/2, topY+topH+10);
+
+      ctx.save();
+      ctx.translate(14, topY+topH/2);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillStyle = C.red;
+      ctx.font='500 10px '+M;
+      ctx.textAlign='center';
+      ctx.fillText('← radial', 0, 0);
+      ctx.restore();
+
+      // Render the eddy field as a colored grid
+      // Use a 2D pattern T(x,y) and sample it
+      var resX = 60, resY = 30;
+      var cellW = topW / resX;
+      var cellH = topH / resY;
+      for(var ix=0; ix<resX; ix++){
+        for(var iy=0; iy<resY; iy++){
+          var xn = ix/resX;
+          var yn = iy/resY;
+          // Pattern: eddies at fixed radius look like sine waves in y
+          // Add slight radial structure too
+          var v = 0.6*Math.sin(yn*Math.PI*4) * Math.cos(xn*Math.PI*2 - 1)
+                + 0.3*Math.sin(yn*Math.PI*9 + 0.5) * Math.cos(xn*Math.PI*4);
+          var hue;
+          if(v > 0){
+            ctx.fillStyle = 'rgba(251,113,133,'+Math.min(0.6, v*0.7)+')';
+          } else {
+            ctx.fillStyle = 'rgba(92,184,240,'+Math.min(0.6, -v*0.7)+')';
+          }
+          ctx.fillRect(pad+ix*cellW, topY+iy*cellH, cellW+0.5, cellH+0.5);
+        }
+      }
+
+      // Outline
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(pad, topY, topW, topH);
+
+      // Sweep line (vertical line at binormal position)
+      var bp = parseFloat(slider.value);
+      var sweepX = pad + bp * topW;
+      ctx.strokeStyle = C.heading;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sweepX, topY);
+      ctx.lineTo(sweepX, topY+topH);
+      ctx.stroke();
+
+      // Probe dot at chosen y, fixed mid-radial
+      var probeY = topY + topH * 0.5;
+      ctx.beginPath();
+      ctx.arc(sweepX, probeY, 5, 0, Math.PI*2);
+      ctx.fillStyle = C.heading;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sweepX, probeY, 5, 0, Math.PI*2);
+      ctx.strokeStyle = C.heading + '40';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      // ── Bottom panel: temperature along binormal ──
+      ctx.font='500 9px '+M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='left';
+      ctx.fillText('TEMPERATURE AS YOU WALK ALONG BINORMAL:', pad, botY-6);
+
+      var midBot = botY + botH/2;
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(pad, midBot);
+      ctx.lineTo(pad+topW, midBot);
+      ctx.stroke();
+
+      // Plot T as function of y
+      ctx.beginPath();
+      for(var px=0; px<=topW; px++){
+        var yn = px/topW;
+        var T = getTemp(yn);
+        var py = midBot - T * botH * 0.4;
+        if(px===0) ctx.moveTo(pad+px, py);
+        else ctx.lineTo(pad+px, py);
+      }
+      ctx.strokeStyle = C.purple;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Probe at current sweep position
+      var T = getTemp(bp);
+      var probeBy = midBot - T * botH * 0.4;
+      ctx.beginPath();
+      ctx.arc(sweepX, probeBy, 5, 0, Math.PI*2);
+      ctx.fillStyle = C.heading;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sweepX, probeBy, 5, 0, Math.PI*2);
+      ctx.strokeStyle = C.heading + '40';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      // Connecting line between top and bottom probe
+      ctx.strokeStyle = C.heading + '40';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3,3]);
+      ctx.beginPath();
+      ctx.moveTo(sweepX, probeY);
+      ctx.lineTo(sweepX, probeBy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // T value
+      ctx.font='600 11px '+M;
+      ctx.fillStyle = T > 0 ? C.red : C.blue;
+      ctx.textAlign='left';
+      ctx.fillText('T = '+(T>0?'+':'')+T.toFixed(2), sweepX+10, probeBy-8);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 7. EXB MECHANISM ──
+  !function(){
+    var s = init('c-exb'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    !function draw(){
+      t += 0.018;
+      ctx.clearRect(0,0,W,H);
+
+      // Background gradient
+      var grad = ctx.createLinearGradient(0,0,W,0);
+      grad.addColorStop(0, 'rgba(251,113,133,0.12)');
+      grad.addColorStop(1, 'rgba(92,184,240,0.12)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,30,W,H-60);
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='left';
+      ctx.fillText('HOT', 12, 22);
+      ctx.fillStyle = C.blue;
+      ctx.textAlign='right';
+      ctx.fillText('COLD', W-12, 22);
+
+      // Radial axis label
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='center';
+      ctx.font='500 10px '+F;
+      ctx.fillText('← radial (heat escapes →)', W/2, H-12);
+
+      // B out of screen
+      ctx.beginPath();
+      ctx.arc(W-40, 50, 10, 0, Math.PI*2);
+      ctx.strokeStyle = C.dim;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(W-40, 50, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = C.dim;
+      ctx.fill();
+      ctx.font='500 9px '+F;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='right';
+      ctx.fillText('B ⊙', W-55, 53);
+
+      // Eddy: high-φ blob in the middle
+      var eddyX = W/2, eddyY = H/2 + 10;
+      var eddyR = 60;
+
+      // Concentric φ contours
+      for(var rr=eddyR*0.3; rr<=eddyR; rr+=12){
+        ctx.beginPath();
+        ctx.arc(eddyX, eddyY, rr, 0, Math.PI*2);
+        ctx.strokeStyle = C.accent + '40';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(eddyX, eddyY, eddyR*0.25, 0, Math.PI*2);
+      ctx.fillStyle = C.accent + '50';
+      ctx.fill();
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.accent;
+      ctx.textAlign='center';
+      ctx.fillText('high φ', eddyX, eddyY-eddyR-6);
+
+      // E×B drift goes around the eddy (counter-clockwise here)
+      var nArrows = 8;
+      for(var i=0; i<nArrows; i++){
+        var a = (i/nArrows)*Math.PI*2 + t*0.5;
+        var rArr = eddyR * 0.65;
+        var px = eddyX + rArr*Math.cos(a);
+        var py = eddyY + rArr*Math.sin(a);
+
+        // Tangent direction (counter-clockwise)
+        var tx = -Math.sin(a);
+        var ty = Math.cos(a);
+
+        var arrLen = 18;
+        var ax = px + tx*arrLen;
+        var ay = py + ty*arrLen;
+
+        // Color by radial component:
+        //   if ay < py (going up = ?) — depends on geometry
+        // We want to highlight: on the "left" side, E×B carries plasma toward larger x (outward = colder side in our convention? no, hot is left in this viz)
+        // Hmm. Let me set it so that "left side of eddy goes down" and "right side of eddy goes up"
+        // The radial direction is horizontal: outward = rightward (toward COLD label)
+        //   Actually wait: HOT label is on LEFT, COLD on RIGHT, so OUTWARD = rightward = toward cold
+        // On the upper part of the eddy: tangent points leftward (toward hot)
+        // On the lower part: tangent points rightward (toward cold = OUTWARD)
+
+        var color, width;
+        if(tx > 0.3){
+          // Moving rightward = outward = carrying hot to cold side
+          color = C.red;
+          width = 2.5;
+        } else if(tx < -0.3){
+          // Moving leftward = inward = carrying cold to hot side
+          color = C.blue;
+          width = 2.5;
+        } else {
+          color = C.dim;
+          width = 1.5;
+        }
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(ax, ay);
+        ctx.stroke();
+
+        // arrowhead
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - tx*7 - ty*4, ay - ty*7 + tx*4);
+        ctx.lineTo(ax - tx*7 + ty*4, ay - ty*7 - tx*4);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+
+      // Annotations
+      ctx.font='500 9px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='left';
+      ctx.fillText('hot plasma → out', eddyX + eddyR + 8, eddyY + 30);
+
+      ctx.fillStyle = C.blue;
+      ctx.textAlign='right';
+      ctx.fillText('cold plasma ← in', eddyX - eddyR - 8, eddyY - 30);
+
+      // Net result label
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign='center';
+      ctx.fillText('Net: heat carried outward', W/2, 50);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 8. NO BINORMAL → NO TRANSPORT ──
+  !function(){
+    var s = init('c-no-binormal'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+    var midX = W/2;
+
+    !function draw(){
+      t += 0.015;
+      ctx.clearRect(0,0,W,H);
+
+      var pad = 14;
+
+      // Divider
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(midX, 30);
+      ctx.lineTo(midX, H-30);
+      ctx.stroke();
+
+      // Headers
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.green;
+      ctx.textAlign='center';
+      ctx.fillText('WITH binormal variation', midX/2, 18);
+      ctx.fillStyle = C.red;
+      ctx.fillText('NO binormal variation', midX + midX/2, 18);
+
+      // ── LEFT: eddies → transport happens ──
+      // Background gradient
+      var lW = midX - 2*pad;
+      var lX = pad;
+      var fY = 35, fH = H - 65;
+
+      var gL = ctx.createLinearGradient(lX, 0, lX+lW, 0);
+      gL.addColorStop(0, 'rgba(251,113,133,0.15)');
+      gL.addColorStop(1, 'rgba(92,184,240,0.15)');
+      ctx.fillStyle = gL;
+      ctx.fillRect(lX, fY, lW, fH);
+
+      // Eddy pattern
+      var resX = 25, resY = 20;
+      var cellW = lW/resX, cellH = fH/resY;
+      for(var ix=0; ix<resX; ix++){
+        for(var iy=0; iy<resY; iy++){
+          var xn = ix/resX, yn = iy/resY;
+          var v = Math.sin(yn*Math.PI*4 + t)*Math.cos(xn*Math.PI*2);
+          if(v > 0) ctx.fillStyle = 'rgba(251,113,133,'+Math.min(0.6, v*0.6)+')';
+          else ctx.fillStyle = 'rgba(92,184,240,'+Math.min(0.6, -v*0.6)+')';
+          ctx.fillRect(lX+ix*cellW, fY+iy*cellH, cellW+0.5, cellH+0.5);
+        }
+      }
+
+      // Animated flux arrows escaping outward
+      for(var i=0; i<3; i++){
+        var ay = fY + 30 + i*((fH-60)/3) + 10*Math.sin(t+i);
+        var aProgress = ((t+i*0.7) % 3) / 3;
+        var ax0 = lX + 20;
+        var axEnd = lX + lW - 20;
+        var ax = ax0 + aProgress*(axEnd-ax0);
+        ctx.beginPath();
+        ctx.arc(ax, ay, 5, 0, Math.PI*2);
+        ctx.fillStyle = C.red + 'b0';
+        ctx.fill();
+      }
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.green;
+      ctx.textAlign='center';
+      ctx.fillText('heat escapes →', lX+lW/2, H-12);
+
+      // ── RIGHT: stripes → no transport ──
+      var rW = midX - 2*pad;
+      var rX = midX + pad;
+
+      var gR = ctx.createLinearGradient(rX, 0, rX+rW, 0);
+      gR.addColorStop(0, 'rgba(251,113,133,0.15)');
+      gR.addColorStop(1, 'rgba(92,184,240,0.15)');
+      ctx.fillStyle = gR;
+      ctx.fillRect(rX, fY, rW, fH);
+
+      // Vertical stripes (constant in y, varying only in x = radial)
+      // No binormal variation
+      var nStripes = 6;
+      for(var i=0; i<nStripes; i++){
+        var sx = rX + (i/nStripes)*rW;
+        var sw = rW/nStripes;
+        var v = Math.sin(i/nStripes*Math.PI*4);
+        if(v > 0) ctx.fillStyle = 'rgba(251,113,133,'+Math.min(0.5, v*0.5)+')';
+        else ctx.fillStyle = 'rgba(92,184,240,'+Math.min(0.5, -v*0.5)+')';
+        ctx.fillRect(sx, fY, sw+0.5, fH);
+      }
+
+      // No flux arrows. Just static stripes.
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='center';
+      ctx.fillText('no transport ✕', rX+rW/2, H-12);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 9. DERIV: real space vs Fourier ──
+  !function(){
+    var s = init('c-deriv'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+    var midX = W/2;
+    var pad = 14;
+
+    var modes = [
+      {k:2, a:0.55, c:C.accent},
+      {k:5, a:0.30, c:C.blue},
+      {k:9, a:0.15, c:C.purple}
+    ];
+
+    var N = 32;
+    var grid = [];
+    for(var i=0; i<N; i++){
+      var x = (i/N)*2*Math.PI;
+      var v = 0;
+      modes.forEach(function(m){ v += m.a*Math.sin(m.k*x); });
+      grid.push({x:x, f:v});
+    }
+    function dfAt(x){
+      var v=0;
+      modes.forEach(function(m){ v += m.a*m.k*Math.cos(m.k*x); });
+      return v;
+    }
+    function fAt(x){
+      var v=0;
+      modes.forEach(function(m){ v += m.a*Math.sin(m.k*x); });
+      return v;
+    }
+
+    !function draw(){
+      t += 0.012;
+      ctx.clearRect(0,0,W,H);
+
+      ctx.strokeStyle = C.border;
+      ctx.beginPath();
+      ctx.moveTo(midX, 26);
+      ctx.lineTo(midX, H-20);
+      ctx.stroke();
+
+      // Headers
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.red;
+      ctx.textAlign='center';
+      ctx.fillText('REAL SPACE', midX/2, 16);
+      ctx.fillStyle = C.green;
+      ctx.fillText('FOURIER', midX + midX/2, 16);
+
+      // ── LEFT: real space derivative ──
+      var lW = midX - 2*pad;
+      var topY = 30, topH = (H-50)*0.45;
+      var midTopL = topY+topH/2;
+
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(pad, midTopL);
+      ctx.lineTo(pad+lW, midTopL);
+      ctx.stroke();
+
+      ctx.beginPath();
+      for(var px=0; px<=lW; px++){
+        var x = (px/lW)*2*Math.PI;
+        var y = midTopL - fAt(x)*topH*0.4;
+        if(px===0) ctx.moveTo(pad+px, y);
+        else ctx.lineTo(pad+px, y);
+      }
+      ctx.strokeStyle = C.heading;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Grid points
+      grid.forEach(function(g){
+        var px = pad + (g.x/(2*Math.PI))*lW;
+        var py = midTopL - g.f*topH*0.4;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI*2);
+        ctx.fillStyle = C.dim;
+        ctx.fill();
+      });
+
+      // Cursor highlighting 3 neighbors
+      var cursor = Math.floor(((t*0.4)%1)*N);
+      for(var di=-1; di<=1; di++){
+        var idx = (cursor+di+N)%N;
+        var g = grid[idx];
+        var px = pad + (g.x/(2*Math.PI))*lW;
+        var py = midTopL - g.f*topH*0.4;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI*2);
+        ctx.fillStyle = di===0 ? C.red : C.red+'80';
+        ctx.fill();
+      }
+
+      // Bottom: derivative being filled in
+      var botY = topY+topH+10;
+      var botH = (H-50)*0.45;
+      var midBotL = botY+botH/2;
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(pad, midBotL);
+      ctx.lineTo(pad+lW, midBotL);
+      ctx.stroke();
+
+      var fillP = (t*0.4)%1;
+      var maxPx = Math.floor(fillP*lW);
+      ctx.beginPath();
+      for(var px=0; px<=maxPx; px++){
+        var x = (px/lW)*2*Math.PI;
+        var y = midBotL - dfAt(x)*topH*0.18;
+        if(px===0) ctx.moveTo(pad+px, y);
+        else ctx.lineTo(pad+px, y);
+      }
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.font='500 9px '+M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='center';
+      ctx.fillText('subtract neighbors, slow', midX/2, H-6);
+
+      // ── RIGHT: Fourier ──
+      var rX = midX + pad;
+      var rW = midX - 2*pad;
+      var rowH = (H-50)/6;
+      var labelW = 50;
+      var barXStart = rX + labelW;
+      var barRoom = rW - labelW - 30;
+
+      ctx.font='600 9px '+M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='left';
+      ctx.fillText('before:', rX, topY-2);
+
+      modes.forEach(function(m, i){
+        var y = topY + i*rowH + rowH*0.5;
+        ctx.font='500 10px '+M;
+        ctx.fillStyle = m.c;
+        ctx.textAlign='left';
+        ctx.fillText('k='+m.k, rX, y+3);
+        var bw = (m.a/0.6)*barRoom*0.7;
+        ctx.fillStyle = m.c+'a0';
+        ctx.fillRect(barXStart, y-5, bw, 10);
+      });
+
+      var opY = topY + 3*rowH + rowH*0.5;
+      var pulse = (Math.sin(t*3)+1)/2;
+      ctx.font='600 11px '+M;
+      ctx.fillStyle = C.green;
+      ctx.textAlign='center';
+      ctx.globalAlpha = 0.6 + pulse*0.4;
+      ctx.fillText('× k', midX + midX/2, opY);
+      ctx.globalAlpha = 1;
+
+      ctx.font='600 9px '+M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='left';
+      ctx.fillText('after:', rX, topY+4*rowH-2);
+
+      modes.forEach(function(m, i){
+        var y = topY + (4+i)*rowH + rowH*0.5;
+        var newA = m.a*m.k;
+        ctx.font='500 10px '+M;
+        ctx.fillStyle = m.c;
+        ctx.textAlign='left';
+        ctx.fillText('k='+m.k, rX, y+3);
+        var bw = Math.min((newA/3)*barRoom*0.7, barRoom*0.7);
+        ctx.fillStyle = m.c;
+        ctx.fillRect(barXStart, y-5, bw, 10);
+      });
+
+      ctx.font='500 9px '+M;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='center';
+      ctx.fillText('exact, instant', midX + midX/2, H-6);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 10. EDDY LADDER ──
+  !function(){
+    var s = init('c-ladder'); if(!s) return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+    var kys = [1, 2, 3, 5, 8, 12, 18, 24];
+    var pad = 50;
+    var topPad = 24;
+    var botPad = 28;
+
+    !function draw(){
+      t += 0.012;
+      ctx.clearRect(0,0,W,H);
+
+      ctx.font='600 10px '+M;
+      ctx.fillStyle = C.heading;
+      ctx.textAlign='left';
+      ctx.fillText('EACH ROW = ONE k_y VALUE', pad, 16);
+      ctx.font='500 9px '+F;
+      ctx.fillStyle = C.dim;
+      ctx.textAlign='right';
+      ctx.fillText('(8 of GENE\'s 24 modes)', W-pad, 16);
+
+      var rowCount = kys.length;
+      var avail = H - topPad - botPad;
+      var rowH = avail / rowCount;
+      var pWidth = W - pad - 20;
+
+      kys.forEach(function(k, i){
+        var rowMid = topPad + i*rowH + rowH/2;
+        ctx.font='600 10px '+M;
+        ctx.fillStyle = C.purple;
+        ctx.textAlign='right';
+        ctx.fillText('k_y='+k, pad-8, rowMid+3);
+
+        ctx.font='italic 9px '+F;
+        ctx.fillStyle = C.dim;
+        ctx.textAlign='left';
+        var d = k<=2?'huge':k<=5?'large':k<=10?'medium':k<=18?'small':'tiny';
+        ctx.fillText(d, W-pad+4, rowMid+3);
+
+        ctx.strokeStyle = C.border;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(pad, rowMid);
+        ctx.lineTo(pad+pWidth, rowMid);
+        ctx.stroke();
+
+        ctx.beginPath();
+        for(var px=0; px<=pWidth; px++){
+          var x = (px/pWidth)*2*Math.PI;
+          var v = Math.sin(k*x + t*0.6*(1+k*0.1));
+          var y = rowMid - v*rowH*0.38;
+          if(px===0) ctx.moveTo(pad+px, y);
+          else ctx.lineTo(pad+px, y);
+        }
+        ctx.strokeStyle = C.purple;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+      });
+
+      ctx.font='500 10px '+F;
+      ctx.fillStyle = C.text;
+      ctx.textAlign='center';
+      ctx.fillText('Small k_y → giant eddies   ·   Large k_y → tiny eddies', W/2, H-10);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+})();
+</script>
+</body>
+</html>

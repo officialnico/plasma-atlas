@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The shape of a plasma, written as a sum</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="../_lib/katex/katex.min.css">
+<script defer src="../_lib/katex/katex.min.js"></script>
+<script defer src="../_lib/katex/auto-render.min.js"></script>
+
+<style>
+:root{
+  --bg:#080b16;
+  --bg2:#0d1224;
+  --panel:#121830;
+  --panel2:#171e3b;
+  --line:#26305a;
+  --ink:#eaeefb;
+  --muted:#8b95bd;
+  --faint:#5a648c;
+  --mag:#ff5d8f;     /* plasma magenta */
+  --amber:#f9a03f;   /* plasma amber */
+  --gold:#ffd35e;
+  --violet:#9a6bff;
+  --cyan:#4fd6e0;    /* the "field" / electric color */
+  --good:#6fe0a8;
+  --warn:#ff7a6b;
+  --maxgrad:linear-gradient(90deg,#9a6bff,#ff5d8f,#f9a03f,#ffd35e);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:'Inter',system-ui,sans-serif;line-height:1.65;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+.mono{font-family:'IBM Plex Mono',monospace}
+a{color:var(--cyan)}
+
+/* ---------- typographic scale ---------- */
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--faint);margin:0 0 18px;
+}
+h1{font-family:'Spectral',serif;font-weight:400;font-size:clamp(2.4rem,6.2vw,4.6rem);
+  line-height:1.02;letter-spacing:-.02em;margin:0;}
+h2{font-family:'Spectral',serif;font-weight:400;font-size:clamp(1.7rem,3.6vw,2.7rem);
+  line-height:1.08;letter-spacing:-.015em;margin:0 0 .5em;}
+h3{font-family:'Spectral',serif;font-weight:500;font-size:1.32rem;margin:0 0 .35em;letter-spacing:-.01em}
+h2 em{font-style:italic;color:var(--mag)}
+p{font-size:1.04rem;color:#cdd4ee}
+.lead{font-size:1.18rem;color:#dde3f6}
+.dim{color:var(--muted)}
+.tiny{font-size:.86rem;color:var(--faint)}
+
+/* ---------- section frame ---------- */
+section{padding:clamp(64px,9vw,118px) 0;position:relative}
+.sectnum{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.28em;
+  color:var(--mag);text-transform:uppercase;margin-bottom:14px;display:block;opacity:.85}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+
+/* ---------- hero ---------- */
+#hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  padding-top:60px;padding-bottom:40px;position:relative}
+#phasecanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.5}
+#hero .wrap{position:relative;z-index:2}
+#hero::after{content:"";position:absolute;inset:0;z-index:1;
+  background:radial-gradient(ellipse 90% 60% at 30% 45%,transparent 30%,var(--bg) 95%);}
+.herobadge{display:inline-flex;gap:14px;align-items:center;margin-bottom:26px}
+.herobadge span{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.26em;
+  color:var(--cyan);text-transform:uppercase}
+.herobadge i{width:6px;height:6px;border-radius:50%;background:var(--mag);display:inline-block}
+#hero h1 em{font-style:italic;background:var(--maxgrad);-webkit-background-clip:text;
+  background-clip:text;-webkit-text-fill-color:transparent}
+.herosub{max-width:620px;margin:28px 0 0;font-size:1.22rem;color:#dde3f6}
+.scrollcue{margin-top:54px;display:flex;align-items:center;gap:12px;color:var(--faint);
+  font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.2em;text-transform:uppercase}
+.scrollcue .arrow{width:22px;height:22px;border-right:1.5px solid var(--faint);
+  border-bottom:1.5px solid var(--faint);transform:rotate(45deg);animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:rotate(45deg) translate(0,0)}50%{transform:rotate(45deg) translate(3px,3px)}}
+
+/* ---------- panels / cards ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center}
+.callout{border-left:2px solid var(--mag);padding:6px 0 6px 20px;margin:26px 0;color:#dde3f6}
+.callout.cyan{border-color:var(--cyan)}
+.callout strong{color:#fff;font-weight:600}
+
+/* strategy cards */
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  display:flex;flex-direction:column}
+.scard canvas{width:100%;height:150px;display:block;background:#0a0e1f;border-bottom:1px solid var(--line)}
+.scard .body{padding:18px 20px 22px}
+.scard h3{margin-bottom:2px}
+.scard .tag{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--faint)}
+.scard p{font-size:.92rem;margin:.5em 0 0;color:#c3cbe8}
+.pro{color:var(--good);font-size:.86rem;margin-top:10px}
+.con{color:var(--warn);font-size:.86rem;margin-top:3px}
+.pro b,.con b{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.05em;margin-right:6px;font-weight:500;opacity:.8}
+
+/* comparison table */
+table.cmp{width:100%;border-collapse:collapse;margin-top:30px;font-size:.92rem}
+table.cmp th,table.cmp td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line)}
+table.cmp th{font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);font-weight:500}
+table.cmp td:first-child{color:var(--muted)}
+table.cmp .h{color:#fff;font-weight:500}
+
+/* ---------- interactive controls ---------- */
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:.82rem;letter-spacing:.02em;
+  background:var(--panel2);color:var(--muted);border:1px solid var(--line);border-radius:999px;
+  padding:8px 16px;cursor:pointer;transition:.18s;user-select:none}
+.chip:hover{border-color:var(--mag);color:var(--ink)}
+.chip.on{background:rgba(255,93,143,.14);border-color:var(--mag);color:#fff}
+.sliderrow{display:flex;align-items:center;gap:16px;margin:8px 0 4px;flex-wrap:wrap}
+.sliderrow label{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted);min-width:128px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;
+  background:linear-gradient(90deg,var(--violet),var(--mag),var(--amber));flex:1;min-width:160px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:#fff;border:3px solid var(--mag);cursor:pointer;box-shadow:0 0 12px rgba(255,93,143,.6)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;
+  border:3px solid var(--mag);cursor:pointer}
+.bignum{font-family:'IBM Plex Mono',monospace;font-size:1.5rem;color:#fff;min-width:40px;text-align:right}
+
+/* basis explorer + reconstruction canvases */
+.plotwrap{background:#0a0e1f;border:1px solid var(--line);border-radius:14px;padding:14px}
+canvas.plot{width:100%;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:.82rem;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+/* term mapper */
+.eqline{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:6px 0 22px;
+  font-size:1.05rem;background:#0a0e1f;border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.term{cursor:pointer;border-radius:9px;padding:6px 12px;border:1px dashed transparent;transition:.16s}
+.term:hover{background:rgba(154,107,255,.12)}
+.term.on{background:rgba(255,93,143,.16);border-color:var(--mag)}
+.termdetail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 26px;min-height:160px}
+.termdetail .arrowmap{font-size:.78rem;font-family:'IBM Plex Mono',monospace;color:var(--cyan);
+  letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px}
+
+/* moment ladder */
+.ladder{display:flex;flex-direction:column;gap:0;margin-top:10px}
+.rung{display:grid;grid-template-columns:90px 1fr;gap:20px;align-items:center;
+  padding:16px 0;border-bottom:1px solid var(--line);position:relative}
+.rung:last-child{border-bottom:none}
+.rung .cn{font-family:'IBM Plex Mono',monospace;font-size:1.15rem;color:var(--gold);text-align:right}
+.rung .what b{color:#fff;font-weight:600}
+.rung .what span{color:var(--muted);font-size:.92rem}
+.coupling{text-align:center;color:var(--mag);font-size:.78rem;font-family:'IBM Plex Mono',monospace;
+  letter-spacing:.1em;padding:2px 0}
+
+/* numbered steps */
+.steps{counter-reset:s;margin-top:18px}
+.step{display:grid;grid-template-columns:auto 1fr;gap:22px;padding:22px 0;border-top:1px solid var(--line)}
+.step::before{counter-increment:s;content:counter(s,decimal-leading-zero);
+  font-family:'IBM Plex Mono',monospace;color:var(--mag);font-size:.9rem;letter-spacing:.05em;padding-top:3px}
+.step h3{margin-bottom:.2em}
+.step p{margin:.3em 0 0;font-size:.98rem}
+
+/* katex display blocks */
+.eqbox{background:#0a0e1f;border:1px solid var(--line);border-radius:12px;
+  padding:18px 20px;margin:16px 0;overflow-x:auto}
+.katex{color:#f0f3ff}
+
+/* footer */
+footer{padding:80px 0 70px;border-top:1px solid var(--line);background:var(--bg2)}
+.reads{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:24px}
+.read{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:18px 20px}
+.read .who{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase}
+.read .ti{color:#fff;font-weight:500;margin:5px 0 4px;font-size:1.02rem}
+.read .note{font-size:.86rem;color:var(--muted)}
+
+/* reveal anim */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+
+@media(max-width:780px){
+  .grid3{grid-template-columns:1fr}
+  .grid2{grid-template-columns:1fr;gap:24px}
+  .reads{grid-template-columns:1fr}
+  .rung{grid-template-columns:70px 1fr;gap:14px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<section id="hero">
+  <canvas id="phasecanvas"></canvas>
+  <div class="wrap">
+    <div class="herobadge"><i></i><span>Vlasov</span><i></i><span>Hermite</span><i></i><span>Fourier</span></div>
+    <h1>You don't store<br>the plasma.<br>You store its <em>shape.</em></h1>
+    <p class="herosub">A slow, visual walk from the Vlasov equation to the 1-D Hermite spectral method —
+    the trick of describing an entire velocity distribution with nothing but a short stack of numbers.</p>
+    <div class="scrollcue"><span>Scroll to begin</span><div class="arrow"></div></div>
+  </div>
+</section>
+
+<!-- ============ 0 · WHAT ARE WE LOOKING AT ============ -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <span class="sectnum">00 · The object on the table</span>
+    <h2>First, what is the thing<br>we're trying to track?</h2>
+    <div class="grid2" style="margin-top:30px">
+      <div>
+        <p>A plasma is a sea of charged particles. We don't follow each particle — there are far too many.
+        Instead we track one object: the <strong style="color:#fff">distribution function</strong>
+        <span class="mono" style="color:var(--gold)">f(x, v, t)</span>.</p>
+        <p>Read it like a heat-map of <em>"how much stuff is here, moving this fast."</em>
+        It lives in <strong style="color:#fff">phase space</strong> — position on one axis, velocity on the other.
+        A tall ridge at <span class="mono">v = 0</span> means most particles are sitting still; a hump out at
+        high <span class="mono">v</span> means a fast-moving beam.</p>
+        <p>The Vlasov equation just says how this heat-map sloshes around over time as particles stream and
+        feel electric forces:</p>
+        <div class="eqbox">$$\frac{\partial f}{\partial t}\;+\;\underbrace{v\,\frac{\partial f}{\partial x}}_{\text{streaming}}\;+\;\underbrace{\frac{q}{m}E\,\frac{\partial f}{\partial v}}_{\text{pushed by the field}}\;=\;0$$</div>
+        <p class="dim" style="font-size:.95rem">That's the whole game: evolve <span class="mono">f</span> in time. The hard part is that
+        <span class="mono">f</span> is a <em>function over a 2-D space</em>, and the velocity direction loves to grow
+        absurdly fine structure. The hero image above is exactly that happening — watch the smooth blob get
+        combed into thinner and thinner stripes. Hold that thought; it comes back to bite us.</p>
+      </div>
+      <div class="panel">
+        <h3 style="color:var(--cyan)">The cast, in plain words</h3>
+        <p style="font-size:.95rem"><span class="mono" style="color:var(--gold)">f(x,v,t)</span> — the distribution. The star.</p>
+        <p style="font-size:.95rem"><span class="mono" style="color:var(--cyan)">x</span> — where a particle is.</p>
+        <p style="font-size:.95rem"><span class="mono" style="color:var(--cyan)">v</span> — how fast it's going (and which way).</p>
+        <p style="font-size:.95rem"><span class="mono" style="color:var(--cyan)">E(x,t)</span> — the electric field the particles make and feel.</p>
+        <p style="font-size:.95rem"><span class="mono">q, m</span> — charge and mass of the species.</p>
+        <p class="tiny" style="margin-top:18px">"1-D" here means one position axis and one velocity axis — the
+        smallest setting where everything is real but nothing is buried in extra indices. Physicists call it
+        <span class="mono">1D1V</span>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1 · THREE STRATEGIES ============ -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <span class="sectnum">01 · Three ways to chase a distribution</span>
+    <h2>Everyone agrees on the goal.<br>Nobody agrees on <em>how.</em></h2>
+    <p class="lead" style="max-width:680px;margin-top:18px">There are three big families of methods. They differ
+    in one question: <em>how do you write down a smooth function on a computer that only holds numbers?</em></p>
+
+    <div class="grid3" style="margin-top:36px">
+      <div class="scard">
+        <canvas data-strat="pic" width="320" height="150"></canvas>
+        <div class="body">
+          <div class="tag">Particle-in-Cell · PIC</div>
+          <h3>Throw dice</h3>
+          <p>Represent <span class="mono">f</span> with millions of fake "super-particles" and just push them
+          around. Intuitive, flexible, dominant in practice.</p>
+          <div class="pro"><b>+</b>Simple, handles wild geometry</div>
+          <div class="con"><b>—</b>Statistical noise; needs <em>huge</em> particle counts to get quiet</div>
+        </div>
+      </div>
+      <div class="scard">
+        <canvas data-strat="grid" width="320" height="150"></canvas>
+        <div class="body">
+          <div class="tag">Eulerian · grid</div>
+          <h3>Tile the floor</h3>
+          <p>Lay a fine mesh over the whole <span class="mono">(x,v)</span> plane and store
+          <span class="mono">f</span> in every cell. Noise-free and direct.</p>
+          <div class="pro"><b>+</b>No noise, very accurate</div>
+          <div class="con"><b>—</b>Cost explodes; the velocity mesh must be insanely fine</div>
+        </div>
+      </div>
+      <div class="scard">
+        <canvas data-strat="spec" width="320" height="150"></canvas>
+        <div class="body">
+          <div class="tag">Spectral · Hermite-Fourier</div>
+          <h3>Sum smooth waves</h3>
+          <p>Don't store values at all. Store the <em>weights</em> of a few smooth building-block functions whose
+          sum <em>is</em> the distribution. This is our path.</p>
+          <div class="pro"><b>+</b>No noise; a Maxwellian costs <em>one number</em></div>
+          <div class="con"><b>—</b>Sharp velocity structure needs many terms</div>
+        </div>
+      </div>
+    </div>
+
+    <table class="cmp">
+      <tr><th>What you care about</th><th class="h">PIC (particles)</th><th class="h">Eulerian (grid)</th><th class="h" style="color:var(--mag)">Hermite-Fourier (spectral)</th></tr>
+      <tr><td>How <span class="mono">f</span> is stored</td><td>cloud of sample particles</td><td>value in every cell</td><td>weights of basis functions</td></tr>
+      <tr><td>Statistical noise</td><td>yes (the headache)</td><td>none</td><td>none</td></tr>
+      <tr><td>Cost of a plain Maxwellian</td><td>still millions of particles</td><td>full grid</td><td class="h" style="color:var(--good)">one coefficient</td></tr>
+      <tr><td>Where it struggles</td><td>quiet tails, accuracy</td><td>memory in high-D</td><td>fine velocity filaments</td></tr>
+      <tr><td>Conservation laws</td><td>approximate</td><td>scheme-dependent</td><td class="h" style="color:var(--good)">can be exact</td></tr>
+    </table>
+    <p class="callout cyan"><strong>The spectral bet:</strong> most of the time a plasma's velocity distribution is
+    <em>close to a smooth bell curve</em>. If your building blocks already look like bell curves, you need very few of
+    them. That single idea is why the Hermite basis exists.</p>
+  </div>
+</section>
+
+<!-- ============ 2 · MEET THE HERMITE FUNCTIONS ============ -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <span class="sectnum">02 · The building blocks</span>
+    <h2>Meet the Hermite functions<br>(and why <em>n = 0</em> is special)</h2>
+    <p class="lead" style="max-width:720px;margin-top:18px">These are our smooth "waves of velocity." Each one,
+    <span class="mono">Ψₙ(ξ)</span>, is a Hermite polynomial wrapped in a Gaussian. Toggle them on and off — and
+    notice the very first one.</p>
+
+    <div class="grid2" style="margin-top:30px;align-items:start">
+      <div>
+        <div class="controls" id="basis-toggles"></div>
+        <div class="plotwrap"><canvas id="basiscanvas" class="plot" width="600" height="380"></canvas></div>
+        <div class="legend" id="basis-legend"></div>
+      </div>
+      <div>
+        <h3 style="color:var(--gold)">Ψ₀ is literally a Maxwellian</h3>
+        <p>Turn off everything except <span class="mono">n = 0</span>. That curve is a Gaussian — the exact shape of a
+        plasma sitting in thermal equilibrium. So the lowest building block is already <em>the answer</em> for a calm plasma.
+        That's the magic: equilibrium costs <strong style="color:#fff">a single number</strong>.</p>
+        <p>The higher ones, <span class="mono">n = 1, 2, 3…</span>, are increasingly wiggly. They're the corrections you
+        add when the distribution leans, spreads, sprouts a beam, or develops fine ripples. More wiggle = finer velocity detail.</p>
+        <div class="eqbox">$$\Psi_n(\xi)=\left(\pi\,2^{n} n!\right)^{-1/2} H_n(\xi)\,e^{-\xi^{2}}$$</div>
+        <p class="dim" style="font-size:.95rem"><span class="mono">Hₙ</span> is the <em>n</em>-th Hermite polynomial,
+        <span class="mono">e^(−ξ²)</span> is the Gaussian envelope, and the ugly prefactor is just bookkeeping so the
+        functions are "orthonormal" — a property we'll cash in next. The variable
+        <span class="mono">ξ = (v − u)/α</span> is just velocity, re-centred on the mean flow <span class="mono">u</span>
+        and rescaled by the thermal speed <span class="mono">α</span> so the basis sits where the action is.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 · RECONSTRUCTION DEMO ============ -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <span class="sectnum">03 · The whole point, in one slider</span>
+    <h2>Any distribution is just<br>a <em>recipe</em> of these blocks</h2>
+    <p class="lead" style="max-width:740px;margin-top:18px">Here's a target distribution (the soft filled shape).
+    Below it, the slider sets how many Hermite blocks you're allowed to use. Each block gets a weight
+    <span class="mono">Cₙ</span> — the bars on the right. Watch the reconstruction snap onto the target as you add modes.</p>
+
+    <div class="controls" style="margin-top:26px" id="target-toggles"></div>
+    <div class="sliderrow">
+      <label>Hermite modes&nbsp;N_H</label>
+      <input type="range" id="modeslider" min="1" max="24" value="1" step="1">
+      <span class="bignum" id="modeval">1</span>
+    </div>
+
+    <div class="grid2" style="margin-top:14px;align-items:start;grid-template-columns:1.6fr 1fr">
+      <div class="plotwrap"><canvas id="reconcanvas" class="plot" width="640" height="380"></canvas></div>
+      <div class="plotwrap"><canvas id="coefcanvas" class="plot" width="360" height="380"></canvas></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--faint)"></i>Target f(v)</span>
+      <span><i style="background:var(--mag)"></i>Reconstruction with N_H modes</span>
+      <span><i style="background:var(--gold)"></i>Coefficient weights Cₙ</span>
+    </div>
+
+    <p class="callout"><strong>Read the bars like a story.</strong> A plain Maxwellian: only
+    <span class="mono">C₀</span> lights up — one number. A flowing beam needs <span class="mono">C₁</span> too. A
+    two-stream (two humps) or a bump-on-tail needs a long tail of coefficients, because those shapes carry real kinetic
+    detail. <em>The number of modes you need is a direct measure of how "non-thermal" your plasma is.</em></p>
+    <p class="dim">Mathematically, "use <span class="mono">N_H</span> modes" means this finite sum — and finding the weights
+    is just a projection, thanks to orthonormality:</p>
+    <div class="eqbox">$$\hat f(x,v,t)=\sum_{n=0}^{N_H-1} C_n(x,t)\,\Psi_n(\xi)\qquad\quad \int_{-\infty}^{\infty}\Psi_n\,\Psi^{m}\,d\xi=\delta_{n,m}$$</div>
+    <p class="tiny">The <span class="mono">δ</span> ("Kronecker delta") is 1 when <span class="mono">n=m</span> and 0 otherwise.
+    It means the blocks don't overlap when measured the right way — so each weight <span class="mono">Cₙ</span> can be read
+    off cleanly without untangling it from the others. That clean separability is the engine of everything below.</p>
+  </div>
+</section>
+
+<!-- ============ 4 · THE TRANSFORMATION ============ -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <span class="sectnum">04 · Turning the equation inside out</span>
+    <h2>From one PDE in <em>(x, v)</em><br>to a stack of PDEs in <em>x</em></h2>
+    <p class="lead" style="max-width:760px;margin-top:18px">Now the actual conversion. We stop solving for
+    <span class="mono">f</span> and start solving for its coefficients <span class="mono">Cₙ(x,t)</span>. The mechanical
+    recipe is always the same three moves — and each term of the Vlasov equation transforms in its own way.
+    Click a term to see what it becomes.</p>
+
+    <div class="eqline" style="margin-top:28px;justify-content:center">
+      <span class="term" data-term="dt">$\dfrac{\partial f}{\partial t}$</span>
+      <span style="color:var(--faint)">+</span>
+      <span class="term" data-term="adv">$v\,\dfrac{\partial f}{\partial x}$</span>
+      <span style="color:var(--faint)">+</span>
+      <span class="term" data-term="field">$\dfrac{q}{m}E\,\dfrac{\partial f}{\partial v}$</span>
+      <span style="color:var(--faint)">= 0</span>
+    </div>
+    <div class="termdetail" id="termdetail"></div>
+
+    <div class="steps">
+      <div class="step">
+        <div>
+          <h3>Substitute the recipe</h3>
+          <p>Replace <span class="mono">f</span> with its Hermite sum <span class="mono">Σ Cₙ Ψₙ</span> inside the
+          Vlasov equation. Nothing is approximated yet — we've just changed how <span class="mono">f</span> is written.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Multiply by Ψₘ and integrate over velocity</h3>
+          <p>This is the "Galerkin projection." Because the blocks are orthonormal, integrating
+          <span class="mono">Ψₙ·Ψₘ</span> wipes out every term except <span class="mono">n = m</span> — so a tangled
+          sum collapses into one clean equation <em>per mode</em>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Apply the two ladder identities</h3>
+          <p>Multiplying a Hermite block by <span class="mono">v</span> turns it into its neighbours
+          <span class="mono">(m±1)</span> — the <em>recursion</em> relation. Differentiating it in
+          <span class="mono">v</span> nudges it to <span class="mono">m−1</span> — the <em>derivative</em> relation. These
+          two facts are what couple the modes into a ladder.</p>
+          <div class="eqbox" style="margin-top:12px">$$\hat v\,\Psi_n=\alpha\!\sqrt{\tfrac{n+1}{2}}\,\Psi_{n+1}+\alpha\!\sqrt{\tfrac{n}{2}}\,\Psi_{n-1}+u\,\Psi_n,\qquad \frac{d\Psi_n}{d\hat v}=-\frac{1}{\alpha}\sqrt{2(n+1)}\;\Psi_{n+1}$$</div>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Read off the result</h3>
+          <p>What's left is one ordinary-in-velocity, partial-in-space equation for each coefficient
+          <span class="mono">Cₘ</span>. This single line <em>is</em> the 1-D Hermite form of the Vlasov equation:</p>
+          <div class="eqbox" style="margin-top:12px">$$\frac{\partial C_m}{\partial t}+\alpha\!\left(\sqrt{\tfrac{m+1}{2}}\frac{\partial C_{m+1}}{\partial x}+\sqrt{\tfrac{m}{2}}\frac{\partial C_{m-1}}{\partial x}+\frac{u}{\alpha}\frac{\partial C_m}{\partial x}\right)-\frac{q}{m}\frac{\sqrt{2m}}{\alpha}\,E\,C_{m-1}=0$$</div>
+          <p>And Gauss's law, run through the same machine, only ever touches the lowest coefficient — because density
+          <em>is</em> <span class="mono">C₀</span>:</p>
+          <div class="eqbox" style="margin-top:12px">$$\frac{\partial E}{\partial x}=\sum_s q_s\,\alpha_s\,C_0^{\,s}(x)$$</div>
+        </div>
+      </div>
+    </div>
+    <p class="callout cyan"><strong>Step back and look at the shape of it.</strong> Mode <span class="mono">m</span> only ever
+    talks to <span class="mono">m−1</span> and <span class="mono">m+1</span>. The infinite, 2-D problem became a tidy
+    <em>tridiagonal ladder</em> of 1-D equations. That structure is the entire payoff.</p>
+  </div>
+</section>
+
+<!-- ============ 5 · THE LADDER / MOMENTS ============ -->
+<div class="divider"></div>
+<section style="background:var(--bg2)">
+  <div class="wrap reveal">
+    <span class="sectnum">05 · Why the coefficients aren't abstract</span>
+    <h2>The bottom rungs of the ladder<br>are just <em>fluid physics</em></h2>
+    <div class="grid2" style="margin-top:30px;align-items:start">
+      <div>
+        <p>Here's the part that makes the whole thing feel less like a math trick. The low coefficients aren't arbitrary —
+        they're the quantities you already know from fluid dynamics. <span class="mono">C₀</span> is density.
+        <span class="mono">C₁</span> is momentum. <span class="mono">C₂</span> is pressure. And so on up the ladder.</p>
+        <p>Plug those identities into the bottom equation of the ladder and the continuity equation falls out. Plug them
+        into the next rung and you get conservation of momentum. <strong style="color:#fff">Truncating the Hermite series
+        at <span class="mono">N_H</span> modes is exactly the same as keeping <span class="mono">N_H</span> fluid moments</strong>
+        — it's the missing "closure" that fluid modellers always have to guess at, handed to you for free.</p>
+        <p class="dim" style="font-size:.96rem">So the dial in section 03 wasn't just numerical resolution. It's a slider between
+        <em>fluid</em> (few modes, smooth, cheap) and <em>fully kinetic</em> (many modes, every velocity wiggle resolved).
+        Same equations, one knob.</p>
+        <div class="eqbox">$$C_0=n\;\Rightarrow\;\frac{\partial n}{\partial t}+\frac{\partial}{\partial x}\!\left(v_{\text{avg}}\,n\right)=0\quad\text{(continuity, for free)}$$</div>
+      </div>
+      <div class="panel">
+        <div class="ladder">
+          <div class="rung"><div class="cn">C₀</div><div class="what"><b>Density</b> &nbsp;<span>how much is there</span></div></div>
+          <div class="coupling">↕ coupled by streaming</div>
+          <div class="rung"><div class="cn">C₁</div><div class="what"><b>Momentum</b> &nbsp;<span>net flow</span></div></div>
+          <div class="coupling">↕</div>
+          <div class="rung"><div class="cn">C₂</div><div class="what"><b>Pressure / energy</b> &nbsp;<span>thermal spread</span></div></div>
+          <div class="coupling">↕</div>
+          <div class="rung"><div class="cn">C₃</div><div class="what"><b>Heat flux</b> &nbsp;<span>skew of the bell</span></div></div>
+          <div class="coupling">↕</div>
+          <div class="rung"><div class="cn">⋮</div><div class="what"><b>Higher kinetic detail</b> &nbsp;<span>fine velocity structure</span></div></div>
+        </div>
+        <p class="tiny" style="margin-top:16px">Each rung talks only to its neighbours — that's the tridiagonal coupling from
+        the previous section, drawn vertically. Cut the ladder anywhere and you've chosen your model.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 · THE CATCH ============ -->
+<div class="divider"></div>
+<section>
+  <div class="wrap reveal">
+    <span class="sectnum">06 · The honest catch</span>
+    <h2>Remember the combing<br>in the hero image?</h2>
+    <p class="lead" style="max-width:760px;margin-top:18px">As a plasma evolves, free-streaming shears the distribution
+    into ever-finer velocity stripes — <strong style="color:#fff">filamentation</strong>. Fine stripes mean high Hermite
+    modes get excited, and a truncated ladder can't hold them. Energy that should keep flowing up the ladder hits the
+    truncation wall and <em>bounces back down</em>.</p>
+
+    <div class="grid2" style="margin-top:30px;align-items:start">
+      <div class="panel">
+        <h3 style="color:var(--warn)">Recurrence</h3>
+        <p>The bounced-back signal makes the simulation falsely "recur" — the plasma appears to return to its initial state
+        at a fixed time set by how many modes you kept. More modes pushes the false echo later, but never removes it.
+        The recurrence time grows only like <span class="mono">√N_H</span> — diminishing returns.</p>
+      </div>
+      <div class="panel">
+        <h3 style="color:var(--good)">The fix: a little collisionality</h3>
+        <p>Add a gentle collision operator that preferentially damps the <em>highest</em> modes — the ones holding the
+        unphysically-fine stripes. Physically it's the smoothing that real collisions provide; numerically it's a soft
+        wall that absorbs the runaway instead of reflecting it.</p>
+        <div class="eqbox" style="margin-top:6px">$$\mathcal{C}[C_m]=\nu\,\frac{m(m-1)(m-2)}{(N_H-1)(N_H-2)(N_H-3)}\,C_m$$</div>
+      </div>
+    </div>
+    <p class="callout"><strong>Why the cubic weight?</strong> It's nearly zero for low <span class="mono">m</span> (so it
+    barely touches the physics you trust — density, momentum, energy) and ramps up hard near the truncation
+    <span class="mono">N_H</span> (so it crushes only the junk piling against the wall). Conservation of the things that matter,
+    quiet disposal of the things that don't.</p>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap reveal">
+    <span class="sectnum">Where to go next</span>
+    <h2 style="margin-bottom:.3em">You now have the whole arc</h2>
+    <p class="dim" style="max-width:720px">Track <span class="mono">f</span> → it's hard because velocity grows fine
+    structure → write <span class="mono">f</span> as a sum of smooth Hermite blocks → project the Vlasov equation onto them
+    → get a tidy ladder of coefficient equations whose bottom rungs are fluid physics → tame the filamentation with a touch
+    of collisionality. That's the 1-D Hermite spectral method, end to end.</p>
+
+    <h3 style="margin-top:40px;color:#fff">A gentle reading order</h3>
+    <div class="reads">
+      <div class="read">
+        <div class="who">Start here · free review</div>
+        <div class="ti">Palmroth et al. (2018) — Vlasov methods in space physics & astrophysics</div>
+        <div class="note">The map of the whole territory: PIC vs grid vs spectral, and why you'd choose each. Living Reviews in Computational Astrophysics.</div>
+      </div>
+      <div class="read">
+        <div class="who">The foundational one · readable</div>
+        <div class="ti">Schumer &amp; Holloway (1998) — Vlasov simulations using velocity-scaled Hermite representations</div>
+        <div class="note">Introduces the exact scaled Hermite basis your thesis uses, and explains <em>why</em> scaling helps convergence. J. Comput. Phys. 144.</div>
+      </div>
+      <div class="read">
+        <div class="who">The "it finally clicks" one</div>
+        <div class="ti">Parker &amp; Dellar (2015) — Fourier-Hermite representation in the weakly collisional limit</div>
+        <div class="note">Cleanest modern treatment of the moment/fluid link and the recurrence problem. J. Plasma Phys. 81.</div>
+      </div>
+      <div class="read">
+        <div class="who">Your thesis' direct lineage</div>
+        <div class="ti">Vencels et al. (2016) — SpectralPlasmaSolver &amp; the Delzanno / Manzini convergence papers</div>
+        <div class="note">Where your document's equations and conservation results come from. Skim after the three above.</div>
+      </div>
+    </div>
+    <p class="tiny" style="margin-top:34px">Built from the KTH thesis "The Hermite-Fourier spectral method for solving the
+    Vlasov-Maxwell system" (Vencels, 2016). Equations 7–35 of that text. Reconstruction and basis plots are computed live
+    in your browser from the asymmetrically-weighted Hermite functions.</p>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   MATH: physicists' Hermite polynomials + AW Hermite basis
+   ============================================================ */
+const FACT=[1];for(let i=1;i<=30;i++)FACT[i]=FACT[i-1]*i;
+function Hn(n,x){ // physicists' Hermite polynomial
+  if(n===0)return 1; if(n===1)return 2*x;
+  let hm=1,h=2*x;
+  for(let k=1;k<n;k++){const nx=2*x*h-2*k*hm;hm=h;h=nx;}
+  return h;
+}
+// weighted basis (the thing whose sum is f); normalized so Psi_0 integrates to 1
+function Psi(n,xi){ return Hn(n,xi)*Math.exp(-xi*xi)/Math.sqrt(Math.PI*Math.pow(2,n)*FACT[n]); }
+// dual test function (no Gaussian), gives clean projection
+function PsiDual(n,xi){ return Hn(n,xi)/Math.sqrt(Math.pow(2,n)*FACT[n]); }
+
+/* ============================================================
+   Plasma colormap LUT
+   ============================================================ */
+const PLASMA=[[13,8,135],[75,3,161],[125,3,168],[168,34,150],[203,70,121],[229,107,93],[248,148,65],[253,195,40],[240,249,33]];
+function cmap(t){t=Math.max(0,Math.min(1,t));const s=t*(PLASMA.length-1);const i=Math.floor(s);const f=s-i;
+  const a=PLASMA[i],b=PLASMA[Math.min(i+1,PLASMA.length-1)];
+  return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+
+/* hi-dpi canvas helper */
+function fit(cv){const r=cv.getBoundingClientRect();const d=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);
+  const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{ctx:x,w:r.width,h:r.height};}
+
+/* ============================================================
+   HERO — phase-space free-streaming filamentation
+   ============================================================ */
+(function(){
+  const cv=document.getElementById('phasecanvas');
+  let W,H,img,data,rowG;
+  const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  function setup(){
+    const d=0.5; // low internal res for speed
+    W=Math.max(120,Math.floor(cv.clientWidth*d));
+    H=Math.max(90,Math.floor(cv.clientHeight*d));
+    cv.width=W;cv.height=H;
+    const ctx=cv.getContext('2d');img=ctx.createImageData(W,H);data=img.data;
+    rowG=new Float32Array(H);
+    for(let j=0;j<H;j++){const v=(j/H-0.5)*7.5;rowG[j]=Math.exp(-v*v*0.45);}
+    return ctx;
+  }
+  let ctx=setup();
+  const k=2.2, eps=0.85;
+  function frame(time){
+    const t=reduce?6:(time*0.00016)%14;
+    let p=0;
+    for(let j=0;j<H;j++){
+      const v=(j/H-0.5)*7.5;
+      const g=rowG[j];
+      for(let i=0;i<W;i++){
+        const x=(i/W)*2*Math.PI;
+        let f=g*(1+eps*Math.cos(k*(x - v*t)));
+        if(f<0)f=0; if(f>1.6)f=1.6;
+        const c=cmap(f*0.62);
+        data[p++]=c[0];data[p++]=c[1];data[p++]=c[2];data[p++]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+    if(!reduce)requestAnimationFrame(frame);
+  }
+  if(reduce)frame(0);else requestAnimationFrame(frame);
+  let to;window.addEventListener('resize',()=>{clearTimeout(to);to=setTimeout(()=>{ctx=setup();if(reduce)frame(0);},200);});
+})();
+
+/* ============================================================
+   STRATEGY mini-canvases
+   ============================================================ */
+function targetF(v){ // a bump-on-tail-ish density in v for illustration
+  return 0.92*Math.exp(-v*v) + 0.18*Math.exp(-3*(v-1.7)*(v-1.7));
+}
+document.querySelectorAll('canvas[data-strat]').forEach(cv=>{
+  const {ctx,w,h}=fit(cv);const strat=cv.dataset.strat;
+  ctx.clearRect(0,0,w,h);
+  const vmin=-3,vmax=3;
+  const X=v=>(v-vmin)/(vmax-vmin)*w;
+  if(strat==='pic'){
+    // scattered super-particles sampled from f(x,v)
+    let n=0;
+    while(n<340){
+      const v=vmin+Math.random()*(vmax-vmin);
+      if(Math.random()<targetF(v)/1.1){
+        const x=Math.random()*w;
+        const y=h-8-Math.random()*(h-40);
+        const c=cmap(0.45+Math.random()*0.3);
+        ctx.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},.85)`;
+        ctx.beginPath();ctx.arc(X(v)*0+x,y,1.5,0,7);ctx.fill();
+        n++;
+      }
+    }
+  } else if(strat==='grid'){
+    const cols=18,rows=9;const cw=w/cols,ch=h/rows;
+    for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+      const v=vmin+(i+0.5)/cols*(vmax-vmin);
+      const val=targetF(v)*(0.6+0.4*Math.exp(-Math.pow((j/rows-0.5)*4,2)));
+      const c=cmap(val*0.7);
+      ctx.fillStyle=`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+      ctx.fillRect(i*cw,j*ch,cw-1,ch-1);
+    }
+  } else { // spectral — smooth heat field
+    const im=ctx.createImageData(w,h);
+    for(let i=0;i<w;i++){
+      const v=vmin+i/w*(vmax-vmin);
+      for(let j=0;j<h;j++){
+        const val=targetF(v)*(0.55+0.45*Math.exp(-Math.pow((j/h-0.5)*4,2)));
+        const c=cmap(val*0.72);const p=(j*w+i)*4;
+        im.data[p]=c[0];im.data[p+1]=c[1];im.data[p+2]=c[2];im.data[p+3]=255;
+      }
+    }
+    ctx.putImageData(im,0,0);
+    // overlay the smooth f(v) curve
+    ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=w;i++){const v=vmin+i/w*(vmax-vmin);const y=h-10-targetF(v)*(h-30)/1.1;
+      i?ctx.lineTo(i,y):ctx.moveTo(i,y);}ctx.stroke();
+  }
+});
+
+/* ============================================================
+   BASIS explorer
+   ============================================================ */
+(function(){
+  const colors=['#ffd35e','#ff5d8f','#9a6bff','#4fd6e0','#f9a03f','#6fe0a8'];
+  const names=['Ψ₀ (Maxwellian)','Ψ₁','Ψ₂','Ψ₃','Ψ₄','Ψ₅'];
+  const on=[true,false,false,false,false,false];
+  const cv=document.getElementById('basiscanvas');
+  const tog=document.getElementById('basis-toggles');
+  const leg=document.getElementById('basis-legend');
+  names.forEach((nm,i)=>{
+    const b=document.createElement('div');b.className='chip'+(on[i]?' on':'');b.textContent=nm;
+    b.onclick=()=>{on[i]=!on[i];b.classList.toggle('on',on[i]);draw();};
+    tog.appendChild(b);
+    const l=document.createElement('span');l.innerHTML=`<i style="background:${colors[i]}"></i>${nm}`;leg.appendChild(l);
+  });
+  function draw(){
+    const {ctx,w,h}=fit(cv);ctx.clearRect(0,0,w,h);
+    const xmin=-4,xmax=4,ymin=-0.65,ymax=0.65;
+    const PX=x=>(x-xmin)/(xmax-xmin)*w, PY=y=>h-(y-ymin)/(ymax-ymin)*h;
+    // axes
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,PY(0));ctx.lineTo(w,PY(0));ctx.moveTo(PX(0),0);ctx.lineTo(PX(0),h);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.35)';ctx.font="12px 'IBM Plex Mono'";ctx.fillText('ξ  (velocity)',w-92,PY(0)-8);
+    for(let i=0;i<6;i++){
+      if(!on[i])continue;
+      ctx.strokeStyle=colors[i];ctx.lineWidth=i===0?3:2;ctx.beginPath();
+      for(let px=0;px<=w;px++){const xi=xmin+px/w*(xmax-xmin);const y=PY(Psi(i,xi));px?ctx.lineTo(px,y):ctx.moveTo(px,y);}
+      ctx.stroke();
+    }
+  }
+  draw();window.addEventListener('resize',draw);
+})();
+
+/* ============================================================
+   RECONSTRUCTION demo
+   ============================================================ */
+(function(){
+  const targets={
+    maxwell:{label:'Maxwellian',f:xi=>Math.exp(-xi*xi)/Math.sqrt(Math.PI)},
+    flow:{label:'Flowing beam',f:xi=>Math.exp(-(xi-0.95)*(xi-0.95))/Math.sqrt(Math.PI)},
+    twostream:{label:'Two-stream',f:xi=>0.5*(Math.exp(-(xi-1.35)*(xi-1.35))+Math.exp(-(xi+1.35)*(xi+1.35)))/Math.sqrt(Math.PI)},
+    bump:{label:'Bump-on-tail',f:xi=>(0.88*Math.exp(-xi*xi)+0.18*Math.exp(-6*(xi-2.1)*(xi-2.1)))/Math.sqrt(Math.PI)}
+  };
+  let cur='maxwell';
+  const NCOEF=24;
+  let coefs=[];
+  // numerical projection C_n = ∫ f * PsiDual_n dξ
+  function computeCoefs(){
+    coefs=new Array(NCOEF).fill(0);
+    const a=-8,b=8,N=2400,dx=(b-a)/N;
+    for(let k=0;k<=N;k++){
+      const xi=a+k*dx;const fv=targets[cur].f(xi);const wgt=(k===0||k===N)?0.5:1;
+      for(let n=0;n<NCOEF;n++)coefs[n]+=wgt*fv*PsiDual(n,xi)*dx;
+    }
+  }
+  const recon=document.getElementById('reconcanvas');
+  const coef=document.getElementById('coefcanvas');
+  const slider=document.getElementById('modeslider');
+  const modeval=document.getElementById('modeval');
+  const tog=document.getElementById('target-toggles');
+  Object.keys(targets).forEach((key,i)=>{
+    const b=document.createElement('div');b.className='chip'+(i===0?' on':'');b.textContent=targets[key].label;
+    b.onclick=()=>{cur=key;[...tog.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');computeCoefs();draw();};
+    tog.appendChild(b);
+  });
+  function draw(){
+    const N=+slider.value;modeval.textContent=N;
+    // ---- reconstruction plot ----
+    let {ctx,w,h}=fit(recon);ctx.clearRect(0,0,w,h);
+    const xmin=-4.2,xmax=4.2;let ymax=0;
+    for(let xi=xmin;xi<=xmax;xi+=0.05)ymax=Math.max(ymax,targets[cur].f(xi));
+    ymax*=1.25;
+    const PX=x=>(x-xmin)/(xmax-xmin)*w, PY=y=>h-12-y/ymax*(h-30);
+    // axis
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.moveTo(0,PY(0));ctx.lineTo(w,PY(0));ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.35)';ctx.font="12px 'IBM Plex Mono'";ctx.fillText('v',w-20,PY(0)-8);
+    // target (filled)
+    ctx.fillStyle='rgba(139,149,189,.22)';ctx.strokeStyle='rgba(139,149,189,.6)';ctx.lineWidth=1.5;ctx.beginPath();
+    ctx.moveTo(PX(xmin),PY(0));
+    for(let px=0;px<=w;px++){const xi=xmin+px/w*(xmax-xmin);ctx.lineTo(px,PY(targets[cur].f(xi)));}
+    ctx.lineTo(PX(xmax),PY(0));ctx.closePath();ctx.fill();ctx.stroke();
+    // reconstruction
+    ctx.strokeStyle='#ff5d8f';ctx.lineWidth=2.6;ctx.beginPath();
+    for(let px=0;px<=w;px++){const xi=xmin+px/w*(xmax-xmin);let s=0;for(let n=0;n<N;n++)s+=coefs[n]*Psi(n,xi);
+      px?ctx.lineTo(px,PY(s)):ctx.moveTo(px,PY(s));}
+    ctx.stroke();
+    // ---- coefficient bars ----
+    ({ctx,w,h}=fit(coef));ctx.clearRect(0,0,w,h);
+    let cmaxv=1e-6;for(let n=0;n<NCOEF;n++)cmaxv=Math.max(cmaxv,Math.abs(coefs[n]));
+    const bw=w/NCOEF, base=h*0.5;
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.35)';ctx.font="11px 'IBM Plex Mono'";ctx.fillText('coefficient Cₙ',8,16);
+    for(let n=0;n<NCOEF;n++){
+      const bh=(coefs[n]/cmaxv)*(base-14);
+      const active=n<N;
+      ctx.fillStyle=active?'#ffd35e':'rgba(120,128,168,.32)';
+      ctx.fillRect(n*bw+1.5,base-(bh>0?bh:0),bw-3,Math.abs(bh));
+    }
+    ctx.fillStyle='rgba(255,255,255,.4)';ctx.fillText('n=0',2,h-6);ctx.fillText('n='+(NCOEF-1),w-46,h-6);
+  }
+  slider.addEventListener('input',draw);
+  computeCoefs();draw();window.addEventListener('resize',draw);
+})();
+
+/* ============================================================
+   TERM MAPPER
+   ============================================================ */
+(function(){
+  const info={
+    dt:{map:'time derivative  →  per-mode time derivative',
+        html:'The simplest term. Because the blocks are orthonormal, the projection leaves it perfectly diagonal: the time-change of <b>f</b> becomes just the time-change of each coefficient on its own.',
+        tex:'\\frac{\\partial f}{\\partial t}\\;\\longrightarrow\\;\\frac{\\partial C_m}{\\partial t}'},
+    adv:{map:'streaming  →  recursion  →  couples m ± 1',
+        html:'Here the <i>recursion relation</i> kicks in. Multiplying a Hermite block by velocity <b>v</b> turns it into a mix of its two neighbours. So streaming links each mode to the one above and the one below — the rungs of the ladder.',
+        tex:'v\\frac{\\partial f}{\\partial x}\\;\\longrightarrow\\;\\alpha\\!\\left(\\sqrt{\\tfrac{m+1}{2}}\\frac{\\partial C_{m+1}}{\\partial x}+\\sqrt{\\tfrac{m}{2}}\\frac{\\partial C_{m-1}}{\\partial x}+\\tfrac{u}{\\alpha}\\frac{\\partial C_m}{\\partial x}\\right)'},
+    field:{map:'field force  →  derivative  →  couples m − 1',
+        html:'The <i>derivative relation</i> handles this one: differentiating a Hermite block in velocity bumps it down one rung. This is the only place the electric field <b>E</b> enters the ladder, tying the plasma back to its own self-made field.',
+        tex:'\\frac{q}{m}E\\frac{\\partial f}{\\partial v}\\;\\longrightarrow\\;-\\frac{q}{m}\\frac{\\sqrt{2m}}{\\alpha}\\,E\\,C_{m-1}'}
+  };
+  const detail=document.getElementById('termdetail');
+  const terms=document.querySelectorAll('.term');
+  function show(key){
+    terms.forEach(t=>t.classList.toggle('on',t.dataset.term===key));
+    const d=info[key];
+    detail.innerHTML=`<div class="arrowmap">${d.map}</div><div class="eqbox" style="margin-top:0">$$${d.tex}$$</div><p style="margin:14px 0 0">${d.html}</p>`;
+    if(window.renderMathInElement)renderMathInElement(detail,{delimiters:[{left:'$$',right:'$$',display:true}]});
+  }
+  terms.forEach(t=>t.addEventListener('click',()=>show(t.dataset.term)));
+  detail.innerHTML='<p class="dim" style="margin:0">Click one of the three terms above to watch it cross over into Hermite space.</p>';
+})();
+
+/* ============================================================
+   reveal on scroll + KaTeX
+   ============================================================ */
+window.addEventListener('DOMContentLoaded',()=>{
+  function renderAll(){if(window.renderMathInElement)renderMathInElement(document.body,{
+    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}
+  if(window.renderMathInElement)renderAll();else{const t=setInterval(()=>{if(window.renderMathInElement){renderAll();clearInterval(t);}},120);}
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');}),{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+});
+</script>
+</body>
+</html>

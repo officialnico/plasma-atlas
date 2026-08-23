@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why c = 1/√(ε₀μ₀) — An Interactive Guide</title>
+<style>
+  :root {
+    --bg: #faf9f5;
+    --surface: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #666;
+    --text-faint: #999;
+    --border: rgba(0,0,0,0.1);
+    --border-strong: rgba(0,0,0,0.2);
+    --accent: #c96442;
+    --accent-soft: #fae6dc;
+    --blue: #185fa5;
+    --blue-soft: #e6f1fb;
+    --teal: #0f6e56;
+    --teal-soft: #e1f5ee;
+    --purple: #534ab7;
+    --purple-soft: #eeedfe;
+    --amber: #BA7517;
+    --amber-soft: #FAEEDA;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a1a;
+      --surface: #262626;
+      --text: #f0f0f0;
+      --text-muted: #a0a0a0;
+      --text-faint: #707070;
+      --border: rgba(255,255,255,0.12);
+      --border-strong: rgba(255,255,255,0.2);
+      --accent-soft: #4a1b0c;
+      --blue-soft: #042c53;
+      --teal-soft: #04342c;
+      --purple-soft: #26215c;
+      --amber-soft: #412402;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+  .container { max-width: 920px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 2rem; }
+  h1 {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+  .subtitle { color: var(--text-muted); font-size: 16px; }
+  .formula-hero {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .formula-hero .big {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 26px;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+  }
+  .formula-hero .small {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .stage {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .stage h2 {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+  .stage h2 .step {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 24px;
+    font-size: 13px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .stage p {
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    font-size: 15px;
+  }
+  .stage p strong { color: var(--text); font-weight: 500; }
+  canvas {
+    width: 100%;
+    height: auto;
+    background: var(--bg);
+    border-radius: 10px;
+    display: block;
+  }
+  .controls {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+  }
+  .control-row label {
+    flex: 0 0 130px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .control-row input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-strong);
+    border-radius: 2px;
+    outline: none;
+  }
+  .control-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .control-row input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+  .readout {
+    flex: 0 0 90px;
+    text-align: right;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .button-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0.75rem 0;
+  }
+  .btn {
+    padding: 8px 14px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn:hover { background: var(--bg); }
+  .btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .result-box {
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+  .result-box.blue { background: var(--blue-soft); }
+  .result-box.teal { background: var(--teal-soft); }
+  .result-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+  }
+  .result-value {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .result-box.blue .result-value { color: var(--blue); }
+  .result-box.teal .result-value { color: var(--teal); }
+  .legend {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 0.75rem 0;
+    font-size: 13px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 1rem;
+  }
+  @media (max-width: 600px) {
+    .info-grid { grid-template-columns: 1fr; }
+  }
+  .info-card {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+  .info-card.electric { background: var(--accent-soft); }
+  .info-card.magnetic { background: var(--blue-soft); }
+  .info-card .key {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+    font-weight: 500;
+  }
+  .info-card.electric .key { color: var(--accent); }
+  .info-card.magnetic .key { color: var(--blue); }
+  .info-card .formula {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 15px;
+    margin-bottom: 0.4rem;
+  }
+  .info-card .desc {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .speed-bar {
+    height: 36px;
+    background: var(--bg);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+    margin: 0.75rem 0;
+  }
+  .speed-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--blue));
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 12px;
+    color: white;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .footnote {
+    font-size: 13px;
+    color: var(--text-faint);
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .highlight { color: var(--accent); font-weight: 500; }
+  .highlight-blue { color: var(--blue); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Why c = 1 / √(ε₀ μ₀)</h1>
+    <p class="subtitle">An interactive walkthrough — from wiggling a charge to the speed of light</p>
+  </header>
+
+  <div class="formula-hero">
+    <div class="big">c = 1 / √(ε₀ · μ₀) ≈ 2.998 × 10⁸ m/s</div>
+    <div class="small">The speed of light, derived from two electromagnetic constants of the vacuum</div>
+  </div>
+
+  <!-- STAGE 1: The leapfrog mechanism -->
+  <div class="stage">
+    <h2><span class="step">1</span>The leapfrog: E and B keep creating each other</h2>
+    <p>Maxwell's two key equations are <strong>Faraday's law</strong> (a changing B-field makes an E-field) and the <strong>Ampère-Maxwell law</strong> (a changing E-field makes a B-field). Once a charge wiggles and starts a disturbance, these two laws bootstrap the wave forward. Click a charge below to see it happen:</p>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background: #c96442;"></div>E-field (electric)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background: #185fa5;"></div>B-field (magnetic)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background: var(--text-muted);"></div>Charge</div>
+    </div>
+
+    <canvas id="leapfrog" width="800" height="280"></canvas>
+
+    <div class="button-row">
+      <button class="btn active" id="lf-play">⏸ Pause</button>
+      <button class="btn" id="lf-pulse">↻ Pulse charge again</button>
+    </div>
+    <p style="font-size: 13px; color: var(--text-faint); margin-top: 0.5rem;">The charge wiggles, an E-field ripples out, that ripple's <em>change</em> creates a B-field beside it, that B-field's change creates an E-field further out, and so on — forever, at the speed of light.</p>
+  </div>
+
+  <!-- STAGE 2: The wave -->
+  <div class="stage">
+    <h2><span class="step">2</span>The result: a transverse EM wave</h2>
+    <p>Far from the source, this leapfrogging settles into a clean sinusoidal wave. The E-field and B-field are <strong>perpendicular to each other and to the direction of travel</strong>, and they oscillate <strong>in phase</strong> — peaking together, zero together. Watch:</p>
+
+    <canvas id="wave" width="800" height="320"></canvas>
+
+    <div class="controls">
+      <div class="control-row">
+        <label>frequency</label>
+        <input type="range" id="freq" min="0.5" max="3" value="1.5" step="0.1">
+        <span class="readout" id="freq-out">1.5</span>
+      </div>
+      <div class="control-row">
+        <label>amplitude</label>
+        <input type="range" id="amp" min="20" max="80" value="50" step="5">
+        <span class="readout" id="amp-out">50</span>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card electric">
+        <div class="key">Electric component</div>
+        <div class="formula">E(x,t) = E₀ sin(kx − ωt)</div>
+        <div class="desc">Oscillates vertically. Driven by Faraday's law from the changing B-field.</div>
+      </div>
+      <div class="info-card magnetic">
+        <div class="key">Magnetic component</div>
+        <div class="formula">B(x,t) = B₀ sin(kx − ωt)</div>
+        <div class="desc">Oscillates horizontally, perpendicular. Driven by the changing E-field.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 3: The derivation -->
+  <div class="stage">
+    <h2><span class="step">3</span>Where does the speed come from?</h2>
+    <p>Combining the two Maxwell equations mathematically gives a <strong>wave equation</strong> for E (and another for B):</p>
+
+    <div style="background: var(--bg); border-radius: 8px; padding: 1rem 1.25rem; font-family: 'SF Mono', Monaco, monospace; font-size: 15px; text-align: center; margin: 0.75rem 0;">
+      ∂²E/∂t² = (1/ε₀μ₀) · ∂²E/∂x²
+    </div>
+
+    <p>Any equation of the form ∂²f/∂t² = v² · ∂²f/∂x² describes a wave traveling at speed v. So by direct comparison, the wave speed must be:</p>
+
+    <div style="background: var(--bg); border-radius: 8px; padding: 1rem 1.25rem; font-family: 'SF Mono', Monaco, monospace; font-size: 17px; text-align: center; margin: 0.75rem 0;">
+      v² = 1/(ε₀μ₀)  →  v = 1/√(ε₀μ₀)
+    </div>
+
+    <p>It's not a coincidence — it falls out of the math the moment you combine "changing B makes E" with "changing E makes B." The two electromagnetic constants of the vacuum literally <em>set the speed</em> of any disturbance that propagates through it.</p>
+
+    <p style="margin-top: 1rem;">Try plugging in any values yourself — see how the wave's speed responds:</p>
+
+    <div class="controls">
+      <div class="control-row">
+        <label>ε₀ multiplier</label>
+        <input type="range" id="eps-mult" min="0.25" max="4" value="1" step="0.05">
+        <span class="readout" id="eps-out">1.00×</span>
+      </div>
+      <div class="control-row">
+        <label>μ₀ multiplier</label>
+        <input type="range" id="mu-mult" min="0.25" max="4" value="1" step="0.05">
+        <span class="readout" id="mu-out">1.00×</span>
+      </div>
+    </div>
+
+    <div class="result-box">
+      <div class="result-label">Resulting wave speed</div>
+      <div class="result-value" id="speed-num">2.998 × 10⁸ m/s</div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 0.4rem;" id="speed-compare">= 1.000 × c (real speed of light)</div>
+    </div>
+
+    <div class="speed-bar">
+      <div class="speed-fill" id="speed-bar" style="width: 50%;">100% c</div>
+    </div>
+
+    <p style="font-size: 13px; color: var(--text-faint); margin-top: 0.75rem;">Crank ε₀ or μ₀ up — the wave slows down. Crank them down — it speeds up. The speed of light isn't an arbitrary universal limit; it's the propagation speed of EM ripples through the vacuum, set entirely by ε₀ and μ₀.</p>
+  </div>
+
+  <!-- STAGE 4: Verification -->
+  <div class="stage">
+    <h2><span class="step">4</span>Plug in the real numbers</h2>
+    <p>Now do the calculation that astonished Maxwell in 1865:</p>
+
+    <div class="info-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="info-card electric">
+        <div class="key">ε₀</div>
+        <div class="formula" style="font-size: 14px;">8.8542 × 10⁻¹² F/m</div>
+        <div class="desc">measured from capacitors</div>
+      </div>
+      <div class="info-card magnetic">
+        <div class="key">μ₀</div>
+        <div class="formula" style="font-size: 14px;">1.2566 × 10⁻⁶ N/A²</div>
+        <div class="desc">measured from current-carrying wires</div>
+      </div>
+    </div>
+
+    <div style="background: var(--bg); border-radius: 8px; padding: 1.25rem; margin: 1rem 0; text-align: center;">
+      <div style="font-family: 'SF Mono', Monaco, monospace; font-size: 14px; color: var(--text-muted); margin-bottom: 0.5rem;">ε₀ × μ₀ = 1.1127 × 10⁻¹⁷ s²/m²</div>
+      <div style="font-family: 'SF Mono', Monaco, monospace; font-size: 14px; color: var(--text-muted); margin-bottom: 0.5rem;">√(ε₀ × μ₀) = 3.336 × 10⁻⁹ s/m</div>
+      <div style="font-family: 'SF Mono', Monaco, monospace; font-size: 18px; font-weight: 500; margin-top: 0.75rem;">1 / √(ε₀μ₀) = <span class="highlight">2.998 × 10⁸ m/s</span></div>
+    </div>
+
+    <p>Maxwell did this by hand. He looked at the answer — a number that already matched the experimentally known speed of light to within measurement error — and wrote one of the most quoted lines in physics history:</p>
+
+    <p style="font-style: italic; padding: 1rem 1.25rem; border-left: 3px solid var(--accent); margin: 1rem 0; background: var(--accent-soft); color: var(--text);">"We can scarcely avoid the conclusion that light consists in the transverse undulations of the same medium which is the cause of electric and magnetic phenomena."</p>
+
+    <p>Light is not a special kind of thing. It's the same E and B fields you get from a battery and a magnet — just the part of them that has detached from any source and is propagating freely through the vacuum at the speed those two constants demand.</p>
+  </div>
+
+  <p class="footnote">Real values: ε₀ = 8.8541878 × 10⁻¹² F/m  ·  μ₀ = 1.2566371 × 10⁻⁶ N/A²  ·  c = 299,792,458 m/s</p>
+</div>
+
+<script>
+  const isDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const E_COLOR_LIGHT = '#c96442';
+  const E_COLOR_DARK = '#F0997B';
+  const B_COLOR_LIGHT = '#185fa5';
+  const B_COLOR_DARK = '#85B7EB';
+  const eColor = () => isDark() ? E_COLOR_DARK : E_COLOR_LIGHT;
+  const bColor = () => isDark() ? B_COLOR_DARK : B_COLOR_LIGHT;
+  const axisColor = () => isDark() ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)';
+  const textColor = () => isDark() ? '#a0a0a0' : '#666';
+
+  // ============================================================
+  // STAGE 1: Leapfrog visualization
+  // ============================================================
+  const lfCanvas = document.getElementById('leapfrog');
+  const lfCtx = lfCanvas.getContext('2d');
+  let lfPlaying = true;
+  let lfTime = 0;
+  let lastPulseTime = 0;
+  const PULSE_INTERVAL = 3.5;
+
+  document.getElementById('lf-play').addEventListener('click', (e) => {
+    lfPlaying = !lfPlaying;
+    e.target.textContent = lfPlaying ? '⏸ Pause' : '▶ Play';
+    e.target.classList.toggle('active', lfPlaying);
+  });
+  document.getElementById('lf-pulse').addEventListener('click', () => {
+    lastPulseTime = lfTime;
+  });
+
+  function drawLeapfrog() {
+    const W = lfCanvas.width, H = lfCanvas.height;
+    lfCtx.clearRect(0, 0, W, H);
+
+    // Center line
+    const cy = H / 2;
+    lfCtx.strokeStyle = axisColor();
+    lfCtx.lineWidth = 1;
+    lfCtx.setLineDash([4, 4]);
+    lfCtx.beginPath();
+    lfCtx.moveTo(0, cy);
+    lfCtx.lineTo(W, cy);
+    lfCtx.stroke();
+    lfCtx.setLineDash([]);
+
+    // Source charge (oscillating left side)
+    const sourceX = 80;
+    const elapsed = lfTime - lastPulseTime;
+    const wiggle = elapsed < 1 ? Math.sin(elapsed * Math.PI * 6) * (1 - elapsed) * 18 : 0;
+    lfCtx.fillStyle = textColor();
+    lfCtx.beginPath();
+    lfCtx.arc(sourceX, cy + wiggle, 10, 0, Math.PI * 2);
+    lfCtx.fill();
+    lfCtx.fillStyle = isDark() ? '#1a1a1a' : '#fff';
+    lfCtx.font = '500 13px sans-serif';
+    lfCtx.textAlign = 'center';
+    lfCtx.textBaseline = 'middle';
+    lfCtx.fillText('+', sourceX, cy + wiggle);
+    lfCtx.textBaseline = 'alphabetic';
+
+    // Source label
+    lfCtx.fillStyle = textColor();
+    lfCtx.font = '12px sans-serif';
+    lfCtx.fillText('source', sourceX, H - 12);
+
+    // Direction arrow
+    lfCtx.strokeStyle = textColor();
+    lfCtx.lineWidth = 1;
+    lfCtx.beginPath();
+    lfCtx.moveTo(W - 80, 30);
+    lfCtx.lineTo(W - 30, 30);
+    lfCtx.stroke();
+    lfCtx.beginPath();
+    lfCtx.moveTo(W - 35, 25);
+    lfCtx.lineTo(W - 30, 30);
+    lfCtx.lineTo(W - 35, 35);
+    lfCtx.stroke();
+    lfCtx.fillStyle = textColor();
+    lfCtx.font = '12px sans-serif';
+    lfCtx.textAlign = 'right';
+    lfCtx.fillText('propagation', W - 90, 34);
+    lfCtx.textAlign = 'center';
+
+    // Draw alternating E and B "ripples" propagating right
+    const speed = 90; // px/s
+    const spacing = 70;
+    const rippleStart = sourceX + 20;
+    const maxX = W - 20;
+
+    // Each ripple was emitted at a specific time. Position = start + speed*(now - emitTime)
+    // We draw ripples that are currently visible.
+    const numRipples = 8;
+    for (let i = 0; i < numRipples; i++) {
+      const emitTime = lastPulseTime + i * (spacing / speed);
+      const age = lfTime - emitTime;
+      if (age < 0) continue;
+      const x = rippleStart + age * speed;
+      if (x > maxX) continue;
+
+      const isE = i % 2 === 0;
+      const phase = age * 4;
+      const baseAmp = 50;
+      const fade = Math.max(0, 1 - age / 5);
+      const amp = baseAmp * fade * Math.exp(-Math.max(0, age - 0.2) * 0.2);
+
+      if (isE) {
+        // Electric field — vertical arrows
+        lfCtx.strokeStyle = eColor();
+        lfCtx.lineWidth = 2;
+        const yTop = cy - amp;
+        const yBot = cy + amp;
+        // up arrow
+        lfCtx.beginPath();
+        lfCtx.moveTo(x, cy);
+        lfCtx.lineTo(x, yTop);
+        lfCtx.stroke();
+        lfCtx.beginPath();
+        lfCtx.moveTo(x - 5, yTop + 6);
+        lfCtx.lineTo(x, yTop);
+        lfCtx.lineTo(x + 5, yTop + 6);
+        lfCtx.stroke();
+        // down arrow
+        lfCtx.beginPath();
+        lfCtx.moveTo(x, cy);
+        lfCtx.lineTo(x, yBot);
+        lfCtx.stroke();
+        lfCtx.beginPath();
+        lfCtx.moveTo(x - 5, yBot - 6);
+        lfCtx.lineTo(x, yBot);
+        lfCtx.lineTo(x + 5, yBot - 6);
+        lfCtx.stroke();
+        // label
+        if (fade > 0.5) {
+          lfCtx.fillStyle = eColor();
+          lfCtx.font = '500 12px sans-serif';
+          lfCtx.fillText('E', x, yTop - 8);
+        }
+      } else {
+        // Magnetic field — circles (going into/out of page) shown as ⊙ and ⊗
+        lfCtx.strokeStyle = bColor();
+        lfCtx.lineWidth = 2;
+        const r = Math.max(8, amp * 0.35);
+
+        // Top: ⊙ (out of page)
+        lfCtx.beginPath();
+        lfCtx.arc(x, cy - amp * 0.7, r, 0, Math.PI * 2);
+        lfCtx.stroke();
+        lfCtx.fillStyle = bColor();
+        lfCtx.beginPath();
+        lfCtx.arc(x, cy - amp * 0.7, 2.5, 0, Math.PI * 2);
+        lfCtx.fill();
+
+        // Bottom: ⊗ (into page)
+        lfCtx.beginPath();
+        lfCtx.arc(x, cy + amp * 0.7, r, 0, Math.PI * 2);
+        lfCtx.stroke();
+        const bx = x, by = cy + amp * 0.7;
+        const off = r * 0.6;
+        lfCtx.beginPath();
+        lfCtx.moveTo(bx - off, by - off);
+        lfCtx.lineTo(bx + off, by + off);
+        lfCtx.moveTo(bx + off, by - off);
+        lfCtx.lineTo(bx - off, by + off);
+        lfCtx.stroke();
+
+        if (fade > 0.5) {
+          lfCtx.fillStyle = bColor();
+          lfCtx.font = '500 12px sans-serif';
+          lfCtx.fillText('B', x, cy - amp * 0.7 - r - 4);
+        }
+      }
+    }
+
+    // Auto-pulse periodically
+    if (lfTime - lastPulseTime > PULSE_INTERVAL) {
+      lastPulseTime = lfTime;
+    }
+  }
+
+  // ============================================================
+  // STAGE 2: Sinusoidal wave
+  // ============================================================
+  const waveCanvas = document.getElementById('wave');
+  const waveCtx = waveCanvas.getContext('2d');
+  const freqInput = document.getElementById('freq');
+  const ampInput = document.getElementById('amp');
+  const freqOut = document.getElementById('freq-out');
+  const ampOut = document.getElementById('amp-out');
+
+  freqInput.addEventListener('input', () => {
+    freqOut.textContent = parseFloat(freqInput.value).toFixed(1);
+  });
+  ampInput.addEventListener('input', () => {
+    ampOut.textContent = ampInput.value;
+  });
+
+  function drawWave(t) {
+    const W = waveCanvas.width, H = waveCanvas.height;
+    waveCtx.clearRect(0, 0, W, H);
+
+    const cy = H / 2;
+    const freq = parseFloat(freqInput.value);
+    const amp = parseFloat(ampInput.value);
+
+    // Center axis
+    waveCtx.strokeStyle = axisColor();
+    waveCtx.lineWidth = 1;
+    waveCtx.setLineDash([4, 4]);
+    waveCtx.beginPath();
+    waveCtx.moveTo(0, cy);
+    waveCtx.lineTo(W, cy);
+    waveCtx.stroke();
+    waveCtx.setLineDash([]);
+
+    // Direction-of-travel arrow
+    waveCtx.strokeStyle = textColor();
+    waveCtx.lineWidth = 1;
+    waveCtx.beginPath();
+    waveCtx.moveTo(W - 80, 22);
+    waveCtx.lineTo(W - 30, 22);
+    waveCtx.stroke();
+    waveCtx.beginPath();
+    waveCtx.moveTo(W - 35, 17);
+    waveCtx.lineTo(W - 30, 22);
+    waveCtx.lineTo(W - 35, 27);
+    waveCtx.stroke();
+    waveCtx.fillStyle = textColor();
+    waveCtx.font = '12px sans-serif';
+    waveCtx.textAlign = 'right';
+    waveCtx.fillText('travel direction →', W - 90, 26);
+    waveCtx.textAlign = 'left';
+
+    // E-field wave (vertical, on top half perspective)
+    waveCtx.strokeStyle = eColor();
+    waveCtx.lineWidth = 2.2;
+    waveCtx.beginPath();
+    for (let x = 0; x <= W; x += 2) {
+      const phase = (x / W) * freq * Math.PI * 4 - t * 2;
+      const y = cy - Math.sin(phase) * amp;
+      if (x === 0) waveCtx.moveTo(x, y);
+      else waveCtx.lineTo(x, y);
+    }
+    waveCtx.stroke();
+
+    // E vectors at sample points
+    waveCtx.strokeStyle = eColor();
+    waveCtx.lineWidth = 1.2;
+    for (let x = 30; x < W; x += 60) {
+      const phase = (x / W) * freq * Math.PI * 4 - t * 2;
+      const y = cy - Math.sin(phase) * amp;
+      waveCtx.beginPath();
+      waveCtx.moveTo(x, cy);
+      waveCtx.lineTo(x, y);
+      waveCtx.stroke();
+      // arrowhead
+      const dy = y - cy;
+      if (Math.abs(dy) > 6) {
+        const dir = Math.sign(dy);
+        waveCtx.beginPath();
+        waveCtx.moveTo(x - 4, y - dir * 5);
+        waveCtx.lineTo(x, y);
+        waveCtx.lineTo(x + 4, y - dir * 5);
+        waveCtx.stroke();
+      }
+    }
+
+    // B-field wave (perpendicular — drawn as horizontal "into/out of page" projected)
+    // Show B as a parallel sinusoid in a different visual style — dashed, at offset
+    waveCtx.strokeStyle = bColor();
+    waveCtx.lineWidth = 2.2;
+    waveCtx.setLineDash([6, 4]);
+    waveCtx.beginPath();
+    for (let x = 0; x <= W; x += 2) {
+      const phase = (x / W) * freq * Math.PI * 4 - t * 2;
+      const y = cy - Math.sin(phase) * amp * 0.65; // smaller for visual clarity
+      if (x === 0) waveCtx.moveTo(x, y);
+      else waveCtx.lineTo(x, y);
+    }
+    waveCtx.stroke();
+    waveCtx.setLineDash([]);
+
+    // Labels for E and B
+    waveCtx.font = '500 14px sans-serif';
+    waveCtx.fillStyle = eColor();
+    waveCtx.fillText('E', 12, 30);
+    waveCtx.fillStyle = bColor();
+    waveCtx.fillText('B', 12, 50);
+    waveCtx.fillStyle = textColor();
+    waveCtx.font = '11px sans-serif';
+    waveCtx.fillText('(in phase, perpendicular)', 30, 50);
+  }
+
+  // ============================================================
+  // STAGE 3: Speed calculator
+  // ============================================================
+  const epsMult = document.getElementById('eps-mult');
+  const muMult = document.getElementById('mu-mult');
+  const epsOut = document.getElementById('eps-out');
+  const muOut = document.getElementById('mu-out');
+  const speedNum = document.getElementById('speed-num');
+  const speedCompare = document.getElementById('speed-compare');
+  const speedBar = document.getElementById('speed-bar');
+
+  const C_REAL = 2.99792458e8;
+
+  function updateSpeed() {
+    const e = parseFloat(epsMult.value);
+    const m = parseFloat(muMult.value);
+    epsOut.textContent = e.toFixed(2) + '×';
+    muOut.textContent = m.toFixed(2) + '×';
+    const v = C_REAL / Math.sqrt(e * m);
+    const ratio = v / C_REAL;
+
+    // Format speed
+    const exp = Math.floor(Math.log10(v));
+    const mantissa = v / Math.pow(10, exp);
+    speedNum.textContent = `${mantissa.toFixed(3)} × 10${exp.toString().split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(d)] || d).join('')} m/s`;
+    speedCompare.textContent = `= ${ratio.toFixed(3)} × c (real speed of light)`;
+
+    // Bar — map ratio onto 0-100% with 1.0 → 50%
+    const barPct = Math.min(100, Math.max(5, ratio * 50));
+    speedBar.style.width = barPct + '%';
+    speedBar.textContent = (ratio * 100).toFixed(0) + '% c';
+  }
+  epsMult.addEventListener('input', updateSpeed);
+  muMult.addEventListener('input', updateSpeed);
+  updateSpeed();
+
+  // ============================================================
+  // Animation loop
+  // ============================================================
+  let lastFrameTime = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
+    if (lfPlaying) {
+      lfTime += dt;
+    }
+    drawLeapfrog();
+    drawWave(now / 1000);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+</script>
+</body>
+</html>

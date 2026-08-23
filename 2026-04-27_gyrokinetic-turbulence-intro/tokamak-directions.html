@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tokamak Coordinate Directions</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0c0e13;
+    color:#b8bcc8;
+    font-family:'DM Sans',sans-serif;
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:700px; margin:0 auto; padding:2rem 1rem 4rem; }
+  h1 { color:#e2e5ed; font-size:1.6rem; font-weight:600; margin-bottom:0.3rem; }
+  .sub { color:#6b7084; font-size:0.9rem; margin-bottom:1.5rem; }
+  .viz { background:#12151c; border:1px solid #252a36; border-radius:8px; overflow:hidden; margin:1.5rem 0; }
+  .viz canvas { width:100%; display:block; }
+  .viz-tag { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#f0a050; text-transform:uppercase; letter-spacing:0.12em; padding:8px 12px 0; }
+  .ctrl { display:flex; gap:10px; padding:8px 12px 10px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  .ctrl button {
+    padding:5px 14px; border-radius:4px; border:1px solid #252a36;
+    background:transparent; color:#6b7084; font-size:0.8rem; cursor:pointer;
+    font-family:'DM Sans',sans-serif; transition:all 0.15s;
+  }
+  .ctrl button.on { border-color:#f0a050; color:#f0a050; background:rgba(240,160,80,0.12); }
+  p { margin-bottom:1rem; }
+  .note {
+    background:#12151c; border-left:3px solid #5cb8f0; border-radius:0 4px 4px 0;
+    padding:0.9rem 1.1rem; margin:1.2rem 0; font-size:0.92rem;
+  }
+  .note-label { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#5cb8f0; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:0.3rem; display:block; }
+  strong { color:#e2e5ed; font-weight:500; }
+  em { color:#5cb8f0; font-style:italic; }
+  code { font-family:'IBM Plex Mono',monospace; font-size:0.85em; background:#1a1e28; padding:0.1em 0.35em; border-radius:3px; color:#a388f0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>The Three Directions in a Tokamak</h1>
+<p class="sub">How radial (x), parallel (z), and binormal (y) are defined — and what the magnetic field has to do with it</p>
+
+<div class="viz">
+  <div class="viz-tag">Interactive · A point on a flux surface with all three coordinate directions</div>
+  <canvas id="c-dirs" height="420"></canvas>
+  <div class="ctrl">
+    <button id="btn-radial" class="on" onclick="toggle('radial')">x (radial)</button>
+    <button id="btn-parallel" class="on" onclick="toggle('parallel')">z (along B)</button>
+    <button id="btn-binormal" class="on" onclick="toggle('binormal')">y (binormal)</button>
+  </div>
+</div>
+
+<p>All three directions are defined <strong>relative to the magnetic field</strong> at each point. You don't pick them freely — the field geometry determines them:</p>
+
+<div class="note">
+  <span class="note-label">The three directions</span>
+  <p style="margin-bottom:0.6rem"><strong style="color:#fb7185">Radial (x):</strong> Points outward from the magnetic axis toward the wall. Perpendicular to the flux surface. This is where the temperature gradient lives, and where heat escapes. You choose "outward" — that's the one free choice.</p>
+  <p style="margin-bottom:0.6rem"><strong style="color:#5cb8f0">Along B (z):</strong> Follows the magnetic field line as it spirals helically around the torus. This direction is set entirely by the field — wherever B points, that's z. Particles stream freely along z.</p>
+  <p style="margin-bottom:0"><strong style="color:#4ade80">Binormal (y):</strong> Whatever's left. Perpendicular to both B and the radial direction, lying in the flux surface. You don't choose it — it's forced by the other two. It's the direction "along the contour" of the flux surface, perpendicular to the field line. The turbulent eddies have their perpendicular structure in this direction.</p>
+</div>
+
+<div class="viz">
+  <div class="viz-tag">Animated · Following a field line — watch how the three directions rotate</div>
+  <canvas id="c-follow" height="380"></canvas>
+</div>
+
+<p>As you travel along the field line (blue), the binormal (green) rotates because the field line is helical — it twists as it goes around the torus. The radial direction (red) always points outward. The binormal is always perpendicular to both. At every point, the three directions form a local coordinate frame that rides along with the field.</p>
+
+<div class="viz">
+  <div class="viz-tag">Animated · Cross-section view — binormal wraps around, radial doesn't</div>
+  <canvas id="c-cross" height="360"></canvas>
+</div>
+
+<p>In the cross-section, the binormal direction goes <em>around</em> the flux surface (green dot circling). Walk far enough and you're back where you started — periodic. The radial direction points <em>across</em> flux surfaces (red arrow) — from hot core to cool edge. No amount of walking in x brings you back. The field line (blue) goes into the screen at an angle because it's spiraling helically.</p>
+
+</div>
+
+<script>
+!function(){
+  var C = {
+    bg:'#0c0e13', surface:'#12151c', border:'#252a36',
+    text:'#b8bcc8', dim:'#6b7084', heading:'#e2e5ed',
+    accent:'#f0a050', blue:'#5cb8f0', purple:'#a388f0',
+    green:'#4ade80', red:'#fb7185'
+  };
+  var F="'DM Sans',sans-serif", M="'IBM Plex Mono',monospace";
+
+  function init(id){
+    var cv=document.getElementById(id);
+    if(!cv)return null;
+    var ctx=cv.getContext('2d');
+    var dpr=window.devicePixelRatio||1;
+    var W=cv.clientWidth, H=parseInt(cv.getAttribute('height'));
+    cv.style.height=H+'px';
+    cv.width=W*dpr; cv.height=H*dpr;
+    ctx.scale(dpr,dpr);
+    return {c:cv,x:ctx,W:W,H:H};
+  }
+
+  var show={radial:true, parallel:true, binormal:true};
+  window.toggle=function(which){
+    show[which]=!show[which];
+    document.getElementById('btn-'+which).className=show[which]?'on':'';
+  };
+
+  // ── 1. THREE DIRECTIONS AT A POINT ──
+  !function(){
+    var s=init('c-dirs'); if(!s)return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    !function draw(){
+      t+=0.008; ctx.clearRect(0,0,W,H);
+
+      // Draw a "flux surface" — an ellipse representing the toroidal surface
+      var cx=W*0.45, cy=H*0.52;
+      var rx=W*0.32, ry=H*0.28;
+
+      // Flux surface (ellipse)
+      ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+      ctx.strokeStyle=C.border; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle=C.surface+'80'; ctx.fill();
+
+      // Inner flux surface
+      ctx.beginPath(); ctx.ellipse(cx,cy,rx*0.5,ry*0.5,0,0,Math.PI*2);
+      ctx.strokeStyle=C.border+'80'; ctx.lineWidth=1; ctx.stroke();
+
+      ctx.font='500 9px '+F; ctx.fillStyle=C.dim; ctx.textAlign='center';
+      ctx.fillText('flux surface',cx,cy+ry+16);
+      ctx.fillText('(toroidal shell the field line lives on)',cx,cy+ry+30);
+
+      // Magnetic axis
+      ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2);
+      ctx.fillStyle=C.dim; ctx.fill();
+      ctx.font='500 8px '+M; ctx.fillStyle=C.dim; ctx.textAlign='left';
+      ctx.fillText('magnetic axis',cx+6,cy+3);
+
+      // A point on the surface
+      var pAngle=t*0.5+0.8;
+      var px=cx+rx*Math.cos(pAngle);
+      var py=cy+ry*Math.sin(pAngle);
+
+      // The point
+      ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2);
+      ctx.fillStyle=C.accent; ctx.fill();
+      ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2);
+      ctx.strokeStyle=C.accent+'30'; ctx.lineWidth=8; ctx.stroke();
+
+      // ── RADIAL (x): outward from magnetic axis ──
+      if(show.radial){
+        var radAngle=Math.atan2(py-cy,px-cx);
+        var radLen=50;
+        var radEx=px+radLen*Math.cos(radAngle);
+        var radEy=py+radLen*Math.sin(radAngle);
+
+        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(radEx,radEy);
+        ctx.strokeStyle=C.red; ctx.lineWidth=3; ctx.stroke();
+        var ra=Math.atan2(radEy-py,radEx-px);
+        ctx.beginPath(); ctx.moveTo(radEx,radEy);
+        ctx.lineTo(radEx-9*Math.cos(ra-0.35),radEy-9*Math.sin(ra-0.35));
+        ctx.lineTo(radEx-9*Math.cos(ra+0.35),radEy-9*Math.sin(ra+0.35));
+        ctx.closePath(); ctx.fillStyle=C.red; ctx.fill();
+
+        ctx.font='600 11px '+F; ctx.fillStyle=C.red; ctx.textAlign='left';
+        ctx.fillText('x (radial)',radEx+8,radEy-4);
+        ctx.font='500 9px '+F; ctx.fillStyle=C.red+'90';
+        ctx.fillText('outward → wall',radEx+8,radEy+10);
+        ctx.fillText('⊥ flux surface',radEx+8,radEy+23);
+      }
+
+      // ── ALONG B (z): tangent to surface, at an angle (helical) ──
+      if(show.parallel){
+        // Tangent to the ellipse at this point
+        var tangAngle=Math.atan2(-rx*Math.sin(pAngle), ry*Math.cos(pAngle));
+        // Tilt it to show the helical pitch (field line goes partly toroidal)
+        var pitchTilt=0.25; // represents the helical angle
+        var bAngle=tangAngle+pitchTilt;
+        var bLen=55;
+        var bEx=px+bLen*Math.cos(bAngle);
+        var bEy=py+bLen*Math.sin(bAngle);
+
+        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(bEx,bEy);
+        ctx.strokeStyle=C.blue; ctx.lineWidth=3; ctx.stroke();
+        var ba=Math.atan2(bEy-py,bEx-px);
+        ctx.beginPath(); ctx.moveTo(bEx,bEy);
+        ctx.lineTo(bEx-9*Math.cos(ba-0.35),bEy-9*Math.sin(ba-0.35));
+        ctx.lineTo(bEx-9*Math.cos(ba+0.35),bEy-9*Math.sin(ba+0.35));
+        ctx.closePath(); ctx.fillStyle=C.blue; ctx.fill();
+
+        ctx.font='600 11px '+F; ctx.fillStyle=C.blue; ctx.textAlign='left';
+        ctx.fillText('z (along B)',bEx+8,bEy-4);
+        ctx.font='500 9px '+F; ctx.fillStyle=C.blue+'90';
+        ctx.fillText('follows field line',bEx+8,bEy+10);
+        ctx.fillText('set by B direction',bEx+8,bEy+23);
+      }
+
+      // ── BINORMAL (y): perpendicular to both radial and B, in the surface ──
+      if(show.binormal){
+        var radAngle2=Math.atan2(py-cy,px-cx);
+        var tangAngle2=Math.atan2(-rx*Math.sin(pAngle),ry*Math.cos(pAngle));
+        var pitchTilt2=0.25;
+        var bAngle2=tangAngle2+pitchTilt2;
+
+        // Binormal is perpendicular to B within the flux surface
+        // Cross product of radial and B direction gives binormal
+        var bnAngle=bAngle2+Math.PI/2;
+        // Make sure it points in a consistent direction
+        var dot=(Math.cos(bnAngle)*Math.cos(radAngle2)+Math.sin(bnAngle)*Math.sin(radAngle2));
+        if(Math.abs(dot)>0.5) bnAngle=bAngle2-Math.PI/2;
+
+        var bnLen=50;
+        var bnEx=px+bnLen*Math.cos(bnAngle);
+        var bnEy=py+bnLen*Math.sin(bnAngle);
+
+        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(bnEx,bnEy);
+        ctx.strokeStyle=C.green; ctx.lineWidth=3; ctx.stroke();
+        var bna=Math.atan2(bnEy-py,bnEx-px);
+        ctx.beginPath(); ctx.moveTo(bnEx,bnEy);
+        ctx.lineTo(bnEx-9*Math.cos(bna-0.35),bnEy-9*Math.sin(bna-0.35));
+        ctx.lineTo(bnEx-9*Math.cos(bna+0.35),bnEy-9*Math.sin(bna+0.35));
+        ctx.closePath(); ctx.fillStyle=C.green; ctx.fill();
+
+        ctx.font='600 11px '+F; ctx.fillStyle=C.green; ctx.textAlign='left';
+        ctx.fillText('y (binormal)',bnEx+8,bnEy-4);
+        ctx.font='500 9px '+F; ctx.fillStyle=C.green+'90';
+        ctx.fillText('⊥ to both B and x',bnEx+8,bnEy+10);
+        ctx.fillText('"whatever\'s left"',bnEx+8,bnEy+23);
+      }
+
+      // Right angle indicators between the vectors
+      if(show.radial && show.parallel && show.binormal){
+        ctx.font='500 8px '+M; ctx.fillStyle=C.dim; ctx.textAlign='center';
+        ctx.fillText('all three ⊥ to each other',cx,H-10);
+      }
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 2. FOLLOWING A FIELD LINE ──
+  !function(){
+    var s=init('c-follow'); if(!s)return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    // We show a "straightened" view of the torus — like unrolling a cylinder
+    // Toroidal angle on x-axis, poloidal position on y-axis
+    // The field line is a diagonal line (helical pitch)
+
+    !function draw(){
+      t+=0.008; ctx.clearRect(0,0,W,H);
+
+      var pad=50, plotW=W-2*pad, plotH=H-100;
+      var plotX=pad, plotY=40;
+
+      // Background grid representing the flux surface "unrolled"
+      ctx.fillStyle=C.surface+'60';
+      ctx.fillRect(plotX,plotY,plotW,plotH);
+      ctx.strokeStyle=C.border; ctx.lineWidth=1;
+      ctx.strokeRect(plotX,plotY,plotW,plotH);
+
+      // Grid lines
+      ctx.strokeStyle=C.border+'60'; ctx.lineWidth=0.5;
+      for(var i=1;i<8;i++){
+        var gx=plotX+i*plotW/8;
+        ctx.beginPath();ctx.moveTo(gx,plotY);ctx.lineTo(gx,plotY+plotH);ctx.stroke();
+      }
+      for(var i=1;i<4;i++){
+        var gy=plotY+i*plotH/4;
+        ctx.beginPath();ctx.moveTo(plotX,gy);ctx.lineTo(plotX+plotW,gy);ctx.stroke();
+      }
+
+      // Axis labels
+      ctx.font='500 10px '+F; ctx.fillStyle=C.dim; ctx.textAlign='center';
+      ctx.fillText('toroidal angle (long way around torus) →',plotX+plotW/2,plotY+plotH+16);
+      ctx.save(); ctx.translate(plotX-16,plotY+plotH/2); ctx.rotate(-Math.PI/2);
+      ctx.fillText('poloidal angle (short way around) →',0,0); ctx.restore();
+
+      ctx.font='500 8px '+M; ctx.fillStyle=C.dim;
+      ctx.textAlign='center';
+      ctx.fillText('FLUX SURFACE "UNROLLED" FLAT',plotX+plotW/2,plotY-8);
+
+      // Draw several field lines (diagonal, because helical)
+      var pitch=0.35; // poloidal turns per toroidal turn
+      ctx.strokeStyle=C.blue+'25'; ctx.lineWidth=1;
+      for(var offset=-2;offset<=2;offset++){
+        ctx.beginPath();
+        for(var px=0;px<=plotW;px++){
+          var tor=px/plotW;
+          var pol=((tor*pitch+offset*0.25)%1+1)%1;
+          var y=plotY+pol*plotH;
+          if(px===0)ctx.moveTo(plotX+px,y);else ctx.lineTo(plotX+px,y);
+        }
+        ctx.stroke();
+      }
+
+      // Main field line (highlighted)
+      ctx.beginPath();
+      ctx.strokeStyle=C.blue; ctx.lineWidth=2.5;
+      for(var px=0;px<=plotW;px++){
+        var tor=px/plotW;
+        var pol=((tor*pitch)%1+1)%1;
+        var y=plotY+pol*plotH;
+        if(px===0)ctx.moveTo(plotX+px,y);else ctx.lineTo(plotX+px,y);
+      }
+      ctx.stroke();
+
+      // A point traveling along the field line
+      var progress=(t*0.3)%1;
+      var pointTor=progress;
+      var pointPol=((pointTor*pitch)%1+1)%1;
+      var pointX=plotX+pointTor*plotW;
+      var pointY=plotY+pointPol*plotH;
+
+      ctx.beginPath();ctx.arc(pointX,pointY,6,0,Math.PI*2);
+      ctx.fillStyle=C.accent;ctx.fill();
+      ctx.beginPath();ctx.arc(pointX,pointY,6,0,Math.PI*2);
+      ctx.strokeStyle=C.accent+'30';ctx.lineWidth=8;ctx.stroke();
+
+      // Direction arrows at this point
+      // Along B: tangent to field line (diagonal)
+      var bDx=1, bDy=pitch*plotH/plotW;
+      var bLen2=Math.sqrt(bDx*bDx+bDy*bDy);
+      bDx/=bLen2; bDy/=bLen2;
+      var aLen=30;
+
+      ctx.beginPath();ctx.moveTo(pointX,pointY);
+      ctx.lineTo(pointX+bDx*aLen,pointY+bDy*aLen);
+      ctx.strokeStyle=C.blue;ctx.lineWidth=2.5;ctx.stroke();
+      var ba2=Math.atan2(bDy,bDx);
+      ctx.beginPath();ctx.moveTo(pointX+bDx*aLen,pointY+bDy*aLen);
+      ctx.lineTo(pointX+bDx*aLen-8*Math.cos(ba2-0.35),pointY+bDy*aLen-8*Math.sin(ba2-0.35));
+      ctx.lineTo(pointX+bDx*aLen-8*Math.cos(ba2+0.35),pointY+bDy*aLen-8*Math.sin(ba2+0.35));
+      ctx.closePath();ctx.fillStyle=C.blue;ctx.fill();
+
+      // Radial: out of the page (draw as a circle with dot, ⊙)
+      ctx.beginPath();ctx.arc(pointX,pointY-30,8,0,Math.PI*2);
+      ctx.strokeStyle=C.red;ctx.lineWidth=1.5;ctx.stroke();
+      ctx.beginPath();ctx.arc(pointX,pointY-30,2.5,0,Math.PI*2);
+      ctx.fillStyle=C.red;ctx.fill();
+      ctx.font='600 9px '+F;ctx.fillStyle=C.red;ctx.textAlign='left';
+      ctx.fillText('x ⊙ (radial, out of surface)',pointX+12,pointY-27);
+
+      // Binormal: perpendicular to B within the surface
+      var bnDx=-bDy, bnDy=bDx; // 90° rotation in the plane
+      ctx.beginPath();ctx.moveTo(pointX,pointY);
+      ctx.lineTo(pointX+bnDx*aLen,pointY+bnDy*aLen);
+      ctx.strokeStyle=C.green;ctx.lineWidth=2.5;ctx.stroke();
+      var bna2=Math.atan2(bnDy,bnDx);
+      ctx.beginPath();ctx.moveTo(pointX+bnDx*aLen,pointY+bnDy*aLen);
+      ctx.lineTo(pointX+bnDx*aLen-8*Math.cos(bna2-0.35),pointY+bnDy*aLen-8*Math.sin(bna2-0.35));
+      ctx.lineTo(pointX+bnDx*aLen-8*Math.cos(bna2+0.35),pointY+bnDy*aLen-8*Math.sin(bna2+0.35));
+      ctx.closePath();ctx.fillStyle=C.green;ctx.fill();
+
+      // Labels
+      ctx.font='600 9px '+F;
+      ctx.fillStyle=C.blue;ctx.textAlign='left';
+      ctx.fillText('z (along B)',pointX+bDx*aLen+6,pointY+bDy*aLen+4);
+      ctx.fillStyle=C.green;
+      ctx.fillText('y (binormal)',pointX+bnDx*aLen+6,pointY+bnDy*aLen+4);
+
+      // Note: as the point moves, the binormal direction rotates
+      // because the field line pitch changes the local geometry
+      ctx.font='500 9px '+F;ctx.fillStyle=C.dim;ctx.textAlign='center';
+      ctx.fillText('As the point travels along B, the binormal direction rotates with the field geometry',plotX+plotW/2,plotY+plotH+36);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+  // ── 3. CROSS-SECTION VIEW ──
+  !function(){
+    var s=init('c-cross'); if(!s)return;
+    var ctx=s.x, W=s.W, H=s.H, t=0;
+
+    !function draw(){
+      t+=0.015; ctx.clearRect(0,0,W,H);
+
+      var cx=W/2, cy=H*0.48;
+      var outerR=Math.min(W,H)*0.34;
+
+      // Flux surfaces (concentric)
+      var nSurf=6;
+      for(var i=0;i<nSurf;i++){
+        var frac=i/(nSurf-1);
+        var r=outerR*0.15+outerR*0.85*frac;
+        var rr=Math.floor(200-frac*120);
+        var gg=Math.floor(80+frac*80);
+        var bb=Math.floor(100+frac*140);
+        ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+        ctx.strokeStyle='rgba('+rr+','+gg+','+bb+','+(i===3?0.7:0.3)+')';
+        ctx.lineWidth=i===3?2:1;ctx.stroke();
+      }
+
+      // Magnetic axis
+      ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);
+      ctx.fillStyle=C.dim;ctx.fill();
+      ctx.font='500 8px '+M;ctx.fillStyle=C.dim;ctx.textAlign='left';
+      ctx.fillText('axis',cx+6,cy+3);
+
+      // Highlight one flux surface
+      var surfR=outerR*0.15+outerR*0.85*(3/(nSurf-1));
+
+      // Temperature labels
+      ctx.font='600 9px '+F;
+      ctx.fillStyle=C.red+'80';ctx.textAlign='center';ctx.fillText('HOT',cx,cy-outerR*0.12);
+      ctx.fillStyle=C.blue+'60';ctx.fillText('COOL',cx,cy+outerR+14);
+
+      // ── Binormal: dot going AROUND the highlighted surface ──
+      var binAngle=t*1.2;
+      var binX=cx+surfR*Math.cos(binAngle);
+      var binY=cy+surfR*Math.sin(binAngle);
+
+      // Trail
+      for(var i=0;i<50;i++){
+        var ta=binAngle-i*0.06;
+        var tx=cx+surfR*Math.cos(ta);
+        var ty=cy+surfR*Math.sin(ta);
+        var alpha=(1-i/50)*0.4;
+        ctx.beginPath();ctx.arc(tx,ty,2,0,Math.PI*2);
+        ctx.fillStyle='rgba(74,222,128,'+alpha+')';ctx.fill();
+      }
+
+      // Dot
+      ctx.beginPath();ctx.arc(binX,binY,6,0,Math.PI*2);
+      ctx.fillStyle=C.green;ctx.fill();
+      ctx.beginPath();ctx.arc(binX,binY,6,0,Math.PI*2);
+      ctx.strokeStyle=C.green+'30';ctx.lineWidth=6;ctx.stroke();
+
+      // Binormal tangent arrow at the dot
+      var binTangent=binAngle+Math.PI/2;
+      var btLen=25;
+      ctx.beginPath();ctx.moveTo(binX,binY);
+      ctx.lineTo(binX+btLen*Math.cos(binTangent),binY+btLen*Math.sin(binTangent));
+      ctx.strokeStyle=C.green;ctx.lineWidth=2.5;ctx.stroke();
+      var bta=binTangent;
+      ctx.beginPath();ctx.moveTo(binX+btLen*Math.cos(bta),binY+btLen*Math.sin(bta));
+      ctx.lineTo(binX+btLen*Math.cos(bta)-7*Math.cos(bta-0.35),binY+btLen*Math.sin(bta)-7*Math.sin(bta-0.35));
+      ctx.lineTo(binX+btLen*Math.cos(bta)-7*Math.cos(bta+0.35),binY+btLen*Math.sin(bta)-7*Math.sin(bta+0.35));
+      ctx.closePath();ctx.fillStyle=C.green;ctx.fill();
+
+      ctx.font='600 10px '+F;ctx.fillStyle=C.green;
+      var labelAngle=binAngle-0.4;
+      var lx=cx+(surfR+30)*Math.cos(labelAngle);
+      var ly=cy+(surfR+30)*Math.sin(labelAngle);
+      ctx.textAlign='center';
+      ctx.fillText('y (binormal)',lx,ly);
+      ctx.font='500 8px '+F;ctx.fillStyle=C.green+'80';
+      ctx.fillText('goes around → periodic',lx,ly+13);
+
+      // ── Radial: arrow from axis through dot pointing outward ──
+      var radAngle=binAngle; // same angle as current position
+      var radStart=outerR*0.2;
+      var radEnd=outerR+15;
+
+      ctx.beginPath();
+      ctx.moveTo(cx+radStart*Math.cos(radAngle),cy+radStart*Math.sin(radAngle));
+      ctx.lineTo(cx+radEnd*Math.cos(radAngle),cy+radEnd*Math.sin(radAngle));
+      ctx.strokeStyle=C.red;ctx.lineWidth=2.5;ctx.stroke();
+      var rex=cx+radEnd*Math.cos(radAngle), rey=cy+radEnd*Math.sin(radAngle);
+      ctx.beginPath();ctx.moveTo(rex,rey);
+      ctx.lineTo(rex-8*Math.cos(radAngle-0.35),rey-8*Math.sin(radAngle-0.35));
+      ctx.lineTo(rex-8*Math.cos(radAngle+0.35),rey-8*Math.sin(radAngle+0.35));
+      ctx.closePath();ctx.fillStyle=C.red;ctx.fill();
+
+      ctx.font='600 10px '+F;ctx.fillStyle=C.red;ctx.textAlign='center';
+      ctx.fillText('x (radial)',rex+20*Math.cos(radAngle),rey+20*Math.sin(radAngle));
+      ctx.font='500 8px '+F;ctx.fillStyle=C.red+'80';
+      ctx.fillText('core → edge',rex+20*Math.cos(radAngle),rey+20*Math.sin(radAngle)+13);
+      ctx.fillText('NOT periodic',rex+20*Math.cos(radAngle),rey+20*Math.sin(radAngle)+25);
+
+      // ── Along B: into the screen (⊗ symbol at the dot) ──
+      // B goes partly into the screen in cross-section view
+      ctx.beginPath();ctx.arc(binX-18,binY-18,7,0,Math.PI*2);
+      ctx.strokeStyle=C.blue;ctx.lineWidth=1.5;ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(binX-18-4,binY-18-4);ctx.lineTo(binX-18+4,binY-18+4);ctx.stroke();
+      ctx.moveTo(binX-18+4,binY-18-4);ctx.lineTo(binX-18-4,binY-18+4);ctx.stroke();
+
+      ctx.font='600 9px '+F;ctx.fillStyle=C.blue;ctx.textAlign='right';
+      ctx.fillText('z (B) ⊗',binX-28,binY-15);
+      ctx.font='500 8px '+F;ctx.fillStyle=C.blue+'80';
+      ctx.fillText('into screen',binX-28,binY-3);
+      ctx.fillText('(helical)',binX-28,binY+9);
+
+      // Bottom summary
+      ctx.font='500 10px '+F;ctx.fillStyle=C.text;ctx.textAlign='center';
+      ctx.fillText('The field defines z. "Outward" defines x. y is whatever\'s left.',W/2,H-12);
+
+      requestAnimationFrame(draw);
+    }();
+  }();
+
+}();
+</script>
+</body>
+</html>

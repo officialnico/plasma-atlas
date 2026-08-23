@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GENE ← CHEASE: Metric Coefficients Explained</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Outfit:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --panel: #111827;
+    --border: #1e293b;
+    --accent: #38bdf8;
+    --plasma-hot: #f97316;
+    --plasma-cool: #6366f1;
+    --plasma-mid: #ec4899;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --green: #34d399;
+    --red: #f87171;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  .header {
+    text-align: center;
+    padding: 28px 20px 12px;
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--plasma-mid));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+  .header p {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    margin-top: 6px;
+    font-weight: 300;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 20px;
+    flex-wrap: wrap;
+  }
+  .step-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+  }
+  .step-btn:hover { border-color: var(--accent); color: var(--text); }
+  .step-btn.active {
+    background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(99,102,241,0.15));
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 20px rgba(56,189,248,0.1);
+  }
+
+  .auto-btn {
+    background: linear-gradient(135deg, var(--accent), var(--plasma-cool));
+    border: none;
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 7px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .auto-btn:hover { opacity: 0.85; }
+  .auto-btn.playing { background: var(--red); }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: var(--panel);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .info-panel {
+    margin: 14px auto;
+    max-width: 700px;
+    padding: 0 16px;
+  }
+  .info-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    animation: fadeUp 0.4s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .info-card h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-card h3 .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    background: rgba(56,189,248,0.15);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .info-card p {
+    font-size: 0.8rem;
+    line-height: 1.65;
+    color: var(--text-dim);
+    font-weight: 300;
+  }
+  .info-card p strong { color: var(--text); font-weight: 600; }
+  .info-card code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    background: rgba(56,189,248,0.08);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .info-card .math-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0;
+  }
+  .info-card .coeff {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    background: rgba(236,72,153,0.1);
+    color: var(--plasma-mid);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(236,72,153,0.2);
+  }
+  .info-card .arrow-flow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+    flex-wrap: wrap;
+  }
+  .info-card .flow-box {
+    font-size: 0.72rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .flow-chease { background: rgba(99,102,241,0.15); color: var(--plasma-cool); border: 1px solid rgba(99,102,241,0.3); }
+  .flow-metric { background: rgba(236,72,153,0.15); color: var(--plasma-mid); border: 1px solid rgba(236,72,153,0.3); }
+  .flow-gene { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); }
+  .flow-arrow { color: var(--text-dim); font-size: 1rem; }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>How GENE Reads CHEASE Geometry</h1>
+  <p>Step-by-step: from tokamak equilibrium → gyrokinetic turbulence</p>
+</div>
+
+<div class="controls" id="controls"></div>
+
+<div class="stage">
+  <div class="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+</div>
+
+<div class="info-panel">
+  <div class="info-card" id="info"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+let currentStep = 0;
+let animT = 0;
+let autoPlay = false;
+let autoTimer = null;
+
+const STEPS = [
+  {
+    id: 'equilibrium',
+    label: '1 Equilibrium',
+    title: 'CHEASE Solves the Equilibrium',
+    badge: 'CHEASE',
+    draw: drawEquilibrium,
+    info: `<p><strong>CHEASE</strong> solves the Grad-Shafranov equation to find the <strong>MHD equilibrium</strong> of the tokamak plasma. It computes nested <strong>flux surfaces</strong> — closed contours of constant poloidal flux <code>ψ</code>.</p>
+    <p>Each surface is labeled by a radial coordinate <code>s</code> (or <code>ρ_tor</code>). The shape encodes pressure gradients, current profiles, and the magnetic field geometry. This is the "stage" on which turbulence will play out.</p>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> Flux surfaces (const ψ)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div> Magnetic axis</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#64748b"></div> Last closed flux surface</div>
+    </div>`
+  },
+  {
+    id: 'coordinates',
+    label: '2 Coordinates',
+    title: 'Field-Aligned Coordinate System',
+    badge: 'CHEASE → GENE',
+    draw: drawCoordinates,
+    info: `<p>GENE doesn't work in simple (R, Z) or (r, θ, φ) — it uses a <strong>field-aligned coordinate system</strong> <code>(x, y, z)</code> where:</p>
+    <p><strong>x</strong> = radial (across flux surfaces), <strong>y</strong> = binormal (perpendicular to B within a surface), <strong>z</strong> = parallel to the magnetic field line.</p>
+    <p>This is crucial: turbulence is extremely elongated along B (λ∥ ≫ λ⊥), so aligning coordinates with the field lets GENE use far fewer grid points in z than it would need otherwise.</p>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> x (radial)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div> y (binormal)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div> z (parallel to B)</div>
+    </div>`
+  },
+  {
+    id: 'metric',
+    label: '3 Metric',
+    title: 'The Metric Tensor g^ij',
+    badge: 'GEOMETRY CORE',
+    draw: drawMetric,
+    info: `<p>The field-aligned coordinates are <strong>curvilinear</strong> — the grid is bent and stretched by the tokamak geometry. The <strong>metric tensor</strong> <code>g<sup>ij</sup></code> tells GENE how physical distances relate to coordinate distances.</p>
+    <p>CHEASE outputs these coefficients as functions of the parallel coordinate z on each flux surface:</p>
+    <div class="math-row">
+      <span class="coeff">g<sup>xx</sup></span>
+      <span class="coeff">g<sup>xy</sup></span>
+      <span class="coeff">g<sup>xz</sup></span>
+      <span class="coeff">g<sup>yy</sup></span>
+      <span class="coeff">g<sup>yz</sup></span>
+      <span class="coeff">g<sup>zz</sup></span>
+    </div>
+    <p>Plus the <strong>Jacobian</strong> <code>J</code> (volume element) and <strong>B-field magnitude</strong> <code>|B|(z)</code>. These vary along z because the tokamak isn't a straight cylinder — the outboard side is geometrically different from the inboard side.</p>`
+  },
+  {
+    id: 'whatgene',
+    label: '4 GENE Sees',
+    title: 'What GENE Actually Computes With',
+    badge: 'GENE INTERNALS',
+    draw: drawGeneView,
+    info: `<p>At every z-grid point, GENE plugs the metric coefficients into the <strong>gyrokinetic Vlasov equation</strong> and <strong>field equations</strong>. Here's what each coefficient controls:</p>
+    <p><strong><code>g<sup>xx</sup></code></strong> — radial derivatives ∂/∂x. Appears in the radial part of ∇⊥². Drives <strong>radial mode coupling</strong>.</p>
+    <p><strong><code>g<sup>yy</sup></code></strong> — binormal derivatives. Dominates <strong>k⊥²</strong> (perpendicular wavenumber), which controls <strong>FLR (finite Larmor radius) damping</strong> via Bessel functions.</p>
+    <p><strong><code>g<sup>xy</sup></code></strong> — cross-term. Creates <strong>magnetic shear effects</strong> — couples radial and binormal directions. Zero only in a straight cylinder.</p>
+    <p><strong><code>J</code></strong> and <strong><code>|B|</code></strong> — the Jacobian weights integrals (volume averaging), while |B|(z) sets the <strong>magnetic trapping wells</strong> that create trapped particles and drive <strong>trapped-electron modes (TEM)</strong>.</p>`
+  },
+  {
+    id: 'kperp',
+    label: '5 k⊥² Build',
+    title: 'Building k⊥² From Metrics',
+    badge: 'KEY EQUATION',
+    draw: drawKperp,
+    info: `<p>The single most important thing GENE builds from the metric is <strong>k⊥²</strong> — the perpendicular wavenumber squared:</p>
+    <p><code>k⊥² = g<sup>xx</sup> k_x² + 2 g<sup>xy</sup> k_x k_y + g<sup>yy</sup> k_y²</code></p>
+    <p>This varies along z (along the field line) because the metric coefficients change. On the <strong>outboard midplane</strong> (bad curvature), g<sup>yy</sup> is large → k⊥² is large → stronger FLR effects. On the <strong>inboard side</strong>, g<sup>yy</sup> shrinks.</p>
+    <p>GENE evaluates this at every (k_x, k_y, z) point and feeds it into Bessel functions <code>J₀(k⊥ρ)</code> that average over the gyro-orbit. <strong>This is where geometry directly controls turbulence.</strong></p>`
+  },
+  {
+    id: 'turbulence',
+    label: '6 Turbulence',
+    title: 'The Final Picture: Turbulence Shaped by Geometry',
+    badge: 'OUTPUT',
+    draw: drawTurbulence,
+    info: `<div class="arrow-flow">
+      <span class="flow-box flow-chease">CHEASE</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box flow-metric">g<sup>ij</sup>, J, |B|</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box flow-gene">GENE</span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box" style="background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3)">Turbulent fluxes</span>
+    </div>
+    <p>GENE time-steps the distribution function <code>f(x, y, z, v∥, μ)</code> using the metric at every step. The geometry from CHEASE determines <strong>where turbulence is driven</strong> (bad curvature regions), <strong>how strongly FLR damps it</strong> (via k⊥²), and <strong>which particles are trapped</strong> (via |B| wells).</p>
+    <p>Different equilibria (elongation, triangularity, Shafranov shift) change the metric → change the turbulence → change heat transport. <strong>This is why geometry optimization matters for fusion reactor design.</strong></p>`
+  }
+];
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function buildControls() {
+  const c = document.getElementById('controls');
+  const autoBtn = document.createElement('button');
+  autoBtn.className = 'auto-btn';
+  autoBtn.textContent = '▶ Auto Play';
+  autoBtn.onclick = toggleAuto;
+  autoBtn.id = 'autoBtn';
+  c.appendChild(autoBtn);
+
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = s.label;
+    btn.onclick = () => goToStep(i);
+    btn.dataset.idx = i;
+    c.appendChild(btn);
+  });
+}
+
+function goToStep(i) {
+  currentStep = i;
+  animT = 0;
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.toggle('active', +b.dataset.idx === i));
+  const info = document.getElementById('info');
+  const s = STEPS[i];
+  info.innerHTML = `<h3>${s.title} <span class="badge">${s.badge}</span></h3>${s.info}`;
+  info.style.animation = 'none';
+  info.offsetHeight;
+  info.style.animation = '';
+}
+
+function toggleAuto() {
+  autoPlay = !autoPlay;
+  const btn = document.getElementById('autoBtn');
+  btn.textContent = autoPlay ? '⏸ Pause' : '▶ Auto Play';
+  btn.classList.toggle('playing', autoPlay);
+  if (autoPlay) {
+    autoTimer = setInterval(() => {
+      goToStep((currentStep + 1) % STEPS.length);
+    }, 5500);
+  } else {
+    clearInterval(autoTimer);
+  }
+}
+
+// ─── Drawing Functions ───
+
+function drawEquilibrium(t) {
+  const cx = W * 0.48, cy = H * 0.5;
+  const R0 = Math.min(W, H) * 0.28;
+
+  // Tokamak cross-section: D-shaped flux surfaces
+  for (let i = 10; i >= 0; i--) {
+    const frac = i / 10;
+    const r = R0 * frac;
+    const elongation = 1.5;
+    const triangularity = 0.3;
+    const shift = (1 - frac) * R0 * 0.15; // Shafranov shift
+
+    ctx.beginPath();
+    for (let th = 0; th <= Math.PI * 2 + 0.1; th += 0.05) {
+      const rr = r * (1 + triangularity * Math.cos(th));
+      const px = cx + shift + rr * Math.cos(th);
+      const py = cy + rr * elongation * Math.sin(th);
+      th === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+
+    const alpha = 0.08 + 0.06 * (1 - frac);
+    const pulse = Math.sin(t * 2 + frac * 4) * 0.03;
+    ctx.strokeStyle = `rgba(99,102,241,${0.3 + frac * 0.5 + pulse})`;
+    ctx.lineWidth = i === 10 ? 2 : 1;
+    if (i === 10) ctx.strokeStyle = `rgba(100,116,139,0.6)`;
+    ctx.stroke();
+
+    if (i > 0) {
+      ctx.fillStyle = `rgba(99,102,241,${alpha + pulse})`;
+      ctx.fill();
+    }
+  }
+
+  // Magnetic axis
+  const axisPulse = 3 + Math.sin(t * 3) * 1.5;
+  ctx.beginPath();
+  ctx.arc(cx + R0 * 0.15, cy, axisPulse, 0, Math.PI * 2);
+  ctx.fillStyle = '#f97316';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + R0 * 0.15, cy, axisPulse + 5, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(249,115,22,0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Labels
+  ctx.font = '600 11px Outfit';
+  ctx.fillStyle = '#f97316';
+  ctx.fillText('Magnetic axis', cx + R0 * 0.15 + 12, cy - 10);
+  ctx.fillStyle = 'rgba(100,116,139,0.8)';
+  ctx.fillText('ψ = const surfaces', cx + R0 * 0.55, cy - R0 * 1.3);
+
+  // ψ labels
+  ctx.font = '300 10px JetBrains Mono';
+  ctx.fillStyle = 'rgba(99,102,241,0.6)';
+  for (let i = 2; i <= 8; i += 3) {
+    const frac = i / 10;
+    const r = R0 * frac;
+    const shift = (1 - frac) * R0 * 0.15;
+    ctx.fillText(`s=${frac.toFixed(1)}`, cx + shift + r + 5, cy + 3);
+  }
+}
+
+function drawCoordinates(t) {
+  const cx = W * 0.35, cy = H * 0.5;
+  const R0 = Math.min(W, H) * 0.22;
+  const kappa = 1.5; // elongation
+  const delta = 0.3;  // triangularity
+
+  // Helper: point on the D-shaped flux surface
+  function surfPt(th) {
+    const rr = R0 * (1 + delta * Math.cos(th));
+    return { x: cx + rr * Math.cos(th), y: cy + rr * kappa * Math.sin(th) };
+  }
+
+  // Helper: tangent to the surface curve (d/dθ of surfPt), in screen coords
+  function surfTangent(th) {
+    const drr = -R0 * delta * Math.sin(th);
+    const rr = R0 * (1 + delta * Math.cos(th));
+    const dx = drr * Math.cos(th) - rr * Math.sin(th);
+    const dy = drr * kappa * Math.sin(th) + rr * kappa * Math.cos(th);
+    const mag = Math.sqrt(dx * dx + dy * dy);
+    return { x: dx / mag, y: dy / mag };
+  }
+
+  // Draw the flux surface
+  ctx.beginPath();
+  for (let th = 0; th <= Math.PI * 2 + 0.05; th += 0.05) {
+    const p = surfPt(th);
+    th === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+  }
+  ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Draw a second (outer) surface for context
+  ctx.beginPath();
+  for (let th = 0; th <= Math.PI * 2 + 0.05; th += 0.05) {
+    const rr = R0 * 1.3 * (1 + delta * Math.cos(th));
+    const px = cx + rr * Math.cos(th);
+    const py = cy + rr * kappa * Math.sin(th);
+    th === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = 'rgba(99,102,241,0.15)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Field line tracing on the surface (just the surface outline, since in poloidal cross-section B is along the contour)
+  const fieldPhase = t * 0.8;
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(56,189,248,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  for (let s = 0; s < Math.PI * 2; s += 0.03) {
+    const p = surfPt(s + fieldPhase);
+    s === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Pick a point on the upper-right of the surface (good visibility on mobile)
+  const ptAngle = -Math.PI * 0.3; // upper-right region
+  const pt = surfPt(ptAngle);
+  const tang = surfTangent(ptAngle);
+
+  // Outward normal: rotate tangent 90° clockwise in screen coords, then ensure it points outward
+  let normX = tang.y;
+  let normY = -tang.x;
+  // Check outward: dot with vector from center to point
+  const toCenter = { x: pt.x - cx, y: pt.y - cy };
+  if (normX * toCenter.x + normY * toCenter.y < 0) {
+    normX = -normX;
+    normY = -normY;
+  }
+
+  const arrLen = 50;
+
+  // Dot on the surface point
+  ctx.beginPath();
+  ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  // x — radial (outward normal to flux surface)
+  drawArrow(pt.x, pt.y, pt.x + normX * arrLen, pt.y + normY * arrLen, '#f87171', 'x (radial)');
+
+  // z — parallel to B ≈ tangent to flux surface in poloidal cross-section
+  // Make sure z goes in the "upward" poloidal direction at this point
+  let zx = tang.x, zy = tang.y;
+  if (zy > 0) { zx = -zx; zy = -zy; } // point "upward" (negative screen-y)
+  drawArrow(pt.x, pt.y, pt.x + zx * arrLen, pt.y + zy * arrLen, '#38bdf8', 'z (∥ to B)');
+
+  // y — binormal (out of the poloidal plane, toward viewer). Show as a foreshortened arrow angled up-left.
+  const yAng = -Math.PI * 0.6; // angled to suggest "out of screen"
+  const yLen = arrLen * 0.6;
+  drawArrow(pt.x, pt.y, pt.x + Math.cos(yAng) * yLen, pt.y + Math.sin(yAng) * yLen, '#34d399', 'y (binormal)');
+  // Small "out of screen" circle symbol
+  ctx.beginPath();
+  ctx.arc(pt.x + Math.cos(yAng) * yLen * 0.5, pt.y + Math.sin(yAng) * yLen * 0.5, 3, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(52,211,153,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(pt.x + Math.cos(yAng) * yLen * 0.5, pt.y + Math.sin(yAng) * yLen * 0.5, 1, 0, Math.PI * 2);
+  ctx.fillStyle = '#34d399';
+  ctx.fill();
+
+  // Label near the flux surface
+  ctx.font = '300 9px JetBrains Mono';
+  ctx.fillStyle = 'rgba(99,102,241,0.5)';
+  ctx.fillText('flux surface', cx + R0 * 1.15, cy + 4);
+
+  // ── Right side: GENE grid box (3D-ish) ──
+  const bx = W * 0.65, by = H * 0.15;
+  ctx.font = '600 11px Outfit';
+  ctx.fillStyle = var_text;
+  ctx.fillText('GENE grid box:', bx, by);
+
+  const boxW = W * 0.28, boxH = H * 0.5;
+  const ox = bx, oy = by + 18;
+
+  // Draw a simple 2D grid representing (x, z) plane
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 0.7;
+
+  // Horizontal lines (z = const)
+  const nzLines = 8;
+  for (let i = 0; i <= nzLines; i++) {
+    const frac = i / nzLines;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy + frac * boxH);
+    ctx.lineTo(ox + boxW, oy + frac * boxH);
+    ctx.strokeStyle = `rgba(56,189,248,${0.1 + frac * 0.12})`;
+    ctx.stroke();
+  }
+  // Vertical lines (x = const)
+  const nxLines = 6;
+  for (let i = 0; i <= nxLines; i++) {
+    const frac = i / nxLines;
+    ctx.beginPath();
+    ctx.moveTo(ox + frac * boxW, oy);
+    ctx.lineTo(ox + frac * boxW, oy + boxH);
+    ctx.strokeStyle = 'rgba(248,113,113,0.12)';
+    ctx.stroke();
+  }
+
+  // Border
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(ox, oy, boxW, boxH);
+
+  // Axis labels
+  ctx.font = '600 9px JetBrains Mono';
+  ctx.fillStyle = '#f87171';
+  ctx.textAlign = 'center';
+  ctx.fillText('x (radial) →', ox + boxW / 2, oy + boxH + 16);
+  ctx.textAlign = 'left';
+
+  ctx.save();
+  ctx.translate(ox - 12, oy + boxH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('z (along B) →', 0, 0);
+  ctx.textAlign = 'left';
+  ctx.restore();
+
+  // Annotation on grid
+  ctx.font = '300 8px Outfit';
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillText('Few z points needed', ox + 4, oy + boxH - 6);
+  ctx.fillText('(λ∥ ≫ λ⊥)', ox + 4, oy + boxH + 6);
+}
+
+const var_text = '#e2e8f0';
+
+function drawArrow(x1, y1, x2, y2, color, label) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const ux = dx / len, uy = dy / len;
+
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Arrowhead
+  const headLen = 8;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * (ux - uy * 0.4), y2 - headLen * (uy + ux * 0.4));
+  ctx.lineTo(x2 - headLen * (ux + uy * 0.4), y2 - headLen * (uy - ux * 0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  ctx.font = '600 9px JetBrains Mono';
+  ctx.fillStyle = color;
+  ctx.fillText(label, x2 + 5, y2 - 5);
+}
+
+function drawMetric(t) {
+  // Show metric coefficients as z-varying curves
+  const margin = { l: 55, r: 20, t: 40, b: 45 };
+  const pw = W - margin.l - margin.r;
+  const ph = H - margin.t - margin.b;
+
+  ctx.font = '600 12px Outfit';
+  ctx.fillStyle = var_text;
+  ctx.fillText('Metric coefficients along field line (z)', margin.l, margin.t - 15);
+
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t);
+  ctx.lineTo(margin.l, margin.t + ph);
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.stroke();
+
+  ctx.font = '300 9px JetBrains Mono';
+  ctx.fillStyle = var_text_dim;
+  ctx.fillText('−π', margin.l - 5, margin.t + ph + 15);
+  ctx.fillText('0', margin.l + pw / 2 - 3, margin.t + ph + 15);
+  ctx.fillText('+π', margin.l + pw - 10, margin.t + ph + 15);
+  ctx.fillText('z (parallel coordinate)', margin.l + pw * 0.3, margin.t + ph + 35);
+
+  // Vertical center line (outboard midplane)
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(margin.l + pw / 2, margin.t);
+  ctx.lineTo(margin.l + pw / 2, margin.t + ph);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '300 8px JetBrains Mono';
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillText('outboard midplane', margin.l + pw / 2 - 40, margin.t + 10);
+
+  const curves = [
+    { name: 'g^yy', color: '#ec4899', fn: z => 1.5 + 1.2 * Math.cos(z) + 0.3 * Math.cos(2 * z) },
+    { name: 'g^xx', color: '#f87171', fn: z => 0.8 + 0.4 * Math.cos(z) },
+    { name: 'g^xy', color: '#fbbf24', fn: z => 0.5 * Math.sin(z) + 0.2 * Math.sin(2 * z) },
+    { name: '|B|', color: '#38bdf8', fn: z => 1.0 - 0.35 * Math.cos(z) },
+    { name: 'J', color: '#34d399', fn: z => 1.0 + 0.6 * Math.cos(z) },
+  ];
+
+  const reveal = Math.min(1, t * 0.3);
+  const npts = Math.floor(200 * reveal);
+
+  curves.forEach((curve, ci) => {
+    ctx.beginPath();
+    ctx.strokeStyle = curve.color;
+    ctx.lineWidth = 2;
+    const delay = ci * 0.15;
+    const cReveal = Math.max(0, Math.min(1, (t - delay) * 0.35));
+    const cn = Math.floor(200 * cReveal);
+
+    for (let i = 0; i <= cn; i++) {
+      const frac = i / 200;
+      const z = -Math.PI + frac * 2 * Math.PI;
+      const val = curve.fn(z);
+      const px = margin.l + frac * pw;
+      const py = margin.t + ph - (val / 3.5) * ph;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Label
+    if (cReveal > 0.8) {
+      const labelZ = -Math.PI + cReveal * 2 * Math.PI;
+      const labelVal = curve.fn(labelZ);
+      const lx = margin.l + cReveal * pw;
+      const ly = margin.t + ph - (labelVal / 3.5) * ph;
+      ctx.font = '600 10px JetBrains Mono';
+      ctx.fillStyle = curve.color;
+      ctx.fillText(curve.name, lx + 5, ly - 5);
+    }
+  });
+}
+
+const var_text_dim = '#64748b';
+
+function drawGeneView(t) {
+  // Show a "what GENE sees" at one z point — decomposed
+  const cx = W * 0.5, cy = H * 0.5;
+
+  // Central concept: a z-slice
+  const sliceX = W * 0.12;
+  const sliceW = W * 0.18;
+  const sliceH = H * 0.7;
+  const sliceY = (H - sliceH) / 2;
+
+  // z-axis
+  ctx.strokeStyle = 'rgba(56,189,248,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(sliceX + sliceW / 2, sliceY);
+  ctx.lineTo(sliceX + sliceW / 2, sliceY + sliceH);
+  ctx.stroke();
+
+  // z grid points
+  const nz = 12;
+  const activeZ = Math.floor((Math.sin(t * 0.5) * 0.5 + 0.5) * (nz - 1));
+
+  for (let i = 0; i < nz; i++) {
+    const y = sliceY + (i / (nz - 1)) * sliceH;
+    const isActive = i === activeZ;
+    const r = isActive ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(sliceX + sliceW / 2, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = isActive ? '#38bdf8' : 'rgba(56,189,248,0.3)';
+    ctx.fill();
+    if (isActive) {
+      ctx.beginPath();
+      ctx.arc(sliceX + sliceW / 2, y, 10, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(56,189,248,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  ctx.font = '300 9px JetBrains Mono';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('z grid', sliceX + sliceW / 2 - 15, sliceY - 8);
+
+  // Arrow to right panel
+  const activeY = sliceY + (activeZ / (nz - 1)) * sliceH;
+  ctx.beginPath();
+  ctx.moveTo(sliceX + sliceW / 2 + 12, activeY);
+  ctx.lineTo(W * 0.36, activeY);
+  ctx.strokeStyle = 'rgba(56,189,248,0.4)';
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Right panel: what GENE reads at this z
+  const panelX = W * 0.38;
+  const panelY = H * 0.08;
+  const panelW = W * 0.58;
+
+  ctx.font = '600 11px Outfit';
+  ctx.fillStyle = var_text;
+  ctx.fillText(`At this z-point, GENE reads:`, panelX, panelY);
+
+  const items = [
+    { coeff: 'g^xx(z)', role: '→ radial coupling strength', color: '#f87171', val: (0.8 + 0.4 * Math.cos(-Math.PI + (activeZ / (nz-1)) * 2 * Math.PI)).toFixed(2) },
+    { coeff: 'g^yy(z)', role: '→ k⊥² & FLR damping', color: '#ec4899', val: (1.5 + 1.2 * Math.cos(-Math.PI + (activeZ / (nz-1)) * 2 * Math.PI)).toFixed(2) },
+    { coeff: 'g^xy(z)', role: '→ magnetic shear coupling', color: '#fbbf24', val: (0.5 * Math.sin(-Math.PI + (activeZ / (nz-1)) * 2 * Math.PI)).toFixed(2) },
+    { coeff: '|B|(z)', role: '→ trapping wells, mirror force', color: '#38bdf8', val: (1.0 - 0.35 * Math.cos(-Math.PI + (activeZ / (nz-1)) * 2 * Math.PI)).toFixed(2) },
+    { coeff: 'J(z)', role: '→ volume weighting for integrals', color: '#34d399', val: (1.0 + 0.6 * Math.cos(-Math.PI + (activeZ / (nz-1)) * 2 * Math.PI)).toFixed(2) },
+    { coeff: 'dB/dz', role: '→ curvature & ∇B drift', color: '#a78bfa', val: (0.35 * Math.sin(-Math.PI + (activeZ / (nz-1)) * 2 * Math.PI)).toFixed(2) },
+  ];
+
+  items.forEach((item, i) => {
+    const y = panelY + 22 + i * 34;
+    const alpha = Math.min(1, Math.max(0, (t - i * 0.2) * 0.8));
+
+    ctx.globalAlpha = alpha;
+
+    ctx.font = '600 10px JetBrains Mono';
+    ctx.fillStyle = item.color;
+    ctx.fillText(item.coeff, panelX, y);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillText(`= ${item.val}`, panelX + 65, y);
+
+    ctx.font = '300 10px Outfit';
+    ctx.fillStyle = var_text_dim;
+    ctx.fillText(item.role, panelX + 115, y);
+
+    ctx.globalAlpha = 1;
+  });
+
+  // Bottom note
+  ctx.font = '300 9px Outfit';
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillText('These feed into Vlasov eq. & field solver at every timestep', panelX, panelY + 240);
+}
+
+function drawKperp(t) {
+  const margin = { l: 55, r: 20, t: 50, b: 50 };
+  const pw = W - margin.l - margin.r;
+  const ph = H - margin.t - margin.b;
+
+  ctx.font = '600 12px Outfit';
+  ctx.fillStyle = var_text;
+  ctx.fillText('k⊥²(z) = g^xx·kx² + 2g^xy·kx·ky + g^yy·ky²', margin.l, margin.t - 22);
+
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t);
+  ctx.lineTo(margin.l, margin.t + ph);
+  ctx.lineTo(margin.l + pw, margin.t + ph);
+  ctx.stroke();
+
+  ctx.font = '300 9px JetBrains Mono';
+  ctx.fillStyle = var_text_dim;
+  ctx.fillText('−π (inboard)', margin.l - 5, margin.t + ph + 15);
+  ctx.fillText('0 (outboard)', margin.l + pw / 2 - 25, margin.t + ph + 15);
+  ctx.fillText('+π (inboard)', margin.l + pw - 40, margin.t + ph + 15);
+  ctx.fillText('z', margin.l + pw / 2, margin.t + ph + 35);
+
+  ctx.save();
+  ctx.translate(margin.l - 35, margin.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('k⊥²', 0, 0);
+  ctx.restore();
+
+  // Components stacked
+  const kx = 0.3, ky = 1.0;
+  const gxx = z => 0.8 + 0.4 * Math.cos(z);
+  const gxy = z => 0.5 * Math.sin(z) + 0.2 * Math.sin(2 * z);
+  const gyy = z => 1.5 + 1.2 * Math.cos(z) + 0.3 * Math.cos(2 * z);
+
+  const kperp2 = z => gxx(z) * kx * kx + 2 * gxy(z) * kx * ky + gyy(z) * ky * ky;
+  const maxK = 3.5;
+
+  // Fill under curve
+  const reveal = Math.min(1, t * 0.25);
+  const n = Math.floor(200 * reveal);
+
+  // gxx contribution
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t + ph);
+  for (let i = 0; i <= n; i++) {
+    const frac = i / 200;
+    const z = -Math.PI + frac * 2 * Math.PI;
+    const val = gxx(z) * kx * kx;
+    ctx.lineTo(margin.l + frac * pw, margin.t + ph - (val / maxK) * ph);
+  }
+  ctx.lineTo(margin.l + (n / 200) * pw, margin.t + ph);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(248,113,113,0.15)';
+  ctx.fill();
+
+  // gyy contribution
+  ctx.beginPath();
+  ctx.moveTo(margin.l, margin.t + ph);
+  for (let i = 0; i <= n; i++) {
+    const frac = i / 200;
+    const z = -Math.PI + frac * 2 * Math.PI;
+    const val = gyy(z) * ky * ky;
+    ctx.lineTo(margin.l + frac * pw, margin.t + ph - (val / maxK) * ph);
+  }
+  ctx.lineTo(margin.l + (n / 200) * pw, margin.t + ph);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(236,72,153,0.1)';
+  ctx.fill();
+
+  // Total k_perp^2 curve
+  ctx.beginPath();
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i <= n; i++) {
+    const frac = i / 200;
+    const z = -Math.PI + frac * 2 * Math.PI;
+    const val = kperp2(z);
+    const px = margin.l + frac * pw;
+    const py = margin.t + ph - (val / maxK) * ph;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Moving marker
+  if (reveal > 0.3) {
+    const mz = -Math.PI + ((t * 0.3) % 1) * 2 * Math.PI;
+    const mv = kperp2(mz);
+    const mx = margin.l + (((t * 0.3) % 1)) * pw;
+    const my = margin.t + ph - (mv / maxK) * ph;
+
+    ctx.beginPath();
+    ctx.arc(mx, my, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(mx, my, 8, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(251,191,36,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Vertical line to axis
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(mx, margin.t + ph);
+    ctx.strokeStyle = 'rgba(251,191,36,0.2)';
+    ctx.setLineDash([2, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Labels
+  if (reveal > 0.5) {
+    ctx.font = '600 10px JetBrains Mono';
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('k⊥² (total)', margin.l + pw * 0.75, margin.t + 20);
+    ctx.fillStyle = 'rgba(236,72,153,0.6)';
+    ctx.fillText('g^yy·ky² (dominant)', margin.l + pw * 0.6, margin.t + 35);
+    ctx.fillStyle = 'rgba(248,113,113,0.5)';
+    ctx.fillText('g^xx·kx² (smaller)', margin.l + pw * 0.6, margin.t + 50);
+
+    // Annotation: peak at outboard
+    ctx.font = '300 9px Outfit';
+    ctx.fillStyle = 'rgba(251,191,36,0.7)';
+    ctx.fillText('↑ peak at outboard = strongest FLR', margin.l + pw * 0.3, margin.t + ph - (kperp2(0) / maxK) * ph - 12);
+  }
+}
+
+function drawTurbulence(t) {
+  // 2D turbulence visualization colored by intensity
+  const margin = 30;
+  const gw = W - 2 * margin;
+  const gh = H - 2 * margin;
+  const cellsX = 48, cellsY = 36;
+  const cw = gw / cellsX, ch = gh / cellsY;
+
+  // Simulated turbulence pattern — eddies that respect geometry
+  for (let iy = 0; iy < cellsY; iy++) {
+    for (let ix = 0; ix < cellsX; ix++) {
+      const x = (ix / cellsX) * 2 - 1;
+      const y = (iy / cellsY) * 2 - 1;
+
+      // Multi-scale turbulence
+      let val = 0;
+      val += 0.5 * Math.sin(x * 8 + t * 1.2) * Math.cos(y * 6 - t * 0.8);
+      val += 0.3 * Math.sin(x * 15 - t * 2 + y * 3) * Math.cos(y * 12 + t * 1.5);
+      val += 0.2 * Math.sin(x * 25 + y * 20 + t * 3);
+
+      // Geometry effect: stronger turbulence on outboard (center-x of domain)
+      const geometryWeight = 0.5 + 0.5 * Math.exp(-y * y * 2); // outboard is center
+      val *= geometryWeight;
+
+      // Map to color
+      const intensity = (val + 1) / 2; // 0-1
+      let r, g, b;
+      if (val > 0) {
+        r = Math.floor(249 * intensity);
+        g = Math.floor(115 * intensity * 0.5);
+        b = Math.floor(22 * intensity * 0.3);
+      } else {
+        r = Math.floor(99 * Math.abs(val));
+        g = Math.floor(102 * Math.abs(val));
+        b = Math.floor(241 * Math.abs(val));
+      }
+
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(margin + ix * cw, margin + iy * ch, cw + 0.5, ch + 0.5);
+    }
+  }
+
+  // Overlay labels
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(margin, margin, 190, 22);
+  ctx.font = '600 10px Outfit';
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText('Electrostatic potential φ(x, y) at one z', margin + 5, margin + 15);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(margin, H - margin - 50, 240, 45);
+  ctx.font = '300 9px Outfit';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('Bright = strong turbulence (bad curvature region)', margin + 5, H - margin - 32);
+  ctx.fillText('Blue = suppressed (good curvature / FLR damping)', margin + 5, H - margin - 18);
+
+  ctx.font = '300 8px JetBrains Mono';
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillText('x (radial) →', margin + gw - 65, H - margin - 5);
+  ctx.fillText('y (binormal) →', margin + 2, margin + gh - 5);
+}
+
+// ─── Animation Loop ───
+
+let lastTime = 0;
+function loop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.1);
+  lastTime = ts;
+  animT += dt;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Subtle grid background
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  ctx.lineWidth = 0.5;
+  const gridSize = 30;
+  for (let x = 0; x < W; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  STEPS[currentStep].draw(animT);
+
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize', resize);
+resize();
+buildControls();
+goToStep(0);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

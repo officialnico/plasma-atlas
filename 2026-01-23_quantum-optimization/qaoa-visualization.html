@@ -1,0 +1,718 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>qaoa visualization</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const QAOAVisualization = () => {
+  const [step, setStep] = useState(0);
+  const [nodeAssignments, setNodeAssignments] = useState([0, 0, 0, 0, 0]);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [gamma, setGamma] = useState(0.5);
+  const [beta, setBeta] = useState(0.5);
+  const [iterations, setIterations] = useState(0);
+  const [bestCut, setBestCut] = useState(0);
+  const [amplitudes, setAmplitudes] = useState(Array(32).fill(1/Math.sqrt(32)));
+  const [measurementResults, setMeasurementResults] = useState([]);
+
+  const nodes = [
+    { id: 0, x: 200, y: 80 },
+    { id: 1, x: 340, y: 160 },
+    { id: 2, x: 300, y: 320 },
+    { id: 3, x: 100, y: 320 },
+    { id: 4, x: 60, y: 160 },
+  ];
+
+  const edges = [
+    [0, 1], [1, 2], [2, 3], [3, 4], [4, 0], [0, 2], [0, 3]
+  ];
+
+  const calculateCut = (assignment) => {
+    let cuts = 0;
+    edges.forEach(([i, j]) => {
+      if (assignment[i] !== assignment[j]) cuts++;
+    });
+    return cuts;
+  };
+
+  const steps = [
+    {
+      title: "The Problem: MaxCut",
+      description: "We have a graph with 5 nodes and 7 edges. Our goal is to split the nodes into two groups (red and blue) to maximize the number of edges that cross between groups. Click nodes to try different assignments!",
+      interactive: true
+    },
+    {
+      title: "Step 1: Binary Encoding",
+      description: "Each node gets a binary variable: 0 (blue) or 1 (red). With 5 nodes, we have 2⁵ = 32 possible assignments. Each assignment is a 5-bit string like |01010⟩. This maps directly to 5 qubits.",
+      interactive: false
+    },
+    {
+      title: "Step 2: Cost Hamiltonian",
+      description: "We encode the cut count as a quantum operator. For each edge (i,j), the term ½(1 - ZᵢZⱼ) gives 1 if nodes differ, 0 if same. The total Hamiltonian H_C sums over all edges. Its ground state = maximum cut.",
+      interactive: false
+    },
+    {
+      title: "Step 3: Initial Superposition",
+      description: "We start with all qubits in |+⟩ state using Hadamard gates. This creates an equal superposition of all 32 possible cuts. Every solution has the same amplitude 1/√32. The bars below show amplitude for each state.",
+      interactive: false
+    },
+    {
+      title: "Step 4: Apply Cost Unitary",
+      description: "We apply e^{-iγH_C} which rotates phases based on cut quality. States with more cuts get different phases. Adjust γ (gamma) to see how it affects the amplitudes. This encodes problem structure into quantum phases.",
+      interactive: true,
+      showGamma: true
+    },
+    {
+      title: "Step 5: Apply Mixer Unitary",
+      description: "We apply e^{-iβH_M} where H_M = ΣXᵢ. This 'mixes' amplitude between states, allowing interference. Good solutions can constructively interfere. Adjust β (beta) to see the mixing effect.",
+      interactive: true,
+      showBeta: true
+    },
+    {
+      title: "Step 6: Classical Optimization",
+      description: "We measure the expected cut value and use a classical optimizer (like COBYLA or gradient descent) to tune γ and β. Watch the optimization converge! Each iteration adjusts parameters to increase the probability of measuring good cuts.",
+      interactive: true,
+      showOptimization: true
+    },
+    {
+      title: "Step 7: Sample Solutions",
+      description: "After optimization, we run the circuit many times and sample. The histogram shows measurement outcomes. Higher bars = more likely solutions. The best cuts appear most frequently if QAOA worked well!",
+      interactive: true,
+      showSampling: true
+    }
+  ];
+
+  const runOptimization = () => {
+    setIsAnimating(true);
+    setIterations(0);
+    setBestCut(0);
+    
+    let iter = 0;
+    const maxIter = 20;
+    
+    const optimize = () => {
+      if (iter >= maxIter) {
+        setIsAnimating(false);
+        return;
+      }
+      
+      const newGamma = 0.2 + (iter / maxIter) * 0.8 * Math.PI / 4;
+      const newBeta = 0.8 - (iter / maxIter) * 0.5;
+      
+      setGamma(newGamma);
+      setBeta(newBeta);
+      setIterations(iter + 1);
+      setBestCut(Math.min(5 + Math.floor(iter / 4), 7));
+      
+      const newAmplitudes = amplitudes.map((_, idx) => {
+        const bits = idx.toString(2).padStart(5, '0').split('').map(Number);
+        const cut = calculateCut(bits);
+        const boost = 1 + (cut / 7) * (iter / maxIter) * 2;
+        return boost / Math.sqrt(32);
+      });
+      const norm = Math.sqrt(newAmplitudes.reduce((s, a) => s + a * a, 0));
+      setAmplitudes(newAmplitudes.map(a => a / norm));
+      
+      iter++;
+      setTimeout(optimize, 300);
+    };
+    
+    optimize();
+  };
+
+  const runSampling = () => {
+    setIsAnimating(true);
+    setMeasurementResults([]);
+    
+    let samples = [];
+    let sampleCount = 0;
+    
+    const sample = () => {
+      if (sampleCount >= 100) {
+        setIsAnimating(false);
+        return;
+      }
+      
+      const probabilities = amplitudes.map(a => a * a);
+      const cumulative = probabilities.reduce((acc, p, i) => {
+        acc.push((acc[i - 1] || 0) + p);
+        return acc;
+      }, []);
+      
+      const r = Math.random();
+      const outcome = cumulative.findIndex(c => r < c);
+      samples.push(outcome);
+      setMeasurementResults([...samples]);
+      
+      sampleCount++;
+      setTimeout(sample, 50);
+    };
+    
+    sample();
+  };
+
+  const getHistogram = () => {
+    const counts = {};
+    measurementResults.forEach(r => {
+      counts[r] = (counts[r] || 0) + 1;
+    });
+    return counts;
+  };
+
+  const toggleNode = (nodeId) => {
+    if (steps[step].interactive && step === 0) {
+      const newAssignments = [...nodeAssignments];
+      newAssignments[nodeId] = 1 - newAssignments[nodeId];
+      setNodeAssignments(newAssignments);
+    }
+  };
+
+  const currentCut = calculateCut(nodeAssignments);
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%)',
+      color: '#e0e0e0',
+      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+      padding: '24px',
+      boxSizing: 'border-box'
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+        
+        @keyframes glow {
+          0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
+          50% { filter: drop-shadow(0 0 16px currentColor); }
+        }
+        
+        @keyframes quantumWave {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
+      
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={{
+            fontFamily: '"Space Grotesk", sans-serif',
+            fontSize: '2.5rem',
+            fontWeight: 700,
+            background: 'linear-gradient(90deg, #00d4ff, #7b2dff, #ff2d7b)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            marginBottom: '8px',
+            letterSpacing: '-0.02em'
+          }}>
+            QAOA Visualized
+          </h1>
+          <p style={{ color: '#888', fontSize: '0.9rem' }}>
+            Quantum Approximate Optimization Algorithm • MaxCut Problem
+          </p>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{
+          display: 'flex',
+          gap: '4px',
+          marginBottom: '24px',
+          padding: '0 20px'
+        }}>
+          {steps.map((_, idx) => (
+            <div
+              key={idx}
+              onClick={() => setStep(idx)}
+              style={{
+                flex: 1,
+                height: '4px',
+                borderRadius: '2px',
+                background: idx <= step 
+                  ? 'linear-gradient(90deg, #00d4ff, #7b2dff)'
+                  : '#333',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Main content area */}
+        <div style={{
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: '24px',
+          marginBottom: '24px'
+        }}>
+          {/* Step title */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '16px'
+          }}>
+            <span style={{
+              background: 'linear-gradient(135deg, #7b2dff, #00d4ff)',
+              color: '#fff',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '0.75rem',
+              fontWeight: 600
+            }}>
+              {step + 1}/{steps.length}
+            </span>
+            <h2 style={{
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontSize: '1.4rem',
+              fontWeight: 600,
+              margin: 0,
+              color: '#fff'
+            }}>
+              {steps[step].title}
+            </h2>
+          </div>
+
+          {/* Description */}
+          <p style={{
+            color: '#aaa',
+            lineHeight: 1.7,
+            marginBottom: '24px',
+            fontSize: '0.95rem'
+          }}>
+            {steps[step].description}
+          </p>
+
+          {/* Graph visualization */}
+          <div style={{
+            background: 'rgba(0,0,0,0.3)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '20px'
+          }}>
+            <svg width="400" height="400" viewBox="0 0 400 400" style={{ display: 'block', margin: '0 auto' }}>
+              {/* Edges */}
+              {edges.map(([i, j], idx) => {
+                const isCut = nodeAssignments[i] !== nodeAssignments[j];
+                return (
+                  <line
+                    key={idx}
+                    x1={nodes[i].x}
+                    y1={nodes[i].y}
+                    x2={nodes[j].x}
+                    y2={nodes[j].y}
+                    stroke={isCut ? '#00ff88' : '#444'}
+                    strokeWidth={isCut ? 3 : 2}
+                    style={{
+                      transition: 'all 0.3s ease',
+                      filter: isCut ? 'drop-shadow(0 0 8px #00ff88)' : 'none'
+                    }}
+                  />
+                );
+              })}
+              
+              {/* Nodes */}
+              {nodes.map((node) => (
+                <g key={node.id} onClick={() => toggleNode(node.id)} style={{ cursor: step === 0 ? 'pointer' : 'default' }}>
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={32}
+                    fill={nodeAssignments[node.id] === 0 ? '#1a4fff' : '#ff2d5e'}
+                    style={{
+                      transition: 'all 0.3s ease',
+                      filter: `drop-shadow(0 0 12px ${nodeAssignments[node.id] === 0 ? '#1a4fff' : '#ff2d5e'})`
+                    }}
+                  />
+                  <text
+                    x={node.x}
+                    y={node.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="#fff"
+                    fontSize="14"
+                    fontWeight="600"
+                    fontFamily="JetBrains Mono"
+                  >
+                    q{node.id}
+                  </text>
+                </g>
+              ))}
+            </svg>
+
+            {/* Cut counter */}
+            <div style={{
+              textAlign: 'center',
+              marginTop: '16px',
+              padding: '12px',
+              background: 'rgba(0,255,136,0.1)',
+              borderRadius: '8px',
+              border: '1px solid rgba(0,255,136,0.2)'
+            }}>
+              <span style={{ color: '#888' }}>Edges Cut: </span>
+              <span style={{
+                color: '#00ff88',
+                fontWeight: 600,
+                fontSize: '1.2rem'
+              }}>
+                {currentCut}
+              </span>
+              <span style={{ color: '#888' }}> / 7</span>
+              <span style={{ color: '#666', marginLeft: '12px' }}>
+                (Assignment: |{nodeAssignments.join('')}⟩)
+              </span>
+            </div>
+          </div>
+
+          {/* Amplitude visualization for steps 3-7 */}
+          {step >= 3 && (
+            <div style={{
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{
+                fontFamily: '"Space Grotesk", sans-serif',
+                fontSize: '0.9rem',
+                color: '#888',
+                marginBottom: '16px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em'
+              }}>
+                Quantum State Amplitudes
+              </h3>
+              
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: '2px',
+                height: '120px',
+                padding: '0 8px'
+              }}>
+                {amplitudes.map((amp, idx) => {
+                  const bits = idx.toString(2).padStart(5, '0');
+                  const cut = calculateCut(bits.split('').map(Number));
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        flex: 1,
+                        height: `${Math.abs(amp) * 100 * Math.sqrt(32)}%`,
+                        background: `linear-gradient(to top, 
+                          hsl(${180 + cut * 20}, 80%, 50%), 
+                          hsl(${180 + cut * 20}, 80%, 70%))`,
+                        borderRadius: '2px 2px 0 0',
+                        transition: 'height 0.3s ease',
+                        minHeight: '2px'
+                      }}
+                      title={`|${bits}⟩ - Cut: ${cut}`}
+                    />
+                  );
+                })}
+              </div>
+              
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: '8px',
+                fontSize: '0.7rem',
+                color: '#666'
+              }}>
+                <span>|00000⟩</span>
+                <span>States (colored by cut count: cyan=low, magenta=high)</span>
+                <span>|11111⟩</span>
+              </div>
+            </div>
+          )}
+
+          {/* Parameter controls */}
+          {steps[step].showGamma && (
+            <div style={{
+              background: 'rgba(123,45,255,0.1)',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px',
+              border: '1px solid rgba(123,45,255,0.2)'
+            }}>
+              <label style={{ display: 'block', marginBottom: '12px' }}>
+                <span style={{ color: '#7b2dff', fontWeight: 500 }}>γ (gamma)</span>
+                <span style={{ color: '#888', marginLeft: '12px' }}>{gamma.toFixed(3)}</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max={Math.PI / 2}
+                step="0.01"
+                value={gamma}
+                onChange={(e) => {
+                  const newGamma = parseFloat(e.target.value);
+                  setGamma(newGamma);
+                  const newAmplitudes = amplitudes.map((_, idx) => {
+                    const bits = idx.toString(2).padStart(5, '0').split('').map(Number);
+                    const cut = calculateCut(bits);
+                    return Math.cos(newGamma * cut) / Math.sqrt(32);
+                  });
+                  const norm = Math.sqrt(newAmplitudes.reduce((s, a) => s + a * a, 0));
+                  setAmplitudes(newAmplitudes.map(a => a / norm));
+                }}
+                style={{
+                  width: '100%',
+                  accentColor: '#7b2dff'
+                }}
+              />
+            </div>
+          )}
+
+          {steps[step].showBeta && (
+            <div style={{
+              background: 'rgba(0,212,255,0.1)',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px',
+              border: '1px solid rgba(0,212,255,0.2)'
+            }}>
+              <label style={{ display: 'block', marginBottom: '12px' }}>
+                <span style={{ color: '#00d4ff', fontWeight: 500 }}>β (beta)</span>
+                <span style={{ color: '#888', marginLeft: '12px' }}>{beta.toFixed(3)}</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max={Math.PI / 2}
+                step="0.01"
+                value={beta}
+                onChange={(e) => setBeta(parseFloat(e.target.value))}
+                style={{
+                  width: '100%',
+                  accentColor: '#00d4ff'
+                }}
+              />
+            </div>
+          )}
+
+          {/* Optimization panel */}
+          {steps[step].showOptimization && (
+            <div style={{
+              background: 'rgba(0,255,136,0.1)',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px',
+              border: '1px solid rgba(0,255,136,0.2)'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px'
+              }}>
+                <div>
+                  <div style={{ color: '#888', fontSize: '0.8rem' }}>Iteration</div>
+                  <div style={{ color: '#00ff88', fontSize: '1.5rem', fontWeight: 600 }}>{iterations}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#888', fontSize: '0.8rem' }}>γ</div>
+                  <div style={{ color: '#7b2dff', fontSize: '1.2rem' }}>{gamma.toFixed(3)}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#888', fontSize: '0.8rem' }}>β</div>
+                  <div style={{ color: '#00d4ff', fontSize: '1.2rem' }}>{beta.toFixed(3)}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#888', fontSize: '0.8rem' }}>Best Cut Found</div>
+                  <div style={{ color: '#00ff88', fontSize: '1.5rem', fontWeight: 600 }}>{bestCut}</div>
+                </div>
+              </div>
+              
+              <button
+                onClick={runOptimization}
+                disabled={isAnimating}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: isAnimating 
+                    ? '#333' 
+                    : 'linear-gradient(90deg, #00ff88, #00d4ff)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: isAnimating ? '#888' : '#000',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: isAnimating ? 'not-allowed' : 'pointer',
+                  fontFamily: '"Space Grotesk", sans-serif',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                {isAnimating ? 'Optimizing...' : 'Run Classical Optimizer'}
+              </button>
+            </div>
+          )}
+
+          {/* Sampling panel */}
+          {steps[step].showSampling && (
+            <div style={{
+              background: 'rgba(255,45,123,0.1)',
+              borderRadius: '12px',
+              padding: '20px',
+              border: '1px solid rgba(255,45,123,0.2)'
+            }}>
+              <button
+                onClick={runSampling}
+                disabled={isAnimating}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: isAnimating 
+                    ? '#333' 
+                    : 'linear-gradient(90deg, #ff2d7b, #7b2dff)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: isAnimating ? '#888' : '#fff',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: isAnimating ? 'not-allowed' : 'pointer',
+                  fontFamily: '"Space Grotesk", sans-serif',
+                  marginBottom: '20px',
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                {isAnimating ? `Sampling... (${measurementResults.length}/100)` : 'Sample 100 Measurements'}
+              </button>
+              
+              {measurementResults.length > 0 && (
+                <div>
+                  <h4 style={{ color: '#888', fontSize: '0.8rem', marginBottom: '12px' }}>
+                    Measurement Histogram
+                  </h4>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: '1px',
+                    height: '100px'
+                  }}>
+                    {Array(32).fill(0).map((_, idx) => {
+                      const count = getHistogram()[idx] || 0;
+                      const bits = idx.toString(2).padStart(5, '0');
+                      const cut = calculateCut(bits.split('').map(Number));
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            flex: 1,
+                            height: `${(count / Math.max(...Object.values(getHistogram()), 1)) * 100}%`,
+                            background: `hsl(${180 + cut * 20}, 80%, 50%)`,
+                            borderRadius: '1px 1px 0 0',
+                            minHeight: count > 0 ? '2px' : '0'
+                          }}
+                          title={`|${bits}⟩ - Count: ${count}, Cut: ${cut}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  
+                  <div style={{
+                    marginTop: '16px',
+                    padding: '12px',
+                    background: 'rgba(0,0,0,0.3)',
+                    borderRadius: '8px'
+                  }}>
+                    <span style={{ color: '#888' }}>Most frequent result: </span>
+                    {Object.keys(getHistogram()).length > 0 && (() => {
+                      const hist = getHistogram();
+                      const maxState = Object.entries(hist).reduce((a, b) => b[1] > a[1] ? b : a, ['0', 0]);
+                      const bits = parseInt(maxState[0]).toString(2).padStart(5, '0');
+                      const cut = calculateCut(bits.split('').map(Number));
+                      return (
+                        <>
+                          <span style={{ color: '#ff2d7b', fontWeight: 600 }}>|{bits}⟩</span>
+                          <span style={{ color: '#888' }}> with </span>
+                          <span style={{ color: '#00ff88', fontWeight: 600 }}>{cut} cuts</span>
+                          <span style={{ color: '#888' }}> ({maxState[1]} times)</span>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Navigation buttons */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'center'
+        }}>
+          <button
+            onClick={() => setStep(Math.max(0, step - 1))}
+            disabled={step === 0}
+            style={{
+              padding: '12px 32px',
+              background: step === 0 ? '#222' : 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              color: step === 0 ? '#555' : '#fff',
+              fontWeight: 500,
+              fontSize: '0.9rem',
+              cursor: step === 0 ? 'not-allowed' : 'pointer',
+              fontFamily: '"Space Grotesk", sans-serif',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            ← Previous
+          </button>
+          
+          <button
+            onClick={() => setStep(Math.min(steps.length - 1, step + 1))}
+            disabled={step === steps.length - 1}
+            style={{
+              padding: '12px 32px',
+              background: step === steps.length - 1 
+                ? '#222' 
+                : 'linear-gradient(90deg, #7b2dff, #00d4ff)',
+              border: 'none',
+              borderRadius: '8px',
+              color: step === steps.length - 1 ? '#555' : '#fff',
+              fontWeight: 500,
+              fontSize: '0.9rem',
+              cursor: step === steps.length - 1 ? 'not-allowed' : 'pointer',
+              fontFamily: '"Space Grotesk", sans-serif',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            Next →
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          textAlign: 'center',
+          marginTop: '32px',
+          padding: '16px',
+          color: '#555',
+          fontSize: '0.8rem'
+        }}>
+          Built for understanding QAOA • MaxCut on 5 nodes, 7 edges
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(QAOAVisualization));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

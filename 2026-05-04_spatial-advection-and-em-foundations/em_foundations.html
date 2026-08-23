@@ -1,0 +1,1141 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>em foundations</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+// Electromagnetism foundations - guided tour
+// Sections: Charge, E field, Coulomb, Gauss, B field, Lorentz, Faraday, Ampere, Full Maxwell
+
+function EMFoundations() {
+  const [section, setSection] = useState("charge");
+
+  const sections = [
+    { id: "charge", label: "1. Charge", color: "#ffd166" },
+    { id: "efield", label: "2. E field", color: "#7af0a8" },
+    { id: "coulomb", label: "3. Coulomb's law", color: "#7af0a8" },
+    { id: "gauss", label: "4. Gauss's law", color: "#7af0a8" },
+    { id: "bfield", label: "5. B field", color: "#9d8df1" },
+    { id: "lorentz", label: "6. Lorentz force", color: "#ff5c3a" },
+    { id: "faraday", label: "7. Faraday's law", color: "#7af0a8" },
+    { id: "ampere", label: "8. Ampère's law", color: "#9d8df1" },
+    { id: "monopoles", label: "9. No monopoles", color: "#9d8df1" },
+    { id: "full", label: "10. The four together", color: "#ff5c3a" },
+  ];
+
+  const idx = sections.findIndex(s => s.id === section);
+  const prev = idx > 0 ? sections[idx - 1] : null;
+  const next = idx < sections.length - 1 ? sections[idx + 1] : null;
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#08080d",
+      color: "#e8e8ee",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+      padding: "32px 24px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .display { font-family: 'Fraunces', serif; }
+        .control-btn {
+          background: transparent; border: 1px solid #2a2a35;
+          color: #e8e8ee; padding: 7px 12px;
+          font-family: inherit; font-size: 11px; letter-spacing: 0.05em;
+          cursor: pointer; transition: all 0.15s ease; text-transform: uppercase;
+        }
+        .control-btn:hover { border-color: #ff5c3a; color: #ff5c3a; }
+        .control-btn.active { background: #ff5c3a; color: #0a0a0f; border-color: #ff5c3a; }
+        .viz-card { background: #11111a; border: 1px solid #1f1f2c; padding: 18px; }
+        .smooth-slider {
+          -webkit-appearance: none; appearance: none;
+          background: transparent; width: 100%; height: 26px; touch-action: none;
+        }
+        .smooth-slider::-webkit-slider-runnable-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-moz-range-track {
+          height: 5px; background: linear-gradient(90deg, #1a1a26, #2a2a3a);
+          border-radius: 3px; border: 1px solid #1f1f2c;
+        }
+        .smooth-slider::-webkit-slider-thumb {
+          -webkit-appearance: none; appearance: none;
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%; margin-top: -7px;
+          cursor: grab; box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+          border: 2px solid #08080d;
+        }
+        .smooth-slider::-moz-range-thumb {
+          background: radial-gradient(circle at 30% 30%, #ff8c6a, #ff5c3a);
+          height: 18px; width: 18px; border-radius: 50%;
+          cursor: grab; border: 2px solid #08080d;
+          box-shadow: 0 2px 8px rgba(255,92,58,0.5);
+        }
+        .nav-pill {
+          background: transparent;
+          border: 1px solid #2a2a35;
+          color: #e8e8ee;
+          padding: 6px 12px;
+          font-family: inherit;
+          font-size: 11px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+        }
+        .nav-pill:hover { border-color: #ff5c3a; }
+        .nav-pill.active {
+          border-color: #ff5c3a;
+          background: #1a0e0c;
+          color: #ff5c3a;
+        }
+        .stat {
+          background: #0d0d18; border: 1px solid #1f1f2c; padding: 10px 12px;
+        }
+        .stat .lbl { font-size: 9px; letter-spacing: 0.2em; color: #666; margin-bottom: 4px; }
+        .stat .val { font-size: 16px; font-family: 'Fraunces', serif; font-style: italic; color: #fff; }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 10 }}>
+            ELECTROMAGNETISM · FOUNDATIONS TOUR
+          </div>
+          <h1 className="display" style={{ fontSize: 38, lineHeight: 1.0, margin: 0, fontWeight: 800, fontStyle: "italic" }}>
+            From charges to Maxwell
+          </h1>
+          <p style={{ fontSize: 13, color: "#b0b0bc", marginTop: 12, lineHeight: 1.6, maxWidth: 750 }}>
+            A guided tour through the foundations of electromagnetism. Start with what charge is, build up through electric and magnetic fields, learn the four Maxwell equations one at a time, then see them all together. Each section has an interactive demo.
+          </p>
+        </div>
+
+        {/* NAV */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
+          {sections.map(s => (
+            <button
+              key={s.id}
+              className={`nav-pill ${section === s.id ? "active" : ""}`}
+              onClick={() => setSection(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* SECTION CONTENT */}
+        {section === "charge" && <ChargeSection />}
+        {section === "efield" && <EFieldSection />}
+        {section === "coulomb" && <CoulombSection />}
+        {section === "gauss" && <GaussSection />}
+        {section === "bfield" && <BFieldSection />}
+        {section === "lorentz" && <LorentzSection />}
+        {section === "faraday" && <FaradaySection />}
+        {section === "ampere" && <AmpereSection />}
+        {section === "monopoles" && <MonopolesSection />}
+        {section === "full" && <FullSection />}
+
+        {/* PREV / NEXT */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24, gap: 10 }}>
+          {prev ? (
+            <button className="control-btn" onClick={() => setSection(prev.id)}>
+              ← {prev.label}
+            </button>
+          ) : <div />}
+          {next ? (
+            <button className="control-btn" onClick={() => setSection(next.id)}>
+              {next.label} →
+            </button>
+          ) : <div />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 1. CHARGE
+// ============================================================
+function ChargeSection() {
+  const [charges, setCharges] = useState([
+    { id: 1, x: 0.3, y: 0.5, q: +1 },
+    { id: 2, x: 0.7, y: 0.5, q: +1 },
+  ]);
+  const W = 480, H = 280;
+
+  const updateCharge = (id, q) => {
+    setCharges(charges.map(c => c.id === id ? { ...c, q } : c));
+  };
+
+  const c1 = charges[0], c2 = charges[1];
+  const dx = (c2.x - c1.x) * W;
+  const dy = (c2.y - c1.y) * H;
+  const r = Math.sqrt(dx * dx + dy * dy);
+  const sameSign = Math.sign(c1.q) === Math.sign(c2.q);
+  const force = (c1.q * c2.q) / Math.max(0.01, r / 100);
+
+  return (
+    <div>
+      <SectionHeader num="1" title="Charge" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Some particles in nature carry a property called <strong style={{color:"#ffd166"}}>electric charge</strong>. Two flavors exist: <strong style={{color:"#ff7a7a"}}>positive</strong> (like protons) and <strong style={{color:"#5b8def"}}>negative</strong> (like electrons). Most matter is neutral because it has equal numbers of both.</p>
+        <p>Charge is measured in <em>coulombs</em> (C). One electron has charge −1.6 × 10⁻¹⁹ C. That number is so small that even tiny everyday objects contain absurd numbers of charged particles, but they almost always balance out.</p>
+        <p>Two facts you need to lock in:</p>
+        <ul style={{paddingLeft: 18, lineHeight: 1.8}}>
+          <li><strong>Like charges repel, opposite charges attract.</strong> Two positives push apart. A positive and a negative pull together.</li>
+          <li><strong>The force gets weaker with distance, fast.</strong> Specifically, it falls off as 1/r² (inverse square). Double the distance, force becomes 1/4.</li>
+        </ul>
+      </div>
+
+      <div className="viz-card">
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+          TWO CHARGES — flip their signs to see attraction vs repulsion
+        </div>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+          {/* force arrows */}
+          {(() => {
+            const ux = dx / r, uy = dy / r;
+            const fmag = Math.min(40, Math.abs(force) * 8);
+            const dir = sameSign ? 1 : -1;
+            return (
+              <g>
+                <line
+                  x1={c1.x * W + ux * 18} y1={c1.y * H + uy * 18}
+                  x2={c1.x * W + ux * (18 + fmag) * (-dir)} y2={c1.y * H + uy * (18 + fmag) * (-dir)}
+                  stroke={sameSign ? "#ff5c3a" : "#7af0a8"} strokeWidth="2.5"
+                  markerEnd="url(#fa1)"
+                />
+                <line
+                  x1={c2.x * W - ux * 18} y1={c2.y * H - uy * 18}
+                  x2={c2.x * W - ux * (18 + fmag) * (-dir)} y2={c2.y * H - uy * (18 + fmag) * (-dir)}
+                  stroke={sameSign ? "#ff5c3a" : "#7af0a8"} strokeWidth="2.5"
+                  markerEnd="url(#fa1)"
+                />
+                <defs>
+                  <marker id="fa1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <polygon points="0 0, 6 3, 0 6" fill={sameSign ? "#ff5c3a" : "#7af0a8"} />
+                  </marker>
+                </defs>
+              </g>
+            );
+          })()}
+
+          {/* charges */}
+          {charges.map(c => (
+            <g key={c.id}>
+              <circle
+                cx={c.x * W} cy={c.y * H} r="18"
+                fill={c.q > 0 ? "#ffd166" : c.q < 0 ? "#5b8def" : "#666"}
+                stroke="#0a0a0f" strokeWidth="2"
+              />
+              <text x={c.x * W} y={c.y * H + 5} fontSize="18" fill="#0a0a0f" textAnchor="middle" fontWeight="700">
+                {c.q > 0 ? "+" : c.q < 0 ? "−" : "0"}
+              </text>
+            </g>
+          ))}
+        </svg>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>CHARGE 1</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className={`control-btn ${c1.q > 0 ? "active" : ""}`} onClick={() => updateCharge(1, 1)}>+</button>
+              <button className={`control-btn ${c1.q < 0 ? "active" : ""}`} onClick={() => updateCharge(1, -1)}>−</button>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>CHARGE 2</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className={`control-btn ${c2.q > 0 ? "active" : ""}`} onClick={() => updateCharge(2, 1)}>+</button>
+              <button className={`control-btn ${c2.q < 0 ? "active" : ""}`} onClick={() => updateCharge(2, -1)}>−</button>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14, fontSize: 12, color: sameSign ? "#ff5c3a" : "#7af0a8", lineHeight: 1.5 }}>
+          {sameSign ? "Same signs → they repel. Force arrows point apart." : "Opposite signs → they attract. Force arrows point toward each other."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 2. E FIELD
+// ============================================================
+function EFieldSection() {
+  const [chargeQ, setChargeQ] = useState(1);
+  const [testX, setTestX] = useState(0.65);
+  const [testY, setTestY] = useState(0.5);
+
+  const W = 480, H = 280;
+  const cx = 0.3, cy = 0.5;
+  const dx = testX - cx;
+  const dy = testY - cy;
+  const r = Math.sqrt(dx * dx + dy * dy);
+  const Emag = chargeQ / Math.max(0.05, r * r);
+  const ux = dx / r, uy = dy / r;
+  const F = chargeQ > 0 ? Emag : -Emag;
+
+  return (
+    <div>
+      <SectionHeader num="2" title="The electric field" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Now here's the leap: instead of saying "charge A pushes charge B directly," physicists invented a useful middle-step. Charge A creates an <strong style={{color:"#7af0a8"}}>electric field</strong> at every point in space around it. Then charge B, sitting somewhere in that field, feels a force from the field.</p>
+        <p>The electric field at a point is just <strong>force per unit charge</strong>. It's a vector — it has a direction (which way) and a magnitude (how strong). Standing at a point with field <strong>E</strong>, a particle with charge q feels force:</p>
+        <p style={{textAlign:"center", fontSize:18, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#7af0a8"}}>F = qE</p>
+        <p>The field exists whether or not anything is there to feel it. It's a property of space itself, set up by whatever charges are around. Move the test particle anywhere, and the same formula gives you the force.</p>
+      </div>
+
+      <div className="viz-card">
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+          DRAG THE BLUE TEST PROBE — see the E field & force at that point
+        </div>
+        <svg
+          width="100%" viewBox={`0 0 ${W} ${H}`}
+          style={{ background: "#0d0d18", border: "1px solid #1f1f2c", touchAction: "none" }}
+          onPointerMove={(e) => {
+            if (e.buttons !== 1) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const px = ((e.clientX - rect.left) / rect.width);
+            const py = ((e.clientY - rect.top) / rect.height);
+            if (px > 0.05 && px < 0.95 && py > 0.05 && py < 0.95) {
+              setTestX(px); setTestY(py);
+            }
+          }}
+        >
+          {/* field grid */}
+          {(() => {
+            const arrows = [];
+            for (let i = 0; i < 9; i++) {
+              for (let j = 0; j < 5; j++) {
+                const px = (i + 0.5) / 9;
+                const py = (j + 0.5) / 5;
+                const ddx = px - cx;
+                const ddy = py - cy;
+                const rr = Math.sqrt(ddx * ddx + ddy * ddy);
+                if (rr < 0.08) continue;
+                const mag = Math.min(0.04, 0.005 / (rr * rr));
+                const sgn = chargeQ > 0 ? 1 : -1;
+                const ax = px * W;
+                const ay = py * H;
+                const ax2 = (px + sgn * (ddx / rr) * mag) * W;
+                const ay2 = (py + sgn * (ddy / rr) * mag) * H;
+                arrows.push(
+                  <line key={`${i}-${j}`}
+                    x1={ax} y1={ay} x2={ax2} y2={ay2}
+                    stroke="#7af0a8" strokeOpacity="0.4" strokeWidth="1.2"
+                    markerEnd="url(#earr)"
+                  />
+                );
+              }
+            }
+            return arrows;
+          })()}
+          <defs>
+            <marker id="earr" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <polygon points="0 0, 5 2.5, 0 5" fill="#7af0a8" fillOpacity="0.6" />
+            </marker>
+            <marker id="farr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+            </marker>
+            <marker id="evec" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+            </marker>
+          </defs>
+
+          {/* source charge */}
+          <circle cx={cx * W} cy={cy * H} r="18" fill={chargeQ > 0 ? "#ffd166" : "#5b8def"} stroke="#0a0a0f" strokeWidth="2" />
+          <text x={cx * W} y={cy * H + 5} fontSize="18" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{chargeQ > 0 ? "+" : "−"}</text>
+
+          {/* E vector at probe */}
+          {r > 0.05 && (() => {
+            const sgn = chargeQ > 0 ? 1 : -1;
+            const len = Math.min(0.15, 0.02 / (r * r));
+            const px2 = (testX + sgn * ux * len) * W;
+            const py2 = (testY + sgn * uy * len) * H;
+            return (
+              <line
+                x1={testX * W} y1={testY * H} x2={px2} y2={py2}
+                stroke="#7af0a8" strokeWidth="3" markerEnd="url(#evec)"
+              />
+            );
+          })()}
+
+          {/* probe */}
+          <circle cx={testX * W} cy={testY * H} r="8" fill="#3ec6c2" stroke="#0a0a0f" strokeWidth="2" />
+          <text x={testX * W} y={testY * H - 14} fontSize="10" fill="#3ec6c2" textAnchor="middle" fontStyle="italic">probe</text>
+        </svg>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>
+          <div className="stat">
+            <div className="lbl">SOURCE CHARGE</div>
+            <div className="val">{chargeQ > 0 ? "+" : "−"}1</div>
+          </div>
+          <div className="stat">
+            <div className="lbl">DISTANCE r</div>
+            <div className="val">{r.toFixed(2)}</div>
+          </div>
+          <div className="stat">
+            <div className="lbl">|E| ∝ 1/r²</div>
+            <div className="val" style={{color:"#7af0a8"}}>{Emag.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button className={`control-btn ${chargeQ > 0 ? "active" : ""}`} onClick={() => setChargeQ(1)}>+ source</button>
+          <button className={`control-btn ${chargeQ < 0 ? "active" : ""}`} onClick={() => setChargeQ(-1)}>− source</button>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+          The faint green arrows show the E field everywhere. The bright green arrow shows the field at your probe's location. Move the probe closer — E gets stronger (1/r²). Flip the source charge — every arrow flips direction.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 3. COULOMB
+// ============================================================
+function CoulombSection() {
+  const [r, setR] = useState(1.5);
+
+  const W = 480, H = 200;
+  const F = 1 / (r * r);
+  const fbarW = Math.min(300, F * 60);
+
+  return (
+    <div>
+      <SectionHeader num="3" title="Coulomb's law" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>The first equation of electromagnetism, written down by Charles Coulomb in 1785. It says: the force between two charges is</p>
+        <p style={{textAlign:"center", fontSize:20, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#7af0a8", margin:"16px 0"}}>F = (1 / 4πε₀) · (q₁q₂ / r²)</p>
+        <p>Don't be intimidated by the constants. The key facts are:</p>
+        <ul style={{paddingLeft: 18, lineHeight: 1.8}}>
+          <li><strong>Force is proportional to both charges.</strong> Double either, double the force.</li>
+          <li><strong>Force falls off as 1/r².</strong> Triple the distance, force becomes 1/9.</li>
+          <li><strong>The constant 1/(4πε₀) ≈ 9 × 10⁹</strong> is just a unit conversion. ε₀ is "the permittivity of free space" — basically a number that makes the units come out right.</li>
+        </ul>
+        <p>This formula gives you the bare interaction. In a vacuum with two point charges, this is exactly the force. Everything else in electrostatics — fields, potentials, Gauss's law — is just <em>repackaging</em> this one fact for convenience.</p>
+      </div>
+
+      <div className="viz-card">
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+          1/r² FALLOFF — slide r and watch force collapse
+        </div>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+          <circle cx="60" cy={H/2} r="16" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+          <text x="60" y={H/2 + 4} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">+</text>
+
+          <circle cx={60 + r * 80} cy={H/2} r="16" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+          <text x={60 + r * 80} y={H/2 + 4} fontSize="14" fill="#0a0a0f" textAnchor="middle" fontWeight="700">+</text>
+
+          {/* distance label */}
+          <line x1="76" y1={H/2 - 30} x2={60 + r * 80 - 16} y2={H/2 - 30} stroke="#666" strokeDasharray="2,3" />
+          <text x={(76 + 60 + r * 80 - 16) / 2} y={H/2 - 36} fontSize="10" fill="#888" textAnchor="middle" fontStyle="italic">r = {r.toFixed(2)}</text>
+
+          {/* force arrows */}
+          <line x1="76" y1={H/2} x2={76 - fbarW * 0.15} y2={H/2} stroke="#ff5c3a" strokeWidth="3" markerEnd="url(#cfa)" />
+          <line x1={60 + r * 80 - 16} y1={H/2} x2={60 + r * 80 - 16 + fbarW * 0.15} y2={H/2} stroke="#ff5c3a" strokeWidth="3" markerEnd="url(#cfa)" />
+          <defs>
+            <marker id="cfa" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+            </marker>
+          </defs>
+        </svg>
+
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", margin: "10px 0 4px" }}>
+          <span>distance r</span>
+          <span style={{ color: "#fff", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{r.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="0.5" max="4" step="0.01" value={r} onChange={e => setR(parseFloat(e.target.value))} />
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 14 }}>
+          <div className="stat">
+            <div className="lbl">r</div>
+            <div className="val">{r.toFixed(2)}</div>
+          </div>
+          <div className="stat">
+            <div className="lbl">r²</div>
+            <div className="val">{(r * r).toFixed(2)}</div>
+          </div>
+          <div className="stat">
+            <div className="lbl">F ∝ 1/r²</div>
+            <div className="val" style={{ color: "#ff5c3a" }}>{F.toFixed(3)}</div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+          Move the charges twice as far apart → force becomes one-fourth, not half. That's the inverse-square law. Same shape as Newton's gravity.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 4. GAUSS
+// ============================================================
+function GaussSection() {
+  const [Q, setQ] = useState(1);
+  const [boxR, setBoxR] = useState(1.0);
+
+  const W = 480, H = 280;
+  const cx = W / 2, cy = H / 2;
+
+  return (
+    <div>
+      <SectionHeader num="4" title="Gauss's law — the first Maxwell equation" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Coulomb's law tells you the force between two charges. But what if you have a complicated arrangement — a wire full of charge, or a charged sphere, or a plasma? Computing pairwise forces gets miserable.</p>
+        <p>Gauss's law gives you a shortcut. It says:</p>
+        <p style={{textAlign:"center", fontSize:20, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#7af0a8", margin:"16px 0"}}>∇ · E = ρ / ε₀</p>
+        <p>Translation: <em>the way E "spreads outward" from a point is proportional to the charge density at that point</em>. Equivalent integral form: <em>the total flux of E through any closed surface equals the total charge inside that surface, divided by ε₀</em>.</p>
+        <p>The intuition: if you draw any imaginary closed box around some charges, count up how much E poking out of the box minus how much going in — that net "outflow" is just the charge inside / ε₀. No matter what shape your box is. Pick the easiest shape.</p>
+        <p><strong>This is the first of Maxwell's four equations.</strong> It's just Coulomb's law repackaged so it works for any geometry, not just two point charges.</p>
+      </div>
+
+      <div className="viz-card">
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+          E FLUX OUT OF AN IMAGINARY BOX = CHARGE INSIDE / ε₀
+        </div>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+          {/* E field arrows around charge */}
+          {(() => {
+            const arr = [];
+            for (let a = 0; a < 16; a++) {
+              const ang = (a / 16) * Math.PI * 2;
+              for (let r2 of [50, 80, 110, 140]) {
+                const px = cx + r2 * Math.cos(ang);
+                const py = cy + r2 * Math.sin(ang);
+                const len = Math.abs(Q) * 14;
+                const px2 = cx + (r2 + len * Math.sign(Q)) * Math.cos(ang);
+                const py2 = cy + (r2 + len * Math.sign(Q)) * Math.sin(ang);
+                const x1 = Q > 0 ? px : px2;
+                const y1 = Q > 0 ? py : py2;
+                const x2 = Q > 0 ? px2 : px;
+                const y2 = Q > 0 ? py2 : py;
+                arr.push(
+                  <line key={`${a}-${r2}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke="#7af0a8" strokeOpacity="0.45" strokeWidth="1.2"
+                    markerEnd="url(#g_e_arr)" />
+                );
+              }
+            }
+            return arr;
+          })()}
+          <defs>
+            <marker id="g_e_arr" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <polygon points="0 0, 5 2.5, 0 5" fill="#7af0a8" />
+            </marker>
+          </defs>
+
+          {/* gauss surface (circle) */}
+          <circle cx={cx} cy={cy} r={boxR * 60} fill="none" stroke="#ffd166" strokeWidth="2" strokeDasharray="6,4" />
+
+          {/* charge */}
+          <circle cx={cx} cy={cy} r="18" fill={Q > 0 ? "#ffd166" : "#5b8def"} stroke="#0a0a0f" strokeWidth="2" />
+          <text x={cx} y={cy + 5} fontSize="18" fill="#0a0a0f" textAnchor="middle" fontWeight="700">{Q > 0 ? "+" : "−"}</text>
+
+          <text x={cx + boxR * 60 + 6} y={cy - 4} fontSize="10" fill="#ffd166" fontStyle="italic">Gaussian surface</text>
+        </svg>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>CHARGE Q INSIDE</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className={`control-btn ${Q > 0 ? "active" : ""}`} onClick={() => setQ(1)}>+1</button>
+              <button className={`control-btn ${Q < 0 ? "active" : ""}`} onClick={() => setQ(-1)}>−1</button>
+            </div>
+          </div>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+              <span>SURFACE RADIUS</span>
+              <span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{boxR.toFixed(2)}</span>
+            </div>
+            <input className="smooth-slider" type="range" min="0.5" max="2" step="0.01" value={boxR} onChange={e => setBoxR(parseFloat(e.target.value))} />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+          The yellow dashed circle is your imaginary "Gaussian surface." Doesn't matter how big you make it — the total flux of E through it is always Q/ε₀. The bigger the circle, the weaker E is on it, but more area to integrate over. They cancel. That's the magic of Gauss's law.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 5. B FIELD
+// ============================================================
+function BFieldSection() {
+  return (
+    <div>
+      <SectionHeader num="5" title="The magnetic field" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Magnets are weird. They don't push or pull on stationary charges. They only act on <strong>moving</strong> charges. And the force they exert isn't toward or away from anything — it's perpendicular to the motion.</p>
+        <p>The <strong style={{color:"#9d8df1"}}>magnetic field</strong> B is, like E, a vector at every point in space. It's measured in tesla (T). The Earth's field is about 50 microtesla. A fridge magnet is around 0.01 T. A medical MRI scanner is 1.5–7 T. The strongest magnets ever made are around 45 T.</p>
+        <p>The defining force law for a charge q moving with velocity v in a B field is:</p>
+        <p style={{textAlign:"center", fontSize:20, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#9d8df1", margin:"16px 0"}}>F = q v × B</p>
+        <p>That × is the cross product. It produces a vector perpendicular to both v and B. Three useful facts:</p>
+        <ul style={{paddingLeft: 18, lineHeight: 1.8}}>
+          <li>If v is parallel to B, the force is <strong>zero</strong>. Charges that move along B feel no magnetic force.</li>
+          <li>If v is perpendicular to B, the force is maximum and perpendicular to both.</li>
+          <li>The force never speeds the particle up or slows it down (always perpendicular to v means it does no work). It only bends the trajectory.</li>
+        </ul>
+        <p>Result: charges in a B field move in circles (perpendicular component of v) or helices (if there's a parallel component too). This is called <em>gyration</em> and it's central to plasma physics, particle accelerators, and astrophysics.</p>
+      </div>
+
+      <BGyrationDemo />
+    </div>
+  );
+}
+
+function BGyrationDemo() {
+  const [B, setB] = useState(1.0);
+  const [vMag, setVMag] = useState(1.0);
+  const [t, setT] = useState(0);
+
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setT(prev => prev + dt * B * vMag);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [B, vMag]);
+
+  const W = 480, H = 280;
+  const cx = W / 2, cy = H / 2;
+  const radius = 50 * vMag / Math.max(0.3, B);
+  const px = cx + radius * Math.cos(t * 2);
+  const py = cy + radius * Math.sin(t * 2);
+  const vx = -Math.sin(t * 2) * vMag;
+  const vy = Math.cos(t * 2) * vMag;
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CHARGE GYRATING IN A B FIELD (out of page) · Lorentz force keeps bending it
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+        {/* B dots */}
+        {[0.15,0.3,0.45,0.6,0.75,0.9].map((fx,i)=>(
+          [0.2,0.4,0.6,0.8].map((fy,j)=>(
+            <circle key={`${i}-${j}`} cx={W*fx} cy={H*fy} r="2" fill="#9d8df1" opacity="0.4" />
+          ))
+        ))}
+        <text x={20} y={20} fontSize="11" fill="#9d8df1" fontStyle="italic">B out of page</text>
+
+        {/* orbit */}
+        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#9d8df1" strokeOpacity="0.3" strokeDasharray="3,3" />
+
+        {/* charge */}
+        <circle cx={px} cy={py} r="9" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+        <text x={px} y={py + 4} fontSize="11" fill="#0a0a0f" textAnchor="middle" fontWeight="700">+</text>
+
+        {/* velocity */}
+        <line x1={px} y1={py} x2={px + vx * 35} y2={py + vy * 35} stroke="#7af0a8" strokeWidth="2.5" markerEnd="url(#vva)" />
+        <text x={px + vx * 40} y={py + vy * 40} fontSize="10" fill="#7af0a8" fontStyle="italic">v</text>
+
+        {/* force - centripetal */}
+        <line x1={px} y1={py} x2={cx + (px - cx) * 0.4} y2={cy + (py - cy) * 0.4} stroke="#ff5c3a" strokeWidth="2.5" markerEnd="url(#ffa)" />
+        <text x={cx + (px - cx) * 0.3} y={cy + (py - cy) * 0.3 - 6} fontSize="10" fill="#ff5c3a" fontStyle="italic">F = qv×B</text>
+
+        <defs>
+          <marker id="vva" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+          <marker id="ffa" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+          </marker>
+        </defs>
+      </svg>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|B|</span><span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{B.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="3" step="0.01" value={B} onChange={e => setB(parseFloat(e.target.value))} />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+            <span>|v|</span><span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{vMag.toFixed(2)}</span>
+          </div>
+          <input className="smooth-slider" type="range" min="0.3" max="2.5" step="0.01" value={vMag} onChange={e => setVMag(parseFloat(e.target.value))} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+        Stronger B → tighter circles, faster gyration. Faster v → bigger circles. Force vector (red) always points toward orbit center, perpendicular to v (green). Force never aligns with v, so the particle's speed never changes — only direction.
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 6. LORENTZ
+// ============================================================
+function LorentzSection() {
+  const [Ex, setEx] = useState(0);
+  const [Ey, setEy] = useState(0);
+  const [Bz, setBz] = useState(1);
+  const [running, setRunning] = useState(true);
+  const [particle, setParticle] = useState({ x: 0, y: 0, vx: 1, vy: 0 });
+
+  const lastRef = useRef(performance.now());
+
+  useEffect(() => {
+    let raf;
+    const tick = (now) => {
+      const dt = Math.min(0.04, (now - lastRef.current) / 1000);
+      lastRef.current = now;
+      if (running) {
+        setParticle(prev => {
+          // F = q(E + v×B), with q=1, m=1
+          // v×B in 2D with B in z: (v×B)_x = vy*Bz, (v×B)_y = -vx*Bz
+          const fx = Ex + prev.vy * Bz;
+          const fy = Ey - prev.vx * Bz;
+          let nvx = prev.vx + fx * dt;
+          let nvy = prev.vy + fy * dt;
+          let nx = prev.x + nvx * dt;
+          let ny = prev.y + nvy * dt;
+          // bounce on edges
+          if (Math.abs(nx) > 4) nvx *= -0.95;
+          if (Math.abs(ny) > 2.5) nvy *= -0.95;
+          nx = Math.max(-4, Math.min(4, nx));
+          ny = Math.max(-2.5, Math.min(2.5, ny));
+          return { x: nx, y: ny, vx: nvx, vy: nvy };
+        });
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [running, Ex, Ey, Bz]);
+
+  const W = 480, H = 300;
+  const cx = W / 2, cy = H / 2;
+  const px = cx + particle.x * 50;
+  const py = cy - particle.y * 50;
+
+  return (
+    <div>
+      <SectionHeader num="6" title="The Lorentz force — the master equation" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>You now have both pieces: charges feel forces from E, and moving charges feel forces from B. Combine them and you get the most important formula in classical electromagnetism — the <strong style={{color:"#ff5c3a"}}>Lorentz force law</strong>:</p>
+        <p style={{textAlign:"center", fontSize:22, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#ff5c3a", margin:"16px 0"}}>F = q(E + v × B)</p>
+        <p>This single formula tells you exactly how any classical charged particle responds to <em>any</em> electromagnetic field configuration. Plug in q, v, E, B at the particle's location, and out comes the force. Apply Newton's second law (F = ma) and you can integrate the trajectory forward.</p>
+        <p>This is also the force term that appears in the Vlasov equation — that's where the q(E + v×B) you saw came from. The Vlasov equation is just bookkeeping the Lorentz force across a whole distribution of particles.</p>
+      </div>
+
+      <div className="viz-card">
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+          CHARGED PARTICLE FEELING THE LORENTZ FORCE — adjust E and B, watch trajectory
+        </div>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+          {/* axes */}
+          <line x1="0" y1={cy} x2={W} y2={cy} stroke="#1f1f2c" />
+          <line x1={cx} y1="0" x2={cx} y2={H} stroke="#1f1f2c" />
+
+          {/* E indicator */}
+          {(Ex !== 0 || Ey !== 0) && (() => {
+            const sc = 30;
+            return (
+              <g>
+                <line x1="40" y1="40" x2={40 + Ex * sc} y2={40 - Ey * sc} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#leax)" />
+                <text x="40" y="22" fontSize="10" fill="#7af0a8" fontStyle="italic">E</text>
+              </g>
+            );
+          })()}
+          {Bz !== 0 && (
+            <g>
+              <text x={W - 50} y="22" fontSize="10" fill="#9d8df1" fontStyle="italic">B {Bz > 0 ? "out of page" : "into page"}</text>
+              {Bz > 0 ? (
+                <circle cx={W - 30} cy="35" r="6" fill="#9d8df1" opacity="0.4" />
+              ) : (
+                <g>
+                  <circle cx={W - 30} cy="35" r="6" fill="none" stroke="#9d8df1" />
+                  <line x1={W - 34} y1="31" x2={W - 26} y2="39" stroke="#9d8df1" />
+                  <line x1={W - 34} y1="39" x2={W - 26} y2="31" stroke="#9d8df1" />
+                </g>
+              )}
+            </g>
+          )}
+          <defs>
+            <marker id="leax" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+            </marker>
+          </defs>
+
+          {/* particle */}
+          <circle cx={px} cy={py} r="8" fill="#ffd166" stroke="#0a0a0f" strokeWidth="2" />
+          {/* velocity arrow */}
+          <line x1={px} y1={py} x2={px + particle.vx * 25} y2={py - particle.vy * 25} stroke="#ff5c3a" strokeWidth="2" markerEnd="url(#leva)" />
+          <defs>
+            <marker id="leva" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <polygon points="0 0, 6 3, 0 6" fill="#ff5c3a" />
+            </marker>
+          </defs>
+        </svg>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+              <span>E_x</span><span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{Ex.toFixed(2)}</span>
+            </div>
+            <input className="smooth-slider" type="range" min="-1" max="1" step="0.01" value={Ex} onChange={e => setEx(parseFloat(e.target.value))} />
+          </div>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+              <span>E_y</span><span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{Ey.toFixed(2)}</span>
+            </div>
+            <input className="smooth-slider" type="range" min="-1" max="1" step="0.01" value={Ey} onChange={e => setEy(parseFloat(e.target.value))} />
+          </div>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+              <span>B_z</span><span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{Bz.toFixed(2)}</span>
+            </div>
+            <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={Bz} onChange={e => setBz(parseFloat(e.target.value))} />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button className="control-btn" onClick={() => setRunning(r => !r)}>
+            {running ? "❚❚ Pause" : "▶ Play"}
+          </button>
+          <button className="control-btn" onClick={() => setParticle({ x: 0, y: 0, vx: 1, vy: 0 })}>
+            ↺ Reset particle
+          </button>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+          Try: only B → circular motion (gyration). Only E → constant acceleration in a line. Both E and B perpendicular → "E×B drift," a constant sideways drift. Play with combinations to see the full Lorentz force in action.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 7. FARADAY
+// ============================================================
+function FaradaySection() {
+  return (
+    <div>
+      <SectionHeader num="7" title="Faraday's law — changing B makes E" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Until 1831, electricity and magnetism seemed like two separate things: charges made E, magnets made B, but they didn't talk to each other. Then Michael Faraday showed something profound: <strong>a changing magnetic field creates a circulating electric field</strong>.</p>
+        <p style={{textAlign:"center", fontSize:20, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#7af0a8", margin:"16px 0"}}>∇ × E = − ∂B/∂t</p>
+        <p>Translation: if B is changing in time at some point, E "circulates" around that point. The minus sign (Lenz's law) means the induced E loops in a way that opposes the change.</p>
+        <p>This is how every electric generator on Earth works. Spin a magnet near a coil of wire, and the changing B through the coil creates a circulating E, which pushes electrons through the wire — that's a current. Power plants are basically just elaborate ways of physically rotating magnets near coils.</p>
+        <p><strong>This is Maxwell's second equation.</strong> The first link between E and B.</p>
+      </div>
+
+      <FaradayDemo />
+    </div>
+  );
+}
+
+function FaradayDemo() {
+  const [t, setT] = useState(0);
+  const [freq, setFreq] = useState(1.0);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 480, H = 280;
+  const Bsize = 30 + 28 * Math.sin(t * freq * 1.5);
+  const dBdt = 28 * freq * 1.5 * Math.cos(t * freq * 1.5);
+  const direction = dBdt > 0 ? 1 : -1; // E circulates one way or the other
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        PURPLE B REGION PULSES — INDUCED E CIRCULATES AROUND IT
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+        {/* B region pulsing */}
+        <circle cx={W/2} cy={H/2} r={Bsize} fill="#9d8df1" fillOpacity="0.35" stroke="#9d8df1" strokeWidth="2" />
+        <text x={W/2} y={H/2 + 5} fontSize="14" fill="#fff" textAnchor="middle" fontFamily="Fraunces" fontStyle="italic">B(t)</text>
+
+        {/* induced E loops */}
+        {[80, 110, 140].map((r, i) => {
+          const arrowAng = t * 0.8 * direction + i * 0.5;
+          const ax = W/2 + r * Math.cos(arrowAng);
+          const ay = H/2 + r * Math.sin(arrowAng);
+          const ax2 = W/2 + r * Math.cos(arrowAng + 0.25 * direction);
+          const ay2 = H/2 + r * Math.sin(arrowAng + 0.25 * direction);
+          return (
+            <g key={i}>
+              <circle cx={W/2} cy={H/2} r={r} fill="none" stroke="#7af0a8" strokeOpacity={0.45 - i * 0.1} strokeDasharray="3,3" />
+              <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#7af0a8" strokeWidth="2" markerEnd="url(#far_e)" />
+            </g>
+          );
+        })}
+        <text x={20} y={20} fontSize="11" fill="#7af0a8" fontStyle="italic">induced E circulates</text>
+        <text x={20} y={H - 12} fontSize="10" fill="#888">∂B/∂t = {dBdt.toFixed(1)}</text>
+
+        <defs>
+          <marker id="far_e" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#7af0a8" />
+          </marker>
+        </defs>
+      </svg>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>OSCILLATION FREQUENCY</span>
+          <span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{freq.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="0.2" max="3" step="0.01" value={freq} onChange={e => setFreq(parseFloat(e.target.value))} />
+      </div>
+
+      <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+        When B is growing (∂B/∂t &gt; 0), E circulates one way. When B is shrinking, E flips direction. Stationary B → no induced E. Faster oscillation → stronger E. This is the entire principle behind electric generators and transformers.
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 8. AMPERE
+// ============================================================
+function AmpereSection() {
+  return (
+    <div>
+      <SectionHeader num="8" title="Ampère–Maxwell — currents (and changing E) make B" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Faraday showed changing B creates E. The reverse is also true, with two flavors: <strong>currents create B</strong> (originally Ampère's discovery) and <strong>changing E creates B too</strong> (Maxwell's later addition).</p>
+        <p style={{textAlign:"center", fontSize:18, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#9d8df1", margin:"16px 0"}}>∇ × B = μ₀J + μ₀ε₀ ∂E/∂t</p>
+        <p>The first term (μ₀J) was Ampère's law: a current J creates a B field that loops around the current (right-hand rule).</p>
+        <p>The second term (μ₀ε₀ ∂E/∂t) is Maxwell's "displacement current," which he added in 1865 to make the equations consistent. This was the move that unified electromagnetism. Without it, E and B don't propagate as waves. With it, you predict <strong>electromagnetic waves traveling at the speed of light</strong> — and Maxwell realized that <em>light itself is an electromagnetic wave</em>.</p>
+        <p>μ₀ is the permeability of free space, ε₀ is the permittivity of free space. Together they give the speed of light: c = 1/√(μ₀ε₀). This is the equation that proved electromagnetism = optics.</p>
+        <p><strong>This is Maxwell's third equation.</strong> The second link between E and B, completing the dance.</p>
+      </div>
+
+      <AmpereDemo />
+    </div>
+  );
+}
+
+function AmpereDemo() {
+  const [t, setT] = useState(0);
+  const [I, setI] = useState(1);
+  useEffect(() => {
+    let raf;
+    let last = performance.now();
+    const tick = (now) => {
+      setT(prev => prev + (now - last) / 1000);
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const W = 480, H = 280;
+  const dir = I >= 0 ? 1 : -1;
+
+  return (
+    <div className="viz-card">
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+        CURRENT IN A WIRE — B LOOPS AROUND IT (right-hand rule)
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+        {/* current arrow */}
+        {I !== 0 && (
+          <g>
+            <line x1={W/2} y1={H - 30} x2={W/2} y2={30} stroke="#ffd166" strokeWidth={6 * Math.abs(I)} markerEnd="url(#amp_j)" />
+            <text x={W/2 + 10} y="50" fontSize="14" fill="#ffd166" fontStyle="italic" fontFamily="Fraunces">J</text>
+          </g>
+        )}
+
+        {/* B loops */}
+        {[60, 90, 120].map((r, i) => {
+          const arrowAng = t * Math.abs(I) * 0.8 * dir + i * 0.4;
+          const ax = W/2 + r * Math.cos(arrowAng);
+          const ay = H/2 + r * Math.sin(arrowAng) * 0.4;
+          const ax2 = W/2 + r * Math.cos(arrowAng + 0.3 * dir);
+          const ay2 = H/2 + r * Math.sin(arrowAng + 0.3 * dir) * 0.4;
+          return (
+            <g key={i}>
+              <ellipse cx={W/2} cy={H/2} rx={r} ry={r * 0.4} fill="none" stroke="#9d8df1" strokeOpacity={0.45 - i * 0.1} strokeDasharray="3,3" />
+              {I !== 0 && (
+                <line x1={ax} y1={ay} x2={ax2} y2={ay2} stroke="#9d8df1" strokeWidth="2" markerEnd="url(#amp_b)" />
+              )}
+            </g>
+          );
+        })}
+        <text x={20} y={20} fontSize="11" fill="#9d8df1" fontStyle="italic">B circulates around J</text>
+
+        <defs>
+          <marker id="amp_j" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0, 8 4, 0 8" fill="#ffd166" />
+          </marker>
+          <marker id="amp_b" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <polygon points="0 0, 6 3, 0 6" fill="#9d8df1" />
+          </marker>
+        </defs>
+      </svg>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#666", marginBottom: 4 }}>
+          <span>CURRENT I (negative reverses direction)</span>
+          <span style={{color:"#fff",fontFamily:"'Fraunces', serif",fontStyle:"italic"}}>{I.toFixed(2)}</span>
+        </div>
+        <input className="smooth-slider" type="range" min="-2" max="2" step="0.01" value={I} onChange={e => setI(parseFloat(e.target.value))} />
+      </div>
+
+      <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+        This is how every electromagnet, transformer, motor, and MRI machine works. Run current through a coil → B field through the coil. Stronger current → stronger B. Reverse current → B flips. The "right-hand rule": point your right thumb in the direction of current, your fingers curl in the direction of B.
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 9. NO MONOPOLES
+// ============================================================
+function MonopolesSection() {
+  return (
+    <div>
+      <SectionHeader num="9" title="No magnetic monopoles — B has no sources" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>Compared to the others, this Maxwell equation is the simplest:</p>
+        <p style={{textAlign:"center", fontSize:22, fontFamily:"'Fraunces', serif", fontStyle:"italic", color:"#9d8df1", margin:"16px 0"}}>∇ · B = 0</p>
+        <p>It says: <strong>magnetic field lines never start or end. They always form closed loops.</strong></p>
+        <p>Compare with Gauss's law for E: ∇·E = ρ/ε₀. The right-hand side is charge density — there are sources (positive charges) and sinks (negative charges). E field lines emerge from + charges and converge to − charges.</p>
+        <p>For B, the right-hand side is just zero. There are no "magnetic charges" — no isolated north pole, no isolated south pole. Every magnet has both. Cut a bar magnet in half, you don't get a separated N and S — you get two smaller bar magnets, each with both poles.</p>
+        <p>Physicists have searched for "magnetic monopoles" (hypothetical particles with only one pole) for over a century. They've never been found. So as far as we know, ∇·B = 0 holds exactly.</p>
+        <p><strong>This is Maxwell's fourth equation.</strong> Together with the other three, it forms the complete classical theory of electromagnetism.</p>
+      </div>
+
+      <div className="viz-card">
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "#666", marginBottom: 8 }}>
+          BAR MAGNET — FIELD LINES ALWAYS LOOP
+        </div>
+        <svg width="100%" viewBox="0 0 480 280" style={{ background: "#0d0d18", border: "1px solid #1f1f2c" }}>
+          {/* magnet */}
+          <rect x="180" y="120" width="120" height="40" fill="#1a1a26" stroke="#666" strokeWidth="1.5" />
+          <rect x="180" y="120" width="60" height="40" fill="#5b8def" opacity="0.7" />
+          <rect x="240" y="120" width="60" height="40" fill="#ff7a7a" opacity="0.7" />
+          <text x="210" y="146" fontSize="16" fill="#fff" textAnchor="middle" fontWeight="700">N</text>
+          <text x="270" y="146" fontSize="16" fill="#fff" textAnchor="middle" fontWeight="700">S</text>
+
+          {/* field lines as ellipses */}
+          {[0, 1, 2, 3, 4].map(i => {
+            const off = (i + 1) * 16;
+            return (
+              <ellipse key={i} cx="240" cy="140" rx={62 + off} ry={off + 8}
+                fill="none" stroke="#9d8df1" strokeOpacity={0.6 - i * 0.08} strokeWidth="1.5" />
+            );
+          })}
+
+          <text x={20} y={25} fontSize="11" fill="#9d8df1" fontStyle="italic">field lines loop continuously — no source, no sink</text>
+        </svg>
+
+        <div style={{ marginTop: 12, fontSize: 12, color: "#888", lineHeight: 1.55 }}>
+          The lines exit through N, loop around, return through S, and travel back through the magnet to N. Every line is a closed loop. There's no point where one starts or ends — that's what ∇·B = 0 means mathematically.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 10. FULL
+// ============================================================
+function FullSection() {
+  return (
+    <div>
+      <SectionHeader num="10" title="The four Maxwell equations together" />
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: "#e8e8ee", marginBottom: 18 }}>
+        <p>You've now seen all four. Here they are together — the complete classical theory of electromagnetism, written down by James Clerk Maxwell in 1865, unifying every electric and magnetic phenomenon known:</p>
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18", padding: 24 }}>
+        <div style={{ display: "grid", gap: 14 }}>
+          <EqRow num="1" symbol="∇ · E = ρ/ε₀" name="Gauss's law" desc="Charges create E. Where there's charge density, E spreads out from it." color="#7af0a8" />
+          <EqRow num="2" symbol="∇ · B = 0" name="No magnetic monopoles" desc="B field lines always loop. No isolated north or south poles exist." color="#9d8df1" />
+          <EqRow num="3" symbol="∇ × E = −∂B/∂t" name="Faraday's law" desc="Changing B creates circulating E. This is how generators work." color="#7af0a8" />
+          <EqRow num="4" symbol="∇ × B = μ₀J + μ₀ε₀ ∂E/∂t" name="Ampère–Maxwell law" desc="Currents and changing E create circulating B. This is how electromagnets work — and why light exists." color="#9d8df1" />
+        </div>
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18", marginTop: 16, borderLeft: "2px solid #ff5c3a" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 10, color: "#ff5c3a" }}>
+          What these four together mean
+        </div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.65 }}>
+          <p>Together with the Lorentz force F = q(E + v×B), these four equations describe <strong>every classical electromagnetic phenomenon</strong> — radio waves, light, X-rays, motors, generators, lightning, the magnetic compass, every atom held together by Coulomb attraction, every chemical bond, every electronic device ever made.</p>
+          <p>They predict that EM waves travel at speed c = 1/√(μ₀ε₀) ≈ 3×10⁸ m/s — and that c is the same in every reference frame. That observation led Einstein to special relativity, and from there to general relativity, quantum field theory, the Standard Model, and basically all of modern physics.</p>
+          <p>Maxwell didn't know any of that when he wrote them down. He just unified electricity, magnetism, and optics. The rest fell out over the next 60 years.</p>
+        </div>
+      </div>
+
+      <div className="viz-card" style={{ background: "#0d0d18", marginTop: 16, borderLeft: "2px solid #ffd166" }}>
+        <div className="display" style={{ fontSize: 18, fontStyle: "italic", marginBottom: 10, color: "#ffd166" }}>
+          Now back to Vlasov-Maxwell
+        </div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.65 }}>
+          <p>You now have everything you need to read the full Vlasov-Maxwell system. The Vlasov equation is the kinetic generalization of Newton's law — it says how a distribution of charged particles evolves under the Lorentz force. Maxwell's four equations tell you how the fields E and B are computed from the charge density ρ and current density J that come from the distribution.</p>
+          <p>The whole loop: distribution → ρ, J → E, B → forces back on distribution → time-step the distribution forward → repeat.</p>
+          <p>Every term in Vlasov-Maxwell is now something you've seen interactively. Time to go back and have it all click.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EqRow({ num, symbol, name, desc, color }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "30px 1fr", gap: 14, alignItems: "start" }}>
+      <div style={{ fontSize: 14, color: "#666", fontFamily: "'Fraunces', serif", fontStyle: "italic" }}>{num}.</div>
+      <div>
+        <div className="display" style={{ fontSize: 22, fontStyle: "italic", color, marginBottom: 4 }}>{symbol}</div>
+        <div style={{ fontSize: 11, color: "#888", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>{name}</div>
+        <div style={{ fontSize: 13, color: "#b0b0bc", lineHeight: 1.55 }}>{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ num, title }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#ff5c3a", marginBottom: 6 }}>
+        SECTION {num}
+      </div>
+      <h2 className="display" style={{ fontSize: 28, lineHeight: 1.0, margin: 0, fontWeight: 700, fontStyle: "italic" }}>
+        {title}
+      </h2>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(EMFoundations));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

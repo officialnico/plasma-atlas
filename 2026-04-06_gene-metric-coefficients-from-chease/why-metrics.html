@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Metric Coefficients?</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=Sora:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #08090f;
+    --panel: #0f1219;
+    --border: #1a1f2e;
+    --accent: #60a5fa;
+    --hot: #fb923c;
+    --pink: #f472b6;
+    --green: #4ade80;
+    --red: #f87171;
+    --text: #d4d4d8;
+    --dim: #52525b;
+    --bright: #fafafa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .header {
+    padding: 24px 16px 14px;
+    text-align: center;
+  }
+  .header h1 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--bright);
+    letter-spacing: -0.5px;
+  }
+  .header p {
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  .nav {
+    display: flex;
+    gap: 0;
+    padding: 8px 12px;
+    justify-content: center;
+  }
+  .nav-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    padding: 8px 11px;
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+  }
+  .nav-btn:first-child { border-radius: 6px 0 0 6px; }
+  .nav-btn:last-child { border-radius: 0 6px 6px 0; }
+  .nav-btn + .nav-btn { border-left: none; }
+  .nav-btn:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-btn.active {
+    color: var(--accent);
+    background: rgba(96,165,250,0.08);
+    border-color: rgba(96,165,250,0.3);
+  }
+  .nav-btn.active + .nav-btn { border-left-color: rgba(96,165,250,0.3); }
+
+  .stage {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 0 12px;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5 / 4;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .explainer {
+    max-width: 700px;
+    margin: 12px auto;
+    padding: 0 12px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    animation: fadeIn 0.35s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card h3 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--bright);
+    margin-bottom: 6px;
+  }
+  .card h3 .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 400;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .tag-red { background: rgba(248,113,113,0.12); color: var(--red); }
+  .tag-hot { background: rgba(251,146,60,0.12); color: var(--hot); }
+  .tag-green { background: rgba(74,222,128,0.12); color: var(--green); }
+  .tag-blue { background: rgba(96,165,250,0.12); color: var(--accent); }
+
+  .card p {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--dim);
+    margin-bottom: 8px;
+  }
+  .card p:last-child { margin-bottom: 0; }
+  .card strong { color: var(--text); font-weight: 600; }
+  .card code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    background: rgba(96,165,250,0.08);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .card .code-block {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    background: rgba(0,0,0,0.4);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 5px;
+    margin: 8px 0;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .card .code-block .cm { color: var(--dim); }
+  .card .code-block .kw { color: var(--pink); }
+  .card .code-block .fn { color: var(--accent); }
+  .card .code-block .num { color: var(--hot); }
+  .card .code-block .str { color: var(--green); }
+
+  .cost-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .cost-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--dim);
+    min-width: 70px;
+  }
+  .cost-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .cost-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.8s ease;
+  }
+  .cost-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text);
+    min-width: 50px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>"Why not just simulate every particle?"</h1>
+  <p>The 4-step journey to metric coefficients</p>
+</div>
+
+<div class="nav" id="nav"></div>
+
+<div class="stage">
+  <div class="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+</div>
+
+<div class="explainer">
+  <div class="card" id="info"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+let step = 0;
+let animT = 0;
+let particles = [];
+let gyroParticles = [];
+
+const STEPS = [
+  {
+    label: '1. Brute force',
+    title: 'Your instinct: simulate every particle',
+    tag: 'IMPOSSIBLE', tagClass: 'tag-red',
+    draw: drawBruteForce,
+    info: `<p>A tokamak plasma has roughly <strong>10²⁰ particles</strong>. Your struct idea:</p>
+<div class="code-block"><span class="kw">struct</span> Particle {
+  vec3 position;    <span class="cm">// x, y, z</span>
+  vec3 velocity;    <span class="cm">// vx, vy, vz</span>
+  <span class="kw">float</span> charge, mass;
+};
+Particle plasma[<span class="num">100000000000000000000</span>]; <span class="cm">// good luck</span></div>
+<p>Even tracking <strong>1 billion</strong> particles with 6 floats each = 24 GB just for state. Then you need to compute electromagnetic forces between every pair. And the gyration timescale is ~10⁻⁸s but turbulence evolves over ~10⁻⁴s — you'd need <strong>10,000+ tiny timesteps</strong> just to resolve the spinning that doesn't even matter for transport.</p>
+<div class="cost-bar"><span class="cost-label">Compute</span><div class="cost-track"><div class="cost-fill" style="width:100%;background:var(--red)"></div></div><span class="cost-val">10²⁰ yrs</span></div>
+<div class="cost-bar"><span class="cost-label">Memory</span><div class="cost-track"><div class="cost-fill" style="width:100%;background:var(--red)"></div></div><span class="cost-val">∞ PB</span></div>`
+  },
+  {
+    label: '2. Gyrokinetics',
+    title: 'Insight #1: average over the spin',
+    tag: 'SMART', tagClass: 'tag-hot',
+    draw: drawGyrokinetics,
+    info: `<p>Particles gyrate rapidly around field lines. But turbulence doesn't care about <em>where</em> in the orbit the particle is — only the <strong>center of the orbit</strong> (the guiding center) and the <strong>radius of the orbit</strong> (the Larmor radius ρ) matter.</p>
+<p>So instead of tracking 3D position + 3D velocity (6 variables per particle), we track: <strong>guiding center position</strong> (3 vars) + <strong>v∥</strong> (1 var) + <strong>μ</strong> (1 var, conserved). That's <strong>5D instead of 6D</strong>, and we can use timesteps 1000× larger because we don't resolve the fast gyration.</p>
+<p>But more importantly, we don't track individual particles at all. We track a <strong>distribution function</strong> f — a smooth field that tells us the density of particles at each point in the 5D phase space. One PDE replaces 10²⁰ ODEs.</p>
+<div class="cost-bar"><span class="cost-label">Compute</span><div class="cost-track"><div class="cost-fill" style="width:35%;background:var(--hot)"></div></div><span class="cost-val">~10⁶ CPUh</span></div>
+<div class="cost-bar"><span class="cost-label">Memory</span><div class="cost-track"><div class="cost-fill" style="width:15%;background:var(--hot)"></div></div><span class="cost-val">~100 GB</span></div>`
+  },
+  {
+    label: '3. Field-aligned',
+    title: 'Insight #2: align the grid with the field',
+    tag: 'CLEVER', tagClass: 'tag-green',
+    draw: drawFieldAligned,
+    info: `<p>The distribution function f lives on a 5D grid: (x, y, z, v∥, μ). The spatial grid (x, y, z) could be anything — cylindrical, Cartesian, whatever. But turbulent structures are <strong>100-1000× longer along B than across it</strong>.</p>
+<p>If you use a regular grid, you need the same fine resolution in every direction. Say 256 × 256 × 256 = <strong>16.7 million</strong> spatial points.</p>
+<p>With field-aligned coordinates, z follows the field line. Now the turbulence is smooth in z, and you only need ~16-32 points there. So: 128 × 64 × 16 = <strong>131,072</strong> spatial points. That's a <strong>100× reduction</strong>.</p>
+<p>But now your coordinates are curvilinear — distances in coordinate space ≠ physical distances. You need something to translate...</p>
+<div class="cost-bar"><span class="cost-label">Compute</span><div class="cost-track"><div class="cost-fill" style="width:8%;background:var(--green)"></div></div><span class="cost-val">~10⁴ CPUh</span></div>
+<div class="cost-bar"><span class="cost-label">Memory</span><div class="cost-track"><div class="cost-fill" style="width:3%;background:var(--green)"></div></div><span class="cost-val">~2 GB</span></div>`
+  },
+  {
+    label: '4. Metrics',
+    title: 'The metric: your coordinate translator',
+    tag: 'GENE', tagClass: 'tag-blue',
+    draw: drawMetrics,
+    info: `<p>The metric coefficients are just the <strong>translation layer</strong> between your nice rectangular grid and the curved physical space. At every z-point, they answer: "if my code takes a unit step in coordinate x, how far did I actually move in real space?"</p>
+<div class="code-block"><span class="cm">// What your PDE solver sees: a flat grid</span>
+<span class="cm">// What the metric makes it mean: curved tokamak</span>
+
+<span class="kw">for</span> (k = <span class="num">0</span>; k < nz; k++) {
+  <span class="cm">// Load geometry for this z-point</span>
+  laplacian[i][j][k] =
+      gxx[k] * <span class="fn">d2f_dx2</span>(i,j,k)
+    + <span class="num">2</span>*gxy[k] * <span class="fn">d2f_dxdy</span>(i,j,k)
+    + gyy[k] * <span class="fn">d2f_dy2</span>(i,j,k);
+}
+<span class="cm">// That's it. Same loop you'd write for</span>
+<span class="cm">// a flat-space problem, just with 3 extra</span>
+<span class="cm">// multiplications per grid point.</span></div>
+<p>The entire complexity of tokamak geometry collapses into <strong>~5 arrays of ~16-32 numbers each</strong>. CHEASE does the hard differential geometry once, GENE just reads the arrays and multiplies. That's the payoff of this whole chain.</p>
+<div class="cost-bar"><span class="cost-label">Geometry</span><div class="cost-track"><div class="cost-fill" style="width:1%;background:var(--accent)"></div></div><span class="cost-val">~160 floats</span></div>`
+  }
+];
+
+// ─── Init ───
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < 200; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const rad = 0.3 + Math.random() * 0.5;
+    particles.push({
+      x: rad * Math.cos(angle),
+      y: rad * Math.sin(angle) * 1.4,
+      vx: (Math.random() - 0.5) * 0.02,
+      vy: (Math.random() - 0.5) * 0.02,
+      phase: Math.random() * Math.PI * 2,
+      gyroR: 0.01 + Math.random() * 0.025,
+      speed: 2 + Math.random() * 4,
+    });
+  }
+  gyroParticles = particles.slice(0, 40).map(p => ({
+    ...p,
+    gcx: p.x,
+    gcy: p.y,
+  }));
+}
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function buildNav() {
+  const nav = document.getElementById('nav');
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'nav-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = s.label;
+    btn.onclick = () => goTo(i);
+    btn.dataset.i = i;
+    nav.appendChild(btn);
+  });
+}
+
+function goTo(i) {
+  step = i;
+  animT = 0;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', +b.dataset.i === i));
+  const el = document.getElementById('info');
+  const s = STEPS[i];
+  el.innerHTML = `<h3>${s.title}<span class="tag ${s.tagClass}">${s.tag}</span></h3>${s.info}`;
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = '';
+}
+
+// ─── Drawing ───
+
+function drawBruteForce(t) {
+  const cx = W / 2, cy = H / 2;
+  const scale = Math.min(W, H) * 0.8;
+
+  // Draw flux surface outline
+  ctx.beginPath();
+  for (let a = 0; a <= Math.PI * 2 + 0.05; a += 0.05) {
+    const r = scale * 0.42 * (1 + 0.2 * Math.cos(a));
+    const px = cx + r * Math.cos(a);
+    const py = cy + r * Math.sin(a) * 1.3;
+    a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = 'rgba(96,165,250,0.12)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Particles gyrating chaotically
+  particles.forEach((p, idx) => {
+    p.phase += p.speed * 0.016;
+    p.x += p.vx * 0.3;
+    p.y += p.vy * 0.3;
+
+    // Bounce loosely
+    const dist = Math.sqrt(p.x * p.x + (p.y / 1.4) * (p.y / 1.4));
+    if (dist > 0.8) {
+      p.vx *= -0.9;
+      p.vy *= -0.9;
+    }
+
+    const gx = cx + p.x * scale * 0.5 + Math.cos(p.phase) * p.gyroR * scale;
+    const gy = cy + p.y * scale * 0.5 + Math.sin(p.phase) * p.gyroR * scale;
+
+    // Gyro-orbit trail
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 2; a += 0.2) {
+      const tx = cx + p.x * scale * 0.5 + Math.cos(a) * p.gyroR * scale;
+      const ty = cy + p.y * scale * 0.5 + Math.sin(a) * p.gyroR * scale;
+      a === 0 ? ctx.moveTo(tx, ty) : ctx.lineTo(tx, ty);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(251,146,60,${0.06 + (idx % 3) * 0.02})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Particle dot
+    ctx.beginPath();
+    ctx.arc(gx, gy, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(251,146,60,${0.4 + Math.sin(t * 3 + idx) * 0.2})`;
+    ctx.fill();
+  });
+
+  // Counter
+  ctx.font = '600 11px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(248,113,113,0.8)';
+  const count = Math.floor(t * 800) % 10000;
+  ctx.fillText(`tracking ${200} of 10²⁰ particles...`, 12, 20);
+  ctx.font = '300 9px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(248,113,113,0.4)';
+  ctx.fillText(`each one: position(3) + velocity(3) + forces + collisions`, 12, 35);
+  ctx.fillText(`timestep: 10⁻⁸s (must resolve gyration)`, 12, 48);
+
+  // Show a zoomed gyro-orbit
+  const zx = W * 0.78, zy = H * 0.18;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(zx - 40, zy - 40, 80, 80);
+
+  ctx.font = '300 8px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillText('one particle:', zx - 30, zy - 45);
+
+  const orbR = 25;
+  ctx.beginPath();
+  for (let a = 0; a < Math.PI * 2; a += 0.1) {
+    const px = zx + Math.cos(a) * orbR;
+    const py = zy + Math.sin(a) * orbR;
+    a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = 'rgba(251,146,60,0.4)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Spinning dot
+  const da = t * 5;
+  ctx.beginPath();
+  ctx.arc(zx + Math.cos(da) * orbR, zy + Math.sin(da) * orbR, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#fb923c';
+  ctx.fill();
+
+  // Center
+  ctx.beginPath();
+  ctx.arc(zx, zy, 2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillText('guiding center', zx + 5, zy - 3);
+  ctx.fillText('(we only need this)', zx - 10, zy + 45);
+}
+
+function drawGyrokinetics(t) {
+  const cx = W / 2, cy = H / 2;
+  const scale = Math.min(W, H) * 0.8;
+
+  // Left side: before (particles) → right side: after (smooth field)
+  const midX = W * 0.45;
+
+  // Left: a few particles with gyro-orbits, fading out
+  const fadeParticles = Math.max(0, 1 - t * 0.3);
+  if (fadeParticles > 0) {
+    ctx.globalAlpha = fadeParticles;
+    gyroParticles.slice(0, 15).forEach((p, i) => {
+      const px = midX * 0.45 + p.x * midX * 0.7;
+      const py = cy + p.y * scale * 0.3;
+      ctx.beginPath();
+      for (let a = 0; a < Math.PI * 2; a += 0.2) {
+        const ox = px + Math.cos(a) * 8;
+        const oy = py + Math.sin(a) * 8;
+        a === 0 ? ctx.moveTo(ox, oy) : ctx.lineTo(ox, oy);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(251,146,60,0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(251,146,60,0.6)';
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // Arrow
+  const arrowAlpha = Math.min(1, Math.max(0, (t - 0.5) * 0.8));
+  if (arrowAlpha > 0) {
+    ctx.globalAlpha = arrowAlpha;
+    ctx.font = '600 18px Sora';
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillText('→', midX - 8, cy + 3);
+    ctx.globalAlpha = 1;
+  }
+
+  // Right: smooth distribution function as a heatmap
+  const fieldAlpha = Math.min(1, Math.max(0, (t - 1) * 0.5));
+  if (fieldAlpha > 0) {
+    ctx.globalAlpha = fieldAlpha;
+    const fxStart = midX + 20;
+    const fxEnd = W - 20;
+    const fyStart = 30;
+    const fyEnd = H - 60;
+    const fw = fxEnd - fxStart;
+    const fh = fyEnd - fyStart;
+
+    const cellsX = 32, cellsY = 24;
+    const cw = fw / cellsX, ch = fh / cellsY;
+
+    for (let iy = 0; iy < cellsY; iy++) {
+      for (let ix = 0; ix < cellsX; ix++) {
+        const nx = ix / cellsX * 2 - 1;
+        const ny = iy / cellsY * 2 - 1;
+
+        // Smooth Gaussian-ish distribution with some structure
+        let val = Math.exp(-(nx * nx + ny * ny) * 1.5);
+        val += 0.3 * Math.sin(nx * 5 + t * 0.5) * Math.cos(ny * 4 - t * 0.3);
+        val = Math.max(0, Math.min(1, val));
+
+        const r = Math.floor(96 + val * 80);
+        const g = Math.floor(100 + val * 60);
+        const b = Math.floor(200 + val * 55);
+        ctx.fillStyle = `rgba(${r},${g},${b},${0.15 + val * 0.5})`;
+        ctx.fillRect(fxStart + ix * cw, fyStart + iy * ch, cw + 0.5, ch + 0.5);
+      }
+    }
+
+    // Border
+    ctx.strokeStyle = 'rgba(96,165,250,0.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(fxStart, fyStart, fw, fh);
+
+    // Labels
+    ctx.font = '600 10px IBM Plex Mono';
+    ctx.fillStyle = 'rgba(96,165,250,0.7)';
+    ctx.fillText('f(x, v∥, μ)', fxStart + 5, fyStart - 6);
+    ctx.font = '300 8px IBM Plex Mono';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText('distribution function', fxStart + 75, fyStart - 6);
+    ctx.fillText('← position →', fxStart + fw / 2 - 30, fyEnd + 14);
+
+    ctx.save();
+    ctx.translate(fxStart - 8, fyStart + fh / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('← velocity →', -25, 0);
+    ctx.restore();
+
+    // Annotation: "one field instead of 10²⁰ particles"
+    ctx.font = '300 9px Sora';
+    ctx.fillStyle = 'rgba(74,222,128,0.6)';
+    ctx.fillText('1 smooth function replaces 10²⁰ trajectories', fxStart + 5, fyEnd + 34);
+
+    ctx.globalAlpha = 1;
+  }
+
+  // Top left label
+  ctx.font = '600 10px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(251,146,60,0.6)';
+  ctx.fillText('10²⁰ particles', 12, 20);
+  ctx.font = '300 9px Sora';
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillText('averaged over gyration →', 12, 35);
+  ctx.fillStyle = 'rgba(96,165,250,0.5)';
+  ctx.fillText('f(x, y, z, v∥, μ)', 12, 50);
+}
+
+function drawFieldAligned(t) {
+  const margin = 20;
+  const halfW = (W - margin * 3) / 2;
+
+  // Left: regular grid (wasteful)
+  const lx = margin, ly = margin + 20;
+  const gSize = Math.min(halfW, H - 60);
+  const n1 = 16;
+  const cellSize1 = gSize / n1;
+
+  ctx.font = '600 9px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(248,113,113,0.7)';
+  ctx.fillText('Regular grid', lx, ly - 6);
+  ctx.font = '300 8px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillText(`${n1}×${n1}×${n1} = ${n1*n1*n1} pts`, lx + 75, ly - 6);
+
+  // Draw regular grid cells
+  for (let iy = 0; iy < n1; iy++) {
+    for (let ix = 0; ix < n1; ix++) {
+      const x = lx + ix * cellSize1;
+      const y = ly + iy * cellSize1;
+      ctx.strokeStyle = 'rgba(248,113,113,0.1)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x, y, cellSize1, cellSize1);
+    }
+  }
+
+  // Overlay: a turbulent eddy (elongated blob) that doesn't align with grid
+  const reveal = Math.min(1, t * 0.5);
+  if (reveal > 0.2) {
+    ctx.save();
+    ctx.translate(lx + gSize / 2, ly + gSize / 2);
+    ctx.rotate(0.6); // tilted — doesn't align with grid
+
+    const eddyW = gSize * 0.08;
+    const eddyH = gSize * 0.7;
+
+    ctx.beginPath();
+    ctx.ellipse(0, 0, eddyW, eddyH, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(251,146,60,${0.15 * reveal})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(251,146,60,${0.4 * reveal})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.font = '300 7px IBM Plex Mono';
+    ctx.fillStyle = `rgba(251,146,60,${0.6 * reveal})`;
+    ctx.rotate(-0.6);
+    ctx.fillText('turbulent eddy', -30, -gSize * 0.35);
+    ctx.fillText('(elongated along B)', -42, -gSize * 0.35 + 11);
+
+    ctx.restore();
+
+    // X marks where points are wasted
+    ctx.font = '300 7px Sora';
+    ctx.fillStyle = 'rgba(248,113,113,0.3)';
+    ctx.fillText('most grid points wasted →', lx + 2, ly + gSize + 14);
+  }
+
+  // Right: field-aligned grid (efficient)
+  const rx = margin * 2 + halfW, ry = margin + 20;
+
+  ctx.font = '600 9px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(74,222,128,0.7)';
+  ctx.fillText('Field-aligned grid', rx, ry - 6);
+  ctx.font = '300 8px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillText('128×64×16', rx + 115, ry - 6);
+
+  const reveal2 = Math.min(1, Math.max(0, (t - 1.5) * 0.5));
+  if (reveal2 > 0) {
+    ctx.globalAlpha = reveal2;
+
+    // Draw a grid that's elongated in one direction
+    const nxR = 12, nzR = 4;
+    const cellW = halfW / nxR;
+    const cellH = gSize / nzR;
+
+    for (let iz = 0; iz < nzR; iz++) {
+      for (let ix = 0; ix < nxR; ix++) {
+        const x = rx + ix * cellW;
+        const y = ry + iz * cellH;
+        ctx.strokeStyle = 'rgba(74,222,128,0.12)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, cellW, cellH);
+      }
+    }
+
+    // Same eddy, but now it fits the grid
+    ctx.beginPath();
+    ctx.ellipse(rx + halfW / 2, ry + gSize / 2, halfW * 0.08, gSize * 0.45, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(251,146,60,0.15)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(251,146,60,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Labels
+    ctx.font = '600 8px IBM Plex Mono';
+    ctx.fillStyle = 'rgba(248,113,113,0.5)';
+    ctx.textAlign = 'center';
+    ctx.fillText('x (many pts) →', rx + halfW / 2, ry + gSize + 14);
+    ctx.textAlign = 'left';
+
+    ctx.save();
+    ctx.translate(rx - 8, ry + gSize / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.font = '600 8px IBM Plex Mono';
+    ctx.fillStyle = 'rgba(96,165,250,0.5)';
+    ctx.fillText('z (few pts) →', 0, 0);
+    ctx.textAlign = 'left';
+    ctx.restore();
+
+    ctx.font = '300 7px Sora';
+    ctx.fillStyle = 'rgba(74,222,128,0.4)';
+    ctx.fillText('eddy fits naturally', rx + halfW / 2 - 35, ry + gSize + 28);
+
+    // But now distances are wrong annotation
+    if (reveal2 > 0.7) {
+      ctx.font = '300 8px Sora';
+      ctx.fillStyle = 'rgba(96,165,250,0.5)';
+      const noteY = ry + gSize + 45;
+      ctx.fillText('⚠ but now: 1 step in x ≠ 1 step in z', rx, noteY);
+      ctx.fillText('   we need a translator → metric', rx, noteY + 13);
+    }
+
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawMetrics(t) {
+  const margin = { l: 16, r: 16, t: 20, b: 16 };
+
+  // Show the simple grid with metric "lenses" at each z-point
+  const gridX = margin.l + 30;
+  const gridY = margin.t + 30;
+  const gridW = W - margin.l - margin.r - 40;
+  const gridH = H - margin.t - margin.b - 80;
+
+  const nz = 8;
+  const nx = 10;
+  const cellW = gridW / nx;
+  const cellH = gridH / nz;
+
+  ctx.font = '600 10px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(96,165,250,0.6)';
+  ctx.fillText('Your code sees: a flat rectangular grid', margin.l, margin.t + 12);
+
+  // Draw the grid
+  for (let iz = 0; iz <= nz; iz++) {
+    const y = gridY + iz * cellH;
+    ctx.beginPath();
+    ctx.moveTo(gridX, y);
+    ctx.lineTo(gridX + gridW, y);
+    ctx.strokeStyle = `rgba(96,165,250,${iz === 0 || iz === nz ? 0.2 : 0.07})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  for (let ix = 0; ix <= nx; ix++) {
+    const x = gridX + ix * cellW;
+    ctx.beginPath();
+    ctx.moveTo(x, gridY);
+    ctx.lineTo(x, gridY + gridH);
+    ctx.strokeStyle = 'rgba(248,113,113,0.07)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.font = '600 8px IBM Plex Mono';
+  ctx.fillStyle = 'rgba(248,113,113,0.4)';
+  ctx.textAlign = 'center';
+  ctx.fillText('x →', gridX + gridW / 2, gridY + gridH + 14);
+  ctx.textAlign = 'left';
+  ctx.save();
+  ctx.translate(gridX - 16, gridY + gridH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(96,165,250,0.4)';
+  ctx.fillText('z →', 0, 0);
+  ctx.textAlign = 'left';
+  ctx.restore();
+
+  // At each z-row, show the metric "stretching"
+  const activeZ = Math.floor((Math.sin(t * 0.6) * 0.5 + 0.5) * (nz - 1));
+
+  for (let iz = 0; iz < nz; iz++) {
+    const y = gridY + (iz + 0.5) * cellH;
+    const zNorm = iz / (nz - 1); // 0 = inboard, 0.5 = outboard, 1 = inboard
+    const zAngle = -Math.PI + zNorm * 2 * Math.PI;
+    const gyyVal = 1.5 + 1.2 * Math.cos(zAngle);
+    const isActive = iz === activeZ;
+
+    // Draw stretching indicator: wider ellipses where gyy is large
+    const ellipseW = cellW * 0.3 * gyyVal / 2.7;
+    const ellipseH = cellH * 0.25;
+
+    for (let ix = 1; ix < nx; ix += 2) {
+      const x = gridX + (ix + 0.5) * cellW;
+      ctx.beginPath();
+      ctx.ellipse(x, y, ellipseW, ellipseH, 0, 0, Math.PI * 2);
+      const alpha = isActive ? 0.4 : 0.1;
+      ctx.fillStyle = `rgba(244,114,182,${alpha})`;
+      ctx.fill();
+      if (isActive) {
+        ctx.strokeStyle = 'rgba(244,114,182,0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+
+    // Right side: metric values
+    const valX = gridX + gridW + 8;
+    if (isActive) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(gridX - 2, y - cellH / 2, gridW + 4, cellH);
+
+      ctx.font = '600 8px IBM Plex Mono';
+      ctx.fillStyle = 'rgba(244,114,182,0.8)';
+      ctx.fillText(`g^yy=${gyyVal.toFixed(1)}`, valX, y - 8);
+      const gxxVal = 0.8 + 0.4 * Math.cos(zAngle);
+      ctx.fillStyle = 'rgba(248,113,113,0.8)';
+      ctx.fillText(`g^xx=${gxxVal.toFixed(1)}`, valX, y + 3);
+      const gxyVal = 0.5 * Math.sin(zAngle);
+      ctx.fillStyle = 'rgba(251,191,36,0.8)';
+      ctx.fillText(`g^xy=${gxyVal.toFixed(2)}`, valX, y + 14);
+
+      // Annotation
+      const annX = gridX + gridW * 0.02;
+      ctx.font = '300 8px Sora';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      if (zNorm < 0.3 || zNorm > 0.7) {
+        ctx.fillText('inboard: g^yy small → less FLR damping', annX, y + cellH / 2 - 3);
+      } else {
+        ctx.fillText('outboard: g^yy large → strong FLR damping', annX, y + cellH / 2 - 3);
+      }
+    }
+
+    // z-label
+    ctx.font = '300 7px IBM Plex Mono';
+    ctx.fillStyle = isActive ? 'rgba(96,165,250,0.7)' : 'rgba(96,165,250,0.2)';
+    const zLabel = zNorm < 0.15 ? '-π' : zNorm > 0.85 ? '+π' : Math.abs(zNorm - 0.5) < 0.1 ? '0' : '';
+    if (zLabel) ctx.fillText(zLabel, gridX - 14, y + 3);
+  }
+
+  // Bottom: the punchline
+  const reveal = Math.min(1, Math.max(0, (t - 2) * 0.4));
+  if (reveal > 0) {
+    ctx.globalAlpha = reveal;
+    const py = gridY + gridH + 32;
+    ctx.font = '400 9px Sora';
+    ctx.fillStyle = 'rgba(96,165,250,0.7)';
+    ctx.fillText('same simple code at every z-point, different geometry via g^ij values', margin.l, py);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ─── Loop ───
+
+let last = 0;
+function loop(ts) {
+  const dt = Math.min((ts - last) / 1000, 0.1);
+  last = ts;
+  animT += dt;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Subtle dot pattern
+  ctx.fillStyle = 'rgba(255,255,255,0.015)';
+  for (let x = 0; x < W; x += 20) {
+    for (let y = 0; y < H; y += 20) {
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  STEPS[step].draw(animT);
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize', resize);
+resize();
+initParticles();
+buildNav();
+goTo(0);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

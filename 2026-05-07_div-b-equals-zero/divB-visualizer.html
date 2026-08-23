@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>∇·B = 0 — Field Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --bg-grain: #0e0e15;
+    --ink: #f4f1e8;
+    --ink-dim: #8a8578;
+    --ink-faint: #4a4940;
+    --north: #ff3b30;
+    --south: #2e7cf6;
+    --field: #d4af37;
+    --rule: #1f1f28;
+    --accent: #f4f1e8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    cursor: crosshair;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(255, 59, 48, 0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(46, 124, 246, 0.04) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: 2;
+    mix-blend-mode: overlay;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+  }
+
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 24px 32px 16px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(to bottom, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.7) 70%, transparent 100%);
+  }
+
+  .title-block {
+    pointer-events: auto;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: 36px;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    font-style: italic;
+  }
+
+  h1 .equation {
+    font-style: normal;
+    font-weight: 400;
+    color: var(--field);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    margin-right: 8px;
+    letter-spacing: -0.04em;
+  }
+
+  .meta {
+    text-align: right;
+    pointer-events: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--ink-dim);
+    line-height: 1.6;
+  }
+
+  .meta .live {
+    color: var(--north);
+  }
+  .meta .live::before {
+    content: '●';
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .controls {
+    position: fixed;
+    bottom: 24px;
+    left: 32px;
+    right: 32px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    pointer-events: none;
+  }
+
+  .panel {
+    background: rgba(14, 14, 21, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--rule);
+    padding: 18px 22px;
+    pointer-events: auto;
+  }
+
+  .panel-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 12px;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--ink-faint);
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+  }
+
+  button:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  button.active {
+    background: var(--field);
+    color: var(--bg);
+    border-color: var(--field);
+  }
+
+  button.danger:hover {
+    border-color: var(--north);
+    background: var(--north);
+    color: var(--ink);
+  }
+
+  .slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-dim);
+  }
+
+  .slider-row label {
+    min-width: 90px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .slider-row .value {
+    min-width: 40px;
+    color: var(--field);
+    font-weight: 700;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 1px;
+    background: var(--ink-faint);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--field);
+    cursor: pointer;
+    border-radius: 0;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--field);
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+  }
+
+  .info-panel {
+    max-width: 380px;
+  }
+
+  .info-panel p {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    font-style: italic;
+  }
+
+  .info-panel p .highlight {
+    color: var(--field);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .dot-n { background: var(--north); box-shadow: 0 0 8px var(--north); }
+  .dot-s { background: var(--south); box-shadow: 0 0 8px var(--south); }
+
+  .hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    pointer-events: none;
+    text-align: center;
+    color: var(--ink-faint);
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    transition: opacity 0.6s ease;
+    max-width: 400px;
+  }
+
+  .hint .small {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-style: normal;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-top: 12px;
+    color: var(--ink-faint);
+  }
+
+  .hint.hidden { opacity: 0; }
+
+  .corner-mark {
+    position: fixed;
+    bottom: 24px;
+    z-index: 4;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    pointer-events: none;
+  }
+
+  .flux-readout {
+    position: fixed;
+    top: 110px;
+    right: 32px;
+    z-index: 9;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-dim);
+    text-align: right;
+    line-height: 1.8;
+    pointer-events: none;
+  }
+
+  .flux-readout .label {
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-size: 9px;
+  }
+
+  .flux-readout .number {
+    font-size: 22px;
+    color: var(--field);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .flux-readout .verdict {
+    color: var(--north);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .flux-readout .verdict.zero { color: var(--field); }
+
+  @media (max-width: 768px) {
+    .controls { flex-direction: column; align-items: stretch; }
+    h1 { font-size: 24px; }
+    h1 .equation { font-size: 22px; }
+    .header { padding: 16px 20px 12px; }
+    .controls { left: 20px; right: 20px; bottom: 20px; }
+    .info-panel { max-width: 100%; }
+    .flux-readout { right: 20px; top: 130px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="canvas"></canvas>
+</div>
+
+<header class="header">
+  <div class="title-block">
+    <div class="eyebrow">Maxwell · Equation II</div>
+    <h1><span class="equation">∇·B = 0</span><br>no monopoles, ever.</h1>
+  </div>
+  <div class="meta">
+    <div class="live">FIELD ACTIVE</div>
+    <div>Gauss law for magnetism</div>
+    <div>flux through closed surface ≡ 0</div>
+  </div>
+</header>
+
+<div class="flux-readout">
+  <div class="label">Net flux through dashed loop</div>
+  <div class="number" id="flux-value">0.000</div>
+  <div class="verdict zero" id="flux-verdict">≈ ZERO (as predicted)</div>
+</div>
+
+<div class="hint" id="hint">
+  Click anywhere to drop a magnet.
+  <span class="small">Try cutting one in half →</span>
+</div>
+
+<div class="controls">
+  <div class="panel info-panel">
+    <div class="panel-title">The Lesson</div>
+    <p id="lesson-text">
+      Every field line that <span class="highlight">leaves a north pole</span> must <span class="highlight">return to a south pole</span>. There is no source, no sink — only loops. Drop magnets and watch.
+    </p>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot dot-n"></div>North</div>
+      <div class="legend-item"><div class="legend-dot dot-s"></div>South</div>
+      <div class="legend-item">— field line</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Controls</div>
+    <div class="button-row">
+      <button id="btn-bar" class="active">Bar magnet</button>
+      <button id="btn-cut">Cut in half</button>
+      <button id="btn-clear" class="danger">Clear</button>
+    </div>
+    <div class="slider-group">
+      <div class="slider-row">
+        <label>Density</label>
+        <input type="range" id="density" min="8" max="32" value="18">
+        <span class="value" id="density-val">18</span>
+      </div>
+      <div class="slider-row">
+        <label>Resolution</label>
+        <input type="range" id="resolution" min="200" max="1200" value="600">
+        <span class="value" id="resolution-val">600</span>
+      </div>
+      <div class="slider-row">
+        <label>Strength</label>
+        <input type="range" id="strength" min="20" max="200" value="80">
+        <span class="value" id="strength-val">80</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="corner-mark" style="left: 32px;">∮ B·dA = 0</div>
+<div class="corner-mark" style="right: 32px;">no isolated poles found · 1820–2026</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const hint = document.getElementById('hint');
+  const fluxValueEl = document.getElementById('flux-value');
+  const fluxVerdictEl = document.getElementById('flux-verdict');
+
+  let W, H, dpr;
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Magnets are stored as {n: {x,y}, s: {x,y}} pairs (a dipole).
+  // The visual is two poles on either end of a bar.
+  let magnets = [];
+
+  // Defaults
+  let DENSITY = 18;       // number of field lines per pole
+  let MAX_STEPS = 600;    // integration steps
+  let STRENGTH = 80;      // overall magnitude scale
+  const STEP_SIZE = 2.0;
+  const POLE_RADIUS = 8;
+  const MIN_DIST = 4;     // termination radius near pole
+
+  // ===== UI bindings =====
+  const densityEl = document.getElementById('density');
+  const resolutionEl = document.getElementById('resolution');
+  const strengthEl = document.getElementById('strength');
+  const densityValEl = document.getElementById('density-val');
+  const resolutionValEl = document.getElementById('resolution-val');
+  const strengthValEl = document.getElementById('strength-val');
+
+  densityEl.addEventListener('input', e => {
+    DENSITY = +e.target.value;
+    densityValEl.textContent = DENSITY;
+    render();
+  });
+  resolutionEl.addEventListener('input', e => {
+    MAX_STEPS = +e.target.value;
+    resolutionValEl.textContent = MAX_STEPS;
+    render();
+  });
+  strengthEl.addEventListener('input', e => {
+    STRENGTH = +e.target.value;
+    strengthValEl.textContent = STRENGTH;
+    render();
+  });
+
+  let mode = 'bar'; // 'bar' or 'cut'
+  const btnBar = document.getElementById('btn-bar');
+  const btnCut = document.getElementById('btn-cut');
+  const btnClear = document.getElementById('btn-clear');
+
+  function setMode(m) {
+    mode = m;
+    btnBar.classList.toggle('active', m === 'bar');
+    btnCut.classList.toggle('active', m === 'cut');
+  }
+
+  btnBar.addEventListener('click', () => setMode('bar'));
+  btnCut.addEventListener('click', () => {
+    // Cut every existing magnet in half
+    if (magnets.length === 0) {
+      // If nothing on screen, just switch placement mode and tease
+      setMode('bar');
+      flashLesson('Drop a bar magnet first, then cut it.');
+      return;
+    }
+    const newMagnets = [];
+    magnets.forEach(m => {
+      const mid = { x: (m.n.x + m.s.x) / 2, y: (m.n.y + m.s.y) / 2 };
+      // Each half: north pole on the side that had north, new south where the cut was — and vice versa
+      const dx = m.s.x - m.n.x;
+      const dy = m.s.y - m.n.y;
+      const len = Math.hypot(dx, dy);
+      const ux = dx / len, uy = dy / len;
+      const gap = 8; // small gap so poles don't sit on top of each other
+      // Half 1: original N → new S (just before midpoint)
+      newMagnets.push({
+        n: { x: m.n.x, y: m.n.y },
+        s: { x: mid.x - ux * gap, y: mid.y - uy * gap }
+      });
+      // Half 2: new N (just after midpoint) → original S
+      newMagnets.push({
+        n: { x: mid.x + ux * gap, y: mid.y + uy * gap },
+        s: { x: m.s.x, y: m.s.y }
+      });
+    });
+    magnets = newMagnets;
+    flashLesson('See? Each half grew its <span class="highlight">own pair of poles</span>. You can never isolate one. That is what ∇·B = 0 says.');
+    render();
+  });
+
+  btnClear.addEventListener('click', () => {
+    magnets = [];
+    hint.classList.remove('hidden');
+    resetLesson();
+    render();
+  });
+
+  function flashLesson(html) {
+    document.getElementById('lesson-text').innerHTML = html;
+  }
+  function resetLesson() {
+    flashLesson('Every field line that <span class="highlight">leaves a north pole</span> must <span class="highlight">return to a south pole</span>. There is no source, no sink — only loops. Drop magnets and watch.');
+  }
+
+  // ===== Placing magnets =====
+  // A bar magnet drops with N on the left, S on the right, length 100
+  let placing = null; // {start, current} when click-drag for orientation
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    placing = {
+      start: { x: e.clientX - rect.left, y: e.clientY - rect.top },
+      current: { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    };
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (!placing) return;
+    const rect = canvas.getBoundingClientRect();
+    placing.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    render();
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    if (!placing) return;
+    const rect = canvas.getBoundingClientRect();
+    const end = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const dx = end.x - placing.start.x;
+    const dy = end.y - placing.start.y;
+    const len = Math.hypot(dx, dy);
+
+    if (len < 8) {
+      // Click without drag: drop a default horizontal bar magnet centered on the click
+      magnets.push({
+        n: { x: placing.start.x - 50, y: placing.start.y },
+        s: { x: placing.start.x + 50, y: placing.start.y }
+      });
+    } else {
+      // Drag: north at start, south at end (or you could think of it as the magnet aligned with drag direction)
+      magnets.push({
+        n: { x: placing.start.x, y: placing.start.y },
+        s: { x: end.x, y: end.y }
+      });
+    }
+    placing = null;
+    hint.classList.add('hidden');
+    render();
+  });
+
+  // Touch
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    placing = {
+      start: { x: t.clientX - rect.left, y: t.clientY - rect.top },
+      current: { x: t.clientX - rect.left, y: t.clientY - rect.top }
+    };
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    if (!placing) return;
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    placing.current = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    render();
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    if (!placing) return;
+    const rect = canvas.getBoundingClientRect();
+    const t = e.changedTouches[0];
+    const end = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    const len = Math.hypot(end.x - placing.start.x, end.y - placing.start.y);
+    if (len < 8) {
+      magnets.push({
+        n: { x: placing.start.x - 50, y: placing.start.y },
+        s: { x: placing.start.x + 50, y: placing.start.y }
+      });
+    } else {
+      magnets.push({
+        n: { x: placing.start.x, y: placing.start.y },
+        s: { x: end.x, y: end.y }
+      });
+    }
+    placing = null;
+    hint.classList.add('hidden');
+    render();
+  });
+
+  // ===== Field math =====
+  // Treat each pole as a 2D Coulomb-like point source. North = +, South = -.
+  // B(r) = sum over poles of q * (r - rp) / |r - rp|^2
+  function fieldAt(x, y) {
+    let bx = 0, by = 0;
+    for (const m of magnets) {
+      // North pole: positive
+      let dx = x - m.n.x, dy = y - m.n.y;
+      let r2 = dx*dx + dy*dy + 25; // softened
+      bx += dx / r2;
+      by += dy / r2;
+      // South pole: negative
+      dx = x - m.s.x; dy = y - m.s.y;
+      r2 = dx*dx + dy*dy + 25;
+      bx -= dx / r2;
+      by -= dy / r2;
+    }
+    return [bx * STRENGTH, by * STRENGTH];
+  }
+
+  // Trace a streamline from a starting point (just outside a north pole) until it terminates at a south pole, leaves the screen, or runs out of steps.
+  function traceLine(x, y, direction = +1) {
+    const path = [{x, y}];
+    let px = x, py = y;
+    for (let i = 0; i < MAX_STEPS; i++) {
+      const [bx, by] = fieldAt(px, py);
+      const mag = Math.hypot(bx, by);
+      if (mag < 1e-6) break;
+      const nx = px + direction * STEP_SIZE * bx / mag;
+      const ny = py + direction * STEP_SIZE * by / mag;
+      // Check if hit any pole
+      let stop = false;
+      for (const m of magnets) {
+        if (Math.hypot(nx - m.n.x, ny - m.n.y) < MIN_DIST) { stop = true; break; }
+        if (Math.hypot(nx - m.s.x, ny - m.s.y) < MIN_DIST) { stop = true; break; }
+      }
+      px = nx; py = ny;
+      path.push({x: px, y: py});
+      if (stop) break;
+      if (px < -200 || px > W + 200 || py < -200 || py > H + 200) break;
+    }
+    return path;
+  }
+
+  // ===== Flux integral around a fixed test loop (demonstrates ∇·B=0 numerically) =====
+  // We compute ∮ B·n dl around a circle near the center of the screen.
+  // For ANY configuration where the loop encloses 0 OR a complete dipole, this should be ~0.
+  function computeFlux() {
+    const cx = W / 2;
+    const cy = H / 2;
+    const r = Math.min(W, H) * 0.22;
+    const N = 120;
+    let totalFlux = 0;
+    for (let i = 0; i < N; i++) {
+      const theta = (i / N) * Math.PI * 2;
+      const px = cx + r * Math.cos(theta);
+      const py = cy + r * Math.sin(theta);
+      const [bx, by] = fieldAt(px, py);
+      // outward normal
+      const nx = Math.cos(theta);
+      const ny = Math.sin(theta);
+      const dl = (2 * Math.PI * r) / N;
+      totalFlux += (bx * nx + by * ny) * dl;
+    }
+    return { flux: totalFlux, cx, cy, r };
+  }
+
+  // ===== Rendering =====
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw test loop (dashed circle for the flux readout)
+    const { flux, cx, cy, r } = computeFlux();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(244, 175, 55, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Update flux readout
+    // Normalize so the displayed number is in a friendly range
+    const displayFlux = flux / 1000;
+    fluxValueEl.textContent = displayFlux.toFixed(3);
+    if (Math.abs(displayFlux) < 0.5) {
+      fluxVerdictEl.textContent = '≈ ZERO (as predicted)';
+      fluxVerdictEl.classList.add('zero');
+    } else {
+      fluxVerdictEl.textContent = 'numerical noise · settle the field';
+      fluxVerdictEl.classList.remove('zero');
+    }
+
+    // Draw field lines: trace from each north pole outward
+    if (magnets.length > 0) {
+      ctx.strokeStyle = 'rgba(212, 175, 55, 0.55)';
+      ctx.lineWidth = 1;
+
+      for (const m of magnets) {
+        for (let i = 0; i < DENSITY; i++) {
+          const angle = (i / DENSITY) * Math.PI * 2;
+          const sx = m.n.x + Math.cos(angle) * (POLE_RADIUS + 1);
+          const sy = m.n.y + Math.sin(angle) * (POLE_RADIUS + 1);
+          const path = traceLine(sx, sy, +1);
+
+          ctx.beginPath();
+          ctx.moveTo(path[0].x, path[0].y);
+          for (let j = 1; j < path.length; j++) {
+            ctx.lineTo(path[j].x, path[j].y);
+          }
+          ctx.stroke();
+
+          // Tiny arrowhead halfway along the path
+          if (path.length > 20) {
+            const idx = Math.floor(path.length / 2);
+            const a = path[idx - 1];
+            const b = path[idx];
+            const ang = Math.atan2(b.y - a.y, b.x - a.x);
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(ang);
+            ctx.fillStyle = 'rgba(212, 175, 55, 0.7)';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-4, -2);
+            ctx.lineTo(-4, 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+    }
+
+    // Draw magnet bars + poles
+    for (const m of magnets) {
+      // Bar
+      ctx.save();
+      ctx.strokeStyle = 'rgba(244, 241, 232, 0.15)';
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(m.n.x, m.n.y);
+      ctx.lineTo(m.s.x, m.s.y);
+      ctx.stroke();
+      ctx.restore();
+
+      // North pole
+      drawPole(m.n.x, m.n.y, '#ff3b30', 'N');
+      // South pole
+      drawPole(m.s.x, m.s.y, '#2e7cf6', 'S');
+    }
+
+    // Preview while placing
+    if (placing) {
+      const a = placing.start, b = placing.current;
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(244, 241, 232, 0.3)';
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      if (len < 8) {
+        // Will place a default horizontal magnet
+        ctx.moveTo(a.x - 50, a.y);
+        ctx.lineTo(a.x + 50, a.y);
+      } else {
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      if (len < 8) {
+        drawPole(a.x - 50, a.y, '#ff3b30', 'N', 0.6);
+        drawPole(a.x + 50, a.y, '#2e7cf6', 'S', 0.6);
+      } else {
+        drawPole(a.x, a.y, '#ff3b30', 'N', 0.6);
+        drawPole(b.x, b.y, '#2e7cf6', 'S', 0.6);
+      }
+    }
+  }
+
+  function drawPole(x, y, color, label, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Outer glow
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 30);
+    grad.addColorStop(0, color + 'cc');
+    grad.addColorStop(1, color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, 30, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pole disc
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, POLE_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = '#0a0a0f';
+    ctx.font = '700 9px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y);
+
+    ctx.restore();
+  }
+
+  // ===== Initial state =====
+  // Drop a default bar magnet in the middle so the user immediately sees the field
+  magnets.push({
+    n: { x: W / 2 - 80, y: H / 2 + 30 },
+    s: { x: W / 2 + 80, y: H / 2 + 30 }
+  });
+  setTimeout(() => {
+    hint.classList.add('hidden');
+  }, 3500);
+
+  render();
+
+  // Re-render on resize so the loop stays centered
+  window.addEventListener('resize', render);
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How the Ring Gets Defined</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#04070d;color:#dfe8f5;font-family:-apple-system,system-ui,sans-serif;padding:16px 12px 60px;}
+.w{max-width:860px;margin:0 auto;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+h1 span{color:#f5c042;}
+.sub{text-align:center;color:#5a7094;font-size:13px;margin-bottom:14px;line-height:1.5;max-width:560px;margin-left:auto;margin-right:auto;}
+.panel{background:#0b1222;border:1px solid #17253f;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.plbl{padding:8px 12px;border-bottom:1px solid #17253f;font-size:9px;font-family:monospace;color:#2f4468;letter-spacing:1px;display:flex;justify-content:space-between;}
+canvas{display:block;width:100%;}
+.box{background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.box p{font-size:12px;color:#5a7094;line-height:1.7;}
+.box p b{color:#dfe8f5;}.box p .p{color:#9b7ff0;font-weight:600;}.box p .r{color:#ef6461;font-weight:600;}.box p .g{color:#3ee886;font-weight:600;}.box p .a{color:#f5c042;font-weight:600;}.box p .c{color:#1fd6e8;font-weight:600;}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cg{flex:1;min-width:130px;background:#0b1222;border:1px solid #17253f;border-radius:10px;padding:9px 11px;}
+.cg-l{font-size:8px;font-family:monospace;color:#2f4468;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:monospace;font-size:13px;font-weight:700;min-width:36px;text-align:right;color:#f5c042;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#17253f;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#f5c042;cursor:pointer;}
+h2{font-size:16px;font-weight:700;color:#f5c042;margin:20px 0 10px;padding-top:12px;border-top:1px solid #17253f;}
+.arrow-down{text-align:center;font-size:18px;color:#2f4468;margin:4px 0;}
+</style>
+</head>
+<body>
+<div class="w">
+
+<h1>How the <span>Ring</span> Gets Defined</h1>
+<p class="sub">CHEASE solves for the equilibrium, finds the flux surface shape, walks around it, and hands GENE the numbers.</p>
+
+<div class="ctrls">
+  <div class="cg">
+    <div class="cg-l">Select Surface (rho)</div>
+    <div class="cg-r"><input type="range" id="sRho" min="0.1" max="0.95" step="0.01" value="0.6"><span class="cg-v" id="vRho">0.60</span></div>
+  </div>
+  <div class="cg">
+    <div class="cg-l">Show sample points</div>
+    <div class="cg-r"><input type="range" id="sN" min="8" max="64" step="4" value="24"><span class="cg-v" id="vN" style="color:#1fd6e8">24</span></div>
+  </div>
+</div>
+
+<!-- Step 1: Equilibrium contours -->
+<div class="panel">
+  <div class="plbl"><span>STEP 1: CHEASE SOLVES THE EQUILIBRIUM</span><span style="color:#f5c042">psi(R,Z) CONTOURS</span></div>
+  <canvas id="c1" style="height:440px;"></canvas>
+</div>
+
+<div class="box">
+  <p>CHEASE solves the Grad-Shafranov equation and gets ψ(R,Z) everywhere on the grid. The contour lines are surfaces of constant ψ — those are your flux surfaces. The <span class="a">highlighted one</span> is at your selected ρ. Notice it's not a circle — it's <b>elongated</b> (taller than wide) and has <b>triangularity</b> (D-shaped, pointier on one side).</p>
+  <p style="margin-top:6px;">Drag ρ and watch: inner surfaces (low ρ) are nearly circular. Outer surfaces (high ρ) are more D-shaped. The shape comes from the equilibrium physics, not from any formula we impose.</p>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<!-- Step 2: Sample points on the ring -->
+<div class="panel">
+  <div class="plbl"><span>STEP 2: WALK AROUND THE RING — SAMPLE (R,Z) POINTS</span><span style="color:#1fd6e8">ANIMATED</span></div>
+  <canvas id="c2" style="height:440px;"></canvas>
+</div>
+
+<div class="box">
+  <p>CHEASE picks your surface and walks around it, placing <span class="c">sample points</span> at equal θ intervals. Each dot is an (R,Z) coordinate on the ring. The number next to each dot is its z-index — this becomes the z coordinate in GENE's arrays.</p>
+  <p style="margin-top:6px;">The dots are denser where the surface curves sharply and sparser where it's gentle. The <span class="a">moving dot</span> traces the path CHEASE follows — starting at the outboard midplane (right), going up, around the inboard (left), back down, and returning.</p>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<!-- Step 3: What gets measured at each point -->
+<div class="panel">
+  <div class="plbl"><span>STEP 3: AT EACH POINT, COMPUTE THE GEOMETRY</span><span style="color:#9b7ff0">ALL ARRAYS</span></div>
+  <canvas id="c3" style="height:560px;"></canvas>
+</div>
+
+<div class="box">
+  <p>At each sample point, CHEASE computes <span class="r">κ</span>, <span class="c">|B|</span>, <span class="p">g^xx, g^xy, g^yy</span>, and <span class="g">Jacobian</span>. The <span class="a">moving dot</span> on the cross-section is synced with the vertical line on the plots — you can see which point on the ring produces which values.</p>
+  <p style="margin-top:6px;">This is the whole pipeline. The D-shaped ring → sample points → compute values at each point → write out the arrays. GENE reads these arrays and never sees the (R,Z) coordinates or the ring shape directly.</p>
+</div>
+
+</div>
+
+<script>
+let selRho=0.6, nPts=24, time=0;
+
+// Surface shape: more D-shaped at larger rho
+function getElong(rho){return 1.0+0.45*rho;}
+function getTri(rho){return 0.05+0.3*rho;}
+function getShift(rho){return 0.12*(1-rho);} // Shafranov shift
+
+function surfPt(theta,rho,maxR){
+  const r=maxR*rho;
+  const e=getElong(rho);
+  const d=getTri(rho);
+  const sh=getShift(rho)*maxR;
+  return{
+    x:sh+r*Math.cos(theta+d*Math.sin(theta)),
+    y:r*e*Math.sin(theta)
+  };
+}
+
+function kappa(th,rho){
+  const e=getElong(rho);
+  const d=getTri(rho);
+  return Math.cos(th+d*Math.sin(th))*(0.3+0.6*rho)/e;
+}
+function bMag(th){return 1/(1+0.3*Math.cos(th));}
+function gxx(th,rho){return 1+0.2*rho*Math.cos(th);}
+function gxy(th){return 1.5*th;}
+function gyy(th){return 1+0.3*1.5*1.5*th*th*0.15+0.08*Math.cos(th);}
+function jacobian(th,rho){return (1+0.3*Math.cos(th))*getElong(rho);}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);if(!c)return null;
+  const dpr=window.devicePixelRatio||1;
+  const r=c.getBoundingClientRect();
+  if(r.width<1||r.height<1)return null;
+  c.width=r.width*dpr;c.height=r.height*dpr;
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,w:r.width,h:r.height};
+}
+
+function drawSurfaces(ctx,w,h,cx,cy,maxR,opts){
+  // Draw all flux surfaces
+  const nSurf=10;
+  for(let i=1;i<=nSurf;i++){
+    const rho=i/nSurf;
+    const isSel=Math.abs(rho-selRho)<0.06;
+    ctx.beginPath();
+    for(let j=0;j<=80;j++){
+      const th=(j/80)*Math.PI*2;
+      const sp=surfPt(th,rho,maxR);
+      j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);
+    }
+    ctx.closePath();
+    if(isSel){
+      ctx.strokeStyle='rgba(245,192,66,0.12)';ctx.lineWidth=8;ctx.stroke();
+      ctx.strokeStyle='rgba(245,192,66,0.7)';ctx.lineWidth=2.5;ctx.stroke();
+    } else {
+      ctx.strokeStyle=`rgba(31,214,232,${0.04+0.02*rho})`;ctx.lineWidth=0.7;ctx.stroke();
+    }
+  }
+
+  // Axes
+  if(opts&&opts.axes){
+    ctx.strokeStyle='rgba(100,116,139,0.06)';ctx.lineWidth=0.5;ctx.setLineDash([4,6]);
+    ctx.beginPath();ctx.moveTo(cx-maxR*1.3,cy);ctx.lineTo(cx+maxR*1.3,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,cy-maxR*getElong(1)*1.1);ctx.lineTo(cx,cy+maxR*getElong(1)*1.1);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font='9px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';
+    ctx.textAlign='center';ctx.fillText('R →',cx+maxR*1.2,cy+14);
+    ctx.textAlign='left';ctx.fillText('Z ↑',cx+6,cy-maxR*getElong(1)*1.05);
+  }
+
+  ctx.font='7px monospace';ctx.fillStyle='rgba(100,116,139,0.15)';ctx.textAlign='center';
+  ctx.fillText('AXIS',cx,cy);
+}
+
+// ===== STEP 1: Equilibrium =====
+function draw1(){
+  const s=setupCanvas('c1');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+  const cx=w/2,cy=h/2,maxR=Math.min(w,h)*0.37;
+
+  drawSurfaces(ctx,w,h,cx,cy,maxR,{axes:true});
+
+  // ρ label on selected
+  const lp=surfPt(-0.5,selRho,maxR);
+  ctx.font='bold 11px monospace';ctx.fillStyle='rgba(245,192,66,0.8)';ctx.textAlign='left';
+  ctx.fillText(`ρ = ${selRho.toFixed(2)}`,cx+lp.x+10,cy-lp.y-4);
+
+  // Shape info
+  ctx.font='9px monospace';ctx.fillStyle='rgba(245,192,66,0.4)';
+  ctx.fillText(`elongation = ${getElong(selRho).toFixed(2)}`,cx+lp.x+10,cy-lp.y+10);
+  ctx.fillText(`triangularity = ${getTri(selRho).toFixed(2)}`,cx+lp.x+10,cy-lp.y+22);
+
+  // Show shape comparison: inner = circular, outer = D-shaped
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';
+  ctx.fillText('nearly circular',cx,cy+maxR*getElong(0.2)*0.2+10);
+  ctx.fillText('D-shaped',cx+maxR*0.15,cy+maxR*getElong(0.9)*0.9+14);
+}
+
+// ===== STEP 2: Sample points =====
+function draw2(){
+  const s=setupCanvas('c2');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+  const cx=w/2,cy=h/2,maxR=Math.min(w,h)*0.37;
+
+  drawSurfaces(ctx,w,h,cx,cy,maxR,{axes:false});
+
+  // Sample points on selected surface
+  for(let i=0;i<nPts;i++){
+    const th=(i/nPts)*Math.PI*2;
+    const sp=surfPt(th,selRho,maxR);
+    const px=cx+sp.x,py=cy-sp.y;
+
+    // Dot
+    ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(31,214,232,0.6)';ctx.fill();
+    ctx.strokeStyle='rgba(31,214,232,0.3)';ctx.lineWidth=0.5;ctx.stroke();
+
+    // Index label (only show some to avoid clutter)
+    if(nPts<=32 || i%2===0){
+      ctx.font='7px monospace';ctx.fillStyle='rgba(31,214,232,0.3)';
+      ctx.textAlign='center';ctx.textBaseline='bottom';
+      // Position label outside the ring
+      const labelR=1.08;
+      const lsp=surfPt(th,selRho*labelR,maxR);
+      ctx.fillText(i,cx+lsp.x+(lsp.x>0?4:-4),cy-lsp.y);
+    }
+  }
+
+  // Animated tracing dot
+  const traceTheta=(time*0.8)%(Math.PI*2);
+  const tsp=surfPt(traceTheta,selRho,maxR);
+  const tx=cx+tsp.x,ty=cy-tsp.y;
+
+  // Glow
+  ctx.beginPath();ctx.arc(tx,ty,14,0,Math.PI*2);
+  const gr=ctx.createRadialGradient(tx,ty,0,tx,ty,14);
+  gr.addColorStop(0,'rgba(245,192,66,0.4)');gr.addColorStop(1,'rgba(245,192,66,0)');
+  ctx.fillStyle=gr;ctx.fill();
+
+  ctx.beginPath();ctx.arc(tx,ty,5,0,Math.PI*2);
+  ctx.fillStyle='#f5c042';ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // Trail
+  const trailLen=30;
+  for(let t=1;t<=trailLen;t++){
+    const age=t/trailLen;
+    const tth=traceTheta-age*0.8;
+    if(tth<0)continue;
+    const tsp2=surfPt(tth,selRho,maxR);
+    ctx.beginPath();ctx.arc(cx+tsp2.x,cy-tsp2.y,2*(1-age),0,Math.PI*2);
+    ctx.fillStyle=`rgba(245,192,66,${0.3*(1-age)})`;ctx.fill();
+  }
+
+  // Current z value
+  const zVal=traceTheta>Math.PI?traceTheta-2*Math.PI:traceTheta;
+  ctx.font='10px monospace';ctx.fillStyle='rgba(245,192,66,0.5)';
+  ctx.textAlign='center';
+  ctx.fillText(`z = ${zVal.toFixed(2)}`,w/2,h-10);
+
+  // Direction labels
+  ctx.font='8px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';
+  ctx.textAlign='right';ctx.fillText('start here (z=0)',cx+maxR*selRho+maxR*0.15-4,cy-10);
+  ctx.fillText('outboard midplane',cx+maxR*selRho+maxR*0.15-4,cy+4);
+}
+
+// ===== STEP 3: Geometry computation =====
+function draw3(){
+  const s=setupCanvas('c3');if(!s)return;
+  const{ctx,w,h}=s;
+  ctx.fillStyle='#080c14';ctx.fillRect(0,0,w,h);
+
+  // Cross-section in top portion
+  const crossH=h*0.35;
+  const cx=w/2,cy=crossH/2+10,maxR=Math.min(w,crossH)*0.36;
+
+  // Dim surfaces
+  for(let i=1;i<=8;i++){
+    const rho=i/8;
+    ctx.beginPath();
+    for(let j=0;j<=64;j++){const th=(j/64)*Math.PI*2;const sp=surfPt(th,rho,maxR);j===0?ctx.moveTo(cx+sp.x,cy-sp.y):ctx.lineTo(cx+sp.x,cy-sp.y);}
+    ctx.closePath();
+    const isSel=Math.abs(rho-selRho)<0.07;
+    ctx.strokeStyle=isSel?'rgba(245,192,66,0.5)':`rgba(31,214,232,${0.03+0.01*rho})`;
+    ctx.lineWidth=isSel?2:0.5;ctx.stroke();
+  }
+
+  // Color the selected surface by curvature
+  const nS=48;
+  for(let i=0;i<nS;i++){
+    const th0=(i/nS)*Math.PI*2,th1=((i+1)/nS)*Math.PI*2;
+    const sp0=surfPt(th0,selRho,maxR),sp1=surfPt(th1,selRho,maxR);
+    const k=kappa((th0+th1)/2,selRho);
+    const col=k>0?`rgba(239,100,97,${0.2+Math.abs(k)*0.4})`:`rgba(62,232,134,${0.2+Math.abs(k)*0.4})`;
+    ctx.beginPath();ctx.moveTo(cx+sp0.x,cy-sp0.y);ctx.lineTo(cx+sp1.x,cy-sp1.y);
+    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.stroke();
+  }
+
+  // Animated dot on the ring
+  const dotTheta=(time*0.8)%(Math.PI*2);
+  const dsp=surfPt(dotTheta,selRho,maxR);
+  const dx=cx+dsp.x,dy=cy-dsp.y;
+  ctx.beginPath();ctx.arc(dx,dy,12,0,Math.PI*2);
+  const gr=ctx.createRadialGradient(dx,dy,0,dx,dy,12);
+  gr.addColorStop(0,'rgba(245,192,66,0.4)');gr.addColorStop(1,'rgba(245,192,66,0)');
+  ctx.fillStyle=gr;ctx.fill();
+  ctx.beginPath();ctx.arc(dx,dy,4,0,Math.PI*2);
+  ctx.fillStyle='#f5c042';ctx.fill();
+
+  // Plots below
+  const plotTop=crossH+20;
+  const plotH=(h-plotTop-10)/4;
+  const pad={l:42,r:12};
+  const pw=w-pad.l-pad.r;
+
+  const plots=[
+    {name:'κ',fn:th=>kappa(th,selRho),color:'#ef6461',range:[-0.6,0.6],isCurv:true},
+    {name:'|B|',fn:bMag,color:'#5b9bf5',range:[0.7,1.4]},
+    {name:'g^xy',fn:gxy,color:'#c4a8ff',range:[-5,5],isZero:true},
+    {name:'Jac',fn:th=>jacobian(th,selRho),color:'#3ee886',range:[0.5,2.5]},
+  ];
+
+  const dotZ=dotTheta>Math.PI?dotTheta-2*Math.PI:dotTheta;
+  const dotFrac=(dotZ/(2*Math.PI))+0.5;
+
+  plots.forEach((pl,pi)=>{
+    const py=plotTop+pi*plotH;
+    const ph=plotH-6;
+    const[yMin,yMax]=pl.range;
+    const toY=v=>py+ph-(v-yMin)/(yMax-yMin)*ph;
+
+    // Background
+    ctx.fillStyle='rgba(11,18,34,0.6)';ctx.fillRect(pad.l,py,pw,ph);
+    ctx.strokeStyle='rgba(23,37,63,0.5)';ctx.lineWidth=0.5;ctx.strokeRect(pad.l,py,pw,ph);
+
+    // Zero line
+    if(pl.isZero||pl.isCurv){
+      if(yMin<0&&yMax>0){
+        const zy=toY(0);ctx.strokeStyle='rgba(100,116,139,0.08)';ctx.lineWidth=0.5;ctx.setLineDash([3,3]);
+        ctx.beginPath();ctx.moveTo(pad.l,zy);ctx.lineTo(pad.l+pw,zy);ctx.stroke();ctx.setLineDash([]);
+      }
+    }
+
+    // Curve
+    const N=200;
+    for(let i=0;i<N;i++){
+      const f0=i/N,f1=(i+1)/N;
+      const th0=(f0-0.5)*2*Math.PI,th1=(f1-0.5)*2*Math.PI;
+      ctx.beginPath();ctx.moveTo(pad.l+f0*pw,toY(pl.fn(th0)));ctx.lineTo(pad.l+f1*pw,toY(pl.fn(th1)));
+      ctx.strokeStyle=pl.color;ctx.lineWidth=1.8;ctx.stroke();
+    }
+
+    // Synced dot
+    const dotVal=pl.fn(dotZ);
+    const dotPx=pad.l+dotFrac*pw;
+    const dotPy=toY(dotVal);
+    ctx.beginPath();ctx.arc(dotPx,dotPy,3.5,0,Math.PI*2);
+    ctx.fillStyle=pl.color;ctx.fill();
+
+    // Vertical sync line
+    ctx.strokeStyle='rgba(245,192,66,0.15)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(dotPx,py);ctx.lineTo(dotPx,py+ph);ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label
+    ctx.font='bold 9px monospace';ctx.fillStyle=pl.color;ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(pl.name,pad.l-4,py+ph/2);
+
+    // X labels on last
+    if(pi===plots.length-1){
+      ctx.font='7px monospace';ctx.fillStyle='rgba(100,116,139,0.2)';ctx.textAlign='center';ctx.textBaseline='top';
+      ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>ctx.fillText(l,pad.l+(pw/4)*i,py+ph+1));
+    }
+  });
+
+  // Sync line from cross-section dot down to plots
+  const syncX=pad.l+dotFrac*pw;
+  ctx.strokeStyle='rgba(245,192,66,0.1)';ctx.lineWidth=0.8;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(syncX,crossH+5);ctx.lineTo(syncX,plotTop);ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawAll(){draw1();draw2();draw3();}
+
+document.getElementById('sRho').addEventListener('input',function(e){
+  selRho=parseFloat(e.target.value);document.getElementById('vRho').textContent=selRho.toFixed(2);drawAll();
+});
+document.getElementById('sN').addEventListener('input',function(e){
+  nPts=parseInt(e.target.value);document.getElementById('vN').textContent=nPts;drawAll();
+});
+
+let lastT=0;
+function frame(ts){
+  if(!lastT)lastT=ts;
+  time+=(ts-lastT)/1000;lastT=ts;
+  draw2();draw3();
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('load',function(){setTimeout(function(){drawAll();requestAnimationFrame(frame);},150);});
+window.addEventListener('resize',function(){setTimeout(drawAll,100);});
+</script>
+</body>
+</html>

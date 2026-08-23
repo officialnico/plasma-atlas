@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>States of Matter — An Atomic Observatory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#07080c;
+    --bg-1:#0c0f16;
+    --ink:#e8e4d8;
+    --ink-dim:#8a8675;
+    --ink-faint:#403e36;
+    --rule:#1a1d26;
+    --accent:#d4a574;       /* warm amber */
+    --cold:#7ec4ff;         /* solid */
+    --cool:#a8e0c9;         /* liquid */
+    --warm:#ffc46b;         /* gas */
+    --hot:#ff7e9d;          /* plasma */
+    --proton:#ff6b5b;
+    --neutron:#c8c4b8;
+    --electron:#7ec4ff;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;overflow:hidden;}
+  body{
+    background:var(--bg-0);
+    color:var(--ink);
+    font-family:'Cormorant Garamond', serif;
+    font-weight:300;
+    -webkit-font-smoothing:antialiased;
+    cursor:crosshair;
+  }
+
+  /* film grain overlay */
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    pointer-events:none;
+    z-index:100;
+    opacity:.05;
+    mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+  }
+
+  /* corner registration marks */
+  .reg{
+    position:fixed;
+    width:18px;height:18px;
+    border:1px solid var(--ink-faint);
+    z-index:10;
+    pointer-events:none;
+  }
+  .reg.tl{top:18px;left:18px;border-right:none;border-bottom:none;}
+  .reg.tr{top:18px;right:18px;border-left:none;border-bottom:none;}
+  .reg.bl{bottom:18px;left:18px;border-right:none;border-top:none;}
+  .reg.br{bottom:18px;right:18px;border-left:none;border-top:none;}
+
+  #app{
+    position:relative;
+    width:100vw;height:100vh;
+    display:grid;
+    grid-template-columns:1fr 380px;
+    grid-template-rows:auto 1fr auto;
+  }
+
+  header{
+    grid-column:1 / -1;
+    padding:28px 48px 18px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    border-bottom:1px solid var(--rule);
+    background:linear-gradient(to bottom, rgba(7,8,12,1), rgba(7,8,12,.85));
+    z-index:5;
+  }
+  .title-block .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:6px;
+  }
+  .title-block h1{
+    font-size:42px;
+    font-weight:300;
+    letter-spacing:-.01em;
+    line-height:.95;
+  }
+  .title-block h1 em{
+    font-style:italic;
+    color:var(--accent);
+    font-weight:400;
+  }
+  .meta{
+    text-align:right;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--ink-dim);
+    letter-spacing:.18em;
+    line-height:1.7;
+  }
+  .meta .live::before{
+    content:"●";
+    color:var(--hot);
+    margin-right:6px;
+    animation:pulse 1.4s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;}50%{opacity:.3;}
+  }
+
+  /* canvas stage */
+  .stage{
+    position:relative;
+    grid-column:1;
+    grid-row:2;
+    overflow:hidden;
+    background:radial-gradient(ellipse at center, #0d1118 0%, #07080c 70%);
+  }
+  canvas{
+    display:block;
+    width:100%;height:100%;
+  }
+
+  /* center vignette + grid */
+  .stage::before{
+    content:"";
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(212,165,116,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212,165,116,.04) 1px, transparent 1px);
+    background-size:80px 80px;
+    pointer-events:none;
+    z-index:2;
+    mask-image:radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+  .stage::after{
+    content:"";
+    position:absolute;inset:0;
+    background:radial-gradient(ellipse at center, transparent 50%, rgba(7,8,12,.7) 100%);
+    pointer-events:none;
+    z-index:3;
+  }
+
+  /* phase label floats over canvas */
+  .phase-marquee{
+    position:absolute;
+    top:24px;left:50%;
+    transform:translateX(-50%);
+    z-index:4;
+    text-align:center;
+    pointer-events:none;
+  }
+  .phase-marquee .kelvin{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:.3em;
+    color:var(--ink-dim);
+    margin-bottom:4px;
+  }
+  .phase-marquee .name{
+    font-size:64px;
+    font-weight:300;
+    letter-spacing:.04em;
+    line-height:1;
+    font-style:italic;
+    color:var(--ink);
+    text-shadow:0 0 40px rgba(212,165,116,.15);
+    transition:color .6s ease;
+  }
+  .phase-marquee .latin{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-top:8px;
+  }
+
+  /* control panel */
+  aside{
+    grid-column:2;
+    grid-row:2;
+    border-left:1px solid var(--rule);
+    padding:32px 28px;
+    background:linear-gradient(to left, rgba(12,15,22,.6), rgba(7,8,12,.3));
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+    overflow-y:auto;
+  }
+  aside::-webkit-scrollbar{width:4px;}
+  aside::-webkit-scrollbar-thumb{background:var(--ink-faint);}
+
+  .panel-section{
+    border-top:1px solid var(--rule);
+    padding-top:18px;
+  }
+  .panel-section:first-child{border-top:none;padding-top:0;}
+  .panel-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .panel-label .num{
+    color:var(--ink-faint);
+  }
+
+  /* temperature dial */
+  .thermo{
+    position:relative;
+    height:340px;
+    display:flex;
+    gap:14px;
+    align-items:stretch;
+  }
+  .thermo-track{
+    width:14px;
+    background:linear-gradient(to top,
+      var(--cold) 0%,
+      var(--cool) 25%,
+      var(--warm) 60%,
+      var(--hot) 100%);
+    border-radius:0;
+    position:relative;
+    border:1px solid var(--ink-faint);
+    cursor:ns-resize;
+  }
+  .thermo-fill{
+    position:absolute;
+    bottom:0;left:0;right:0;
+    background:linear-gradient(to top, rgba(7,8,12,.85), rgba(7,8,12,0));
+    pointer-events:none;
+  }
+  .thermo-thumb{
+    position:absolute;
+    left:-10px;right:-10px;
+    height:2px;
+    background:var(--ink);
+    pointer-events:none;
+    box-shadow:0 0 12px rgba(255,255,255,.6);
+  }
+  .thermo-thumb::before,
+  .thermo-thumb::after{
+    content:"";
+    position:absolute;
+    top:50%;
+    width:6px;height:6px;
+    background:var(--ink);
+    transform:translateY(-50%) rotate(45deg);
+  }
+  .thermo-thumb::before{left:-12px;}
+  .thermo-thumb::after{right:-12px;}
+
+  .thermo-ticks{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    color:var(--ink-dim);
+    letter-spacing:.15em;
+    padding:2px 0;
+  }
+  .tick{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .tick::before{
+    content:"";
+    width:8px;height:1px;
+    background:var(--ink-faint);
+  }
+  .tick.active{color:var(--ink);}
+  .tick.active::before{background:var(--accent);width:14px;}
+  .tick .k{
+    color:var(--ink-faint);
+    margin-left:4px;
+  }
+
+  /* element selector */
+  .elements{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:6px;
+  }
+  .el{
+    aspect-ratio:1;
+    border:1px solid var(--rule);
+    background:transparent;
+    color:var(--ink-dim);
+    cursor:pointer;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    transition:all .25s ease;
+    padding:4px;
+    position:relative;
+  }
+  .el:hover{
+    border-color:var(--ink-dim);
+    color:var(--ink);
+  }
+  .el.active{
+    border-color:var(--accent);
+    color:var(--accent);
+    background:rgba(212,165,116,.05);
+  }
+  .el .sym{
+    font-size:18px;
+    font-weight:500;
+    letter-spacing:0;
+  }
+  .el .z{
+    font-size:8px;
+    position:absolute;
+    top:4px;left:5px;
+    color:var(--ink-faint);
+  }
+  .el .nm{
+    font-family:'Cormorant Garamond',serif;
+    font-size:9px;
+    font-style:italic;
+    letter-spacing:.05em;
+    margin-top:1px;
+    text-transform:lowercase;
+  }
+
+  /* readouts */
+  .readout{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:6px 12px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+  }
+  .readout .k{color:var(--ink-dim);letter-spacing:.1em;}
+  .readout .v{color:var(--ink);text-align:right;}
+  .readout .v.accent{color:var(--accent);}
+
+  /* legend */
+  .legend{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--ink-dim);
+    letter-spacing:.08em;
+  }
+  .legend-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .dot{
+    width:10px;height:10px;
+    border-radius:50%;
+    flex-shrink:0;
+  }
+
+  /* toggles */
+  .toggles{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--ink-dim);
+    letter-spacing:.12em;
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  .toggle .sw{
+    width:32px;height:14px;
+    border:1px solid var(--ink-faint);
+    position:relative;
+    transition:all .2s;
+  }
+  .toggle .sw::after{
+    content:"";
+    position:absolute;
+    top:1px;left:1px;
+    width:10px;height:10px;
+    background:var(--ink-dim);
+    transition:all .2s;
+  }
+  .toggle.on .sw{border-color:var(--accent);}
+  .toggle.on .sw::after{
+    left:19px;
+    background:var(--accent);
+  }
+  .toggle.on{color:var(--ink);}
+
+  footer{
+    grid-column:1 / -1;
+    grid-row:3;
+    padding:14px 48px;
+    border-top:1px solid var(--rule);
+    display:flex;
+    justify-content:space-between;
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    letter-spacing:.28em;
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    z-index:5;
+  }
+  footer span em{
+    font-family:'Cormorant Garamond',serif;
+    font-style:italic;
+    color:var(--ink-dim);
+    letter-spacing:.05em;
+    text-transform:none;
+  }
+
+  /* mobile fallback */
+  @media (max-width:900px){
+    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto;}
+    aside{grid-column:1;grid-row:3;border-left:none;border-top:1px solid var(--rule);max-height:50vh;}
+    .stage{grid-row:2;}
+    footer{grid-row:4;}
+    .phase-marquee .name{font-size:42px;}
+    header{padding:18px 24px 12px;}
+    .title-block h1{font-size:28px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="reg tl"></div><div class="reg tr"></div>
+<div class="reg bl"></div><div class="reg br"></div>
+
+<div id="app">
+  <header>
+    <div class="title-block">
+      <div class="eyebrow">— Plate I · An Observatory of Matter —</div>
+      <h1>States of <em>Matter</em></h1>
+    </div>
+    <div class="meta">
+      <div class="live">SIMULATION ACTIVE</div>
+      <div id="fps">— FPS</div>
+      <div id="particle-count">— PARTICLES</div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="phase-marquee">
+      <div class="kelvin" id="kelvin-display">000 K</div>
+      <div class="name" id="phase-name">Solid</div>
+      <div class="latin" id="phase-latin">— crystalline lattice —</div>
+    </div>
+    <canvas id="c"></canvas>
+  </div>
+
+  <aside>
+    <section class="panel-section">
+      <div class="panel-label"><span>Thermal Control</span><span class="num">§ 01</span></div>
+      <div class="thermo">
+        <div class="thermo-track" id="thermo">
+          <div class="thermo-fill" id="thermo-fill"></div>
+          <div class="thermo-thumb" id="thermo-thumb"></div>
+        </div>
+        <div class="thermo-ticks">
+          <div class="tick" data-phase="plasma">Plasma <span class="k">10⁶ K</span></div>
+          <div class="tick" data-phase="gas">Gas <span class="k">10³ K</span></div>
+          <div class="tick" data-phase="liquid">Liquid <span class="k">373 K</span></div>
+          <div class="tick" data-phase="solid">Solid <span class="k">0 K</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel-section">
+      <div class="panel-label"><span>Element</span><span class="num">§ 02</span></div>
+      <div class="elements" id="elements">
+        <button class="el active" data-el="H">
+          <span class="z">1</span><span class="sym">H</span><span class="nm">hydrogen</span>
+        </button>
+        <button class="el" data-el="He">
+          <span class="z">2</span><span class="sym">He</span><span class="nm">helium</span>
+        </button>
+        <button class="el" data-el="C">
+          <span class="z">6</span><span class="sym">C</span><span class="nm">carbon</span>
+        </button>
+        <button class="el" data-el="O">
+          <span class="z">8</span><span class="sym">O</span><span class="nm">oxygen</span>
+        </button>
+        <button class="el" data-el="Na">
+          <span class="z">11</span><span class="sym">Na</span><span class="nm">sodium</span>
+        </button>
+        <button class="el" data-el="Fe">
+          <span class="z">26</span><span class="sym">Fe</span><span class="nm">iron</span>
+        </button>
+        <button class="el" data-el="Au">
+          <span class="z">79</span><span class="sym">Au</span><span class="nm">gold</span>
+        </button>
+        <button class="el" data-el="U">
+          <span class="z">92</span><span class="sym">U</span><span class="nm">uranium</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="panel-section">
+      <div class="panel-label"><span>Observation Log</span><span class="num">§ 03</span></div>
+      <div class="readout">
+        <div class="k">SPECIMEN</div><div class="v" id="r-name">Hydrogen</div>
+        <div class="k">PROTONS</div><div class="v" id="r-p">1</div>
+        <div class="k">NEUTRONS</div><div class="v" id="r-n">0</div>
+        <div class="k">ELECTRONS</div><div class="v" id="r-e">1</div>
+        <div class="k">KINETIC ENERGY</div><div class="v accent" id="r-ke">0.00 eV</div>
+        <div class="k">IONIZATION</div><div class="v accent" id="r-ion">0%</div>
+      </div>
+    </section>
+
+    <section class="panel-section">
+      <div class="panel-label"><span>Legend</span><span class="num">§ 04</span></div>
+      <div class="legend">
+        <div class="legend-row"><span class="dot" style="background:var(--proton);box-shadow:0 0 8px var(--proton);"></span> Proton — positive</div>
+        <div class="legend-row"><span class="dot" style="background:var(--neutron);"></span> Neutron — neutral</div>
+        <div class="legend-row"><span class="dot" style="background:var(--electron);box-shadow:0 0 8px var(--electron);"></span> Electron — negative</div>
+      </div>
+    </section>
+
+    <section class="panel-section">
+      <div class="panel-label"><span>Display</span><span class="num">§ 05</span></div>
+      <div class="toggles">
+        <div class="toggle on" id="tg-orbits"><span>Electron Orbits</span><span class="sw"></span></div>
+        <div class="toggle on" id="tg-bonds"><span>Lattice Bonds</span><span class="sw"></span></div>
+        <div class="toggle on" id="tg-trails"><span>Motion Trails</span><span class="sw"></span></div>
+        <div class="toggle" id="tg-pause"><span>Pause Simulation</span><span class="sw"></span></div>
+      </div>
+    </section>
+  </aside>
+
+  <footer>
+    <span>— Drag thermometer · Click element · Hover atoms —</span>
+    <span><em>Ad astra per atomos</em></span>
+    <span id="phase-pct">— · —</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let W=0, H=0, DPR=window.devicePixelRatio||1;
+
+  // ELEMENT DATA
+  const ELEMENTS = {
+    H:  {name:'Hydrogen', Z:1,  N:0,  shells:[1]},
+    He: {name:'Helium',   Z:2,  N:2,  shells:[2]},
+    C:  {name:'Carbon',   Z:6,  N:6,  shells:[2,4]},
+    O:  {name:'Oxygen',   Z:8,  N:8,  shells:[2,6]},
+    Na: {name:'Sodium',   Z:11, N:12, shells:[2,8,1]},
+    Fe: {name:'Iron',     Z:26, N:30, shells:[2,8,14,2]}, // simplified
+    Au: {name:'Gold',     Z:79, N:118,shells:[2,8,18,32,18,1]}, // simplified
+    U:  {name:'Uranium',  Z:92, N:146,shells:[2,8,18,32,21,9,2]}
+  };
+
+  // STATE
+  const state = {
+    temp: 0.05,           // 0..1 normalized
+    element: 'H',
+    showOrbits: true,
+    showBonds: true,
+    showTrails: true,
+    paused: false,
+    atoms: [],
+    freeElectrons: [],   // ionized electrons in plasma
+    time: 0,
+    fps: 60,
+    fpsBuf: []
+  };
+
+  // PHASE MAPPING
+  // 0 - 0.25 solid, 0.25 - 0.55 liquid, 0.55 - 0.82 gas, 0.82 - 1 plasma
+  function getPhase(t){
+    if(t < 0.25) return 'solid';
+    if(t < 0.55) return 'liquid';
+    if(t < 0.82) return 'gas';
+    return 'plasma';
+  }
+  function getKelvin(t){
+    // log scale 0K -> 1,000,000K
+    if(t < 0.01) return 0;
+    return Math.round(Math.pow(10, t*6));
+  }
+  function getKineticEnergy(t){
+    // eV approximation, k_B*T at room temp ~ 0.025eV
+    const k = getKelvin(t);
+    return k * 8.617e-5;
+  }
+  function getIonization(t){
+    if(t < 0.82) return 0;
+    return Math.min(100, Math.round(((t-0.82)/0.18)*100));
+  }
+
+  // RESIZE
+  function resize(){
+    const stage = canvas.parentElement;
+    W = stage.clientWidth;
+    H = stage.clientHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W+'px';
+    canvas.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    rebuildAtoms();
+  }
+  window.addEventListener('resize', resize);
+
+  // BUILD ATOMS in lattice
+  function rebuildAtoms(){
+    const el = ELEMENTS[state.element];
+    state.atoms = [];
+    state.freeElectrons = [];
+
+    // density depends on element complexity to keep readable
+    const baseSpacing = el.Z < 5 ? 80 : el.Z < 15 ? 100 : el.Z < 30 ? 130 : 170;
+
+    const cols = Math.floor(W / baseSpacing);
+    const rows = Math.floor(H / baseSpacing);
+    const offsetX = (W - (cols-1)*baseSpacing)/2;
+    const offsetY = (H - (rows-1)*baseSpacing)/2;
+
+    for(let i=0;i<cols;i++){
+      for(let j=0;j<rows;j++){
+        const x = offsetX + i*baseSpacing + (j%2)*baseSpacing*0.5;
+        const y = offsetY + j*baseSpacing*0.866; // hex packing
+        if(x < 30 || x > W-30 || y < 30 || y > H-30) continue;
+
+        const atom = {
+          x, y,
+          homeX: x, homeY: y,
+          vx: 0, vy: 0,
+          radius: Math.max(8, Math.min(28, 6 + Math.sqrt(el.Z)*3)),
+          element: el,
+          electrons: [],
+          phase: 0,
+          ionized: 0, // 0..1
+          spin: Math.random()*Math.PI*2,
+          spinSpeed: (Math.random()-0.5)*0.02,
+          trail: []
+        };
+        // create electrons in shells
+        let eIdx = 0;
+        el.shells.forEach((count, shellIdx)=>{
+          const shellR = atom.radius + 12 + shellIdx*10;
+          for(let k=0;k<count;k++){
+            const angle = (k/count)*Math.PI*2 + Math.random()*0.5;
+            atom.electrons.push({
+              shell: shellIdx,
+              shellR,
+              angle,
+              speed: 0.04 - shellIdx*0.005 + Math.random()*0.02,
+              tilt: Math.random()*Math.PI,
+              free: false,
+              fx:0, fy:0, fvx:0, fvy:0
+            });
+            eIdx++;
+          }
+        });
+        state.atoms.push(atom);
+      }
+    }
+  }
+
+  // PHYSICS UPDATE
+  function update(dt){
+    const t = state.temp;
+    const phase = getPhase(t);
+    const ionFrac = getIonization(t)/100;
+
+    // movement intensity scales with temp
+    const moveScale = Math.pow(t, 1.5);
+
+    state.atoms.forEach(a => {
+      a.spin += a.spinSpeed * (1 + moveScale*8);
+
+      if(phase === 'solid'){
+        // small vibration around home
+        const amp = t*8;
+        a.x = a.homeX + (Math.random()-0.5)*amp + Math.sin(state.time*0.05 + a.homeX)*amp*0.3;
+        a.y = a.homeY + (Math.random()-0.5)*amp + Math.cos(state.time*0.05 + a.homeY)*amp*0.3;
+        a.vx *= 0.5; a.vy *= 0.5;
+      } else if(phase === 'liquid'){
+        // drift but stay loosely connected
+        const drift = 0.3 + (t-0.25)*1.5;
+        a.vx += (Math.random()-0.5)*drift;
+        a.vy += (Math.random()-0.5)*drift;
+        // weak attraction to home
+        const homeForce = 0.005 * (0.55 - t);
+        a.vx += (a.homeX - a.x)*homeForce;
+        a.vy += (a.homeY - a.y)*homeForce;
+        a.vx *= 0.94; a.vy *= 0.94;
+        a.x += a.vx;
+        a.y += a.vy;
+      } else if(phase === 'gas'){
+        // free flight
+        const drift = 0.5 + (t-0.55)*4;
+        a.vx += (Math.random()-0.5)*drift*0.5;
+        a.vy += (Math.random()-0.5)*drift*0.5;
+        a.vx *= 0.99; a.vy *= 0.99;
+        // clamp speed
+        const sp = Math.hypot(a.vx, a.vy);
+        const maxS = 2 + (t-0.55)*15;
+        if(sp > maxS){ a.vx = a.vx/sp*maxS; a.vy = a.vy/sp*maxS; }
+        a.x += a.vx;
+        a.y += a.vy;
+      } else { // plasma
+        const drift = 2 + (t-0.82)*10;
+        a.vx += (Math.random()-0.5)*drift;
+        a.vy += (Math.random()-0.5)*drift;
+        a.vx *= 0.985; a.vy *= 0.985;
+        const sp = Math.hypot(a.vx, a.vy);
+        const maxS = 5 + (t-0.82)*30;
+        if(sp > maxS){ a.vx = a.vx/sp*maxS; a.vy = a.vy/sp*maxS; }
+        a.x += a.vx;
+        a.y += a.vy;
+      }
+
+      // wall bounce
+      if(a.x < a.radius){a.x = a.radius; a.vx = Math.abs(a.vx);}
+      if(a.x > W - a.radius){a.x = W-a.radius; a.vx = -Math.abs(a.vx);}
+      if(a.y < a.radius){a.y = a.radius; a.vy = Math.abs(a.vy);}
+      if(a.y > H - a.radius){a.y = H-a.radius; a.vy = -Math.abs(a.vy);}
+
+      // trail
+      if(state.showTrails && (phase === 'gas' || phase === 'plasma')){
+        a.trail.push({x:a.x, y:a.y});
+        if(a.trail.length > 12) a.trail.shift();
+      } else {
+        a.trail.length = 0;
+      }
+
+      // ionization
+      a.ionized = ionFrac;
+      const targetFree = Math.floor(a.electrons.length * ionFrac);
+
+      // update electrons
+      a.electrons.forEach((e, idx) => {
+        const shouldFree = idx < targetFree;
+        if(shouldFree && !e.free){
+          // electron escapes — give it a position and velocity
+          e.free = true;
+          e.fx = a.x + Math.cos(e.angle)*e.shellR;
+          e.fy = a.y + Math.sin(e.angle)*e.shellR;
+          const escAngle = Math.random()*Math.PI*2;
+          const escSpeed = 3 + Math.random()*4;
+          e.fvx = Math.cos(escAngle)*escSpeed;
+          e.fvy = Math.sin(escAngle)*escSpeed;
+        }
+        if(!shouldFree && e.free){
+          e.free = false; // recombine
+        }
+
+        if(e.free){
+          e.fvx += (Math.random()-0.5)*0.3;
+          e.fvy += (Math.random()-0.5)*0.3;
+          e.fvx *= 0.99; e.fvy *= 0.99;
+          e.fx += e.fvx;
+          e.fy += e.fvy;
+          if(e.fx<5 || e.fx>W-5) e.fvx*=-1;
+          if(e.fy<5 || e.fy>H-5) e.fvy*=-1;
+          e.fx = Math.max(5, Math.min(W-5, e.fx));
+          e.fy = Math.max(5, Math.min(H-5, e.fy));
+        } else {
+          // orbit speed increases with temp
+          e.angle += e.speed * (1 + moveScale*3);
+        }
+      });
+    });
+
+    state.time += dt;
+  }
+
+  // RENDER
+  function draw(){
+    const t = state.temp;
+    const phase = getPhase(t);
+
+    // background tint shifts with temperature
+    const bgPulse = phase === 'plasma' ? 0.06 * Math.sin(state.time*0.1) : 0;
+    ctx.fillStyle = `rgba(7,8,12,${0.3 + bgPulse})`;
+    ctx.fillRect(0,0,W,H);
+
+    // BONDS (solid only)
+    if(state.showBonds && phase === 'solid' && state.atoms.length > 0){
+      ctx.strokeStyle = `rgba(212,165,116,${0.15 + (0.25-t)*0.5})`;
+      ctx.lineWidth = 0.5;
+      const maxBondDist = 140;
+      ctx.beginPath();
+      for(let i=0;i<state.atoms.length;i++){
+        const a = state.atoms[i];
+        for(let j=i+1;j<state.atoms.length;j++){
+          const b = state.atoms[j];
+          const d = Math.hypot(a.homeX-b.homeX, a.homeY-b.homeY);
+          if(d < maxBondDist){
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+
+    // soft bonds in liquid
+    if(state.showBonds && phase === 'liquid'){
+      const bondAlpha = (0.55 - t)*0.4;
+      ctx.strokeStyle = `rgba(168,224,201,${bondAlpha})`;
+      ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      for(let i=0;i<state.atoms.length;i++){
+        const a = state.atoms[i];
+        for(let j=i+1;j<state.atoms.length;j++){
+          const b = state.atoms[j];
+          const d = Math.hypot(a.x-b.x, a.y-b.y);
+          if(d < 110){
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+
+    // trails
+    if(state.showTrails){
+      state.atoms.forEach(a => {
+        if(a.trail.length < 2) return;
+        ctx.strokeStyle = phase === 'plasma'
+          ? 'rgba(255,126,157,0.15)'
+          : 'rgba(255,196,107,0.1)';
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        a.trail.forEach((p,i)=>{
+          if(i===0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        });
+        ctx.stroke();
+      });
+    }
+
+    // ATOMS
+    state.atoms.forEach(a => drawAtom(a, t, phase));
+
+    // FREE ELECTRONS (plasma soup)
+    if(phase === 'plasma'){
+      state.atoms.forEach(a => {
+        a.electrons.forEach(e => {
+          if(e.free) drawFreeElectron(e);
+        });
+      });
+    }
+  }
+
+  function drawAtom(a, t, phase){
+    const el = a.element;
+
+    // GLOW based on temperature
+    const glowIntensity = 0.3 + t*0.7;
+    const glowColor = phase === 'plasma'
+      ? `255,126,157`
+      : phase === 'gas'
+      ? `255,196,107`
+      : phase === 'liquid'
+      ? `168,224,201`
+      : `126,196,255`;
+
+    // outer aura
+    const aura = ctx.createRadialGradient(a.x, a.y, a.radius*0.5, a.x, a.y, a.radius*3);
+    aura.addColorStop(0, `rgba(${glowColor},${glowIntensity*0.25})`);
+    aura.addColorStop(1, `rgba(${glowColor},0)`);
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, a.radius*3, 0, Math.PI*2);
+    ctx.fill();
+
+    // ELECTRON ORBITS (rings)
+    if(state.showOrbits && phase !== 'plasma'){
+      el.shells.forEach((_, shellIdx) => {
+        const r = a.radius + 12 + shellIdx*10;
+        ctx.strokeStyle = `rgba(126,196,255,${0.15 - shellIdx*0.02})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.ellipse(a.x, a.y, r, r*0.92, a.spin*0.3, 0, Math.PI*2);
+        ctx.stroke();
+      });
+    }
+
+    // NUCLEUS - cluster of protons and neutrons
+    drawNucleus(a);
+
+    // ELECTRONS
+    a.electrons.forEach(e => {
+      if(e.free) return; // handled separately
+      const ex = a.x + Math.cos(e.angle)*e.shellR;
+      const ey = a.y + Math.sin(e.angle)*e.shellR*0.92;
+
+      // electron glow
+      const eg = ctx.createRadialGradient(ex,ey,0,ex,ey,6);
+      eg.addColorStop(0,'rgba(126,196,255,0.9)');
+      eg.addColorStop(0.5,'rgba(126,196,255,0.3)');
+      eg.addColorStop(1,'rgba(126,196,255,0)');
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.arc(ex, ey, 6, 0, Math.PI*2);
+      ctx.fill();
+
+      // electron core
+      ctx.fillStyle = '#cfe5ff';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 1.8, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  function drawNucleus(a){
+    const el = a.element;
+    const totalNucleons = el.Z + el.N;
+
+    // For very heavy atoms, draw a packed cluster
+    // For light, show individual particles
+    if(totalNucleons <= 30){
+      // distribute proton/neutrons in cluster
+      const nucleons = [];
+      for(let i=0;i<el.Z;i++) nucleons.push('p');
+      for(let i=0;i<el.N;i++) nucleons.push('n');
+
+      // golden angle distribution
+      const ga = Math.PI * (3 - Math.sqrt(5));
+      const scale = a.radius / Math.sqrt(totalNucleons + 1) * 0.9;
+      nucleons.forEach((type, i) => {
+        const r = scale * Math.sqrt(i + 0.5);
+        const theta = i * ga + a.spin;
+        const px = a.x + Math.cos(theta) * r;
+        const py = a.y + Math.sin(theta) * r;
+        const sz = Math.max(2, a.radius/5);
+
+        if(type === 'p'){
+          const g = ctx.createRadialGradient(px,py,0,px,py,sz*1.5);
+          g.addColorStop(0,'#ffb0a3');
+          g.addColorStop(0.5,'#ff6b5b');
+          g.addColorStop(1,'rgba(255,107,91,0.3)');
+          ctx.fillStyle = g;
+        } else {
+          const g = ctx.createRadialGradient(px,py,0,px,py,sz*1.3);
+          g.addColorStop(0,'#e8e4d8');
+          g.addColorStop(1,'rgba(200,196,184,0.4)');
+          ctx.fillStyle = g;
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, sz, 0, Math.PI*2);
+        ctx.fill();
+      });
+    } else {
+      // Heavy atom - draw a textured sphere with hint of internal structure
+      const grad = ctx.createRadialGradient(
+        a.x - a.radius*0.3, a.y - a.radius*0.3, 0,
+        a.x, a.y, a.radius
+      );
+      grad.addColorStop(0, '#ffc8be');
+      grad.addColorStop(0.4, '#ff6b5b');
+      grad.addColorStop(0.8, '#a83a2c');
+      grad.addColorStop(1, 'rgba(168,58,44,0.4)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.radius, 0, Math.PI*2);
+      ctx.fill();
+
+      // surface speckle suggesting nucleons
+      const speckles = Math.min(40, totalNucleons/3);
+      for(let i=0;i<speckles;i++){
+        const ang = (i/speckles)*Math.PI*2 + a.spin;
+        const rr = a.radius * (0.3 + Math.random()*0.6);
+        const px = a.x + Math.cos(ang)*rr;
+        const py = a.y + Math.sin(ang)*rr;
+        ctx.fillStyle = i%3===0 ? 'rgba(232,228,216,0.5)' : 'rgba(255,176,163,0.6)';
+        ctx.beginPath();
+        ctx.arc(px, py, 1.2, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawFreeElectron(e){
+    // streaking electron in plasma
+    const eg = ctx.createRadialGradient(e.fx, e.fy, 0, e.fx, e.fy, 8);
+    eg.addColorStop(0, 'rgba(168,224,255,1)');
+    eg.addColorStop(0.4, 'rgba(126,196,255,0.5)');
+    eg.addColorStop(1, 'rgba(126,196,255,0)');
+    ctx.fillStyle = eg;
+    ctx.beginPath();
+    ctx.arc(e.fx, e.fy, 8, 0, Math.PI*2);
+    ctx.fill();
+
+    // motion streak
+    ctx.strokeStyle = 'rgba(168,224,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(e.fx, e.fy);
+    ctx.lineTo(e.fx - e.fvx*3, e.fy - e.fvy*3);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(e.fx, e.fy, 1.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // ANIMATION LOOP
+  let lastT = performance.now();
+  function loop(now){
+    const dt = Math.min(50, now - lastT);
+    lastT = now;
+
+    // fps
+    state.fpsBuf.push(1000/dt);
+    if(state.fpsBuf.length > 30) state.fpsBuf.shift();
+    state.fps = state.fpsBuf.reduce((a,b)=>a+b,0)/state.fpsBuf.length;
+
+    if(!state.paused){
+      update(dt);
+    }
+    draw();
+    updateUI();
+    requestAnimationFrame(loop);
+  }
+
+  // UI UPDATES
+  function updateUI(){
+    const t = state.temp;
+    const phase = getPhase(t);
+    const k = getKelvin(t);
+    const ke = getKineticEnergy(t);
+    const ion = getIonization(t);
+    const el = ELEMENTS[state.element];
+
+    // marquee
+    const phaseNames = {solid:'Solid',liquid:'Liquid',gas:'Gas',plasma:'Plasma'};
+    const phaseLatins = {
+      solid:'— crystalline lattice —',
+      liquid:'— flowing cohesion —',
+      gas:'— particles unbound —',
+      plasma:'— ionized & incandescent —'
+    };
+    const phaseColors = {
+      solid:'#7ec4ff',
+      liquid:'#a8e0c9',
+      gas:'#ffc46b',
+      plasma:'#ff7e9d'
+    };
+    document.getElementById('phase-name').textContent = phaseNames[phase];
+    document.getElementById('phase-name').style.color = phaseColors[phase];
+    document.getElementById('phase-latin').textContent = phaseLatins[phase];
+    document.getElementById('kelvin-display').textContent =
+      k === 0 ? '~ 0 K' : k < 1000 ? `${k} K` : k < 1e6 ? `${(k/1000).toFixed(1)}k K` : `${(k/1e6).toFixed(2)}M K`;
+
+    document.getElementById('fps').textContent = `${Math.round(state.fps)} FPS`;
+    document.getElementById('particle-count').textContent = `${state.atoms.length} ATOMS · ${state.atoms.reduce((s,a)=>s+a.electrons.length,0)} e⁻`;
+
+    document.getElementById('r-name').textContent = el.name;
+    document.getElementById('r-p').textContent = el.Z;
+    document.getElementById('r-n').textContent = el.N;
+    document.getElementById('r-e').textContent = el.Z;
+    document.getElementById('r-ke').textContent =
+      ke < 0.001 ? `${(ke*1000).toFixed(2)} meV` :
+      ke < 1 ? `${ke.toFixed(3)} eV` :
+      ke < 1000 ? `${ke.toFixed(1)} eV` :
+      `${(ke/1000).toFixed(1)} keV`;
+    document.getElementById('r-ion').textContent = `${ion}%`;
+
+    document.getElementById('phase-pct').textContent =
+      `T = ${(t*100).toFixed(0)}% · ${phase.toUpperCase()}`;
+
+    // active tick
+    document.querySelectorAll('.tick').forEach(tk => {
+      tk.classList.toggle('active', tk.dataset.phase === phase);
+    });
+
+    // thermometer
+    const thumb = document.getElementById('thermo-thumb');
+    const fill = document.getElementById('thermo-fill');
+    thumb.style.bottom = (t*100) + '%';
+    fill.style.height = (100 - t*100) + '%';
+  }
+
+  // INTERACTIONS
+  // thermo dragging
+  const thermo = document.getElementById('thermo');
+  let dragging = false;
+  function setTempFromEvent(e){
+    const r = thermo.getBoundingClientRect();
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    let t = 1 - (y / r.height);
+    t = Math.max(0, Math.min(1, t));
+    state.temp = t;
+  }
+  thermo.addEventListener('mousedown', e => { dragging = true; setTempFromEvent(e); });
+  window.addEventListener('mousemove', e => { if(dragging) setTempFromEvent(e); });
+  window.addEventListener('mouseup', () => dragging = false);
+  thermo.addEventListener('touchstart', e => { dragging = true; setTempFromEvent(e); e.preventDefault();}, {passive:false});
+  window.addEventListener('touchmove', e => { if(dragging){ setTempFromEvent(e); e.preventDefault();}}, {passive:false});
+  window.addEventListener('touchend', () => dragging = false);
+
+  // tick clicks
+  document.querySelectorAll('.tick').forEach(tk => {
+    tk.addEventListener('click', () => {
+      const map = {solid:0.1, liquid:0.4, gas:0.7, plasma:0.92};
+      const target = map[tk.dataset.phase];
+      animateTemp(target);
+    });
+    tk.style.cursor = 'pointer';
+  });
+
+  function animateTemp(target){
+    const start = state.temp;
+    const dur = 800;
+    const t0 = performance.now();
+    function step(now){
+      const p = Math.min(1, (now-t0)/dur);
+      const eased = p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p+2, 2)/2;
+      state.temp = start + (target - start)*eased;
+      if(p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // element selector
+  document.querySelectorAll('.el').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.el').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.element = btn.dataset.el;
+      rebuildAtoms();
+    });
+  });
+
+  // toggles
+  function bindToggle(id, key){
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => {
+      el.classList.toggle('on');
+      state[key] = el.classList.contains('on');
+    });
+  }
+  bindToggle('tg-orbits','showOrbits');
+  bindToggle('tg-bonds','showBonds');
+  bindToggle('tg-trails','showTrails');
+  // pause inverted
+  document.getElementById('tg-pause').addEventListener('click', () => {
+    const el = document.getElementById('tg-pause');
+    el.classList.toggle('on');
+    state.paused = el.classList.contains('on');
+  });
+
+  // scroll wheel on canvas adjusts temp
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    state.temp = Math.max(0, Math.min(1, state.temp - e.deltaY * 0.0008));
+  }, {passive:false});
+
+  // INIT
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

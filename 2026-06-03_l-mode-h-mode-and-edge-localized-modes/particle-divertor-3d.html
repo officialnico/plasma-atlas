@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>A Particle's Journey to the Divertor — 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#06090f;--panel:#0c121c;--line:rgba(140,170,200,0.12);--line2:rgba(140,170,200,0.2);
+    --txt:#d2dde9;--mut:#7387a0;--dim:#46566a;--H:#27e7d4;--Hglow:rgba(39,231,212,0.5);
+    --elm:#ff3d6e;--elmglow:rgba(255,61,110,0.55);--amber:#ff9a3c;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{font-family:"Bricolage Grotesque",sans-serif;color:var(--txt);line-height:1.55;overflow-x:hidden;
+    background:radial-gradient(900px 600px at 75% -6%,rgba(255,154,60,0.07),transparent 60%),
+      radial-gradient(700px 500px at 12% 4%,rgba(39,231,212,0.08),transparent 60%),var(--bg);}
+  .wrap{max-width:780px;margin:0 auto;padding:24px 16px 50px;}
+  .kicker{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--mut);display:flex;align-items:center;gap:9px;}
+  .kicker::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px rgba(255,154,60,.5);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{font-size:clamp(26px,7vw,42px);line-height:1.03;font-weight:800;letter-spacing:-0.025em;margin:11px 0 8px;
+    background:linear-gradient(96deg,#fff 8%,var(--H) 50%,var(--amber) 115%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .lede{color:var(--mut);font-size:14.5px;max-width:58ch;}
+
+  .stage{position:relative;margin:18px 0 12px;border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    background:radial-gradient(120% 130% at 50% 10%,#0e1622,#06090f);box-shadow:0 24px 60px -36px #000;}
+  #scene{display:block;width:100%;height:min(60vh,480px);touch-action:none;}
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--mut);letter-spacing:.1em;}
+  .hint{position:absolute;left:12px;bottom:10px;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;color:var(--dim);pointer-events:none;}
+  .lbl{position:absolute;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.06em;pointer-events:none;
+    transform:translate(-50%,-50%);white-space:nowrap;text-shadow:0 0 6px #000,0 0 6px #000;transition:opacity .2s;}
+  .lbl .pin{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+  .phase{background:linear-gradient(180deg,#0d141f,#0a0f18);border:1px solid var(--line2);border-radius:13px;padding:13px 14px;margin:6px 0 12px;}
+  .phase .pn{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;color:var(--mut);margin-bottom:4px;}
+  .phase .pt{font-size:17px;font-weight:800;letter-spacing:-0.01em;margin-bottom:3px;transition:color .3s;}
+  .phase .pd{font-size:13.5px;color:#b9c6d6;min-height:40px;}
+
+  .ctl{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;}
+  .btn{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;letter-spacing:.05em;border:1px solid var(--line2);
+    background:#101824;color:var(--txt);padding:9px 13px;border-radius:9px;cursor:pointer;transition:.16s;white-space:nowrap;}
+  .btn:hover{border-color:var(--H);}
+  .btn.prim{background:linear-gradient(180deg,#fff,#bfe9e3);color:#04140f;border-color:#fff;}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:24px;background:transparent;cursor:pointer;}
+  input[type=range]::-webkit-slider-runnable-track{height:7px;border-radius:6px;background:#16202e;border:1px solid var(--line2);}
+  input[type=range]::-moz-range-track{height:7px;border-radius:6px;background:#16202e;border:1px solid var(--line2);}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--amber));border:2px solid #14060a;box-shadow:0 0 12px rgba(255,154,60,.5);}
+  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--amber));border:2px solid #14060a;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--mut);margin:14px 0 0;}
+  .legend i{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px;}
+  .legend i.dot{width:9px;height:9px;border-radius:50%;}
+  footer{margin-top:22px;font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--dim);text-align:center;letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">3D · one particle, start to finish</div>
+  <h1>How a Particle Reaches the Divertor</h1>
+  <p class="lede">Follow a single charged particle. It spirals along a magnetic field line, safely looping the donut — until one outward nudge drops it onto an <em>open</em> field line, which funnels it through the <b style="color:var(--txt)">X-point</b> and down to a divertor target. Drag to rotate; scrub or play below.</p>
+
+  <div class="stage">
+    <canvas id="scene"></canvas>
+    <div class="loading" id="loading">loading 3D engine…</div>
+    <div class="lbl" id="lblConf" style="color:var(--H)"><span class="pin" style="background:var(--H)"></span>confined plasma</div>
+    <div class="lbl" id="lblXp" style="color:var(--elm)"><span class="pin" style="background:var(--elm)"></span>X-point (field null)</div>
+    <div class="lbl" id="lblDiv" style="color:var(--amber)"><span class="pin" style="background:var(--amber)"></span>divertor target</div>
+    <div class="hint">drag to rotate</div>
+  </div>
+
+  <div class="phase">
+    <div class="pn" id="pn">PHASE 1 / 4</div>
+    <div class="pt" id="pt">Confined</div>
+    <div class="pd" id="pd"></div>
+  </div>
+
+  <div class="ctl">
+    <button class="btn prim" id="play">❚❚ Pause</button>
+    <input type="range" id="scrub" min="0" max="1000" value="0">
+    <button class="btn" id="restart">↺</button>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#fff"></i>the particle</span>
+    <span><i style="background:var(--H)"></i>closed field line (trapped)</span>
+    <span><i style="background:var(--amber)"></i>open field line → divertor</span>
+    <span><i style="background:rgba(120,180,200,.5)"></i>separatrix surface</span>
+  </div>
+  <footer>three.js · teaching model · gyration & geometry exaggerated for clarity</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const ease=t=>t*t*(3-2*t);
+const PI=Math.PI, TAU=PI*2;
+
+// geometry constants
+const R0=3.0, A=1.15, KAP=1.4, DEL=0.30;
+function pol(th,s){const cusp=0.18*Math.pow(Math.max(0,-Math.sin(th)),3);
+  return [A*s*Math.cos(th+DEL*Math.sin(th)), A*s*(KAP*Math.sin(th)-cusp*KAP)];}
+function pt3(u,th,s){const p=pol(th,s);const R=R0+p[0];return new THREE.Vector3(R*Math.cos(u),R*Math.sin(u),p[1]);}
+
+// X-point & target positions
+const Xp=pol(-PI/2,1); const Rx=R0+Xp[0], Zx=Xp[1];
+const Rstrike=R0+1.0, Ztar=Zx-1.35;
+
+// journey parameters
+const Q=2.6, LOOPS=2.4;
+const U1=LOOPS*TAU, U2=U1+0.8*TAU, U3=U2+0.8*TAU, U4=U3+0.6*TAU;
+function journey(tau){
+  tau=clamp(tau,0,1);
+  if(tau<0.55){const f=tau/0.55,u=f*U1,th=Q*u;return pt3(u,th,0.82);}
+  if(tau<0.68){const f=(tau-0.55)/0.13,u=U1+f*(U2-U1),th=Q*u,s=lerp(0.82,1.03,f);return pt3(u,th,s);}
+  if(tau<0.84){const f=(tau-0.68)/0.16,u=U2+f*(U3-U2);
+    const th=lerp(Q*U2, -PI/2 + (-1*TAU), ease(f)); // spiral toward bottom (extra turn)
+    const s=lerp(1.03,1.0,f);return pt3(u,th,s);}
+  const f=(tau-0.84)/0.16,u=U3+f*(U4-U3);
+  const R=lerp(Rx,Rstrike,ease(f)), z=lerp(Zx,Ztar,ease(f));
+  return new THREE.Vector3(R*Math.cos(u),R*Math.sin(u),z);
+}
+
+let renderer,scene,camera,pivot,sepMesh,partMesh,trail,trailGeo,xpMark,divIn,divOut,burst;
+let mConf,mXp,mDiv;
+const MAXT=120, tpos=new Float32Array(MAXT*3), tcol=new Float32Array(MAXT*3); let tn=0;
+let tau=0, playing=true, speed=1/13, flash=0;
+let rotZ=0.5, dragX=null, auto=true, last=performance.now();
+
+const PHASES=[
+  {lim:0.55,col:'#27e7d4',n:'PHASE 1 / 4',t:'Confined',d:'The particle spirals tightly around a magnetic field line while that line loops around the donut. On a closed surface the line never leaves — so neither does the particle. This is good confinement.'},
+  {lim:0.68,col:'#9fe0ff',n:'PHASE 2 / 4',t:'Crossing the separatrix',d:'A collision or drift nudges it one step outward — across the separatrix, the last closed surface. It is now on an OPEN field line: one that does not loop back, but leads away.'},
+  {lim:0.84,col:'#ff3d6e',n:'PHASE 3 / 4',t:'Through the X-point',d:'The open line funnels the particle down toward the X-point — the spot where engineers cancelled the poloidal field to zero. Field lines pinch together here and route everything to the bottom.'},
+  {lim:0.985,col:'#ff9a3c',n:'PHASE 4 / 4',t:'Down the leg to the target',d:'Below the X-point the line runs along a divertor "leg" straight to an armored target plate. The particle streams down it and strikes — far from the hot core, exactly as intended.'},
+  {lim:1.01,col:'#fff',n:'STRIKE',t:'Strike point',d:'It lands on the divertor target. Its heat is absorbed here and it can be pumped away. Then the cycle restarts with a fresh particle.'}
+];
+
+function buildSeparatrix(){
+  const SU=110,SV=46,nv=(SU+1)*(SV+1),pos=new Float32Array(nv*3),idx=[];let k=0;
+  for(let i=0;i<=SU;i++){const u=i/SU*TAU;for(let j=0;j<=SV;j++){const th=j/SV*TAU;const p=pt3(u,th,1);
+    pos[k*3]=p.x;pos[k*3+1]=p.y;pos[k*3+2]=p.z;k++;}}
+  for(let i=0;i<SU;i++)for(let j=0;j<SV;j++){const a=i*(SV+1)+j,b=a+(SV+1),c=a+1,d=b+1;idx.push(a,b,c,c,b,d);}
+  const g=new THREE.BufferGeometry();g.setIndex(idx);g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.computeVertexNormals();
+  const m=new THREE.MeshStandardMaterial({color:0x4fb6c8,transparent:true,opacity:0.10,side:THREE.DoubleSide,
+    depthWrite:false,metalness:0.1,roughness:0.7,emissive:0x12333a,emissiveIntensity:0.5});
+  sepMesh=new THREE.Mesh(g,m);pivot.add(sepMesh);
+}
+function fieldLine(t0,t1,color,op){const pts=[];const N=240;
+  for(let i=0;i<=N;i++)pts.push(journey(lerp(t0,t1,i/N)));
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  const l=new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity:op}));pivot.add(l);return l;}
+
+function buildMarks(){
+  // X-point ring
+  const xg=new THREE.TorusGeometry(Rx,0.045,8,90);
+  xpMark=new THREE.Mesh(xg,new THREE.MeshBasicMaterial({color:0xff3d6e,transparent:true,opacity:0.9}));
+  xpMark.position.z=Zx;pivot.add(xpMark);
+  // divertor target rings
+  const og=new THREE.TorusGeometry(Rstrike,0.10,10,100);
+  divOut=new THREE.Mesh(og,new THREE.MeshStandardMaterial({color:0xff9a3c,emissive:0x4a2a08,emissiveIntensity:0.6,metalness:0.4,roughness:0.5}));
+  divOut.position.z=Ztar;pivot.add(divOut);
+  const ig=new THREE.TorusGeometry(R0-1.0,0.09,10,100);
+  divIn=new THREE.Mesh(ig,new THREE.MeshStandardMaterial({color:0xcf7a2a,emissive:0x3a1f06,emissiveIntensity:0.4,metalness:0.4,roughness:0.6}));
+  divIn.position.z=Ztar;pivot.add(divIn);
+  // burst sprite at strike
+  burst=new THREE.Mesh(new THREE.SphereGeometry(0.25,16,16),
+    new THREE.MeshBasicMaterial({color:0xffd08a,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+  pivot.add(burst);
+  // label anchors
+  mConf=new THREE.Object3D();mConf.position.set(R0,0,0.2);pivot.add(mConf);
+  mXp=new THREE.Object3D();mXp.position.set(Rx,0,Zx);pivot.add(mXp);
+  mDiv=new THREE.Object3D();mDiv.position.set(Rstrike,0,Ztar);pivot.add(mDiv);
+}
+function buildParticle(){
+  partMesh=new THREE.Mesh(new THREE.SphereGeometry(0.10,18,18),
+    new THREE.MeshBasicMaterial({color:0xffffff}));
+  pivot.add(partMesh);
+  trailGeo=new THREE.BufferGeometry();
+  trailGeo.setAttribute('position',new THREE.BufferAttribute(tpos,3));
+  trailGeo.setAttribute('color',new THREE.BufferAttribute(tcol,3));
+  trail=new THREE.Line(trailGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.95}));
+  pivot.add(trail);
+}
+
+function gyro(tau){ // small spiral offset perpendicular to motion
+  const p=journey(tau), p2=journey(Math.min(1,tau+0.002));
+  const tang=p2.clone().sub(p); if(tang.length()<1e-6)tang.set(1,0,0); tang.normalize();
+  let up=new THREE.Vector3(0,0,1); let pa=new THREE.Vector3().crossVectors(tang,up);
+  if(pa.length()<1e-4)pa.set(1,0,0); pa.normalize();
+  const pb=new THREE.Vector3().crossVectors(tang,pa).normalize();
+  const ang=tau*260.0, rad=0.085;
+  return pa.multiplyScalar(Math.cos(ang)*rad).add(pb.multiplyScalar(Math.sin(ang)*rad));
+}
+
+function pushTrail(p,col){
+  if(tn<MAXT){tpos[tn*3]=p.x;tpos[tn*3+1]=p.y;tpos[tn*3+2]=p.z;tcol[tn*3]=col[0];tcol[tn*3+1]=col[1];tcol[tn*3+2]=col[2];tn++;}
+  else{for(let i=0;i<MAXT-1;i++){tpos[i*3]=tpos[(i+1)*3];tpos[i*3+1]=tpos[(i+1)*3+1];tpos[i*3+2]=tpos[(i+1)*3+2];
+    tcol[i*3]=tcol[(i+1)*3];tcol[i*3+1]=tcol[(i+1)*3+1];tcol[i*3+2]=tcol[(i+1)*3+2];}
+    const o=(MAXT-1)*3;tpos[o]=p.x;tpos[o+1]=p.y;tpos[o+2]=p.z;tcol[o]=col[0];tcol[o+1]=col[1];tcol[o+2]=col[2];}
+}
+function refreshTrail(){
+  for(let i=0;i<tn;i++){const k=(i+1)/tn;const o=i*3; // fade older toward dark
+    trailGeo.attributes.color.array[o]=tcol[o]*k;trailGeo.attributes.color.array[o+1]=tcol[o+1]*k;trailGeo.attributes.color.array[o+2]=tcol[o+2]*k;}
+  trailGeo.attributes.position.needsUpdate=true;trailGeo.attributes.color.needsUpdate=true;
+  trailGeo.setDrawRange(0,tn);
+}
+function resetTrail(){tn=0;}
+
+function projectLabel(div,obj){
+  const v=obj.getWorldPosition(new THREE.Vector3()).project(camera);
+  const W=renderer.domElement.clientWidth,H=renderer.domElement.clientHeight;
+  if(v.z>1){div.style.opacity=0;return;}
+  div.style.opacity=0.95;div.style.left=((v.x*0.5+0.5)*W)+'px';div.style.top=((-v.y*0.5+0.5)*H)+'px';
+}
+
+function setPhase(){
+  let i=0;while(i<PHASES.length-1 && tau>=PHASES[i].lim)i++;
+  const p=PHASES[i];
+  document.getElementById('pn').textContent=p.n;
+  const pt=document.getElementById('pt');pt.textContent=p.t;pt.style.color=p.col;
+  document.getElementById('pd').innerHTML=p.d;
+}
+
+function animate(now){
+  let dt=(now-last)/1000;last=now;dt=Math.min(dt,0.05);
+  if(playing){tau+=dt*speed;
+    if(tau>=1){flash=1;tau=0;resetTrail();}
+  }
+  document.getElementById('scrub').value=Math.round(tau*1000);
+  // particle
+  const base=journey(tau);
+  const pos=base.clone().add(gyro(tau));
+  partMesh.position.copy(pos);
+  const col = tau<0.62 ? [0.16,0.90,0.83] : (tau<0.84? [1,0.24,0.43] : [1,0.60,0.24]);
+  pushTrail(pos,col); refreshTrail();
+  // strike flash
+  flash*=Math.exp(-dt/0.35);
+  if(tau>0.96){flash=Math.max(flash,(tau-0.96)/0.04);}
+  burst.position.copy(journey(1)); burst.material.opacity=flash*0.9; burst.scale.setScalar(0.6+flash*2.2);
+  divOut.material.emissiveIntensity=0.6+flash*2.5;
+  // rotate
+  if(auto && dragX===null) rotZ+=dt*0.16;
+  pivot.rotation.z=rotZ;
+  renderer.render(scene,camera);
+  // labels (after render so matrices current)
+  projectLabel(document.getElementById('lblConf'),mConf);
+  projectLabel(document.getElementById('lblXp'),mXp);
+  projectLabel(document.getElementById('lblDiv'),mDiv);
+  setPhase();
+  requestAnimationFrame(animate);
+}
+
+function resize(){const cv=renderer.domElement,r=cv.getBoundingClientRect();
+  renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();}
+
+function init(){
+  const canvas=document.getElementById('scene');
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(46,1,0.1,100);camera.up.set(0,0,1);camera.position.set(0,-11.5,3.2);camera.lookAt(0,0,-0.7);
+  pivot=new THREE.Group();scene.add(pivot);
+  scene.add(new THREE.AmbientLight(0x49566a,0.75));
+  const l1=new THREE.PointLight(0xffe0b0,1.0,60);l1.position.set(7,-6,8);scene.add(l1);
+  const l2=new THREE.PointLight(0x6ff0ff,0.8,60);l2.position.set(-7,-4,4);scene.add(l2);
+  const l3=new THREE.PointLight(0xff5a78,0.5,60);l3.position.set(0,6,-6);scene.add(l3);
+
+  buildSeparatrix();
+  fieldLine(0,0.55,0x27e7d4,0.45);      // closed track
+  fieldLine(0.55,1.0,0xff9a3c,0.5);     // open track to divertor
+  buildMarks(); buildParticle();
+  resize();window.addEventListener('resize',resize);
+  document.getElementById('loading').style.display='none';
+
+  canvas.addEventListener('pointerdown',e=>{dragX=e.clientX;canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointermove',e=>{if(dragX===null)return;rotZ+=(e.clientX-dragX)*0.01;dragX=e.clientX;});
+  const end=()=>{dragX=null;};canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+
+  requestAnimationFrame(animate);
+}
+
+document.getElementById('play').addEventListener('click',()=>{playing=!playing;
+  document.getElementById('play').textContent=playing?'❚❚ Pause':'► Play';});
+document.getElementById('scrub').addEventListener('input',e=>{playing=false;
+  document.getElementById('play').textContent='► Play';tau=+e.target.value/1000;resetTrail();});
+document.getElementById('restart').addEventListener('click',()=>{tau=0;resetTrail();playing=true;
+  document.getElementById('play').textContent='❚❚ Pause';});
+
+if(window.THREE) init(); else window.addEventListener('load',init);
+</script>
+</body>
+</html>

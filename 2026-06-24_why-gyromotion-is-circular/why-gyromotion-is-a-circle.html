@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why gyromotion is a circle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_lib/katex/katex.min.css">
+<style>
+  :root{
+    --ink:#0A0E1A;
+    --panel:#111726;
+    --panel-2:#161d30;
+    --line:#243049;
+    --field:#3FB6C9;
+    --particle:#F2A65A;
+    --vel:#8FD9E8;
+    --force:#E8654B;
+    --text:#E8EAF2;
+    --muted:#8A93A8;
+    --faint:#5b6478;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--ink);color:var(--text);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px;}
+
+  /* field texture */
+  .fieldbg{position:fixed;inset:0;z-index:0;opacity:0.06;pointer-events:none;
+    background-image:radial-gradient(var(--field) 1.3px, transparent 1.4px);
+    background-size:46px 46px;}
+
+  header.hero{position:relative;z-index:1;padding:88px 0 36px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:12.5px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--field);margin-bottom:22px;}
+  h1{font-size:clamp(34px,6vw,60px);line-height:1.05;font-weight:700;margin:0 0 20px;
+    letter-spacing:-0.02em;}
+  h1 .turn{color:var(--particle);}
+  .lede{font-size:clamp(17px,2.4vw,21px);color:var(--muted);max-width:620px;margin:0;}
+  .lede b{color:var(--text);font-weight:500;}
+
+  section{position:relative;z-index:1;padding:48px 0;}
+  h2{font-size:clamp(24px,3.5vw,34px);font-weight:700;letter-spacing:-0.01em;margin:0 0 8px;}
+  .sec-tag{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--field);margin-bottom:14px;}
+  p.body{font-size:17px;color:#c6cbda;max-width:680px;}
+  p.body b{color:var(--text);font-weight:500;}
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;overflow:hidden;margin:26px 0;}
+  canvas{display:block;width:100%;}
+  .stage-foot{display:flex;flex-wrap:wrap;gap:8px 22px;padding:14px 18px;
+    border-top:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:13px;}
+  .key{display:flex;align-items:center;gap:8px;color:var(--muted);}
+  .swatch{width:22px;height:4px;border-radius:2px;display:inline-block;}
+  .badge{margin-left:auto;color:var(--faint);}
+
+  .controls{display:flex;flex-direction:column;gap:18px;padding:18px;border-top:1px solid var(--line);}
+  .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .row label{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--muted);min-width:170px;}
+  input[type=range]{flex:1;min-width:160px;accent-color:var(--particle);height:4px;}
+  .val{font-family:"IBM Plex Mono",monospace;color:var(--particle);min-width:96px;text-align:right;}
+  .verdict{font-family:"IBM Plex Mono",monospace;font-size:14px;padding:12px 16px;border-radius:10px;
+    background:var(--panel-2);border:1px solid var(--line);}
+  .verdict.good{color:#7fe0b0;border-color:#27513c;}
+  .verdict.bad{color:var(--force);border-color:#5a2a22;}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;}
+  .card h3{margin:0 0 10px;font-size:18px;font-weight:500;color:var(--particle);}
+  .card p{margin:0;color:#c6cbda;font-size:15.5px;}
+  .eq{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin:14px 0 0;overflow-x:auto;}
+  .eq .katex{font-size:1.25em;color:var(--text);}
+
+  blockquote{margin:30px 0 0;padding:18px 22px;border-left:3px solid var(--field);
+    background:var(--panel);border-radius:0 12px 12px 0;color:#c6cbda;font-size:16px;}
+  blockquote b{color:var(--text);}
+
+  footer{position:relative;z-index:1;padding:50px 0 70px;color:var(--faint);
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;border-top:1px solid var(--line);margin-top:30px;}
+
+  @media (max-width:640px){ .cols{grid-template-columns:1fr;} .row label{min-width:120px;} }
+  @media (prefers-reduced-motion:reduce){ *{scroll-behavior:auto;} }
+</style>
+</head>
+<body>
+<div class="fieldbg" aria-hidden="true"></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Magnetic field · single particle</div>
+    <h1>Why a magnetic field makes a particle go in a&nbsp;<span class="turn">circle</span></h1>
+    <p class="lede">A magnetic force always points <b>sideways to the motion</b>. A sideways force can only turn you — it can never speed you up or slow you down. Turning by the same amount forever, at constant speed, <b>is</b> a circle.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-tag">01 — the orbit</div>
+    <h2>Watch the two arrows</h2>
+    <p class="body">The magnetic field <span class="mono" style="color:var(--field)">B</span> points into the screen. The <b style="color:var(--vel)">velocity</b> arrow shows where the particle is heading; the <b style="color:var(--force)">force</b> arrow shows the push from the field. Notice they stay at a right angle the entire loop — the force is always aimed straight at the centre.</p>
+    <div class="stage">
+      <canvas id="orbit" height="380" aria-label="A charged particle orbiting in a circle with its velocity arrow tangent to the path and its force arrow pointing to the centre"></canvas>
+      <div class="stage-foot">
+        <span class="key"><span class="swatch" style="background:var(--vel)"></span>velocity (tangent)</span>
+        <span class="key"><span class="swatch" style="background:var(--force)"></span>force (toward centre)</span>
+        <span class="key"><span class="swatch" style="background:var(--particle)"></span>particle</span>
+        <span class="badge">B ⊗ into screen</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-tag">02 — the reason</div>
+    <h2>A sideways force does no work</h2>
+    <p class="body">"Speed" only changes when a force pushes <b>along</b> the direction of travel — with the motion to speed up, against it to slow down. The magnetic force has <b>zero</b> component along the motion, so it adds no speed at all. Every instant it does the one thing left to it: it nudges the velocity arrow sideways, rotating it without stretching it. Do that continuously and the tip of the velocity arrow sweeps a circle — and so does the particle.</p>
+    <div class="cols">
+      <div class="card">
+        <h3>What sets the size</h3>
+        <p>More momentum is harder to bend, so a faster (or heavier) particle carves a wider loop. The radius is exactly the perpendicular momentum divided by charge times field.</p>
+        <div class="eq" id="eq-r"></div>
+      </div>
+      <div class="card">
+        <h3>What sets the rhythm</h3>
+        <p>The time per lap doesn't depend on speed at all — go faster and the loop just grows to match. The rate is fixed by the field and the particle's mass (its inertia).</p>
+        <div class="eq" id="eq-w"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-tag">03 — test it yourself</div>
+    <h2>Tilt the force off perpendicular</h2>
+    <p class="body">Here's the proof. The slider tips the force slightly off the right angle, giving it a small component <b>along</b> the motion — which now does work. The instant it does, the speed changes, the radius changes with it, and the clean circle unwinds into a spiral. Only at a perfect right angle does the path close.</p>
+    <div class="stage">
+      <canvas id="tilt" height="380" aria-label="A particle whose path spirals when the force is tilted off perpendicular, and closes into a circle when the force is exactly perpendicular"></canvas>
+      <div class="controls">
+        <div class="row">
+          <label for="angle">Force angle vs motion</label>
+          <input type="range" id="angle" min="60" max="120" step="1" value="90">
+          <span class="val" id="angleVal">90°</span>
+        </div>
+        <div class="verdict good" id="verdict">Perfectly perpendicular — does no work — closed circle.</div>
+      </div>
+    </div>
+    <blockquote>This is the whole of single-particle gyromotion. Feed the magnetic force <b>F = q v × B</b> into the same <b>F = Δp/Δt</b> you already know, and out falls a circle whose radius is the momentum and whose frequency is the inertia. Everything else in plasma physics — the helix along the field, drifts, the magnetic moment — is built on top of this one circle.</blockquote>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">why-gyromotion-is-a-circle · a perpendicular force turns but never speeds · F = qv×B → F = Δp/Δt</div>
+</footer>
+
+<script src="../_lib/katex/katex.min.js"></script>
+<script>
+(function(){
+  // render equations
+  function rk(id, tex){ try{ katex.render(tex, document.getElementById(id), {displayMode:true, throwOnError:false}); }catch(e){} }
+  rk('eq-r', 'r_L = \\dfrac{m\\,v_\\perp}{qB} = \\dfrac{p_\\perp}{qB}');
+  rk('eq-w', '\\omega_c = \\dfrac{qB}{m}');
+
+  var reduced = window.matchMedia('(prefers-color-scheme)') && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function setup(canvas){
+    var dpr = Math.max(1, window.devicePixelRatio||1);
+    function resize(){
+      var w = canvas.clientWidth;
+      canvas.width = w*dpr; canvas.height = 380*dpr;
+      var ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    return canvas.getContext('2d');
+  }
+
+  function arrow(ctx,x1,y1,x2,y2,color,width){
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=width||3;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var a=Math.atan2(y2-y1,x2-x1), h=9;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-h*Math.cos(a-0.4), y2-h*Math.sin(a-0.4));
+    ctx.lineTo(x2-h*Math.cos(a+0.4), y2-h*Math.sin(a+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function fieldMarks(ctx,w,h){
+    ctx.strokeStyle='rgba(63,182,201,0.18)';
+    ctx.lineWidth=1;
+    var step=58;
+    for(var x=step/2;x<w;x+=step){
+      for(var y=step/2;y<h;y+=step){
+        ctx.beginPath(); ctx.arc(x,y,3.2,0,7); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x-2.3,y-2.3); ctx.lineTo(x+2.3,y+2.3);
+        ctx.moveTo(x+2.3,y-2.3); ctx.lineTo(x-2.3,y+2.3); ctx.stroke();
+      }
+    }
+  }
+
+  // ---------- Orbit (section 01) ----------
+  (function(){
+    var c=document.getElementById('orbit'), ctx=setup(c);
+    var theta=0;
+    function frame(){
+      var w=c.clientWidth, h=380;
+      var cx=w/2, cy=h/2, R=Math.min(w,h)*0.30;
+      ctx.clearRect(0,0,w,h);
+      fieldMarks(ctx,w,h);
+      // circle path
+      ctx.strokeStyle='rgba(242,166,90,0.28)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.stroke();
+      // centre dot
+      ctx.fillStyle='rgba(232,234,242,0.35)';
+      ctx.beginPath(); ctx.arc(cx,cy,3,0,7); ctx.fill();
+      // particle
+      var px=cx+R*Math.cos(theta), py=cy+R*Math.sin(theta);
+      // velocity tangent (CCW)
+      var vx=-Math.sin(theta), vy=Math.cos(theta);
+      // force toward centre
+      var fx=(cx-px), fy=(cy-py); var fl=Math.hypot(fx,fy); fx/=fl; fy/=fl;
+      arrow(ctx,px,py,px+vx*70,py+vy*70,'#8FD9E8',3);
+      arrow(ctx,px,py,px+fx*64,py+fy*64,'#E8654B',3);
+      // glow + particle
+      var g=ctx.createRadialGradient(px,py,0,px,py,16);
+      g.addColorStop(0,'rgba(242,166,90,0.9)'); g.addColorStop(1,'rgba(242,166,90,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,16,0,7); ctx.fill();
+      ctx.fillStyle='#F2A65A'; ctx.beginPath(); ctx.arc(px,py,6,0,7); ctx.fill();
+      // right-angle tick
+      ctx.fillStyle='rgba(232,234,242,0.55)'; ctx.font='12px "IBM Plex Mono"';
+      ctx.fillText('90°', px+ (vx+fx)*22 -8, py+(vy+fy)*22 +4);
+      if(!reduced) theta+=0.018;
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  // ---------- Tilt (section 03) ----------
+  (function(){
+    var c=document.getElementById('tilt'), ctx=setup(c);
+    var slider=document.getElementById('angle'), out=document.getElementById('angleVal'), verdict=document.getElementById('verdict');
+    var trail=[], px,py,speed,phi, inited=false;
+    function reset(w,h){ px=w*0.5; py=h*0.5; speed=2.4; phi=0; trail=[]; }
+    function frame(){
+      var w=c.clientWidth, h=380;
+      if(!inited){ reset(w,h); inited=true; }
+      var deg=parseInt(slider.value,10);
+      out.textContent=deg+'°';
+      // deviation from 90° -> work-doing component
+      var dev=(deg-90); // degrees
+      var work = Math.sin(dev*Math.PI/180); // along-motion fraction
+      if(Math.abs(dev)<0.5){
+        verdict.className='verdict good';
+        verdict.textContent='Perfectly perpendicular — does no work — closed circle.';
+      } else {
+        verdict.className='verdict bad';
+        verdict.textContent = (dev>0?'Tilted with the motion — adds speed — spirals outward.'
+                                     :'Tilted against the motion — removes speed — spirals inward.');
+      }
+      var omega=0.045; // turning rate (fixed, ~ qB/m)
+      if(!reduced){
+        phi += omega;               // perpendicular part: rotate heading
+        speed += work*0.06;         // parallel part: does work, changes speed
+        speed = Math.max(0.4, Math.min(speed, 6.5));
+        px += Math.cos(phi)*speed;
+        py += Math.sin(phi)*speed;
+        trail.push([px,py]);
+        if(trail.length>520) trail.shift();
+        // recentre if drifting off
+        if(px<20||px>w-20||py<20||py>h-20){ reset(w,h); }
+      }
+      ctx.clearRect(0,0,w,h);
+      fieldMarks(ctx,w,h);
+      // trail
+      ctx.lineWidth=2;
+      for(var i=1;i<trail.length;i++){
+        var a=i/trail.length;
+        ctx.strokeStyle='rgba(242,166,90,'+(a*0.7).toFixed(3)+')';
+        ctx.beginPath(); ctx.moveTo(trail[i-1][0],trail[i-1][1]); ctx.lineTo(trail[i][0],trail[i][1]); ctx.stroke();
+      }
+      // vectors
+      var vx=Math.cos(phi), vy=Math.sin(phi);
+      // perpendicular force, then rotate it by the tilt deviation
+      var fx=-vy, fy=vx;
+      var rfx = fx*Math.cos(-dev*Math.PI/180) - fy*Math.sin(-dev*Math.PI/180);
+      var rfy = fx*Math.sin(-dev*Math.PI/180) + fy*Math.cos(-dev*Math.PI/180);
+      arrow(ctx,px,py,px+vx*60,py+vy*60,'#8FD9E8',3);
+      arrow(ctx,px,py,px+rfx*56,py+rfy*56,'#E8654B',3);
+      var g=ctx.createRadialGradient(px,py,0,px,py,15);
+      g.addColorStop(0,'rgba(242,166,90,0.9)'); g.addColorStop(1,'rgba(242,166,90,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,15,0,7); ctx.fill();
+      ctx.fillStyle='#F2A65A'; ctx.beginPath(); ctx.arc(px,py,5.5,0,7); ctx.fill();
+      requestAnimationFrame(frame);
+    }
+    slider.addEventListener('input', function(){ inited=false; });
+    frame();
+  })();
+})();
+</script>
+</body>
+</html>

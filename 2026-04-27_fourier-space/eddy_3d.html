@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Eddy</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #06080c;
+    --surface: #12151c;
+    --surface2: #1a1e28;
+    --border: #252a36;
+    --text: #b8bcc8;
+    --dim: #6b7084;
+    --heading: #e2e5ed;
+    --accent: #f0a050;
+    --blue: #5cb8f0;
+    --purple: #a388f0;
+    --green: #4ade80;
+    --red: #fb7185;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #000; }
+  body {
+    color: var(--text);
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #canvas-container {
+    position: fixed; inset: 0; z-index: 1;
+  }
+  canvas { display: block; }
+  .overlay { position: fixed; pointer-events: none; z-index: 10; }
+
+  .title-bar {
+    top: 0; left: 0; right: 0;
+    padding: 16px 18px 20px;
+    background: linear-gradient(to bottom, rgba(6,8,12,0.85) 0%, rgba(6,8,12,0) 100%);
+  }
+  .title-bar .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 3px;
+  }
+  .title-bar h1 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .controls {
+    bottom: 0; left: 0; right: 0;
+    padding: 14px 12px 20px;
+    background: linear-gradient(to top, rgba(6,8,12,0.92) 30%, rgba(6,8,12,0));
+    pointer-events: auto;
+  }
+  .toggle-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .toggle-row button {
+    padding: 6px 13px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: rgba(18,21,28,0.8);
+    color: var(--dim);
+    font-size: 0.73rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+    backdrop-filter: blur(6px);
+  }
+  .toggle-row button.active {
+    color: var(--accent);
+    border-color: rgba(240,160,80,0.6);
+    background: rgba(240,160,80,0.15);
+  }
+  .hint {
+    text-align: center;
+    font-size: 0.68rem;
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .legend {
+    position: fixed;
+    top: 70px;
+    left: 14px;
+    font-size: 0.66rem;
+    font-family: 'IBM Plex Mono', monospace;
+    z-index: 10;
+    pointer-events: none;
+    line-height: 1.9;
+    background: rgba(18,21,28,0.6);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(37,42,54,0.5);
+    backdrop-filter: blur(6px);
+  }
+  .legend div { display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .legend .swatch {
+    display: inline-block;
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .compass {
+    position: fixed;
+    top: 70px;
+    right: 14px;
+    width: 80px;
+    height: 80px;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  @media (max-width: 600px) {
+    .legend { font-size: 0.6rem; padding: 6px 10px; }
+    .title-bar h1 { font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div class="overlay title-bar">
+  <div class="tag">Interactive 3D · drag to orbit</div>
+  <h1>Anatomy of an Eddy</h1>
+</div>
+
+<div class="legend" id="legend">
+  <div><span class="swatch" style="background:linear-gradient(to right, #f0a050, #ffd4a0)"></span> hot spot (φ > 0)</div>
+  <div><span class="swatch" style="background:linear-gradient(to right, #5cb8f0, #a0dcff)"></span> cold spot (φ < 0)</div>
+  <div><span class="swatch" style="background:#8a9ab0"></span> magnetic field line</div>
+  <div><span class="swatch" style="background:#4ade80"></span> E×B flow</div>
+</div>
+
+<canvas class="compass" id="compass" width="80" height="80"></canvas>
+
+<div class="overlay controls">
+  <div class="toggle-row">
+    <button data-toggle="eddy" class="active">Eddy</button>
+    <button data-toggle="field" class="active">B field</button>
+    <button data-toggle="flow" class="active">E×B flow</button>
+    <button data-toggle="axes">Axes</button>
+    <button data-toggle="spin" class="active">Auto-spin</button>
+  </div>
+  <div class="hint">drag · pinch / scroll to zoom</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  var container = document.getElementById('canvas-container');
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x06080c);
+  scene.fog = new THREE.FogExp2(0x06080c, 0.022);
+
+  var W = window.innerWidth, H = window.innerHeight;
+  var camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 200);
+
+  var renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(W, H);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  container.appendChild(renderer.domElement);
+
+  // Coordinate convention:
+  //   X axis = binormal (where hot/cold lobes sit)
+  //   Y axis = radial (up/down = outward from plasma core)
+  //   Z axis = along B (field line direction, heavy elongation axis)
+
+  var groupEddy = new THREE.Group();
+  var groupField = new THREE.Group();
+  var groupFlow = new THREE.Group();
+  var groupAxes = new THREE.Group();
+  var groupFloor = new THREE.Group();
+  scene.add(groupEddy, groupField, groupFlow, groupAxes, groupFloor);
+  groupAxes.visible = false;
+
+  // Floor grid for spatial reference
+  (function(){
+    var size = 30, divisions = 30;
+    var grid = new THREE.GridHelper(size, divisions, 0x1a2030, 0x14181f);
+    grid.position.y = -4.5;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.5;
+    groupFloor.add(grid);
+  })();
+
+  var ELONG = 4.5;
+  var LOBE_R = 1.35;
+
+  function createLobe(hexColor, offset){
+    var group = new THREE.Group();
+    var color = new THREE.Color(hexColor);
+
+    var shellGeo = new THREE.SphereGeometry(LOBE_R, 64, 48);
+    shellGeo.scale(1, 1, ELONG);
+
+    var shellMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: color },
+        uTime: { value: 0 },
+        uIntensity: { value: 1.0 }
+      },
+      vertexShader: [
+        'varying vec3 vNormal;',
+        'varying vec3 vWorldPos;',
+        'varying vec3 vViewPos;',
+        'void main(){',
+        '  vNormal = normalize(normalMatrix * normal);',
+        '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+        '  vViewPos = -mv.xyz;',
+        '  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;',
+        '  gl_Position = projectionMatrix * mv;',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uColor;',
+        'uniform float uTime;',
+        'uniform float uIntensity;',
+        'varying vec3 vNormal;',
+        'varying vec3 vViewPos;',
+        'void main(){',
+        '  vec3 viewDir = normalize(vViewPos);',
+        '  float fresnel = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.2);',
+        '  float body = max(dot(normalize(vNormal), viewDir), 0.0) * 0.35;',
+        '  vec3 col = uColor * (body + fresnel * 1.4) * uIntensity;',
+        '  float alpha = (fresnel * 0.75 + body * 0.25) * uIntensity;',
+        '  gl_FragColor = vec4(col, alpha);',
+        '}'
+      ].join('\n'),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.FrontSide
+    });
+
+    var shell = new THREE.Mesh(shellGeo, shellMat);
+    group.add(shell);
+
+    var midGeo = new THREE.SphereGeometry(LOBE_R * 0.75, 48, 36);
+    midGeo.scale(1, 1, ELONG);
+    var midMat = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: color } },
+      vertexShader: [
+        'varying vec3 vNormal;',
+        'varying vec3 vViewPos;',
+        'void main(){',
+        '  vNormal = normalize(normalMatrix * normal);',
+        '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+        '  vViewPos = -mv.xyz;',
+        '  gl_Position = projectionMatrix * mv;',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uColor;',
+        'varying vec3 vNormal;',
+        'varying vec3 vViewPos;',
+        'void main(){',
+        '  vec3 viewDir = normalize(vViewPos);',
+        '  float f = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 1.2);',
+        '  vec3 col = uColor * (0.7 + f * 0.8);',
+        '  gl_FragColor = vec4(col, 0.45 + f * 0.4);',
+        '}'
+      ].join('\n'),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var mid = new THREE.Mesh(midGeo, midMat);
+    group.add(mid);
+
+    var coreGeo = new THREE.SphereGeometry(LOBE_R * 0.3, 32, 24);
+    coreGeo.scale(1, 1, ELONG);
+    var coreMat = new THREE.MeshBasicMaterial({
+      color: color.clone().multiplyScalar(1.6),
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var core = new THREE.Mesh(coreGeo, coreMat);
+    group.add(core);
+
+    var filGeo = new THREE.CylinderGeometry(0.08, 0.08, ELONG * 1.8, 8, 1, true);
+    filGeo.rotateX(Math.PI/2);
+    var filMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(hexColor).multiplyScalar(1.8),
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var fil = new THREE.Mesh(filGeo, filMat);
+    group.add(fil);
+
+    group.position.copy(offset);
+    group.userData.shellMat = shellMat;
+    return group;
+  }
+
+  var hot = createLobe(0xf0a050, new THREE.Vector3(1.8, 0, 0));
+  var cold = createLobe(0x5cb8f0, new THREE.Vector3(-1.8, 0, 0));
+  groupEddy.add(hot);
+  groupEddy.add(cold);
+
+  var FIELD_LEN = 22;
+  function createFieldLine(xOffset, yOffset, thickness, opacity){
+    var geo = new THREE.CylinderGeometry(thickness, thickness, FIELD_LEN, 8);
+    geo.rotateX(Math.PI/2);
+    var mat = new THREE.MeshBasicMaterial({
+      color: 0x8a9ab0,
+      transparent: true,
+      opacity: opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    var line = new THREE.Mesh(geo, mat);
+    line.position.set(xOffset, yOffset, 0);
+    return line;
+  }
+
+  for(var dy = -2; dy <= 2; dy++){
+    for(var dx = -3; dx <= 3; dx++){
+      if(dx === 0 && dy === 0) continue;
+      var dist = Math.sqrt(dx*dx * 0.25 + dy*dy);
+      var x = dx * 1.0;
+      var y = dy * 0.9;
+      var thickness = dist < 1.5 ? 0.035 : 0.025;
+      var opacity = Math.max(0.15, 0.55 - dist * 0.11);
+      groupField.add(createFieldLine(x, y, thickness, opacity));
+    }
+  }
+  groupField.add(createFieldLine(0, 0, 0.045, 0.75));
+
+  function createArrowCap(z, dir){
+    var geo = new THREE.ConeGeometry(0.2, 0.6, 12);
+    geo.rotateX(Math.PI/2);
+    var mat = new THREE.MeshBasicMaterial({
+      color: 0x8a9ab0,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var cap = new THREE.Mesh(geo, mat);
+    cap.position.z = z;
+    cap.scale.z = dir;
+    return cap;
+  }
+  groupField.add(createArrowCap(FIELD_LEN/2 + 0.2, 1));
+
+  function makeTextSprite(text, color, size){
+    var cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 128;
+    var cx = cv.getContext('2d');
+    cx.font = 'bold 64px "IBM Plex Mono", monospace';
+    cx.fillStyle = color;
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    cx.shadowColor = color;
+    cx.shadowBlur = 20;
+    cx.fillText(text, 128, 64);
+    var tex = new THREE.CanvasTexture(cv);
+    tex.minFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    var mat = new THREE.SpriteMaterial({
+      map: tex,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    var sp = new THREE.Sprite(mat);
+    sp.scale.set(size, size * 0.5, 1);
+    return sp;
+  }
+
+  var bLabel = makeTextSprite('B', '#a0b0c8', 1.8);
+  bLabel.position.set(0, 0.9, FIELD_LEN/2 + 1.2);
+  groupField.add(bLabel);
+
+  function createStreamline(radius, zPosition, opacity, thickness){
+    var curve = new THREE.Curve();
+    curve.getPoint = function(t){
+      var angle = t * Math.PI * 2;
+      var x = radius * Math.cos(angle);
+      var y = radius * Math.sin(angle);
+      return new THREE.Vector3(x, y, zPosition);
+    };
+
+    var geo = new THREE.TubeGeometry(curve, 64, thickness, 8, true);
+    var mat = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      transparent: true,
+      opacity: opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    return new THREE.Mesh(geo, mat);
+  }
+
+  var streamlinePositions = [
+    {z: -6, radius: 2.6, opacity: 0.22, thickness: 0.025},
+    {z: -3, radius: 2.7, opacity: 0.42, thickness: 0.035},
+    {z:  0, radius: 2.8, opacity: 0.7,  thickness: 0.045},
+    {z:  3, radius: 2.7, opacity: 0.42, thickness: 0.035},
+    {z:  6, radius: 2.6, opacity: 0.22, thickness: 0.025}
+  ];
+  streamlinePositions.forEach(function(p){
+    groupFlow.add(createStreamline(p.radius, p.z, p.opacity, p.thickness));
+  });
+
+  var flowParticles = [];
+  var PARTICLE_COUNT = 10;
+  for(var i = 0; i < PARTICLE_COUNT; i++){
+    var sphGeo = new THREE.SphereGeometry(0.11, 12, 12);
+    var sphMat = new THREE.MeshBasicMaterial({
+      color: 0x7dfb9f,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var p = new THREE.Mesh(sphGeo, sphMat);
+    p.userData.phase = i / PARTICLE_COUNT;
+    flowParticles.push(p);
+    groupFlow.add(p);
+  }
+
+  function createAxisArrow(dir, color, label, length){
+    var g = new THREE.Group();
+    var shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, length, 8);
+    var shaftMat = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var shaft = new THREE.Mesh(shaftGeo, shaftMat);
+    var up = new THREE.Vector3(0, 1, 0);
+    var quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+    shaft.quaternion.copy(quat);
+    shaft.position.copy(dir.clone().multiplyScalar(length/2));
+    g.add(shaft);
+
+    var headGeo = new THREE.ConeGeometry(0.18, 0.45, 16);
+    var headMat = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    var head = new THREE.Mesh(headGeo, headMat);
+    head.quaternion.copy(quat);
+    head.position.copy(dir.clone().multiplyScalar(length + 0.2));
+    g.add(head);
+
+    var colorStr = '#' + color.toString(16).padStart(6, '0');
+    var lbl = makeTextSprite(label, colorStr, 1.6);
+    lbl.position.copy(dir.clone().multiplyScalar(length + 1.1));
+    g.add(lbl);
+
+    return g;
+  }
+
+  groupAxes.add(createAxisArrow(new THREE.Vector3(1, 0, 0), 0xa388f0, 'binormal', 4));
+  groupAxes.add(createAxisArrow(new THREE.Vector3(0, 1, 0), 0xfb7185, 'radial', 4));
+  groupAxes.add(createAxisArrow(new THREE.Vector3(0, 0, 1), 0x5cb8f0, 'B', 5));
+
+  var camRadius = 13;
+  var camTheta = -Math.PI * 0.7;
+  var camPhi = Math.PI * 0.42;
+  var camTarget = new THREE.Vector3(0, 0, 0);
+
+  function updateCamera(){
+    camera.position.x = camRadius * Math.sin(camPhi) * Math.sin(camTheta);
+    camera.position.y = camRadius * Math.cos(camPhi);
+    camera.position.z = camRadius * Math.sin(camPhi) * Math.cos(camTheta);
+    camera.lookAt(camTarget);
+  }
+  updateCamera();
+
+  var dragging = false, lastX = 0, lastY = 0;
+  var autoSpin = true;
+  var lastPinch = 0;
+
+  function stopSpin(){
+    autoSpin = false;
+    var b = document.querySelector('[data-toggle="spin"]');
+    if(b) b.classList.remove('active');
+  }
+
+  renderer.domElement.addEventListener('mousedown', function(e){
+    dragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+    stopSpin();
+  });
+  window.addEventListener('mousemove', function(e){
+    if(!dragging) return;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    camTheta -= dx * 0.008;
+    camPhi -= dy * 0.008;
+    camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi));
+    updateCamera();
+  });
+  window.addEventListener('mouseup', function(){ dragging = false; });
+
+  renderer.domElement.addEventListener('touchstart', function(e){
+    if(e.touches.length === 1){
+      dragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+      stopSpin();
+    } else if(e.touches.length === 2){
+      dragging = false;
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinch = Math.sqrt(dx*dx + dy*dy);
+    }
+    e.preventDefault();
+  }, {passive: false});
+
+  renderer.domElement.addEventListener('touchmove', function(e){
+    if(e.touches.length === 1 && dragging){
+      var dx = e.touches[0].clientX - lastX;
+      var dy = e.touches[0].clientY - lastY;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+      camTheta -= dx * 0.008;
+      camPhi -= dy * 0.008;
+      camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi));
+      updateCamera();
+    } else if(e.touches.length === 2){
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      var d = Math.sqrt(dx*dx + dy*dy);
+      if(lastPinch > 0){
+        camRadius = Math.max(5, Math.min(30, camRadius + (lastPinch - d) * 0.04));
+        updateCamera();
+      }
+      lastPinch = d;
+    }
+    e.preventDefault();
+  }, {passive: false});
+
+  renderer.domElement.addEventListener('touchend', function(){
+    dragging = false;
+    lastPinch = 0;
+  });
+
+  renderer.domElement.addEventListener('wheel', function(e){
+    camRadius = Math.max(5, Math.min(30, camRadius + e.deltaY * 0.006));
+    updateCamera();
+    e.preventDefault();
+  }, {passive: false});
+
+  document.querySelectorAll('[data-toggle]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var key = btn.dataset.toggle;
+      btn.classList.toggle('active');
+      var on = btn.classList.contains('active');
+      if(key === 'eddy') groupEddy.visible = on;
+      else if(key === 'field') groupField.visible = on;
+      else if(key === 'flow') groupFlow.visible = on;
+      else if(key === 'axes') groupAxes.visible = on;
+      else if(key === 'spin') autoSpin = on;
+    });
+  });
+
+  var compass = document.getElementById('compass');
+  var ccx = compass.getContext('2d');
+  function drawCompass(){
+    ccx.clearRect(0, 0, 80, 80);
+    var cx = 40, cy = 40, r = 28;
+    ccx.strokeStyle = '#252a36';
+    ccx.lineWidth = 1;
+    ccx.beginPath();
+    ccx.arc(cx, cy, r, 0, Math.PI*2);
+    ccx.stroke();
+
+    var axes = [
+      {dir: new THREE.Vector3(1,0,0), color: '#a388f0', label: 'y'},
+      {dir: new THREE.Vector3(0,1,0), color: '#fb7185', label: 'x'},
+      {dir: new THREE.Vector3(0,0,1), color: '#5cb8f0', label: 'B'}
+    ];
+
+    var camRight = new THREE.Vector3();
+    var camUp = new THREE.Vector3();
+    var camForward = new THREE.Vector3();
+    camera.getWorldDirection(camForward);
+    camRight.crossVectors(camForward, camera.up).normalize();
+    camUp.copy(camera.up);
+
+    axes.forEach(function(a){
+      var sx = a.dir.dot(camRight);
+      var sy = -a.dir.dot(camUp);
+      var ex = cx + sx * r * 0.75;
+      var ey = cy + sy * r * 0.75;
+      ccx.strokeStyle = a.color;
+      ccx.lineWidth = 2;
+      ccx.beginPath();
+      ccx.moveTo(cx, cy);
+      ccx.lineTo(ex, ey);
+      ccx.stroke();
+      var ang = Math.atan2(ey - cy, ex - cx);
+      ccx.beginPath();
+      ccx.moveTo(ex, ey);
+      ccx.lineTo(ex - 6*Math.cos(ang - 0.4), ey - 6*Math.sin(ang - 0.4));
+      ccx.lineTo(ex - 6*Math.cos(ang + 0.4), ey - 6*Math.sin(ang + 0.4));
+      ccx.closePath();
+      ccx.fillStyle = a.color;
+      ccx.fill();
+      ccx.font = '500 10px "IBM Plex Mono", monospace';
+      ccx.fillStyle = a.color;
+      ccx.textAlign = 'center';
+      ccx.textBaseline = 'middle';
+      var lx = cx + sx * r * 0.95;
+      var ly = cy + sy * r * 0.95;
+      ccx.fillText(a.label, lx, ly);
+    });
+  }
+
+  var clock = new THREE.Clock();
+  function animate(){
+    var elapsed = clock.getElapsedTime();
+
+    var pulse = 1 + Math.sin(elapsed * 0.6) * 0.06;
+    hot.scale.setScalar(pulse);
+    cold.scale.setScalar(pulse);
+
+    hot.userData.shellMat.uniforms.uTime.value = elapsed;
+    cold.userData.shellMat.uniforms.uTime.value = elapsed;
+
+    groupFlow.rotation.z = elapsed * 0.35;
+
+    var R = 2.8;
+    flowParticles.forEach(function(p){
+      var t = (elapsed * 0.15 + p.userData.phase) % 1;
+      var a = t * Math.PI * 2;
+      p.position.set(R * Math.cos(a), R * Math.sin(a), 0);
+      var fade = Math.sin(t * Math.PI);
+      p.material.opacity = 0.4 + fade * 0.55;
+    });
+
+    if(autoSpin){
+      camTheta += 0.0025;
+      updateCamera();
+    }
+
+    drawCompass();
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  window.addEventListener('resize', function(){
+    W = window.innerWidth; H = window.innerHeight;
+    camera.aspect = W/H;
+    camera.updateProjectionMatrix();
+    renderer.setSize(W, H);
+  });
+})();
+</script>
+</body>
+</html>

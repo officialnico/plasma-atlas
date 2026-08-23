@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curvature on CHEASE's 2D Grid</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04070d;--s1:#0b1222;--bdr:#17253f;--tx:#dfe8f5;
+  --dim:#5a7094;--mut:#2f4468;--cyan:#1fd6e8;--green:#3ee886;
+  --amber:#f5c042;--red:#ef6461;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;overflow-x:hidden;}
+.w{max-width:920px;margin:0 auto;padding:20px 14px 60px;}
+.head{text-align:center;margin-bottom:18px;}
+.head h1{font-size:clamp(20px,4.5vw,32px);font-weight:800;letter-spacing:-0.5px;margin-bottom:5px;}
+.head h1 span{color:var(--red);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:560px;margin:0 auto;line-height:1.5;}
+
+.viz{background:var(--s1);border:1px solid var(--bdr);border-radius:16px;overflow:hidden;margin-bottom:14px;}
+.vbar{padding:12px 16px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;}
+.vbar-t{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--mut);}
+canvas{display:block;width:100%;}
+
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.cg{flex:1;min-width:130px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);margin-bottom:4px;}
+.cg-r{display:flex;align-items:center;gap:6px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;min-width:32px;text-align:right;}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--bdr);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 8px rgba(245,192,66,.3);}
+
+.colorbar{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:14px;padding:8px 12px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;}
+.colorbar .bar{flex:1;max-width:260px;height:14px;border-radius:7px;background:linear-gradient(90deg,#1a8a55,#1d5c3a,#0e1a24,#6a2828,#ef6461);}
+.colorbar span{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dim);white-space:nowrap;}
+
+.expl{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+.expl h3{font-size:13px;font-weight:700;margin-bottom:6px;}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:6px;}
+.expl b{color:var(--tx);font-weight:600;}
+.ha{color:var(--amber);font-weight:600;}.hr{color:var(--red);font-weight:600;}
+.hg{color:var(--green);font-weight:600;}.hc{color:var(--cyan);font-weight:600;}
+
+.arrow-down{text-align:center;color:var(--mut);font-size:24px;margin:6px 0;letter-spacing:4px;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="head">
+    <h1>Curvature on CHEASE's <span>2D Grid</span></h1>
+    <p>This is what CHEASE actually sees: curvature as a 2D field across the entire R,Z cross-section. Pick a surface and watch it get extracted into the 1D array GENE receives.</p>
+  </div>
+
+  <div class="ctrls">
+    <div class="cg">
+      <div class="cg-l">Select Surface ρ</div>
+      <div class="cg-r"><input type="range" id="sRho" min="0.15" max="0.9" step="0.01" value="0.6"><span class="cg-v" id="vRho" style="color:var(--amber)">0.60</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Elongation</div>
+      <div class="cg-r"><input type="range" id="sE" min="1" max="2" step="0.05" value="1.4"><span class="cg-v" id="vE" style="color:var(--cyan)">1.40</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Triangularity</div>
+      <div class="cg-r"><input type="range" id="sT" min="-0.3" max="0.5" step="0.05" value="0.2"><span class="cg-v" id="vT" style="color:var(--dim)">0.20</span></div>
+    </div>
+  </div>
+
+  <div class="colorbar">
+    <span>GOOD κ (inboard)</span>
+    <div class="bar"></div>
+    <span>BAD κ (outboard)</span>
+  </div>
+
+  <!-- 2D heatmap -->
+  <div class="viz">
+    <div class="vbar">
+      <span class="vbar-t">CHEASE'S 2D CROSS-SECTION — κ(R,Z) HEATMAP</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--amber);">HOVER FOR VALUES</span>
+    </div>
+    <canvas id="cHeat" style="height:520px;"></canvas>
+  </div>
+
+  <div class="arrow-down">↓ extract along selected surface ↓</div>
+
+  <!-- 1D extracted profile -->
+  <div class="viz">
+    <div class="vbar">
+      <span class="vbar-t">EXTRACTED κ(θ) ON SELECTED SURFACE → WHAT GENE GETS</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--green);">1D ARRAY</span>
+    </div>
+    <canvas id="cProf" style="height:200px;"></canvas>
+  </div>
+
+  <div class="expl">
+    <h3 style="color:var(--amber);">What you're seeing</h3>
+    <p><b>Top:</b> The full 2D curvature field κ(R,Z) on CHEASE's cross-section grid. Every pixel is a point in the R,Z plane, colored by its local curvature value. Red on the right (outboard) = bad curvature. Green on the left (inboard) = good. The white contour lines are flux surfaces. The <span class="ha">bright highlighted ring</span> is your selected surface.</p>
+    <p><b>Bottom:</b> The 1D slice extracted by walking around that one surface. This is literally what gets written to the GENE geometry file — κ as a function of poloidal angle θ. The left plot above is the 2D reality, the bottom is the 1D projection GENE actually uses.</p>
+    <p>Hover over the 2D map to see exact κ values at any point. Drag the ρ slider to pick different surfaces and watch the extracted profile change.</p>
+  </div>
+
+  <div class="expl">
+    <h3 style="color:var(--red);">Why this matters</h3>
+    <p>The 2D heatmap makes it obvious that <b>curvature is fundamentally a 2D quantity</b> — it varies across the entire cross-section. CHEASE has to compute it everywhere to solve the equilibrium. But GENE only needs it along one field line, so the handoff is a dimensionality reduction: 2D grid → 1D array. That's the core of the CHEASE-to-GENE interface for curvature.</p>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let selRho=0.6, elong=1.4, tri=0.2;
+let hoverR=-1, hoverZ=-1, hoverK=null;
+
+function kappa(theta, rho){
+  const base=Math.cos(theta + tri*Math.sin(theta));
+  const rEffect=0.3+0.9*rho;
+  return base * rEffect / elong;
+}
+
+function surfPt(theta, rFrac, maxR){
+  const r=maxR*rFrac;
+  return{x:r*Math.cos(theta+tri*Math.sin(theta)), y:r*elong*Math.sin(theta)};
+}
+
+// Convert R,Z to rho,theta (inverse mapping)
+function rzToRhoTheta(rx, zy, maxR){
+  // Approximate: find rho and theta from position
+  // rx = r*cos(θ+δ*sin(θ)), zy = r*κ_e*sin(θ)
+  // Use iterative approach or approximate
+  const theta = Math.atan2(zy/(elong), rx);
+  // Correct for triangularity
+  const thetaCorr = theta; // simplified
+  const rGuess = Math.sqrt(rx*rx + (zy/elong)*(zy/elong));
+  const rho = rGuess/maxR;
+  return{rho:Math.min(1,Math.max(0,rho)), theta:thetaCorr};
+}
+
+function kappaColor(k){
+  // Map -1..+1 to green..dark..red
+  const t=Math.max(0,Math.min(1,(k+0.8)/1.6));
+  let r,g,b;
+  if(t<0.45){
+    const f=t/0.45;
+    r=26*(1-f)+14*f|0;
+    g=138*(1-f)+30*f|0;
+    b=85*(1-f)+36*f|0;
+  } else if(t<0.55){
+    const f=(t-0.45)/0.1;
+    r=14+f*30|0;
+    g=30-f*10|0;
+    b=36-f*10|0;
+  } else {
+    const f=(t-0.55)/0.45;
+    r=44+f*195|0;
+    g=20+f*20|0;
+    b=26+f*35|0;
+  }
+  return{r,g,b};
+}
+
+// ============ CANVASES ============
+const cH=document.getElementById('cHeat');
+const cP=document.getElementById('cProf');
+const ctxH=cH.getContext('2d');
+const ctxP=cP.getContext('2d');
+let wH,hH,wP,hP,dpr;
+
+// Offscreen buffer for heatmap
+let heatBuf=null, bufW=0, bufH=0;
+let needsRedrawHeat=true;
+
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  [cH,cP].forEach(c=>{
+    const r=c.getBoundingClientRect();
+    c.width=r.width*dpr;c.height=r.height*dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  });
+  let r=cH.getBoundingClientRect();wH=r.width;hH=r.height;
+  r=cP.getBoundingClientRect();wP=r.width;hP=r.height;
+  needsRedrawHeat=true;
+}
+
+// ============ HEATMAP ============
+function renderHeatBuffer(){
+  const cx=wH/2, cy=hH/2;
+  const maxR=Math.min(wH,hH)*0.38;
+
+  // Create offscreen canvas for the heatmap pixels
+  const res=2; // pixel step
+  const buf=document.createElement('canvas');
+  buf.width=wH;buf.height=hH;
+  const bctx=buf.getContext('2d');
+
+  // Render κ at every pixel
+  for(let px=0;px<wH;px+=res){
+    for(let py=0;py<hH;py+=res){
+      const rx=px-cx;
+      const ry=-(py-cy); // flip Y
+
+      // Check if inside plasma boundary
+      const {rho,theta}=rzToRhoTheta(rx,ry,maxR);
+      if(rho>0.02 && rho<0.98){
+        const k=kappa(theta,rho);
+        const col=kappaColor(k);
+        const alpha=0.7+0.2*(1-Math.abs(rho-0.5));
+        bctx.fillStyle=`rgba(${col.r},${col.g},${col.b},${alpha})`;
+        bctx.fillRect(px,py,res,res);
+      }
+    }
+  }
+
+  heatBuf=buf;
+  bufW=wH;bufH=hH;
+  needsRedrawHeat=false;
+}
+
+function drawHeat(){
+  ctxH.clearRect(0,0,wH,hH);
+  const cx=wH/2, cy=hH/2;
+  const maxR=Math.min(wH,hH)*0.38;
+
+  if(needsRedrawHeat || !heatBuf) renderHeatBuffer();
+
+  // Draw cached heatmap
+  ctxH.drawImage(heatBuf,0,0);
+
+  // Flux surface contours
+  for(let si=1;si<=8;si++){
+    const f=si/8;
+    const isSelected=Math.abs(f-selRho)<0.06;
+    ctxH.beginPath();
+    for(let j=0;j<=80;j++){
+      const th=(j/80)*Math.PI*2;
+      const sp=surfPt(th,f,maxR);
+      j===0?ctxH.moveTo(cx+sp.x,cy-sp.y):ctxH.lineTo(cx+sp.x,cy-sp.y);
+    }
+    ctxH.closePath();
+    if(isSelected){
+      // Glow
+      ctxH.strokeStyle='rgba(245,192,66,0.15)';ctxH.lineWidth=10;ctxH.stroke();
+      ctxH.strokeStyle='rgba(245,192,66,0.8)';ctxH.lineWidth=2;ctxH.stroke();
+    } else {
+      ctxH.strokeStyle='rgba(255,255,255,0.12)';ctxH.lineWidth=0.6;ctxH.stroke();
+    }
+  }
+
+  // Axis labels
+  ctxH.font='300 10px "JetBrains Mono",monospace';
+  ctxH.fillStyle='rgba(100,116,139,0.3)';
+  ctxH.textAlign='center';ctxH.textBaseline='middle';
+  ctxH.fillText('R →',cx+maxR+30,cy);
+  ctxH.save();
+  ctxH.translate(cx-maxR-24,cy);
+  ctxH.rotate(-Math.PI/2);
+  ctxH.fillText('Z ↑',0,0);
+  ctxH.restore();
+
+  // Outboard/inboard labels
+  ctxH.font='700 11px "JetBrains Mono",monospace';
+  ctxH.fillStyle='rgba(239,100,97,0.5)';
+  ctxH.textAlign='left';
+  ctxH.fillText('BAD κ',cx+maxR*0.7+20,cy-maxR*elong*0.1);
+  ctxH.font='300 9px "DM Sans",sans-serif';
+  ctxH.fillStyle='rgba(239,100,97,0.3)';
+  ctxH.fillText('outboard side',cx+maxR*0.7+20,cy-maxR*elong*0.1+14);
+
+  ctxH.font='700 11px "JetBrains Mono",monospace';
+  ctxH.fillStyle='rgba(62,232,134,0.5)';
+  ctxH.textAlign='right';
+  ctxH.fillText('GOOD κ',cx-maxR*0.7-20,cy-maxR*elong*0.1);
+  ctxH.font='300 9px "DM Sans",sans-serif';
+  ctxH.fillStyle='rgba(62,232,134,0.3)';
+  ctxH.fillText('inboard side',cx-maxR*0.7-20,cy-maxR*elong*0.1+14);
+
+  // Selected surface label
+  const labelPt=surfPt(-0.6,selRho,maxR);
+  ctxH.font='600 11px "JetBrains Mono",monospace';
+  ctxH.fillStyle='rgba(245,192,66,0.8)';
+  ctxH.textAlign='left';
+  ctxH.fillText(`ρ = ${selRho.toFixed(2)}`,cx+labelPt.x+12,cy-labelPt.y-4);
+  ctxH.font='300 9px "DM Sans",sans-serif';
+  ctxH.fillStyle='rgba(245,192,66,0.4)';
+  ctxH.fillText('→ extracted for GENE',cx+labelPt.x+12,cy-labelPt.y+10);
+
+  // Center
+  ctxH.font='500 8px "JetBrains Mono",monospace';
+  ctxH.fillStyle='rgba(100,116,139,0.35)';
+  ctxH.textAlign='center';
+  ctxH.fillText('AXIS',cx,cy);
+
+  // Hover crosshair + value
+  if(hoverR>=0 && hoverK!==null){
+    ctxH.strokeStyle='rgba(255,255,255,0.15)';
+    ctxH.lineWidth=0.8;ctxH.setLineDash([3,3]);
+    ctxH.beginPath();ctxH.moveTo(hoverR,0);ctxH.lineTo(hoverR,hH);ctxH.stroke();
+    ctxH.beginPath();ctxH.moveTo(0,hoverZ);ctxH.lineTo(wH,hoverZ);ctxH.stroke();
+    ctxH.setLineDash([]);
+
+    // Value tooltip
+    const col=kappaColor(hoverK);
+    const tx=Math.min(hoverR+12,wH-130);
+    const ty=Math.max(hoverZ-50,8);
+    ctxH.fillStyle='rgba(4,7,13,0.92)';
+    ctxH.strokeStyle=`rgba(${col.r},${col.g},${col.b},0.4)`;
+    ctxH.lineWidth=1;
+    ctxH.beginPath();ctxH.roundRect(tx,ty,120,42,6);ctxH.fill();ctxH.stroke();
+
+    ctxH.font='600 11px "JetBrains Mono",monospace';
+    ctxH.textAlign='left';ctxH.textBaseline='top';
+    ctxH.fillStyle=`rgb(${col.r},${col.g},${col.b})`;
+    ctxH.fillText(`κ = ${hoverK>0?'+':''}${hoverK.toFixed(3)}`,tx+8,ty+8);
+    ctxH.font='300 9px "JetBrains Mono",monospace';
+    ctxH.fillStyle='rgba(100,116,139,0.5)';
+    ctxH.fillText(hoverK>0?'bad (drives turbulence)':'good (stabilizes)',tx+8,ty+25);
+  }
+}
+
+// ============ 1D PROFILE ============
+function drawProf(){
+  ctxP.clearRect(0,0,wP,hP);
+  ctxP.fillStyle='#0b1222';ctxP.fillRect(0,0,wP,hP);
+
+  const pad={l:44,r:16,t:16,b:32};
+  const w=wP-pad.l-pad.r, h=hP-pad.t-pad.b;
+  const zeroY=pad.t+h/2;
+  const maxK=0.8;
+
+  // Zero line
+  ctxP.strokeStyle='rgba(100,116,139,0.12)';ctxP.lineWidth=1;
+  ctxP.setLineDash([4,4]);
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);ctxP.lineTo(pad.l+w,zeroY);ctxP.stroke();
+  ctxP.setLineDash([]);
+
+  // Shade
+  ctxP.fillStyle='rgba(239,100,97,0.04)';ctxP.fillRect(pad.l,pad.t,w,h/2);
+  ctxP.fillStyle='rgba(62,232,134,0.04)';ctxP.fillRect(pad.l,zeroY,w,h/2);
+
+  ctxP.font='300 7px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(239,100,97,0.3)';ctxP.textAlign='left';
+  ctxP.fillText('BAD',pad.l+3,pad.t+10);
+  ctxP.fillStyle='rgba(62,232,134,0.3)';
+  ctxP.fillText('GOOD',pad.l+3,pad.t+h-4);
+
+  // Fill areas
+  const N=200;
+
+  // Bad fill
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);
+  for(let i=0;i<=N;i++){
+    const th=(i/N)*Math.PI*2;
+    const k=kappa(th,selRho);
+    const py=zeroY-(Math.max(0,k)/maxK)*(h/2)*0.9;
+    ctxP.lineTo(pad.l+(i/N)*w,py);
+  }
+  ctxP.lineTo(pad.l+w,zeroY);ctxP.closePath();
+  ctxP.fillStyle='rgba(239,100,97,0.1)';ctxP.fill();
+
+  // Good fill
+  ctxP.beginPath();ctxP.moveTo(pad.l,zeroY);
+  for(let i=0;i<=N;i++){
+    const th=(i/N)*Math.PI*2;
+    const k=kappa(th,selRho);
+    const py=zeroY-(Math.min(0,k)/maxK)*(h/2)*0.9;
+    ctxP.lineTo(pad.l+(i/N)*w,py);
+  }
+  ctxP.lineTo(pad.l+w,zeroY);ctxP.closePath();
+  ctxP.fillStyle='rgba(62,232,134,0.1)';ctxP.fill();
+
+  // Line with color
+  for(let i=0;i<N;i++){
+    const th0=(i/N)*Math.PI*2, th1=((i+1)/N)*Math.PI*2;
+    const k0=kappa(th0,selRho), k1=kappa(th1,selRho);
+    const col=kappaColor((k0+k1)/2);
+    const px0=pad.l+(i/N)*w, px1=pad.l+((i+1)/N)*w;
+    const py0=zeroY-(k0/maxK)*(h/2)*0.9;
+    const py1=zeroY-(k1/maxK)*(h/2)*0.9;
+    ctxP.beginPath();ctxP.moveTo(px0,py0);ctxP.lineTo(px1,py1);
+    ctxP.strokeStyle=`rgb(${col.r},${col.g},${col.b})`;
+    ctxP.lineWidth=2.5;ctxP.stroke();
+  }
+
+  // X labels
+  ctxP.font='8px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(100,116,139,0.25)';
+  ctxP.textAlign='center';ctxP.textBaseline='top';
+  ['outboard','top','inboard','bottom','outboard'].forEach((l,i)=>{
+    ctxP.fillText(l,pad.l+(w/4)*i,pad.t+h+3);
+  });
+  ctxP.font='9px "JetBrains Mono",monospace';
+  ctxP.fillText('θ (poloidal angle) — this is the 1D array GENE receives →',pad.l+w/2,pad.t+h+16);
+
+  // ρ label
+  ctxP.font='600 10px "JetBrains Mono",monospace';
+  ctxP.fillStyle='rgba(245,192,66,0.6)';
+  ctxP.textAlign='right';
+  ctxP.fillText(`ρ = ${selRho.toFixed(2)}`,pad.l+w,pad.t+6);
+}
+
+// ============ HOVER ============
+cH.addEventListener('mousemove',e=>{
+  const rect=cH.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const cx=wH/2,cy=hH/2,maxR=Math.min(wH,hH)*0.38;
+  const rx=mx-cx, ry=-(my-cy);
+  const{rho,theta}=rzToRhoTheta(rx,ry,maxR);
+  if(rho>0.02&&rho<0.98){
+    hoverR=mx;hoverZ=my;
+    hoverK=kappa(theta,rho);
+  } else {
+    hoverR=-1;hoverK=null;
+  }
+  drawHeat();
+});
+cH.addEventListener('mouseleave',()=>{hoverR=-1;hoverK=null;drawHeat();});
+
+cH.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const rect=cH.getBoundingClientRect();
+  const mx=e.touches[0].clientX-rect.left, my=e.touches[0].clientY-rect.top;
+  const cx=wH/2,cy=hH/2,maxR=Math.min(wH,hH)*0.38;
+  const rx=mx-cx, ry=-(my-cy);
+  const{rho,theta}=rzToRhoTheta(rx,ry,maxR);
+  if(rho>0.02&&rho<0.98){hoverR=mx;hoverZ=my;hoverK=kappa(theta,rho);}
+  else{hoverR=-1;hoverK=null;}
+  drawHeat();
+},{passive:false});
+cH.addEventListener('touchend',()=>{hoverR=-1;hoverK=null;drawHeat();});
+
+// ============ CONTROLS ============
+document.getElementById('sRho').addEventListener('input',e=>{
+  selRho=parseFloat(e.target.value);
+  document.getElementById('vRho').textContent=selRho.toFixed(2);
+  drawHeat();drawProf();
+});
+document.getElementById('sE').addEventListener('input',e=>{
+  elong=parseFloat(e.target.value);
+  document.getElementById('vE').textContent=elong.toFixed(2);
+  needsRedrawHeat=true;drawHeat();drawProf();
+});
+document.getElementById('sT').addEventListener('input',e=>{
+  tri=parseFloat(e.target.value);
+  document.getElementById('vT').textContent=tri.toFixed(2);
+  needsRedrawHeat=true;drawHeat();drawProf();
+});
+
+// ============ INIT ============
+function init(){
+  resize();drawHeat();drawProf();
+}
+window.addEventListener('resize',()=>{resize();needsRedrawHeat=true;drawHeat();drawProf();});
+init();
+</script>
+</body>
+</html>

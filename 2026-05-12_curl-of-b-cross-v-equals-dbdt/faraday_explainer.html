@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How the hell does ∇×(v×B) = −∂B/∂t</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script async src="../_lib/mathjax/tex-svg.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --ink: #ece8d8;
+    --ink-dim: #8a8578;
+    --paper: #1a1a24;
+    --line: #2a2a38;
+    --B: #e8b54a;        /* magnetic field – warm gold */
+    --v: #4ecdc4;        /* velocity – teal */
+    --vxB: #c77dff;      /* v×B – violet */
+    --E: #ff6b6b;        /* induced E / curl – coral */
+    --accent: #f0e4c1;
+    --grid: rgba(236, 232, 216, 0.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    overflow-x: hidden;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(232,181,74,0.04), transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(78,205,196,0.04), transparent 50%),
+      var(--bg);
+    min-height: 100vh;
+    padding: 60px 20px 120px;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  /* --- HEADER --- */
+  .header { margin-bottom: 80px; }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(38px, 6vw, 72px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 24px;
+  }
+  h1 .accent { color: var(--B); font-style: italic; }
+  h1 .accent2 { color: var(--v); font-style: italic; }
+  .subtitle {
+    font-size: 19px;
+    color: var(--ink-dim);
+    max-width: 640px;
+    line-height: 1.5;
+  }
+  .hero-eq {
+    margin: 50px 0 0;
+    padding: 30px;
+    background: var(--paper);
+    border-left: 3px solid var(--B);
+    font-size: 22px;
+    text-align: center;
+  }
+
+  /* --- SCENES --- */
+  .scene {
+    margin: 100px 0;
+    padding: 40px 0;
+  }
+  .scene-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-dim);
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 18px;
+  }
+  h2 em { font-style: italic; color: var(--B); }
+  .lede {
+    font-size: 18px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin-bottom: 30px;
+    max-width: 720px;
+  }
+  .lede.dim { color: var(--ink-dim); }
+  p { line-height: 1.7; margin-bottom: 18px; max-width: 720px; }
+  .canvas-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 30px;
+    margin: 30px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .canvas-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 30px 30px;
+    pointer-events: none;
+  }
+  svg { display: block; margin: 0 auto; position: relative; z-index: 1; max-width: 100%; }
+  .caption {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-dim);
+    text-align: center;
+    margin-top: 16px;
+    letter-spacing: 0.05em;
+  }
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 2;
+  }
+  button {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 10px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  button:hover {
+    border-color: var(--B);
+    color: var(--B);
+  }
+  button.active {
+    background: var(--B);
+    color: var(--bg);
+    border-color: var(--B);
+  }
+
+  /* legends and inline tags */
+  .legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 16px 0 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-dim);
+    position: relative;
+    z-index: 2;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 14px; height: 3px; display: inline-block; }
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+  }
+  .tag.B { color: var(--B); }
+  .tag.v { color: var(--v); }
+  .tag.vxB { color: var(--vxB); }
+  .tag.E { color: var(--E); }
+
+  .pull {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 24px;
+    line-height: 1.4;
+    color: var(--accent);
+    border-left: 2px solid var(--B);
+    padding: 8px 0 8px 24px;
+    margin: 30px 0;
+    max-width: 680px;
+  }
+
+  .step-list { counter-reset: step; margin: 30px 0; }
+  .step {
+    counter-increment: step;
+    position: relative;
+    padding: 16px 0 16px 50px;
+    border-bottom: 1px solid var(--line);
+    max-width: 720px;
+  }
+  .step:last-child { border-bottom: none; }
+  .step::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    letter-spacing: 0.1em;
+  }
+
+  .punchline {
+    margin: 80px 0 40px;
+    padding: 50px 40px;
+    background: linear-gradient(135deg, rgba(232,181,74,0.06), rgba(78,205,196,0.06));
+    border: 1px solid var(--line);
+    text-align: center;
+  }
+  .punchline h2 { font-size: 36px; margin-bottom: 20px; }
+  .punchline p { margin: 0 auto 20px; font-size: 18px; }
+
+  hr.rule {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 40px 0;
+    max-width: 100%;
+  }
+
+  /* MathJax tweaks */
+  mjx-container { color: var(--ink); }
+  mjx-container[display="true"] { margin: 1em 0 !important; }
+
+  .footer {
+    margin-top: 100px;
+    padding-top: 30px;
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============== HEADER ============== -->
+  <header class="header">
+    <div class="eyebrow">An identity in vector calculus / electromagnetism</div>
+    <h1>How does <span class="accent">∇×(v×B)</span> equal <span class="accent2">−∂B/∂t</span>?</h1>
+    <p class="subtitle">Spoiler: it's not magic, it's bookkeeping. If a magnetic field is moving past you, every "change in time" you measure is just the field's spatial structure sliding by. Let's build it.</p>
+    <div class="hero-eq">
+      $$\nabla \times (\mathbf{v} \times \mathbf{B}) \;=\; -\,\frac{\partial \mathbf{B}}{\partial t}$$
+    </div>
+    <p class="caption" style="margin-top:8px">(when <strong>v</strong> is a uniform rigid translation and ∇·<strong>B</strong> = 0)</p>
+  </header>
+
+  <!-- ============== SCENE 1: 1D INTUITION ============== -->
+  <section class="scene">
+    <div class="scene-num">SCENE 01 — The 1D warm-up</div>
+    <h2>If a <em>shape</em> slides past you, "time change" is just "spatial slope" times speed.</h2>
+    <p class="lede">Forget vectors for a sec. Imagine a wavy curve <em>f(x)</em> printed on a long ribbon. The ribbon is dragged to the right at speed <span class="tag v">v</span>. You're a stationary dot. What do <strong>you</strong> see over time?</p>
+
+    <div class="canvas-card">
+      <svg id="scene1" viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--B)"></span> f(x) — the field shape on the ribbon</span>
+        <span><span class="swatch" style="background:var(--E)"></span> what the stationary observer measures</span>
+      </div>
+      <div class="controls">
+        <button id="s1-play" class="active">▶ Play</button>
+        <button id="s1-pause">⏸ Pause</button>
+        <button id="s1-reset">↻ Reset</button>
+      </div>
+    </div>
+
+    <p>The observer sits at <em>x = x₀</em>. At time <em>t</em>, the ribbon has shifted by <em>vt</em>, so the value at the observer's location is <em>f(x₀ − vt)</em>. Take the time derivative:</p>
+    <div style="text-align:center; margin: 20px 0;">
+      $$\frac{\partial}{\partial t}\, f(x - vt) \;=\; -\,v \cdot f'(x - vt) \;=\; -\,v\,\frac{\partial f}{\partial x}$$
+    </div>
+    <div class="pull">"How fast does the field change <em>here</em>?" = "How steep is it next to me?" × "How fast is it sliding past."</div>
+    <p>That minus sign is the whole story. If the field is rising in space (positive slope) <em>and</em> moving right, then what's <em>arriving</em> at your point is the lower stuff behind it — so locally, the value <strong>drops</strong>. Spatial up + motion right = temporal down. Hence the minus.</p>
+  </section>
+
+  <!-- ============== SCENE 2: GENERALIZE TO 3D ============== -->
+  <section class="scene">
+    <div class="scene-num">SCENE 02 — Promote it to 3D vectors</div>
+    <h2>Same idea. Now the "shape" is a <em>vector field</em>, and the slide is a <em>vector velocity</em>.</h2>
+    <p class="lede">Let <span class="tag B">B(r)</span> be a static magnetic-field pattern frozen in space. Now imagine the entire pattern rigidly translates with velocity <span class="tag v">v</span>. The field "at point r at time t" becomes:</p>
+    <div style="text-align:center; margin: 20px 0;">
+      $$\mathbf{B}(\mathbf{r},\, t) \;=\; \mathbf{B}_0(\mathbf{r} - \mathbf{v}\,t)$$
+    </div>
+    <p>Differentiate with respect to time, exactly like the 1D case but with a vector chain rule:</p>
+    <div style="text-align:center; margin: 20px 0;">
+      $$\frac{\partial \mathbf{B}}{\partial t} \;=\; -\,(\mathbf{v}\cdot\nabla)\,\mathbf{B}$$
+    </div>
+    <p>So <strong>that's</strong> what the time-change is: the directional derivative of <strong>B</strong> along <strong>v</strong>, with a minus. We've already crossed half the bridge. All that's left is to show ∇×(<strong>v</strong>×<strong>B</strong>) is the <em>same thing</em>.</p>
+
+    <div class="canvas-card">
+      <svg id="scene2" viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="caption">A non-uniform <strong>B</strong> pattern (gold arrows) being dragged at <strong>v</strong> (teal). Watch the field "arriving" at any fixed grid point.</div>
+      <div class="controls">
+        <button id="s2-play" class="active">▶ Play</button>
+        <button id="s2-pause">⏸ Pause</button>
+        <button id="s2-reset">↻ Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== SCENE 3: THE BAC-CAB IDENTITY ============== -->
+  <section class="scene">
+    <div class="scene-num">SCENE 03 — The algebra (it's just one identity)</div>
+    <h2>Crack open ∇×(v×B) with the <em>BAC–CAB</em> rule.</h2>
+    <p class="lede">There's a standard vector-calculus identity for the curl of a cross product:</p>
+    <div style="text-align:center; margin: 24px 0;">
+      $$\nabla\times(\mathbf{A}\times\mathbf{B}) = \mathbf{A}(\nabla\!\cdot\!\mathbf{B}) - \mathbf{B}(\nabla\!\cdot\!\mathbf{A}) + (\mathbf{B}\!\cdot\!\nabla)\mathbf{A} - (\mathbf{A}\!\cdot\!\nabla)\mathbf{B}$$
+    </div>
+    <p>Plug in <strong>A</strong> = <strong>v</strong>, <strong>B</strong> = <strong>B</strong>:</p>
+    <div style="text-align:center; margin: 24px 0;">
+      $$\nabla\times(\mathbf{v}\times\mathbf{B}) = \underbrace{\mathbf{v}(\nabla\!\cdot\!\mathbf{B})}_{\textbf{= 0}} - \underbrace{\mathbf{B}(\nabla\!\cdot\!\mathbf{v})}_{\textbf{= 0}} + \underbrace{(\mathbf{B}\!\cdot\!\nabla)\mathbf{v}}_{\textbf{= 0}} - (\mathbf{v}\!\cdot\!\nabla)\mathbf{B}$$
+    </div>
+
+    <div class="step-list">
+      <div class="step"><strong>∇·B = 0</strong> — Maxwell's no-monopole law. Always. Term gone.</div>
+      <div class="step"><strong>∇·v = 0</strong> — for a uniform rigid translation, <strong>v</strong> is constant in space, so all its derivatives vanish. Term gone.</div>
+      <div class="step"><strong>(B·∇)v = 0</strong> — same reason: <strong>v</strong> has no spatial variation, so any directional derivative of it is zero. Term gone.</div>
+      <div class="step">What survives: <strong>−(v·∇)B</strong>. Exactly the thing we just computed for ∂B/∂t.</div>
+    </div>
+
+    <div style="text-align:center; margin: 30px 0;">
+      $$\boxed{\;\nabla\times(\mathbf{v}\times\mathbf{B}) = -(\mathbf{v}\!\cdot\!\nabla)\,\mathbf{B} = -\frac{\partial \mathbf{B}}{\partial t}\;}$$
+    </div>
+    <p class="lede dim">The cross product and the curl, taken together, are doing exactly the same thing as a directional derivative. It looks mystical because two operators with intimidating notation conspire to produce a simple geometric fact — the field is sliding past, and the bookkeeping just has to match.</p>
+  </section>
+
+  <!-- ============== SCENE 4: GEOMETRIC PICTURE OF CURL ============== -->
+  <section class="scene">
+    <div class="scene-num">SCENE 04 — Why the <em>curl</em> specifically?</div>
+    <h2>The cross product <em>tilts</em> the field — and the curl reads off how the tilt swirls.</h2>
+    <p class="lede">Here's the geometric story, the one that makes it feel inevitable rather than algebraic. Pick a moving conductor sliding through a non-uniform <span class="tag B">B</span>. In its rest frame, charges feel a force per unit charge of <span class="tag vxB">v × B</span>. That's effectively an induced electric field. Now: where the induced field <strong>curls</strong>, flux is changing.</p>
+
+    <div class="canvas-card">
+      <svg id="scene3" viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--B)"></span> B (out of / into page, size varies left→right)</span>
+        <span><span class="swatch" style="background:var(--v)"></span> v (rightward)</span>
+        <span><span class="swatch" style="background:var(--vxB)"></span> v × B (the induced E)</span>
+        <span><span class="swatch" style="background:var(--E)"></span> curl ≠ 0 here</span>
+      </div>
+      <div class="controls">
+        <button id="s3-play" class="active">▶ Play</button>
+        <button id="s3-pause">⏸ Pause</button>
+        <button id="s3-reset">↻ Reset</button>
+      </div>
+    </div>
+
+    <p>Look at the violet vectors. They all point the same direction (upward, say), but their <strong>length</strong> varies with x because |<strong>B</strong>| varies with x. A vector field whose magnitude changes perpendicular to its direction — <strong>that's a curl</strong>. Stick a tiny paddlewheel in it and it spins. The spin axis points out of the page (or into it, depending on the gradient's sign). And that direction is exactly <strong>−∂B/∂t</strong> for our sliding field.</p>
+  </section>
+
+  <!-- ============== PUNCHLINE ============== -->
+  <section class="punchline">
+    <h2>The whole equation, in one sentence:</h2>
+    <p>A moving magnetic field configuration registers as a time-changing field at any fixed point, and the cross product of velocity with that field — once you take its curl — packages that same information.</p>
+    <p style="color: var(--ink-dim); font-size: 16px;">It's a coordinate change between two ways of seeing the same flux: spatial structure carried by motion, or temporal change measured in place.</p>
+  </section>
+
+  <!-- ============== APPENDIX: connection to Faraday ============== -->
+  <section class="scene">
+    <div class="scene-num">APPENDIX — Why this identity is named after Faraday</div>
+    <h2>The motional EMF and the transformer EMF are the same EMF.</h2>
+    <p>Faraday's law in its full form is $\nabla \times \mathbf{E} = -\partial \mathbf{B}/\partial t$. In a frame where the field is just sliding by, you can compute the EMF two ways:</p>
+    <ul style="margin: 20px 0 20px 30px; line-height: 1.8;">
+      <li><strong>"Motional" view:</strong> charges in the conductor feel <strong>v × B</strong>, take the line integral around a loop, get an EMF.</li>
+      <li><strong>"Transformer" view:</strong> at any fixed point, <strong>B</strong> is changing in time, so by Faraday there's an induced <strong>E</strong> with curl <strong>−∂B/∂t</strong>.</li>
+    </ul>
+    <p>This identity is exactly the statement that <em>these two pictures give the same answer</em>. The motional EMF, viewed as a curl, equals the rate of flux change. That's not a coincidence — it's relativity peeking through 19th-century equations.</p>
+  </section>
+
+  <div class="footer">∇ × (v × B) = −∂B/∂t · made with vectors, calculus, and spite at differential geometry</div>
+</div>
+
+<script>
+  /* =======================================================
+     SCENE 1: 1D ribbon dragging past a stationary observer
+     ======================================================= */
+  (function(){
+    const svg = document.getElementById('scene1');
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 800, H = 280;
+    const baseY = 140;
+    const obsX = 400;
+
+    // Axis
+    const ax = document.createElementNS(NS, 'line');
+    ax.setAttribute('x1', 40); ax.setAttribute('x2', W-40);
+    ax.setAttribute('y1', baseY); ax.setAttribute('y2', baseY);
+    ax.setAttribute('stroke', 'rgba(236,232,216,0.2)');
+    ax.setAttribute('stroke-width', 1);
+    svg.appendChild(ax);
+
+    // observer marker (vertical dashed)
+    const obs = document.createElementNS(NS, 'line');
+    obs.setAttribute('x1', obsX); obs.setAttribute('x2', obsX);
+    obs.setAttribute('y1', 20); obs.setAttribute('y2', H-20);
+    obs.setAttribute('stroke', 'var(--E)');
+    obs.setAttribute('stroke-width', 1.5);
+    obs.setAttribute('stroke-dasharray', '4 4');
+    obs.setAttribute('opacity', 0.7);
+    svg.appendChild(obs);
+
+    const obsLabel = document.createElementNS(NS, 'text');
+    obsLabel.setAttribute('x', obsX+8); obsLabel.setAttribute('y', 35);
+    obsLabel.setAttribute('fill', 'var(--E)');
+    obsLabel.setAttribute('font-family','JetBrains Mono, monospace');
+    obsLabel.setAttribute('font-size', 11);
+    obsLabel.textContent = 'observer at x₀';
+    svg.appendChild(obsLabel);
+
+    // ribbon (f curve) — define f(x) = sin-ish bump
+    function f(u){
+      // pretty wavy curve, mostly positive
+      return 70 * Math.exp(-Math.pow((u)/120,2)) * Math.cos(u/35);
+    }
+
+    const curve = document.createElementNS(NS, 'path');
+    curve.setAttribute('fill','none');
+    curve.setAttribute('stroke','var(--B)');
+    curve.setAttribute('stroke-width', 2.5);
+    svg.appendChild(curve);
+
+    // dot at the observer's position on the curve
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('r', 6);
+    dot.setAttribute('fill', 'var(--E)');
+    svg.appendChild(dot);
+
+    // measured-value trace at the right (a vertical track over time)
+    const trackX0 = 700;
+    const trackTop = 40, trackBot = 240;
+    const track = document.createElementNS(NS, 'line');
+    track.setAttribute('x1', trackX0); track.setAttribute('x2', trackX0);
+    track.setAttribute('y1', trackTop); track.setAttribute('y2', trackBot);
+    track.setAttribute('stroke','rgba(236,232,216,0.15)');
+    svg.appendChild(track);
+
+    const trackLabel = document.createElementNS(NS,'text');
+    trackLabel.setAttribute('x', trackX0+10); trackLabel.setAttribute('y', trackTop-6);
+    trackLabel.setAttribute('fill','var(--ink-dim)');
+    trackLabel.setAttribute('font-family','JetBrains Mono, monospace');
+    trackLabel.setAttribute('font-size', 10);
+    trackLabel.textContent = 'value at x₀ (over time)';
+    svg.appendChild(trackLabel);
+
+    const tracePath = document.createElementNS(NS, 'path');
+    tracePath.setAttribute('fill','none');
+    tracePath.setAttribute('stroke','var(--E)');
+    tracePath.setAttribute('stroke-width', 2);
+    svg.appendChild(tracePath);
+
+    // velocity arrow
+    function makeArrow(x1,y1,x2,y2,color,w=2){
+      const g = document.createElementNS(NS,'g');
+      const ln = document.createElementNS(NS,'line');
+      ln.setAttribute('x1',x1);ln.setAttribute('y1',y1);
+      ln.setAttribute('x2',x2);ln.setAttribute('y2',y2);
+      ln.setAttribute('stroke',color);ln.setAttribute('stroke-width',w);
+      ln.setAttribute('stroke-linecap','round');
+      g.appendChild(ln);
+      const ang = Math.atan2(y2-y1, x2-x1);
+      const ah = 7;
+      const ap = document.createElementNS(NS,'polygon');
+      const px = x2, py = y2;
+      const p1x = px - ah*Math.cos(ang - Math.PI/7);
+      const p1y = py - ah*Math.sin(ang - Math.PI/7);
+      const p2x = px - ah*Math.cos(ang + Math.PI/7);
+      const p2y = py - ah*Math.sin(ang + Math.PI/7);
+      ap.setAttribute('points', `${px},${py} ${p1x},${p1y} ${p2x},${p2y}`);
+      ap.setAttribute('fill', color);
+      g.appendChild(ap);
+      return g;
+    }
+
+    const vArrow = makeArrow(80,baseY-95, 180, baseY-95, 'var(--v)', 2.5);
+    svg.appendChild(vArrow);
+    const vLbl = document.createElementNS(NS,'text');
+    vLbl.setAttribute('x',120);vLbl.setAttribute('y',baseY-105);
+    vLbl.setAttribute('fill','var(--v)');
+    vLbl.setAttribute('font-family','Fraunces, serif');
+    vLbl.setAttribute('font-size',16);
+    vLbl.setAttribute('font-style','italic');
+    vLbl.textContent='v';
+    svg.appendChild(vLbl);
+
+    let t = 0, running = true, traceHistory = [];
+    const v = 1.2;
+
+    function draw(){
+      // build curve f(x - vt) over x in [40, 660]
+      let d = '';
+      for(let px = 40; px <= 660; px += 3){
+        const u = (px - 350) - v*t; // centered around x=350
+        const y = baseY - f(u);
+        d += (px === 40 ? 'M' : 'L') + px + ' ' + y + ' ';
+      }
+      curve.setAttribute('d', d);
+
+      // dot
+      const uObs = (obsX - 350) - v*t;
+      const yObs = baseY - f(uObs);
+      dot.setAttribute('cx', obsX);
+      dot.setAttribute('cy', yObs);
+
+      // record trace
+      traceHistory.push(yObs);
+      if(traceHistory.length > 180) traceHistory.shift();
+
+      // draw trace: time goes downward
+      let td = '';
+      for(let i = 0; i < traceHistory.length; i++){
+        const y = trackTop + (i/180)*(trackBot - trackTop);
+        const offset = traceHistory[traceHistory.length-1-i] - baseY; // signed deviation
+        const x = trackX0 + offset * 0.7;
+        td += (i===0?'M':'L') + x + ' ' + y + ' ';
+      }
+      tracePath.setAttribute('d', td);
+    }
+    draw();
+
+    function loop(){
+      if(running){ t += 1; draw(); }
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    document.getElementById('s1-play').onclick = () => { running = true; setActive('s1-play'); };
+    document.getElementById('s1-pause').onclick = () => { running = false; setActive('s1-pause'); };
+    document.getElementById('s1-reset').onclick = () => { t = 0; traceHistory = []; draw(); };
+    function setActive(id){
+      ['s1-play','s1-pause'].forEach(i=>document.getElementById(i).classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+  })();
+
+  /* =======================================================
+     SCENE 2: 2D field pattern sliding right
+     ======================================================= */
+  (function(){
+    const svg = document.getElementById('scene2');
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 800, H = 360;
+
+    // grid sample points
+    const cols = 18, rows = 8;
+    const xs = [], ys = [];
+    for(let i = 0; i < cols; i++) xs.push(50 + i*(700/(cols-1)));
+    for(let j = 0; j < rows; j++) ys.push(40 + j*(280/(rows-1)));
+
+    // a non-uniform B field pattern: B = (0, B_y(x)) with B_y bumping
+    // We'll just visualize as arrows whose length depends on (x - vt)
+    function Bmag(u){
+      return 22 + 18*Math.exp(-Math.pow((u-100)/150, 2)) - 12*Math.exp(-Math.pow((u+150)/120, 2));
+    }
+
+    function makeArrow(x1,y1,x2,y2,color,w=1.5){
+      const g = document.createElementNS(NS,'g');
+      const ln = document.createElementNS(NS,'line');
+      ln.setAttribute('x1',x1);ln.setAttribute('y1',y1);
+      ln.setAttribute('x2',x2);ln.setAttribute('y2',y2);
+      ln.setAttribute('stroke',color);ln.setAttribute('stroke-width',w);
+      ln.setAttribute('stroke-linecap','round');
+      g.appendChild(ln);
+      const ang = Math.atan2(y2-y1, x2-x1);
+      const ah = 5;
+      const ap = document.createElementNS(NS,'polygon');
+      const px = x2, py = y2;
+      const p1x = px - ah*Math.cos(ang - Math.PI/7);
+      const p1y = py - ah*Math.sin(ang - Math.PI/7);
+      const p2x = px - ah*Math.cos(ang + Math.PI/7);
+      const p2y = py - ah*Math.sin(ang + Math.PI/7);
+      ap.setAttribute('points', `${px},${py} ${p1x},${p1y} ${p2x},${p2y}`);
+      ap.setAttribute('fill', color);
+      g.appendChild(ap);
+      return g;
+    }
+
+    const arrowsLayer = document.createElementNS(NS,'g');
+    svg.appendChild(arrowsLayer);
+
+    // velocity vector indicator at top
+    const vArrow = makeArrow(40, 20, 140, 20, 'var(--v)', 2.5);
+    svg.appendChild(vArrow);
+    const vLbl = document.createElementNS(NS,'text');
+    vLbl.setAttribute('x',60);vLbl.setAttribute('y',14);
+    vLbl.setAttribute('fill','var(--v)');
+    vLbl.setAttribute('font-family','Fraunces, serif');
+    vLbl.setAttribute('font-style','italic');
+    vLbl.setAttribute('font-size',16);
+    vLbl.textContent = 'v (drag of the whole field pattern)';
+    svg.appendChild(vLbl);
+
+    // highlight a "fixed point" with a small ring
+    const fixedX = 500, fixedY = 180;
+    const ring = document.createElementNS(NS,'circle');
+    ring.setAttribute('cx',fixedX);ring.setAttribute('cy',fixedY);
+    ring.setAttribute('r',14);ring.setAttribute('fill','none');
+    ring.setAttribute('stroke','var(--E)');ring.setAttribute('stroke-width',1.5);
+    ring.setAttribute('stroke-dasharray','3 3');
+    svg.appendChild(ring);
+    const ringLbl = document.createElementNS(NS,'text');
+    ringLbl.setAttribute('x',fixedX+22);ringLbl.setAttribute('y',fixedY+4);
+    ringLbl.setAttribute('fill','var(--E)');
+    ringLbl.setAttribute('font-family','JetBrains Mono, monospace');
+    ringLbl.setAttribute('font-size',11);
+    ringLbl.textContent='fixed point — watch B change here';
+    svg.appendChild(ringLbl);
+
+    let t = 0, running = true;
+    const vel = 1.5;
+
+    function draw(){
+      arrowsLayer.innerHTML = '';
+      for(const x of xs){
+        for(const y of ys){
+          const u = (x - 400) - vel*t;
+          const mag = Bmag(u);
+          // arrow points up, length = mag
+          const a = makeArrow(x, y + mag/2, x, y - mag/2, 'var(--B)', 1.4);
+          arrowsLayer.appendChild(a);
+        }
+      }
+    }
+    draw();
+
+    function loop(){
+      if(running){ t += 1; draw(); }
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    document.getElementById('s2-play').onclick = () => { running = true; setActive('s2-play'); };
+    document.getElementById('s2-pause').onclick = () => { running = false; setActive('s2-pause'); };
+    document.getElementById('s2-reset').onclick = () => { t = 0; draw(); };
+    function setActive(id){
+      ['s2-play','s2-pause'].forEach(i=>document.getElementById(i).classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+  })();
+
+  /* =======================================================
+     SCENE 3: B (out of page, varying), v rightward,
+     v × B vectors, and a paddlewheel showing curl
+     ======================================================= */
+  (function(){
+    const svg = document.getElementById('scene3');
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 800, H = 460;
+
+    // ----- Top half: dots representing B coming out of page -----
+    // |B| varies with x: stronger on the right
+    function Bstrength(x){ return 0.3 + 1.2 * (x - 80) / (720 - 80); }
+
+    const cols = 13, rows = 4;
+    for(let i = 0; i < cols; i++){
+      for(let j = 0; j < rows; j++){
+        const x = 80 + i*(640/(cols-1));
+        const y = 40 + j*(120/(rows-1));
+        const s = Bstrength(x);
+        const c = document.createElementNS(NS,'circle');
+        c.setAttribute('cx', x); c.setAttribute('cy', y);
+        c.setAttribute('r', 2 + s*5);
+        c.setAttribute('fill', 'var(--B)');
+        c.setAttribute('opacity', 0.85);
+        svg.appendChild(c);
+        // inner dot for "out of page" marker
+        const inner = document.createElementNS(NS,'circle');
+        inner.setAttribute('cx',x);inner.setAttribute('cy',y);
+        inner.setAttribute('r', 1);
+        inner.setAttribute('fill','var(--bg)');
+        svg.appendChild(inner);
+      }
+    }
+
+    // Label
+    const tx1 = document.createElementNS(NS,'text');
+    tx1.setAttribute('x',40);tx1.setAttribute('y',30);
+    tx1.setAttribute('fill','var(--B)');
+    tx1.setAttribute('font-family','Fraunces, serif');
+    tx1.setAttribute('font-style','italic');
+    tx1.setAttribute('font-size',15);
+    tx1.textContent = 'B (out of page) — getting stronger to the right →';
+    svg.appendChild(tx1);
+
+    // velocity arrow
+    function makeArrow(x1,y1,x2,y2,color,w=2){
+      const g = document.createElementNS(NS,'g');
+      const ln = document.createElementNS(NS,'line');
+      ln.setAttribute('x1',x1);ln.setAttribute('y1',y1);
+      ln.setAttribute('x2',x2);ln.setAttribute('y2',y2);
+      ln.setAttribute('stroke',color);ln.setAttribute('stroke-width',w);
+      ln.setAttribute('stroke-linecap','round');
+      g.appendChild(ln);
+      const ang = Math.atan2(y2-y1, x2-x1);
+      const ah = 7;
+      const ap = document.createElementNS(NS,'polygon');
+      const px = x2, py = y2;
+      const p1x = px - ah*Math.cos(ang - Math.PI/7);
+      const p1y = py - ah*Math.sin(ang - Math.PI/7);
+      const p2x = px - ah*Math.cos(ang + Math.PI/7);
+      const p2y = py - ah*Math.sin(ang + Math.PI/7);
+      ap.setAttribute('points', `${px},${py} ${p1x},${p1y} ${p2x},${p2y}`);
+      ap.setAttribute('fill', color);
+      g.appendChild(ap);
+      return g;
+    }
+
+    // Middle: v arrow
+    const vMid = makeArrow(80, 215, 220, 215, 'var(--v)', 3);
+    svg.appendChild(vMid);
+    const vTxt = document.createElementNS(NS,'text');
+    vTxt.setAttribute('x',230);vTxt.setAttribute('y',220);
+    vTxt.setAttribute('fill','var(--v)');
+    vTxt.setAttribute('font-family','Fraunces, serif');
+    vTxt.setAttribute('font-style','italic');
+    vTxt.setAttribute('font-size',18);
+    vTxt.textContent = 'v (rightward, uniform)';
+    svg.appendChild(vTxt);
+
+    // Bottom half: v × B vectors at sample x positions
+    // For v = v x̂ and B = B(x) ẑ, v × B = -vB ŷ (so they point DOWN in 3D y-axis; we'll draw as upward in screen since screen-y is flipped... actually let's just say "upward" for visual clarity; the *gradient* is the point)
+    // To keep things visually intuitive: we'll draw them all pointing UP, with length proportional to B(x). The KEY point is length varies along x, which produces curl.
+    const baseY = 350;
+    const arrowsG = document.createElementNS(NS,'g');
+    svg.appendChild(arrowsG);
+
+    let phase = 0, running = true;
+    const NCOLS = 9;
+    function draw(){
+      arrowsG.innerHTML = '';
+      for(let i = 0; i < NCOLS; i++){
+        const x = 100 + i*(620/(NCOLS-1));
+        const s = Bstrength(x);
+        const len = 30 + s*55;
+        // small pulse animation just for life
+        const pulse = 1 + 0.05*Math.sin(phase + i*0.4);
+        const a = makeArrow(x, baseY + 10, x, baseY - len*pulse, 'var(--vxB)', 2.2);
+        arrowsG.appendChild(a);
+      }
+      // paddlewheel: place it in the middle, where curl is happening
+      const cx = 400, cy = baseY - 50;
+      const wheel = document.createElementNS(NS,'g');
+      wheel.setAttribute('transform', `translate(${cx},${cy}) rotate(${phase*40})`);
+      const ring = document.createElementNS(NS,'circle');
+      ring.setAttribute('r',24);
+      ring.setAttribute('fill','none');
+      ring.setAttribute('stroke','var(--E)');
+      ring.setAttribute('stroke-width',1.5);
+      wheel.appendChild(ring);
+      for(let k = 0; k < 4; k++){
+        const ang = k*Math.PI/2;
+        const ln = document.createElementNS(NS,'line');
+        ln.setAttribute('x1',0);ln.setAttribute('y1',0);
+        ln.setAttribute('x2', 22*Math.cos(ang));
+        ln.setAttribute('y2', 22*Math.sin(ang));
+        ln.setAttribute('stroke','var(--E)');
+        ln.setAttribute('stroke-width',2);
+        wheel.appendChild(ln);
+      }
+      arrowsG.appendChild(wheel);
+
+      const wlbl = document.createElementNS(NS,'text');
+      wlbl.setAttribute('x', cx+35);
+      wlbl.setAttribute('y', cy+5);
+      wlbl.setAttribute('fill','var(--E)');
+      wlbl.setAttribute('font-family','JetBrains Mono, monospace');
+      wlbl.setAttribute('font-size',11);
+      wlbl.textContent = '∇×(v×B) ≠ 0';
+      arrowsG.appendChild(wlbl);
+    }
+    draw();
+
+    const vxBlbl = document.createElementNS(NS,'text');
+    vxBlbl.setAttribute('x',40);vxBlbl.setAttribute('y',430);
+    vxBlbl.setAttribute('fill','var(--vxB)');
+    vxBlbl.setAttribute('font-family','Fraunces, serif');
+    vxBlbl.setAttribute('font-style','italic');
+    vxBlbl.setAttribute('font-size',15);
+    vxBlbl.textContent = 'v × B — same direction, but |v × B| grows to the right. That gradient = curl.';
+    svg.appendChild(vxBlbl);
+
+    function loop(){
+      if(running){ phase += 0.05; draw(); }
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    document.getElementById('s3-play').onclick = () => { running = true; setActive('s3-play'); };
+    document.getElementById('s3-pause').onclick = () => { running = false; setActive('s3-pause'); };
+    document.getElementById('s3-reset').onclick = () => { phase = 0; draw(); };
+    function setActive(id){
+      ['s3-play','s3-pause'].forEach(i=>document.getElementById(i).classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+  })();
+</script>
+</body>
+</html>

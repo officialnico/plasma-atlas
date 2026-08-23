@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where Is U Negative? · Attractive vs Repulsive Regions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f1e8;
+  --bg-2: #ebe4d2;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --attractive: #2e6f9c;
+  --repulsive: #c8482e;
+  --neutral: #d4a017;
+  --highlight: #d4a017;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 28px 60px;
+}
+
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 22px;
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--attractive);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--attractive);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 60px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(30px, 4.5vw, 46px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  margin-bottom: 12px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--attractive);
+}
+
+.deck {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 64ch;
+  font-style: italic;
+}
+.deck strong { color: var(--ink); font-style: normal; font-weight: 400; }
+
+/* ---------- LEGEND ---------- */
+.legend {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex-wrap: wrap;
+  color: var(--ink-soft);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.legend-swatch {
+  width: 28px;
+  height: 16px;
+  border: 1px solid var(--rule);
+}
+.legend-swatch.neg {
+  background: linear-gradient(90deg, rgba(46, 111, 156, 0.7), rgba(46, 111, 156, 0.2));
+}
+.legend-swatch.zero {
+  background: rgba(212, 160, 23, 0.3);
+}
+.legend-swatch.pos {
+  background: linear-gradient(90deg, rgba(200, 72, 46, 0.2), rgba(200, 72, 46, 0.7));
+}
+.legend-item strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ---------- SCENE PRESETS ---------- */
+.scene-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  border-radius: 2px;
+  width: fit-content;
+  flex-wrap: wrap;
+}
+.tab {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink-soft);
+  border: none;
+  border-right: 1px solid var(--rule);
+  padding: 11px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.tab:last-child { border-right: none; }
+.tab:hover { background: var(--bg-2); color: var(--ink); }
+.tab.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ---------- SCENE ---------- */
+.scene {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: 6px 6px 0 var(--rule);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+#sceneCanvas {
+  width: 100%;
+  height: 480px;
+  display: block;
+  cursor: crosshair;
+}
+
+.readout-bar {
+  background: var(--bg-2);
+  border-top: 1px solid var(--rule);
+  padding: 14px 22px;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+}
+.readout-bar .pair {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.readout-bar .label {
+  color: var(--ink-dim);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.readout-bar .value {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.readout-bar .value.neg { color: var(--attractive); }
+.readout-bar .value.pos { color: var(--repulsive); }
+.readout-bar .verdict {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 1.5px solid var(--rule);
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 13px;
+  background: var(--paper);
+}
+.readout-bar .verdict.attractive {
+  border-color: var(--attractive);
+  color: var(--attractive);
+  background: rgba(46, 111, 156, 0.06);
+}
+.readout-bar .verdict.repulsive {
+  border-color: var(--repulsive);
+  color: var(--repulsive);
+  background: rgba(200, 72, 46, 0.06);
+}
+.readout-bar .verdict.neutral {
+  border-color: var(--neutral);
+  color: var(--neutral);
+  background: rgba(212, 160, 23, 0.06);
+}
+
+/* ---------- DESCRIPTION ---------- */
+.scene-description {
+  margin-top: 24px;
+  padding: 22px 26px;
+  border-left: 4px solid var(--attractive);
+  background: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.scene-description strong { color: var(--ink); font-weight: 400; }
+.scene-description em { color: var(--attractive); font-style: italic; }
+.scene-description .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--attractive);
+  margin-bottom: 10px;
+  display: block;
+}
+
+.scene-description.repulsive {
+  border-left-color: var(--repulsive);
+}
+.scene-description.repulsive .label {
+  color: var(--repulsive);
+}
+.scene-description.repulsive em {
+  color: var(--repulsive);
+}
+
+.hint {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-top: 14px;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">where is u negative?</div>
+    <h1>The blue regions are <em>where electrons want to be</em>.</h1>
+    <p class="deck">
+      Each scene shows a real plasma configuration — ions, walls, etc. The colored heatmap is U(r) for an electron:
+      <strong>blue = negative U = attractive (electrons pile up here)</strong>,
+      <strong>red = positive U = repulsive (electrons flee)</strong>,
+      yellow ≈ neutral. Move your cursor around to read off U at any specific point.
+    </p>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch neg"></div>
+      <div><strong>U &lt; 0</strong> · attractive · electrons cluster · density UP</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch zero"></div>
+      <div><strong>U ≈ 0</strong> · neutral · density at bulk n₀</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch pos"></div>
+      <div><strong>U &gt; 0</strong> · repulsive · electrons flee · density DOWN</div>
+    </div>
+  </div>
+
+  <div class="scene-tabs">
+    <button class="tab active" data-scene="positive-ion">single + ion</button>
+    <button class="tab" data-scene="negative-ion">single − ion</button>
+    <button class="tab" data-scene="dipole">dipole (+ and −)</button>
+    <button class="tab" data-scene="two-positive">two + ions</button>
+    <button class="tab" data-scene="positive-wall">+ wall</button>
+    <button class="tab" data-scene="negative-wall">− wall</button>
+    <button class="tab" data-scene="lattice">ionic lattice</button>
+  </div>
+
+  <div class="scene">
+    <canvas id="sceneCanvas"></canvas>
+    <div class="readout-bar">
+      <div class="pair">
+        <span class="label">cursor at</span>
+        <span class="value" id="cursorPos">— , —</span>
+      </div>
+      <div class="pair">
+        <span class="label">U at cursor</span>
+        <span class="value" id="cursorU">—</span>
+      </div>
+      <div class="pair">
+        <span class="label">n/n₀</span>
+        <span class="value" id="cursorN">—</span>
+      </div>
+      <div class="verdict" id="verdict">move cursor over the scene</div>
+    </div>
+  </div>
+
+  <div class="hint">↗ hover over the scene to inspect any point</div>
+
+  <div class="scene-description" id="description">
+    <span class="label">— scene 1: single positive ion</span>
+    A lone positive ion in a plasma. The electron's potential energy U = q·φ = (−e)·φ.
+    Near the ion, φ is positive (it's a positive charge), so U is <em>negative</em> — the entire blue region around the ion.
+    <strong>Far from the ion, U → 0</strong> (the yellow band) — there's nothing pulling on the electron.
+    The closer you get to the ion, the deeper U goes negative. <em>This is why electrons cluster around positive ions.</em>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('sceneCanvas');
+const ctx = canvas.getContext('2d');
+let dim = { w: 0, h: 0 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  dim.w = rect.width;
+  dim.h = rect.height;
+  canvas.width = dim.w * dpr;
+  canvas.height = dim.h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+const COULOMB = 8000;
+const KBT_DISPLAY = 3.0;
+
+// ============ SCENES ============
+const scenes = {
+  'positive-ion': {
+    title: 'Single + Ion',
+    description: `<span class="label">— scene · single positive ion</span>
+      A lone positive ion in a plasma. The electron's potential energy is U = q·φ = (−e)·φ.
+      Near the ion, φ is positive (it's a positive charge), so U is <em>negative</em> — the blue region around the ion.
+      <strong>Far from the ion, U → 0</strong> (the yellow background) — there's nothing pulling on the electron.
+      The closer you get, the deeper U goes negative. <em>This is why electrons cluster around positive ions.</em>`,
+    descClass: '',
+    charges: () => [{ x: 0.5, y: 0.5, q: +1 }]
+  },
+  'negative-ion': {
+    title: 'Single − Ion',
+    description: `<span class="label">— scene · single negative ion</span>
+      A lone negative ion. Now φ is <em>negative</em> near the charge (because it's a negative charge),
+      so U = (−e)·φ is <em>positive</em> — the red region.
+      <strong>Electrons flee this area.</strong> Density is suppressed near the negative ion.
+      Far away, U → 0, density → n₀. This shows the formula handles repulsion just fine —
+      it just gives you a number less than 1 instead of greater than 1.`,
+    descClass: 'repulsive',
+    charges: () => [{ x: 0.5, y: 0.5, q: -1 }]
+  },
+  'dipole': {
+    title: 'Dipole',
+    description: `<span class="label">— scene · dipole</span>
+      A positive ion next to a negative ion. The blue region (around the +) attracts electrons.
+      The red region (around the −) repels them. <em>In the middle, the contributions partially cancel</em>,
+      giving a region near U = 0 — the yellow band.
+      <strong>This is exactly the asymmetry that drives most plasma structure</strong>:
+      different regions have different signs of U because the local mix of charges differs.`,
+    descClass: '',
+    charges: () => [
+      { x: 0.32, y: 0.5, q: +1 },
+      { x: 0.68, y: 0.5, q: -1 }
+    ]
+  },
+  'two-positive': {
+    title: 'Two + Ions',
+    description: `<span class="label">— scene · two positive ions</span>
+      Two positive ions placed side by side. <em>Both create attractive wells</em>, so the entire region
+      between them and around them has U < 0 (blue).
+      <strong>Notice that U is most negative directly at each ion</strong>, with a slight saddle between them.
+      Electrons cluster around <em>both</em> ions, with maximum density right at each ion's location.
+      The space between is also attractive but less deeply — partial well.`,
+    descClass: '',
+    charges: () => [
+      { x: 0.35, y: 0.5, q: +1 },
+      { x: 0.65, y: 0.5, q: +1 }
+    ]
+  },
+  'positive-wall': {
+    title: 'Positive Wall',
+    description: `<span class="label">— scene · positive wall</span>
+      A wall held at positive potential on the left side of the box. The wall acts like a long line of +e charges.
+      <em>Electrons are attracted to it</em> — U decreases as you approach the wall.
+      The wall creates a dense electron sheath that screens the wall's positive charge from the bulk.
+      <strong>Far from the wall, U → 0</strong>, density is just bulk n₀.
+      <em>This is the basic picture of a positively-biased Langmuir probe attracting electrons.</em>`,
+    descClass: '',
+    charges: () => {
+      const wall = [];
+      for (let i = 0; i < 30; i++) {
+        wall.push({ x: 0.0, y: i / 29, q: +0.4 });
+      }
+      return wall;
+    }
+  },
+  'negative-wall': {
+    title: 'Negative Wall',
+    description: `<span class="label">— scene · negative wall</span>
+      A wall held at negative potential. Now U is <em>positive</em> near the wall — electrons flee.
+      <strong>This creates the famous "Debye sheath" with depleted electrons near the wall</strong>.
+      The sheath is a thin layer of net positive charge (mostly ions left behind) that screens the wall from the bulk.
+      <em>Floating walls in plasmas — like the inside surface of fluorescent tubes — naturally bias negative</em>
+      because electrons reach them faster than ions.`,
+    descClass: 'repulsive',
+    charges: () => {
+      const wall = [];
+      for (let i = 0; i < 30; i++) {
+        wall.push({ x: 0.0, y: i / 29, q: -0.4 });
+      }
+      return wall;
+    }
+  },
+  'lattice': {
+    title: 'Ionic Lattice',
+    description: `<span class="label">— scene · ionic lattice</span>
+      Alternating + and − ions in a checkerboard pattern, like a salt crystal in vacuum
+      or a strongly-coupled plasma. <em>Electrons cluster around every + ion</em> (blue spots)
+      and <em>avoid every − ion</em> (red spots). The pattern is regular but the U surface has
+      <strong>many local minima and maxima</strong> — every + is a well, every − is a hill.
+      The Boltzmann formula handles this just by summing contributions from all charges.`,
+    descClass: '',
+    charges: () => {
+      const lat = [];
+      const cols = 4, rows = 3;
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          const x = 0.15 + (c / (cols - 1)) * 0.7;
+          const y = 0.2 + (r / (rows - 1)) * 0.6;
+          const q = ((c + r) % 2 === 0) ? +1 : -1;
+          lat.push({ x, y, q });
+        }
+      }
+      return lat;
+    }
+  }
+};
+
+let currentScene = 'positive-ion';
+let cursorXY = null;
+
+// ============ COMPUTE U ============
+// Returns U for an electron at point (xNorm, yNorm)
+// where xNorm, yNorm are in [0, 1]
+function computeU(xNorm, yNorm) {
+  const charges = scenes[currentScene].charges();
+  let phi = 0;
+  for (const c of charges) {
+    const dx = (xNorm - c.x) * dim.w;
+    const dy = (yNorm - c.y) * dim.h;
+    const r = Math.sqrt(dx * dx + dy * dy + 100);
+    phi += COULOMB * c.q / r;
+  }
+  // U = q · phi where q = -1 for electron
+  return -1 * phi;
+}
+
+function computePhi(xNorm, yNorm) {
+  const charges = scenes[currentScene].charges();
+  let phi = 0;
+  for (const c of charges) {
+    const dx = (xNorm - c.x) * dim.w;
+    const dy = (yNorm - c.y) * dim.h;
+    const r = Math.sqrt(dx * dx + dy * dy + 100);
+    phi += COULOMB * c.q / r;
+  }
+  return phi;
+}
+
+// ============ DRAW ============
+function draw() {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+
+  // Heatmap
+  const cellSize = 8;
+  const cols = Math.ceil(dim.w / cellSize);
+  const rows = Math.ceil(dim.h / cellSize);
+
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const x = cx * cellSize;
+      const y = cy * cellSize;
+      const xNorm = (x + cellSize / 2) / dim.w;
+      const yNorm = (y + cellSize / 2) / dim.h;
+      const U = computeU(xNorm, yNorm);
+
+      // Map U to color
+      // Negative U: blue, more saturated as more negative
+      // Zero U: yellow background
+      // Positive U: red, more saturated as more positive
+      const intensity = Math.min(0.85, Math.abs(U) / 50);
+      let color;
+      if (U < -1) {
+        const a = Math.min(0.85, Math.abs(U) / 30);
+        color = `rgba(46, 111, 156, ${a})`;
+      } else if (U > 1) {
+        const a = Math.min(0.85, Math.abs(U) / 30);
+        color = `rgba(200, 72, 46, ${a})`;
+      } else {
+        color = `rgba(212, 160, 23, ${0.06 + Math.abs(U) / 30})`;
+      }
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, cellSize, cellSize);
+    }
+  }
+
+  // Contour lines (equipotential)
+  const levels = [-30, -15, -7, -3, +3, +7, +15, +30];
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.18)';
+  for (const level of levels) {
+    drawContour(level);
+  }
+
+  // Charges
+  const charges = scenes[currentScene].charges();
+  for (const c of charges) {
+    const x = c.x * dim.w;
+    const y = c.y * dim.h;
+    const isPos = c.q > 0;
+    const color = isPos ? '#c8482e' : '#2e6f9c';
+    const radius = Math.abs(c.q) > 0.5 ? 16 : 6;
+
+    // Glow
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, radius * 3);
+    grad.addColorStop(0, isPos ? 'rgba(255, 107, 53, 0.4)' : 'rgba(46, 111, 156, 0.4)');
+    grad.addColorStop(1, isPos ? 'rgba(255, 107, 53, 0)' : 'rgba(46, 111, 156, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a1410';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Sign symbol
+    if (radius >= 10) {
+      ctx.fillStyle = '#fff';
+      ctx.font = "bold 16px 'Fraunces', serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(isPos ? '+' : '−', x, y + 1);
+    }
+  }
+
+  // Cursor
+  if (cursorXY) {
+    const cx = cursorXY.x * dim.w;
+    const cy = cursorXY.y * dim.h;
+    ctx.strokeStyle = 'rgba(26, 20, 16, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    // crosshair
+    ctx.beginPath();
+    ctx.moveTo(cx - 18, cy);
+    ctx.lineTo(cx - 8, cy);
+    ctx.moveTo(cx + 8, cy);
+    ctx.lineTo(cx + 18, cy);
+    ctx.moveTo(cx, cy - 18);
+    ctx.lineTo(cx, cy - 8);
+    ctx.moveTo(cx, cy + 8);
+    ctx.lineTo(cx, cy + 18);
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function drawContour(level) {
+  // Marching squares would be too elaborate. Just sample radii from each charge.
+  // For now, simple per-charge rings: works visually for single-charge scenes.
+  // For multi-charge, the contour map approximation breaks but the heatmap conveys it.
+  const charges = scenes[currentScene].charges();
+  for (const c of charges) {
+    const isElec = c.q < 0;
+    // U_at_radius_r_from_this_charge = -1 * COULOMB * c.q / r
+    // level = -COULOMB * c.q / r → r = -COULOMB * c.q / level
+    const r = -COULOMB * c.q / level;
+    if (r > 5 && r < Math.max(dim.w, dim.h)) {
+      ctx.beginPath();
+      ctx.arc(c.x * dim.w, c.y * dim.h, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+draw();
+
+// ============ INTERACTION ============
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  cursorXY = {
+    x: (e.clientX - rect.left) / dim.w,
+    y: (e.clientY - rect.top) / dim.h
+  };
+  updateReadout();
+});
+canvas.addEventListener('mouseleave', () => {
+  cursorXY = null;
+  document.getElementById('cursorPos').textContent = '— , —';
+  document.getElementById('cursorU').textContent = '—';
+  document.getElementById('cursorN').textContent = '—';
+  document.getElementById('verdict').textContent = 'move cursor over the scene';
+  document.getElementById('verdict').className = 'verdict';
+});
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 0) return;
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  cursorXY = {
+    x: (t.clientX - rect.left) / dim.w,
+    y: (t.clientY - rect.top) / dim.h
+  };
+  updateReadout();
+  e.preventDefault();
+}, { passive: false });
+
+function updateReadout() {
+  if (!cursorXY) return;
+  const U = computeU(cursorXY.x, cursorXY.y);
+  const ratio = Math.exp(Math.min(8, Math.max(-8, -U / KBT_DISPLAY)));
+
+  document.getElementById('cursorPos').textContent =
+    `${(cursorXY.x * 100).toFixed(0)}%, ${(cursorXY.y * 100).toFixed(0)}%`;
+
+  const uEl = document.getElementById('cursorU');
+  uEl.textContent = (U >= 0 ? '+' : '') + U.toFixed(2);
+  uEl.className = 'value ' + (U < -1 ? 'neg' : U > 1 ? 'pos' : '');
+
+  document.getElementById('cursorN').textContent = ratio < 0.01 ? ratio.toExponential(1) :
+    ratio > 100 ? ratio.toFixed(0) :
+    ratio.toFixed(2);
+
+  const verdict = document.getElementById('verdict');
+  if (U < -3) {
+    verdict.textContent = '✓ attractive · electrons cluster';
+    verdict.className = 'verdict attractive';
+  } else if (U < -0.5) {
+    verdict.textContent = 'mildly attractive';
+    verdict.className = 'verdict attractive';
+  } else if (U > 3) {
+    verdict.textContent = '✗ repulsive · electrons flee';
+    verdict.className = 'verdict repulsive';
+  } else if (U > 0.5) {
+    verdict.textContent = 'mildly repulsive';
+    verdict.className = 'verdict repulsive';
+  } else {
+    verdict.textContent = 'neutral · ≈ bulk density';
+    verdict.className = 'verdict neutral';
+  }
+}
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    currentScene = t.dataset.scene;
+    const desc = document.getElementById('description');
+    desc.innerHTML = scenes[currentScene].description;
+    desc.className = 'scene-description ' + scenes[currentScene].descClass;
+  });
+});
+</script>
+
+</body>
+</html>

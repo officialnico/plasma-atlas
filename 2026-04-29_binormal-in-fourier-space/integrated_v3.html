@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>δT — integrated v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #e8e6e0; font-family: 'Fraunces', serif; }
+
+#main { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
+#viewport { position: relative; }
+#c { position: absolute; inset: 0; cursor: grab; display: block; }
+#c:active { cursor: grabbing; }
+
+#sidebar {
+  background: #0a0a10;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  padding: 14px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.panel {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.55;
+}
+
+#title { position: absolute; top: 14px; left: 14px; max-width: 320px; z-index: 5; }
+#title h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; margin-bottom: 4px; color: #fff; }
+#title p { font-size: 10.5px; color: #b8b5ac; line-height: 1.5; }
+
+#bottom-controls {
+  position: absolute; bottom: 14px; left: 14px; right: 14px;
+  z-index: 5;
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch;
+}
+.bc-card {
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+  flex: 1 1 240px; max-width: 360px;
+}
+.bc-card .ttl { color: #d4a04a; font-size: 9.5px; letter-spacing: 0.15em; margin-bottom: 6px; text-transform: uppercase; }
+
+.slider-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.slider-row label { min-width: 80px; font-size: 10.5px; }
+.slider-row input[type=range] { flex: 1; height: 4px; -webkit-appearance: none; appearance: none; border-radius: 2px; outline: none; }
+.slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; cursor: pointer; border: none; }
+.slider-row .val { min-width: 44px; text-align: right; font-size: 10px; }
+
+.cut-x label, .cut-x .val { color: #ff8b8b; }
+.cut-x input[type=range] { background: rgba(255,107,107,0.2); }
+.cut-x input[type=range]::-webkit-slider-thumb { background: #ff6b6b; box-shadow: 0 0 0 3px rgba(255,107,107,0.25); }
+.cut-y label, .cut-y .val { color: #6fdb9e; }
+.cut-y input[type=range] { background: rgba(74,157,110,0.2); }
+.cut-y input[type=range]::-webkit-slider-thumb { background: #5fc28e; box-shadow: 0 0 0 3px rgba(74,157,110,0.25); }
+.cut-z label, .cut-z .val { color: #8bbde6; }
+.cut-z input[type=range] { background: rgba(91,141,191,0.2); }
+.cut-z input[type=range]::-webkit-slider-thumb { background: #7badd6; box-shadow: 0 0 0 3px rgba(91,141,191,0.25); }
+.amber label, .amber .val { color: #d4a04a; }
+.amber input[type=range] { background: rgba(212,160,74,0.2); }
+.amber input[type=range]::-webkit-slider-thumb { background: #d4a04a; box-shadow: 0 0 0 3px rgba(212,160,74,0.25); }
+
+.toggle {
+  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18);
+  color: #e8e6e0; padding: 5px 10px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  cursor: pointer; transition: all 0.15s;
+}
+.toggle:hover { background: rgba(255,255,255,0.1); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+
+.sb-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 12px;
+}
+.sb-card h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px; letter-spacing: 0.15em; text-transform: uppercase;
+  color: #d4a04a; margin-bottom: 6px;
+}
+.sb-card canvas { width: 100%; display: block; border-radius: 4px; }
+.note { font-size: 10.5px; color: #888; margin-top: 6px; line-height: 1.45; }
+
+#pol-canvas { height: 200px; }
+#tor-canvas { height: 200px; }
+#fourier-canvas { height: 130px; }
+#basis-canvas { height: 100px; }
+</style>
+</head>
+<body>
+<div id="main">
+  <div id="viewport">
+    <canvas id="c"></canvas>
+
+    <div id="title" class="panel">
+      <h1>δT — integrated view</h1>
+      <p>Volumetric fluctuation field with outboard ballooning. Drag to rotate, scroll to zoom, use bottom sliders to slice. Side panel: 2D cuts and Fourier basis.</p>
+    </div>
+
+    <div id="bottom-controls">
+      <div class="bc-card">
+        <div class="ttl">cuts</div>
+        <div class="slider-row cut-x"><label>cut X</label><input type="range" id="cutX" min="-10" max="10" step="0.05" value="-10"><span class="val" id="cutXv">off</span></div>
+        <div class="slider-row cut-y"><label>cut Y (below)</label><input type="range" id="cutY" min="-5" max="5" step="0.05" value="-5"><span class="val" id="cutYv">off</span></div>
+        <div class="slider-row cut-z"><label>cut Z</label><input type="range" id="cutZ" min="-10" max="10" step="0.05" value="-10"><span class="val" id="cutZv">off</span></div>
+      </div>
+      <div class="bc-card">
+        <div class="ttl">field & view</div>
+        <div class="slider-row amber"><label>opacity</label><input type="range" id="opacity" min="0.05" max="1.0" step="0.02" value="0.35"><span class="val" id="opacityv">0.35</span></div>
+        <div class="slider-row amber"><label>ballooning</label><input type="range" id="balloon" min="0" max="3" step="0.05" value="2.0"><span class="val" id="balloonv">2.00</span></div>
+        <div style="display: flex; gap: 6px; margin-top: 6px;">
+          <button class="toggle on" id="rotBtn">auto-rotate</button>
+          <button class="toggle" id="resetBtn">reset cuts</button>
+        </div>
+      </div>
+      <div class="bc-card">
+        <div class="ttl">walk through (x, y, z)</div>
+        <div class="slider-row cut-x"><label>x — radial</label><input type="range" id="xCursor" min="0.05" max="0.95" step="0.01" value="0.6"><span class="val" id="xCursorv">0.60</span></div>
+        <div class="slider-row cut-y"><label>y — binormal</label><input type="range" id="yCursor" min="0" max="6.283" step="0.005" value="1.0"><span class="val" id="yCursorv">1.00</span></div>
+        <div class="slider-row cut-z"><label>z — along B</label><input type="range" id="zCursor" min="-3.14" max="3.14" step="0.01" value="0"><span class="val" id="zCursorv">0.00</span></div>
+        <div class="note">Walk through the flux tube. Watch the markers move in the side-panel views.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="sb-card" id="selInfoCard" style="border-color: rgba(74,157,110,0.3);">
+      <h3 style="color: #5fc28e">selected point</h3>
+      <div id="selInfo" style="font-size: 11px; color: #a8a59c; line-height: 1.6;">
+        <em>click a numbered dot on the toroidal ring or the bottom δT curve</em>
+      </div>
+    </div>
+    <div class="sb-card">
+      <h3>poloidal cut · ⟨|δT|²⟩ intensity</h3>
+      <canvas id="pol-canvas"></canvas>
+      <div class="note">Where fluctuations <em>live</em> (RMS over toroidal angle). Bright outboard = <strong>ballooning</strong>.</div>
+    </div>
+    <div class="sb-card">
+      <h3>toroidal cut · δT around outboard ring</h3>
+      <canvas id="tor-canvas"></canvas>
+      <div class="note">Realistic synthetic turbulence: blobs of hot/cold plasma drift around the binormal direction. Green dot = current y-cursor.</div>
+    </div>
+    <div class="sb-card">
+      <h3>Fourier spectrum · |a<sub>k</sub>|</h3>
+      <canvas id="fourier-canvas"></canvas>
+      <div class="note">16 k<sub>y</sub> modes. Most energy near k=4. Equilibrium would be only k=0.</div>
+    </div>
+    <div class="sb-card">
+      <h3>δT(y) at current (x, z) — sum of all modes</h3>
+      <canvas id="basis-canvas"></canvas>
+      <div class="note">Curve = continuous δT(y). Dots = the 16 grid points GENE actually computes. Click any dot.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============ Constants ============
+const R0 = 6.0, aMinor = 2.2, KAPPA = 1.4;
+const NY = 16;
+
+const AMPS = new Array(NY).fill(0).map((_, k) => k === 0 ? 0 :
+  Math.exp(-Math.pow((k - 4) / 3, 2)) * (0.5 + 0.8 * Math.sin(k * 1.7)));
+const PHASES = new Array(NY).fill(0).map((_, k) => k * 1.31 + 0.7);
+
+const state = { balloon: 2.0, yCursor: 1.0, opacity: 0.35,
+                cutX: -10, cutY: -5, cutZ: -10,
+                xCursor: 0.6, zCursor: 0.0,
+                selectedPoint: null };
+
+// Storage for clickable points
+let torSamplePoints = [];
+let basisSamplePoints = [];
+
+// 16 sample points in y (the GENE grid) and their δT values at (xCursor, zCursor)
+const SAMPLE_Y = new Array(NY).fill(0).map((_, i) => (i / NY) * 2 * Math.PI);
+
+function ballooningEnv(theta, balloon) {
+  const t = ((theta + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+  const sigma = Math.PI / Math.max(0.3, balloon);
+  return Math.exp(-Math.pow(t / sigma, 2));
+}
+
+// ============ Synthetic turbulence model ============
+// Real turbulence is not a sum of clean cosines. It's a frothy field of blobs.
+// We generate a 2D random field by summing many Fourier modes with RANDOM PHASES
+// across BOTH theta (poloidal) and phi (toroidal). The resulting δT(theta, phi) at
+// fixed r looks like the messy, blob-filled patterns you see in actual GENE outputs.
+//
+// We pick the spectrum to be:
+//   - Peaked at intermediate ky (around k=4-6 in our normalized units)
+//   - Broad in kx (so eddies have radial structure)
+//   - Anisotropic: longer in kx than ky (eddies elongated along the field, narrow across)
+
+// Pre-generate a fixed set of (kx, ky, phase, amplitude) tuples
+const TURB_MODES = [];
+(function generateTurb() {
+  // Use a deterministic "random" seed for reproducibility
+  let seed = 12345;
+  function rand() {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+  const NUM = 80;
+  for (let i = 0; i < NUM; i++) {
+    // ky in [1, 12], biased toward 4-6
+    const ky = 1 + 11 * rand();
+    // kx in [-3, 3] (smaller — eddies elongated radially across surfaces)
+    const kx = (rand() - 0.5) * 6;
+    // Spectrum amplitude: peaked in ky around 4, with broader kx
+    const amp = Math.exp(-Math.pow((ky - 4.5) / 2.5, 2)) * Math.exp(-Math.pow(kx / 3, 2));
+    const phase = rand() * 2 * Math.PI;
+    TURB_MODES.push({ kx, ky, amp, phase });
+  }
+})();
+
+function deltaT_js(r, theta, phi) {
+  if (r > 1) return 0;
+  let v = 0;
+  // theta, phi in radians; treat (theta, phi) as the (x, y) of the surface
+  // (poloidal angle = "radial-ish" coordinate within the surface, toroidal angle = binormal-ish)
+  for (const m of TURB_MODES) {
+    v += m.amp * Math.cos(m.kx * theta + m.ky * phi * 4 + m.phase);
+  }
+  v /= 8; // normalization
+
+  // Radial envelope: peak around r=0.6
+  const rEnv = Math.exp(-Math.pow((r - 0.6) / 0.22, 2));
+  // Ballooning: stronger on outboard
+  const bEnv = ballooningEnv(theta, state.balloon);
+  return rEnv * bEnv * v;
+}
+
+function dTrgb(v) {
+  const t = Math.max(-1, Math.min(1, v * 2.2));
+  if (t >= 0) {
+    return [255, (255 * (0.4 - 0.3 * t))|0, (255 * (0.3 - 0.25 * t))|0];
+  }
+  return [(255 * (0.3 + 0.2 * t))|0, (255 * (0.55 + 0.2 * t))|0, 255];
+}
+function dTcolorStr(v) { const c = dTrgb(v); return `rgb(${c[0]},${c[1]},${c[2]})`; }
+
+function intensityColor(I) {
+  const t = Math.max(0, Math.min(1, I));
+  let r, g, b;
+  if (t < 0.25)      { const u = t / 0.25; r = 60 * u; g = 0; b = 30 * u; }
+  else if (t < 0.5)  { const u = (t - 0.25) / 0.25; r = 60 + 195 * u; g = 60 * u; b = 30 - 30 * u; }
+  else if (t < 0.8)  { const u = (t - 0.5) / 0.3; r = 255; g = 60 + 180 * u; b = 0; }
+  else               { const u = (t - 0.8) / 0.2; r = 255; g = 240 + 15 * u; b = 200 * u; }
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+
+function dTintensity(r, theta) {
+  const N = 24;
+  let sum = 0;
+  for (let i = 0; i < N; i++) {
+    const phi = (i / N) * 2 * Math.PI;
+    const v = deltaT_js(r, theta, phi);
+    sum += v * v;
+  }
+  return Math.sqrt(sum / N);
+}
+
+// ============ 3D Volumetric: stacked colored shells ============
+const canvas = document.getElementById('c');
+const viewport = document.getElementById('viewport');
+
+// Get reliable size from the viewport container (canvas may report 0 before layout)
+function getViewportSize() {
+  const w = viewport.clientWidth || window.innerWidth - 380;
+  const h = viewport.clientHeight || window.innerHeight;
+  return { w, h };
+}
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+const { w: initW, h: initH } = getViewportSize();
+renderer.setSize(initW, initH, false);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setClearColor(0x000000, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, initW / initH, 0.1, 200);
+
+// We build 8 nested D-torus shells, each colored by δT at that radius.
+// To get *volumetric* feel: each shell is translucent and the colors blend.
+const shells = [];
+const NUM_SHELLS = 9;
+const SEG_PHI = 96;     // toroidal segments
+const SEG_THETA = 64;   // poloidal segments
+
+function buildShell(r) {
+  const positions = [];
+  const colors = [];
+  const indices = [];
+  for (let i = 0; i <= SEG_PHI; i++) {
+    const phi = (i / SEG_PHI) * Math.PI * 2;
+    for (let j = 0; j <= SEG_THETA; j++) {
+      const theta = (j / SEG_THETA) * Math.PI * 2 - Math.PI;
+      const Rrel = r * aMinor * Math.cos(theta);
+      const Zrel = r * aMinor * KAPPA * Math.sin(theta);
+      const R = R0 + Rrel;
+      const x = R * Math.cos(phi);
+      const y = Zrel;
+      const z = R * Math.sin(phi);
+      positions.push(x, y, z);
+      const v = deltaT_js(r, theta, phi);
+      const [cr, cg, cb] = dTrgb(v);
+      colors.push(cr/255, cg/255, cb/255);
+    }
+  }
+  for (let i = 0; i < SEG_PHI; i++) {
+    for (let j = 0; j < SEG_THETA; j++) {
+      const a = i * (SEG_THETA + 1) + j;
+      const b = a + 1;
+      const c = (i + 1) * (SEG_THETA + 1) + j;
+      const d = c + 1;
+      indices.push(a, b, d);
+      indices.push(a, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+
+const shellMaterial = (opacity) => new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+  blending: THREE.NormalBlending
+});
+
+function rebuildShells() {
+  // Clear
+  shells.forEach(s => { scene.remove(s); s.geometry.dispose(); s.material.dispose(); });
+  shells.length = 0;
+  for (let i = 0; i < NUM_SHELLS; i++) {
+    const r = (i + 1) / (NUM_SHELLS + 0.5); // r in (0, ~0.95)
+    const geo = buildShell(r);
+    // Per-shell opacity: emphasize fluctuation peak (r ~ 0.6) and de-emphasize edges
+    const rEnvFactor = Math.exp(-Math.pow((r - 0.6) / 0.22, 2));
+    const op = state.opacity * (0.25 + 0.75 * rEnvFactor);
+    const mat = shellMaterial(op);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.r = r;
+    mesh.userData.baseOpacity = op;
+    shells.push(mesh);
+    scene.add(mesh);
+  }
+}
+rebuildShells();
+
+// Box outline of the torus bounding region (for visual reference)
+const bbox = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(2*(R0+aMinor), 2*KAPPA*aMinor, 2*(R0+aMinor))),
+  new THREE.LineBasicMaterial({ color: 0x4a5868, transparent: true, opacity: 0.15 })
+);
+scene.add(bbox);
+
+// ============ Cutting via per-vertex visibility (just hide shells that fall in cut region) ============
+// Simplest approach: dynamically rebuild geometry with cutaway. But that's expensive.
+// Alternative: discard fragments using a custom shader on the shells.
+// We'll go with shader-based clipping by using clipping planes (Three.js feature).
+renderer.localClippingEnabled = true;
+
+const clipPlanes = {
+  x: new THREE.Plane(new THREE.Vector3(1, 0, 0), 10),  // cut everything where x < -uCutMin (initially off)
+  y: new THREE.Plane(new THREE.Vector3(0, 1, 0), 5),
+  z: new THREE.Plane(new THREE.Vector3(0, 0, 1), 10)
+};
+
+function updateClipping() {
+  // Plane equation: n·p + constant = 0 keeps points where n·p + constant >= 0
+  // For "cut everything where x < cutX": we want to KEEP x >= cutX, i.e. plane normal +x and constant = -cutX
+  clipPlanes.x.constant = -state.cutX;
+  clipPlanes.y.constant = -state.cutY;
+  clipPlanes.z.constant = -state.cutZ;
+}
+updateClipping();
+
+shells.forEach(m => m.material.clippingPlanes = [clipPlanes.x, clipPlanes.y, clipPlanes.z]);
+
+// ============ Camera control ============
+let yaw = 0.6, pitch = 0.5, dist = 26;
+let autoRotate = true;
+function setCam() {
+  camera.position.set(
+    dist * Math.cos(pitch) * Math.sin(yaw),
+    dist * Math.sin(pitch),
+    dist * Math.cos(pitch) * Math.cos(yaw)
+  );
+  camera.lookAt(0, 0, 0);
+  camera.up.set(0, 1, 0);
+}
+setCam();
+
+let dragging = false, prevX = 0, prevY = 0;
+canvas.addEventListener('mousedown', e => { dragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => dragging = false);
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - prevX, dy = e.clientY - prevY;
+  prevX = e.clientX; prevY = e.clientY;
+  yaw += dx * 0.005;
+  pitch = Math.max(-1.4, Math.min(1.4, pitch + dy * 0.005));
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  dist = Math.max(6, Math.min(80, dist * (1 + e.deltaY * 0.001)));
+}, { passive: false });
+
+function resize() {
+  const { w, h } = getViewportSize();
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', () => { resize(); redrawSidebar(); });
+// Resize once more after layout settles
+requestAnimationFrame(() => { resize(); });
+setTimeout(() => { resize(); }, 100);
+
+// ============ Sidebar Canvas Helpers ============
+function setupCanvas(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+function dshape(r, theta) {
+  return { Rrel: r * Math.cos(theta), Zrel: r * 1.4 * Math.sin(theta) };
+}
+
+// ----- Poloidal: RMS intensity -----
+function drawPoloidal() {
+  const { ctx, w, h } = setupCanvas(document.getElementById('pol-canvas'));
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2;
+  const scale = Math.min(w, h) * 0.4 / 1.4;
+  const N = 60, M = 120;
+  let maxI = 0;
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < M; j++) {
+      const I = dTintensity((i + 0.5) / N, (j + 0.5) / M * 2 * Math.PI - Math.PI);
+      if (I > maxI) maxI = I;
+    }
+  }
+  if (maxI < 0.01) maxI = 0.01;
+  for (let i = N - 1; i >= 0; i--) {
+    const r0 = i / N, r1 = (i + 1) / N;
+    for (let j = 0; j < M; j++) {
+      const th0 = (j / M) * Math.PI * 2 - Math.PI;
+      const th1 = ((j + 1) / M) * Math.PI * 2 - Math.PI;
+      const I = dTintensity((r0 + r1) / 2, (th0 + th1) / 2) / maxI;
+      ctx.fillStyle = intensityColor(I);
+      const p00 = dshape(r0, th0), p10 = dshape(r1, th0);
+      const p11 = dshape(r1, th1), p01 = dshape(r0, th1);
+      ctx.beginPath();
+      ctx.moveTo(cx + p00.Rrel * scale, cy - p00.Zrel * scale);
+      ctx.lineTo(cx + p10.Rrel * scale, cy - p10.Zrel * scale);
+      ctx.lineTo(cx + p11.Rrel * scale, cy - p11.Zrel * scale);
+      ctx.lineTo(cx + p01.Rrel * scale, cy - p01.Zrel * scale);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.strokeStyle = 'rgba(255, 209, 122, 0.5)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let t = 0; t <= Math.PI*2 + 0.01; t += 0.05) {
+    const p = dshape(1, t);
+    if (t === 0) ctx.moveTo(cx + p.Rrel * scale, cy - p.Zrel * scale);
+    else ctx.lineTo(cx + p.Rrel * scale, cy - p.Zrel * scale);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#888'; ctx.font = '9px JetBrains Mono';
+  ctx.fillText('inboard', 4, cy + 3);
+  ctx.fillText('outboard', w - 50, cy + 3);
+  ctx.fillText('top', cx - 8, 10);
+  ctx.fillText('bot', cx - 9, h - 4);
+
+  // Highlighted x-surface (gold ring at xCursor)
+  const rHi = state.xCursor;
+  ctx.strokeStyle = 'rgba(255, 209, 122, 0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let t = 0; t <= Math.PI*2 + 0.01; t += 0.05) {
+    const p = dshape(rHi, t);
+    if (t === 0) ctx.moveTo(cx + p.Rrel * scale, cy - p.Zrel * scale);
+    else ctx.lineTo(cx + p.Rrel * scale, cy - p.Zrel * scale);
+  }
+  ctx.stroke();
+
+  // z-position marker (blue dot, walks around the highlighted surface)
+  const zPos = dshape(rHi, state.zCursor);
+  const zPx = cx + zPos.Rrel * scale;
+  const zPy = cy - zPos.Zrel * scale;
+  ctx.fillStyle = '#7badd6';
+  ctx.beginPath(); ctx.arc(zPx, zPy, 7, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(zPx, zPy, 7, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = '#7badd6'; ctx.font = 'bold 9px JetBrains Mono';
+  ctx.fillText(`z=${state.zCursor.toFixed(2)}`, zPx + 10, zPy + 3);
+}
+
+// ----- Toroidal cut: high resolution -----
+function drawToroidal() {
+  const { ctx, w, h } = setupCanvas(document.getElementById('tor-canvas'));
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2;
+  const Rmax = Math.min(w, h) * 0.42;
+  const R0px = Rmax * 0.6, aScale = Rmax * 0.32;
+  const NS = 30, M = 320;
+  for (let i = NS - 1; i >= 0; i--) {
+    const r0 = i / NS, r1 = (i + 1) / NS;
+    const out0 = R0px + dshape(r0, 0).Rrel * aScale;
+    const out1 = R0px + dshape(r1, 0).Rrel * aScale;
+    for (let j = 0; j < M; j++) {
+      const ph0 = (j / M) * Math.PI * 2;
+      const ph1 = ((j + 1) / M) * Math.PI * 2;
+      const v = deltaT_js((r0 + r1) / 2, 0, (ph0 + ph1) / 2);
+      ctx.fillStyle = dTcolorStr(v);
+      ctx.beginPath();
+      ctx.moveTo(cx + out0 * Math.cos(ph0), cy + out0 * Math.sin(ph0));
+      ctx.lineTo(cx + out1 * Math.cos(ph0), cy + out1 * Math.sin(ph0));
+      ctx.lineTo(cx + out1 * Math.cos(ph1), cy + out1 * Math.sin(ph1));
+      ctx.lineTo(cx + out0 * Math.cos(ph1), cy + out0 * Math.sin(ph1));
+      ctx.closePath(); ctx.fill();
+    }
+    const in0 = R0px + dshape(r0, Math.PI).Rrel * aScale;
+    const in1 = R0px + dshape(r1, Math.PI).Rrel * aScale;
+    for (let j = 0; j < M; j++) {
+      const ph0 = (j / M) * Math.PI * 2;
+      const ph1 = ((j + 1) / M) * Math.PI * 2;
+      const v = deltaT_js((r0 + r1) / 2, Math.PI, (ph0 + ph1) / 2);
+      ctx.fillStyle = dTcolorStr(v);
+      ctx.beginPath();
+      ctx.moveTo(cx + in0 * Math.cos(ph0), cy + in0 * Math.sin(ph0));
+      ctx.lineTo(cx + in1 * Math.cos(ph0), cy + in1 * Math.sin(ph0));
+      ctx.lineTo(cx + in1 * Math.cos(ph1), cy + in1 * Math.sin(ph1));
+      ctx.lineTo(cx + in0 * Math.cos(ph1), cy + in0 * Math.sin(ph1));
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#000';
+  const innerEdge = R0px + dshape(1, Math.PI).Rrel * aScale - 0.3;
+  ctx.beginPath(); ctx.arc(cx, cy, innerEdge, 0, Math.PI*2); ctx.fill();
+
+  const ringR = R0px + dshape(state.xCursor, 0).Rrel * aScale;
+  ctx.strokeStyle = 'rgba(255, 209, 122, 0.85)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI*2); ctx.stroke();
+
+  // 16 sample points around the ring (the y-grid)
+  torSamplePoints = [];
+  for (let i = 0; i < NY; i++) {
+    const yi = SAMPLE_Y[i];
+    const px = cx + ringR * Math.cos(yi);
+    const py = cy + ringR * Math.sin(yi);
+    const v = deltaT_js(state.xCursor, state.zCursor, yi);
+    torSamplePoints.push({ idx: i, px, py, y: yi, value: v });
+
+    const isSel = state.selectedPoint === i;
+    const [cr, cg, cb] = dTrgb(v);
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.beginPath(); ctx.arc(px, py, isSel ? 7 : 4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = isSel ? '#fff' : 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = isSel ? 2 : 1;
+    ctx.stroke();
+    // index label outside ring
+    ctx.fillStyle = isSel ? '#fff' : 'rgba(255,255,255,0.6)';
+    ctx.font = isSel ? 'bold 9px JetBrains Mono' : '8px JetBrains Mono';
+    const lpx = cx + (ringR + 12) * Math.cos(yi);
+    const lpy = cy + (ringR + 12) * Math.sin(yi) + 3;
+    ctx.fillText(i.toString(), lpx - 3, lpy);
+  }
+
+  // y cursor (continuous, separate from the 16 samples)
+  const yc = state.yCursor;
+  const ypx = cx + ringR * Math.cos(yc);
+  const ypy = cy + ringR * Math.sin(yc);
+  ctx.fillStyle = '#5fc28e';
+  ctx.beginPath(); ctx.arc(ypx, ypy, 6, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(ypx, ypy, 6, 0, Math.PI*2); ctx.stroke();
+}
+
+// ----- Fourier spectrum (bin TURB_MODES by ky) -----
+function drawFourier() {
+  const { ctx, w, h } = setupCanvas(document.getElementById('fourier-canvas'));
+  ctx.fillStyle = '#0a0a10'; ctx.fillRect(0, 0, w, h);
+  const padL = 28, padR = 8, padT = 12, padB = 22;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const NBINS = 16;
+  const bins = new Array(NBINS).fill(0);
+  for (const m of TURB_MODES) {
+    const idx = Math.min(NBINS - 1, Math.max(0, Math.floor(m.ky * NBINS / 14)));
+    bins[idx] += m.amp * m.amp; // power
+  }
+  const mags = bins.map(Math.sqrt);
+  const maxM = Math.max(...mags);
+  const barW = plotW / NBINS;
+  for (let k = 0; k < NBINS; k++) {
+    const barH = (mags[k] / (maxM + 0.001)) * plotH;
+    const x = padL + k * barW;
+    const y = padT + plotH - barH;
+    ctx.fillStyle = 'rgba(212, 160, 74, 0.7)';
+    ctx.fillRect(x + 1, y, barW - 2, barH);
+  }
+  ctx.fillStyle = '#888'; ctx.font = '9px JetBrains Mono';
+  for (let k = 0; k < NBINS; k += 2) {
+    ctx.fillText(k, padL + k * barW + barW/2 - 3, h - 8);
+  }
+  ctx.fillText('kᵧ bin', padL + plotW/2 - 14, h - 1);
+  ctx.save(); ctx.translate(8, padT + plotH/2 + 18); ctx.rotate(-Math.PI/2);
+  ctx.fillText('|aₖ|', 0, 0); ctx.restore();
+}
+
+// ----- Basis (δT(y) curve at the current x and z cursor positions) -----
+function drawBasis() {
+  const { ctx, w, h } = setupCanvas(document.getElementById('basis-canvas'));
+  ctx.fillStyle = '#0a0a10'; ctx.fillRect(0, 0, w, h);
+  const padL = 28, padR = 8, padT = 8, padB = 18;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const yMid = padT + plotH/2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(padL, yMid); ctx.lineTo(padL + plotW, yMid); ctx.stroke();
+  const N = 200;
+  const samples = [];
+  for (let i = 0; i <= N; i++) samples.push(deltaT_js(state.xCursor, state.zCursor, (i / N) * 2 * Math.PI));
+  const maxAbs = Math.max(...samples.map(Math.abs), 0.05);
+  ctx.strokeStyle = '#d4a04a'; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const px = padL + (i / N) * plotW;
+    const py = yMid - (samples[i] / maxAbs) * (plotH / 2 * 0.85);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // 16 sample points
+  basisSamplePoints = [];
+  for (let i = 0; i < NY; i++) {
+    const yi = SAMPLE_Y[i];
+    const v = deltaT_js(state.xCursor, state.zCursor, yi);
+    const px = padL + (yi / (Math.PI * 2)) * plotW;
+    const py = yMid - (v / maxAbs) * (plotH / 2 * 0.85);
+    const isSel = state.selectedPoint === i;
+    basisSamplePoints.push({ idx: i, px, py });
+    const [cr, cg, cb] = dTrgb(v);
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.beginPath(); ctx.arc(px, py, isSel ? 6 : 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = isSel ? '#fff' : 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = isSel ? 1.8 : 1;
+    ctx.stroke();
+  }
+
+  // y-cursor line
+  const yPos = state.yCursor / (Math.PI * 2);
+  const xPos = padL + yPos * plotW;
+  ctx.strokeStyle = '#5fc28e'; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(xPos, padT); ctx.lineTo(xPos, padT + plotH); ctx.stroke();
+  ctx.setLineDash([]);
+  const v = deltaT_js(state.xCursor, state.zCursor, state.yCursor);
+  const vPx = yMid - (v / maxAbs) * (plotH / 2 * 0.85);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(xPos, vPx, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#5fc28e';
+  ctx.beginPath(); ctx.arc(xPos, vPx, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#888'; ctx.font = '9px JetBrains Mono';
+  ctx.fillText('y=0', padL, h - 4);
+  ctx.fillText('y=2π', padL + plotW - 22, h - 4);
+}
+
+function redrawSidebar() { drawPoloidal(); drawToroidal(); drawFourier(); drawBasis(); updateSelInfo(); }
+
+function updateSelInfo() {
+  const box = document.getElementById('selInfo');
+  if (state.selectedPoint === null) {
+    box.innerHTML = '<em>click a numbered dot on the toroidal ring or a dot on the bottom δT curve</em>';
+    return;
+  }
+  const i = state.selectedPoint;
+  const y = SAMPLE_Y[i];
+  const v = deltaT_js(state.xCursor, state.zCursor, y);
+  // What ky modes contribute the most at this point?
+  const contributions = TURB_MODES.map(m => ({
+    ky: m.ky,
+    val: m.amp * Math.cos(m.kx * state.zCursor + m.ky * y * 4 + m.phase)
+  }));
+  contributions.sort((a, b) => Math.abs(b.val) - Math.abs(a.val));
+  const top3 = contributions.slice(0, 3)
+    .map(c => `kᵧ≈${c.ky.toFixed(1)}: ${c.val >= 0 ? '+' : ''}${(c.val/8).toFixed(3)}`).join('<br>');
+  box.innerHTML = `
+    <div style="font-family: 'JetBrains Mono', monospace;">
+      <div><strong style="color:#5fc28e">point ${i}</strong> at y = ${y.toFixed(3)} rad</div>
+      <div>(at x=${state.xCursor.toFixed(2)}, z=${state.zCursor.toFixed(2)})</div>
+      <div style="margin-top:6px">δT = <strong style="color:${v >= 0 ? '#ff8e8e' : '#7eb8ff'}">${v >= 0 ? '+' : ''}${v.toFixed(3)}</strong></div>
+      <div style="margin-top:6px; color:#888; font-size: 10px">top contributors:</div>
+      <div style="font-size:10px; color:#a8a59c">${top3}</div>
+    </div>
+  `;
+}
+
+// Click handlers
+document.getElementById('tor-canvas').addEventListener('click', e => {
+  const rect = e.target.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  let bestIdx = null, bestDist = 18;
+  for (const p of torSamplePoints) {
+    const d = Math.hypot(p.px - cx, p.py - cy);
+    if (d < bestDist) { bestDist = d; bestIdx = p.idx; }
+  }
+  if (bestIdx !== null) {
+    state.selectedPoint = (state.selectedPoint === bestIdx) ? null : bestIdx;
+    redrawSidebar();
+  }
+});
+document.getElementById('basis-canvas').addEventListener('click', e => {
+  const rect = e.target.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  let bestIdx = null, bestDist = 18;
+  for (const p of basisSamplePoints) {
+    const d = Math.hypot(p.px - cx, p.py - cy);
+    if (d < bestDist) { bestDist = d; bestIdx = p.idx; }
+  }
+  if (bestIdx !== null) {
+    state.selectedPoint = (state.selectedPoint === bestIdx) ? null : bestIdx;
+    redrawSidebar();
+  }
+});
+
+// ============ UI Bindings ============
+function bindSlider(id, valId, onChange, fmt) {
+  const sl = document.getElementById(id);
+  const val = document.getElementById(valId);
+  const update = () => {
+    const v = parseFloat(sl.value);
+    onChange(v);
+    val.textContent = fmt ? fmt(v) : v.toFixed(2);
+  };
+  sl.addEventListener('input', update);
+  return update;
+}
+const cutFmt = (v, lo) => v <= lo + 0.05 ? 'off' : v.toFixed(2);
+
+bindSlider('cutX', 'cutXv', v => { state.cutX = v; updateClipping(); }, v => cutFmt(v, -10));
+bindSlider('cutY', 'cutYv', v => { state.cutY = v; updateClipping(); }, v => cutFmt(v, -5));
+bindSlider('cutZ', 'cutZv', v => { state.cutZ = v; updateClipping(); }, v => cutFmt(v, -10));
+bindSlider('opacity', 'opacityv', v => {
+  state.opacity = v;
+  shells.forEach(m => {
+    const rEnvFactor = Math.exp(-Math.pow((m.userData.r - 0.6) / 0.22, 2));
+    m.material.opacity = v * (0.25 + 0.75 * rEnvFactor);
+  });
+});
+bindSlider('balloon', 'balloonv', v => {
+  state.balloon = v;
+  rebuildShells();
+  // re-attach clipping
+  shells.forEach(m => m.material.clippingPlanes = [clipPlanes.x, clipPlanes.y, clipPlanes.z]);
+  redrawSidebar();
+});
+bindSlider('yCursor', 'yCursorv', v => { state.yCursor = v; redrawSidebar(); });
+bindSlider('xCursor', 'xCursorv', v => { state.xCursor = v; redrawSidebar(); });
+bindSlider('zCursor', 'zCursorv', v => { state.zCursor = v; redrawSidebar(); });
+
+document.getElementById('rotBtn').addEventListener('click', e => {
+  autoRotate = !autoRotate; e.target.classList.toggle('on', autoRotate);
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  ['cutX', 'cutY', 'cutZ'].forEach(k => {
+    const sl = document.getElementById(k);
+    sl.value = sl.min;
+    sl.dispatchEvent(new Event('input'));
+  });
+});
+
+// ============ Animate ============
+const clock = new THREE.Clock();
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (autoRotate && !dragging) yaw += dt * 0.13;
+  setCam();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+resize();
+redrawSidebar();
+animate();
+</script>
+</body>
+</html>

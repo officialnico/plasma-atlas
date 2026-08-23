@@ -1,0 +1,1854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Six Ideas From Inside a Gyrokinetic Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script id="MathJax-script" async src="../_lib/mathjax/tex-svg.js"></script>
+<style>
+:root {
+  --bg: #0a0d1a;
+  --bg-card: #11162a;
+  --bg-card-2: #161c33;
+  --ink: #e8eaf2;
+  --ink-dim: #9aa0b8;
+  --ink-faint: #5a6080;
+  --rule: #1f2640;
+  --rule-strong: #2d3559;
+  --plasma-1: #ff3d8b;    /* magenta */
+  --plasma-2: #ffb84d;    /* amber */
+  --plasma-3: #4ddfff;    /* cyan */
+  --plasma-4: #a37dff;    /* violet */
+  --plasma-5: #5dffbe;    /* mint */
+  --warn: #ff6b6b;
+  --ok: #5dffbe;
+  --shadow: 0 30px 60px -30px rgba(0,0,0,0.6), 0 8px 24px -8px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(163,125,255,0.10), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 30%, rgba(255,61,139,0.08), transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 100%, rgba(77,223,255,0.06), transparent 60%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 100;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 80px 32px 120px;
+}
+
+/* ========== HERO ========== */
+.hero {
+  position: relative;
+  padding: 40px 0 80px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 80px;
+}
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--plasma-3);
+  margin-bottom: 28px;
+}
+.hero h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-variation-settings: "opsz" 144;
+  font-size: clamp(48px, 7vw, 88px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  margin: 0 0 24px;
+  color: var(--ink);
+}
+.hero h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--plasma-1);
+}
+.hero .lede {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  max-width: 640px;
+  margin: 0;
+}
+.hero .meta {
+  margin-top: 48px;
+  display: flex;
+  gap: 32px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.hero .meta span b { color: var(--ink-dim); font-weight: 500; }
+
+/* ========== TOC ========== */
+.toc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 100px;
+}
+.toc a {
+  display: block;
+  padding: 28px 24px;
+  background: var(--bg-card);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.toc a:hover { background: var(--bg-card-2); }
+.toc .num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--plasma-3);
+  margin-bottom: 12px;
+}
+.toc .ttl {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+.toc .sub {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+/* ========== SECTIONS ========== */
+section {
+  margin-bottom: 120px;
+  scroll-margin-top: 40px;
+}
+.sec-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--plasma-3);
+  margin-bottom: 20px;
+}
+section h2 {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-variation-settings: "opsz" 144;
+  font-size: clamp(36px, 5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+}
+section h2 em { font-style: italic; color: var(--plasma-1); }
+section .tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 40px;
+}
+
+p { margin: 0 0 1.25em; }
+p strong { color: var(--ink); font-weight: 600; }
+p em { color: var(--plasma-2); font-style: italic; }
+
+/* glossary chip */
+.glossary {
+  display: inline;
+  border-bottom: 1px dashed var(--plasma-3);
+  cursor: help;
+  position: relative;
+}
+.glossary:hover { color: var(--plasma-3); }
+.glossary::after {
+  content: attr(data-def);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card-2);
+  border: 1px solid var(--rule-strong);
+  padding: 10px 14px;
+  width: 280px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 10;
+  box-shadow: var(--shadow);
+  white-space: normal;
+}
+.glossary:hover::after { opacity: 1; }
+
+/* ========== DEMO BOX ========== */
+.demo {
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 28px;
+  margin: 32px 0;
+  box-shadow: var(--shadow);
+}
+.demo-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--plasma-2);
+  margin-bottom: 4px;
+}
+.demo-cap {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: var(--ink-dim);
+  margin-bottom: 20px;
+}
+.demo canvas, .demo svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+}
+.controls label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.controls input[type=range] {
+  width: 160px;
+  accent-color: var(--plasma-1);
+}
+.controls .val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--plasma-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.controls button {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  padding: 8px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.controls button:hover {
+  border-color: var(--plasma-1);
+  color: var(--plasma-1);
+}
+.controls button.active {
+  background: var(--plasma-1);
+  color: var(--bg);
+  border-color: var(--plasma-1);
+}
+.btngroup { display: flex; gap: 0; }
+.btngroup button { border-radius: 0; }
+.btngroup button + button { border-left: none; }
+
+/* ========== ASIDE / KEY TAKEAWAY ========== */
+.aside {
+  border-left: 2px solid var(--plasma-1);
+  padding: 4px 0 4px 24px;
+  margin: 32px 0;
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--ink);
+  font-style: italic;
+}
+.aside b { font-style: normal; color: var(--plasma-1); }
+
+.note {
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--plasma-3);
+  padding: 20px 24px;
+  margin: 32px 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+.note b { color: var(--plasma-3); font-weight: 600; }
+
+/* compare table */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 32px 0;
+}
+.compare > div {
+  background: var(--bg-card);
+  padding: 24px;
+}
+.compare h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+.compare .left h4 { color: var(--plasma-3); }
+.compare .right h4 { color: var(--plasma-1); }
+.compare ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink-dim); }
+.compare li { margin-bottom: 6px; }
+
+/* math display */
+mjx-container { color: var(--ink); }
+.eq {
+  margin: 24px 0;
+  padding: 16px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink);
+  overflow-x: auto;
+}
+
+/* footer */
+footer {
+  margin-top: 120px;
+  padding-top: 40px;
+  border-top: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  display: flex;
+  justify-content: space-between;
+}
+
+@media (max-width: 720px) {
+  .wrap { padding: 40px 20px 80px; }
+  .toc { grid-template-columns: 1fr; }
+  .compare { grid-template-columns: 1fr; }
+  .controls input[type=range] { width: 120px; }
+  .hero .meta { flex-direction: column; gap: 8px; }
+}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="wrap">
+
+<!-- =================== HERO =================== -->
+<header class="hero">
+  <div class="eyebrow">A field guide · plasma physics for code-readers</div>
+  <h1>Six&nbsp;ideas from <em>inside</em> a gyrokinetic code.</h1>
+  <p class="lede">Kokkos. Spectral vs grid. Eulerian vs semi&#8209;Lagrangian. Landau damping. ITG. Rosenbluth–Hinton. What they actually mean, with things you can drag.</p>
+  <div class="meta">
+    <span><b>Audience:</b> you know gradients, you can take a derivative</span>
+    <span><b>Reading time:</b> ~25 min</span>
+    <span><b>Hover dashed terms</b> for definitions</span>
+  </div>
+</header>
+
+<!-- =================== TOC =================== -->
+<nav class="toc">
+  <a href="#kokkos"><div class="num">§ 01</div><div class="ttl">Kokkos</div><div class="sub">Write the loop once. Run it on anything.</div></a>
+  <a href="#spectral"><div class="num">§ 02</div><div class="ttl">Spectral vs grid</div><div class="sub">Two ways to store a velocity distribution.</div></a>
+  <a href="#advance"><div class="num">§ 03</div><div class="ttl">Eulerian vs semi&#8209;Lagrangian</div><div class="sub">Two ways to push that distribution forward in time.</div></a>
+  <a href="#landau"><div class="num">§ 04</div><div class="ttl">Landau damping</div><div class="sub">A wave dies with no friction in sight.</div></a>
+  <a href="#itg"><div class="num">§ 05</div><div class="ttl">ITG growth</div><div class="sub">The instability that eats fusion plasmas.</div></a>
+  <a href="#rh"><div class="num">§ 06</div><div class="ttl">Rosenbluth–Hinton</div><div class="sub">The flow that survives. The number you must hit.</div></a>
+</nav>
+
+<!-- =================== § 01 KOKKOS =================== -->
+<section id="kokkos">
+  <div class="sec-num">§ 01</div>
+  <h2>Kokkos: <em>write the loop once.</em></h2>
+  <div class="tag">Performance portability</div>
+
+  <p>Before any physics, a piece of pure software engineering. <strong>Kokkos</strong> is a C++ library from Sandia National Labs. Its job is letting you write one version of a numerical loop and have it run efficiently on a laptop CPU, a Frontier GPU, or a future thing that hasn't been invented yet.</p>
+
+  <p>The problem it solves: ten years ago, if you wanted your code to run on an NVIDIA GPU you wrote CUDA. On AMD, HIP. On Intel, SYCL. On a CPU with vector units, OpenMP. <em>Same loop, four codebases.</em> Worse, the loops aren't even structured the same way — GPUs want millions of tiny independent tasks, CPUs want a few big chunks per thread.</p>
+
+  <p>Kokkos hides all of that behind an abstraction called a <span class="glossary" data-def="A function or function-object passed to a parallel_for that does the work of one iteration. The library decides how to schedule millions of these onto whatever hardware is available.">parallel kernel</span>. You say "for each of these N indices, do this work, and here's how my data is laid out in memory." At compile time Kokkos rewrites that into whatever the target hardware wants.</p>
+
+  <div class="demo">
+    <div class="demo-title">Demo · 01</div>
+    <div class="demo-cap">Toggle the backend. Watch the same loop change how it executes — but produce the same answer.</div>
+    <canvas id="kokkos-canvas" width="900" height="320"></canvas>
+    <div class="controls">
+      <div class="btngroup">
+        <button data-backend="serial" class="active">CPU · serial</button>
+        <button data-backend="openmp">CPU · 8 threads</button>
+        <button data-backend="gpu">GPU · 2048 lanes</button>
+      </div>
+      <label>iterations <input id="kokkos-n" type="range" min="64" max="4096" step="64" value="1024"><span class="val" id="kokkos-n-val">1024</span></label>
+      <button id="kokkos-go">Run</button>
+    </div>
+  </div>
+
+  <div class="aside"><b>Why this matters for gyrokinetics.</b> A production turbulence run touches hundreds of billions of phase-space cells per timestep. Without a portability layer, you bet the next decade of physics on the hardware you wrote for today.</div>
+
+  <p>The new code skips Kokkos and uses <strong>JAX</strong> instead — Google's array library — which plays the same role through a different mechanism: it traces your Python into a hardware-independent intermediate representation and hands that to a compiler (XLA) that emits CPU or GPU code. Different language, same idea: write the math, let the compiler worry about the silicon.</p>
+</section>
+
+<!-- =================== § 02 SPECTRAL VS GRID =================== -->
+<section id="spectral">
+  <div class="sec-num">§ 02</div>
+  <h2>Spectral vs grid: <em>how to store a velocity distribution.</em></h2>
+  <div class="tag">Discretization · the f(v) problem</div>
+
+  <p>A plasma is described by a <span class="glossary" data-def="A function f(x, v, t) that gives the density of particles at position x with velocity v at time t. Integrating f over all v gives the ordinary number density n(x,t).">distribution function</span> — call it $f(v)$ — telling you how many particles have each velocity $v$. To put this on a computer, you have to <em>discretize</em> it: replace the continuous function with a finite list of numbers.</p>
+
+  <p>There are two philosophically different ways to do this, and they have different strengths.</p>
+
+  <div class="compare">
+    <div class="left">
+      <h4>Grid (finite-volume / finite-difference)</h4>
+      <ul>
+        <li>Pick $N$ velocity values $v_1, v_2, \ldots, v_N$.</li>
+        <li>Store $f(v_1), f(v_2), \ldots, f(v_N)$.</li>
+        <li>Plot looks like a histogram.</li>
+        <li>Good for sharp features (shocks, beams).</li>
+        <li>Need many points to resolve smooth shapes.</li>
+      </ul>
+    </div>
+    <div class="right">
+      <h4>Spectral (basis expansion)</h4>
+      <ul>
+        <li>Pick a set of basis functions $\psi_0, \psi_1, \ldots, \psi_M$.</li>
+        <li>Write $f(v) = c_0\psi_0(v) + c_1\psi_1(v) + \cdots$</li>
+        <li>Store the coefficients $c_0, \ldots, c_M$.</li>
+        <li>Good for smooth shapes (very few coefficients).</li>
+        <li>Bad at sharp features (rings, oscillations).</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>The spectral basis the new code uses is <strong>Hermite–Laguerre</strong>: Hermite polynomials in the parallel velocity (along the magnetic field), Laguerre polynomials in the perpendicular kinetic energy. The point — and it's a beautiful one — is that a thermal plasma is approximately a <span class="glossary" data-def="The bell-curve velocity distribution that a gas in equilibrium settles into: f(v) ∝ exp(-v²/2T). Named for James Clerk Maxwell.">Maxwellian</span>, and a Maxwellian projects onto <em>exactly one</em> Hermite–Laguerre coefficient. Every other coefficient measures how much the plasma deviates from equilibrium. Sparse, by construction.</p>
+
+  <div class="demo">
+    <div class="demo-title">Demo · 02</div>
+    <div class="demo-cap">Same bumpy distribution. Drag the slider to control how many coefficients (spectral) or grid points (grid) you spend. Watch the reconstruction.</div>
+    <canvas id="spec-canvas" width="900" height="360"></canvas>
+    <div class="controls">
+      <div class="btngroup">
+        <button data-mode="spectral" class="active">Spectral (Hermite)</button>
+        <button data-mode="grid">Grid (finite-volume)</button>
+      </div>
+      <label>resolution <input id="spec-n" type="range" min="2" max="40" step="1" value="6"><span class="val" id="spec-n-val">6</span></label>
+      <div class="btngroup">
+        <button data-shape="maxwellian" class="active">Maxwellian</button>
+        <button data-shape="bumponTail">Bump-on-tail</button>
+        <button data-shape="ring">Ring</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="aside"><b>The tradeoff in one sentence.</b> Spectral methods convert <em>smoothness</em> into <em>compression</em>. If your physics is smooth, you win enormously. If it isn't, you lose.</div>
+</section>
+
+<!-- =================== § 03 EULERIAN VS SEMI-LAGRANGIAN =================== -->
+<section id="advance">
+  <div class="sec-num">§ 03</div>
+  <h2>Eulerian vs semi&#8209;Lagrangian: <em>how to push it forward.</em></h2>
+  <div class="tag">Time advance</div>
+
+  <p>You have your $f$, stored somehow. Now you need to evolve it in time. The equation governing it is — schematically — a transport equation:</p>
+
+  <div class="eq">$$\frac{\partial f}{\partial t} + \vec{v}\cdot\nabla f = 0$$</div>
+
+  <p>which says: $f$ at a point changes only because stuff is flowing past. There are two strategies for evolving this on a computer, and they are <em>not</em> the same as the two ways of storing $f$ in §02 — you can mix and match.</p>
+
+  <p><strong>Eulerian</strong> (named for Euler) is the obvious one. You sit at a fixed grid point, you look at the equation, you compute $\partial f/\partial t$ from the spatial derivatives of $f$ around you, and you take a small step in time. Then repeat. Camera bolted to the lab bench, watching fluid flow past.</p>
+
+  <p><strong>Lagrangian</strong> (named for Lagrange) is the opposite. Don't sit at grid points — <em>ride along with the flow</em>. A pure Lagrangian method tracks particles. The trouble is that after a few timesteps the particles bunch up and starve other regions.</p>
+
+  <p><strong>Semi&#8209;Lagrangian</strong> is the trick that gets the best of both. Keep a fixed grid (like Eulerian), but at each timestep, for each grid point, ask: <em>where did this $f$ value come from</em>? Trace the velocity field backward in time to the "departure point," then interpolate $f$ from the grid <em>there</em>. You used the Lagrangian idea (follow the flow) but ended up with values on a fixed grid (Eulerian convenience). The phase-space distribution function is conserved along characteristics, so this is actually <em>exact</em> if you could trace and interpolate perfectly.</p>
+
+  <div class="demo">
+    <div class="demo-title">Demo · 03</div>
+    <div class="demo-cap">A blob of $f$ moves in a swirling velocity field. Watch how each scheme handles the same flow.</div>
+    <canvas id="adv-canvas" width="900" height="380"></canvas>
+    <div class="controls">
+      <div class="btngroup">
+        <button data-scheme="eulerian" class="active">Eulerian</button>
+        <button data-scheme="semilag">Semi-Lagrangian</button>
+      </div>
+      <label>Δt (step size) <input id="adv-dt" type="range" min="0.01" max="0.30" step="0.01" value="0.04"><span class="val" id="adv-dt-val">0.04</span></label>
+      <button id="adv-reset">Reset</button>
+      <button id="adv-play">⏸ Pause</button>
+    </div>
+  </div>
+
+  <div class="note"><b>The CFL nuance.</b> Eulerian schemes have a hard speed limit on their timestep $\Delta t$: information cannot move more than one cell per step, or the scheme blows up. This is the <em>CFL condition</em> (Courant–Friedrichs–Lewy). Semi-Lagrangian methods have <em>no such limit</em> — the departure point can be three cells back, ten cells back, whatever — which is why they're attractive for long-time simulations. The price is the cost of accurate interpolation, which can introduce its own numerical diffusion.</div>
+
+  <p>This is the deepest split between the new code and gyselalib++. The new code is Eulerian (with high-order finite differences and a spectral velocity basis). GYSELA / gyselalib++ are semi-Lagrangian (with a velocity grid). Both are reasonable; they have different failure modes.</p>
+</section>
+
+<!-- =================== § 04 LANDAU DAMPING =================== -->
+<section id="landau">
+  <div class="sec-num">§ 04</div>
+  <h2>Landau damping: <em>a wave dies with no friction.</em></h2>
+  <div class="tag">A genuine plasma surprise</div>
+
+  <p>Plasmas support waves. Disturb a column of plasma and it oscillates back and forth at a frequency called the <span class="glossary" data-def="ω_p = √(n e² / ε₀ m). The natural oscillation frequency of electrons sloshing against a stationary ion background. The plasma's analogue of a tuning fork.">plasma frequency</span>. In a fluid description of the plasma, this wave is undamped — once you start it, it rings forever. Lev Landau, in 1946, did the kinetic calculation properly (using the actual distribution function, not just its average) and found something strange: <em>the wave damps</em>. With no collisions. With no friction. In a perfectly collisionless plasma.</p>
+
+  <p>This shocked people. Damping without dissipation seems to violate the second law of thermodynamics. It doesn't, but you have to look carefully. Here is what's happening, in pictures:</p>
+
+  <div class="demo">
+    <div class="demo-title">Demo · 04</div>
+    <div class="demo-cap">A wave with phase velocity $v_\phi$. Particles travelling near $v_\phi$ get pushed by the wave's electric field. Slower particles speed up; faster particles slow down. The wave loses (or gains) energy in the trade.</div>
+    <canvas id="landau-canvas" width="900" height="420"></canvas>
+    <div class="controls">
+      <label>wave phase velocity $v_\phi$ <input id="landau-vphi" type="range" min="-3" max="3" step="0.05" value="1.5"><span class="val" id="landau-vphi-val">1.50</span></label>
+      <label>wave amplitude <input id="landau-amp" type="range" min="0.0" max="1.0" step="0.05" value="0.4"><span class="val" id="landau-amp-val">0.40</span></label>
+      <button id="landau-play">⏸ Pause</button>
+    </div>
+  </div>
+
+  <p>The mechanism: a wave has a <span class="glossary" data-def="The speed at which a wave's crests move through space. For a wave cos(kx - ωt), the phase velocity is ω/k.">phase velocity</span> $v_\phi = \omega/k$. Particles with velocity close to $v_\phi$ stay near the same phase of the wave for a long time — they <em>surf</em>. A surfer slightly slower than the wave gets nudged forward by the electric field of the wave: it gains energy <em>from</em> the wave. A surfer slightly faster gets pushed back: it gives energy <em>to</em> the wave.</p>
+
+  <p>So whether the wave grows or damps comes down to one question: in the distribution, are there more particles slightly slower than $v_\phi$, or slightly faster? Mathematically, it's the <em>sign of the slope</em> of $f(v)$ at $v = v_\phi$:</p>
+
+  <div class="eq">$$\gamma_L \;\propto\; \left.\frac{\partial f_0}{\partial v}\right|_{v=v_\phi}$$</div>
+
+  <p>where $\gamma_L$ is the <strong>Landau damping rate</strong>. For a Maxwellian, $\partial f_0/\partial v < 0$ everywhere on the right tail (the bell curve slopes down). More slow-surfers than fast-surfers — the wave loses energy. <em>It damps.</em></p>
+
+  <div class="aside"><b>Why a code must reproduce this.</b> Landau damping is a fundamental plasma test. It has an exact analytic rate for a Maxwellian. Any kinetic code that doesn't reproduce that number — to several decimal places — is wrong in a way that will silently corrupt every nonlinear turbulence run that comes after.</div>
+
+  <p>This is why the new code's roadmap calls out Landau damping as one of the first physics tests in milestone M1. It's a single number ($\gamma_L$) computable analytically, that no fluid model can produce, and that depends on the <em>derivative</em> of $f$ being correct at one specific velocity — exactly the kind of thing your numerical scheme can get plausibly-but-wrongly.</p>
+</section>
+
+<!-- =================== § 05 ITG =================== -->
+<section id="itg">
+  <div class="sec-num">§ 05</div>
+  <h2>ITG growth: <em>the instability that eats fusion plasmas.</em></h2>
+  <div class="tag">The reason gyrokinetic codes exist</div>
+
+  <p>The reason fusion is hard: you build a reactor that confines a plasma at 100 million degrees, and the heat leaks out — not through the walls, but through tiny <em>turbulent eddies</em> in the plasma itself. The dominant driver of those eddies, in most fusion devices, is the <strong>Ion Temperature Gradient (ITG) instability</strong>.</p>
+
+  <p>The setup: fusion plasmas are hot in the centre and cold at the edge. So there's a temperature gradient $\nabla T$ pointing radially outward (well, inward in magnitude — temperature <em>drops</em> as you go out). This gradient is unavoidable; it's <em>why</em> the plasma is hot in the middle. But it's also the fuel for an instability.</p>
+
+  <p>Sketch of the mechanism, in 2D:</p>
+
+  <ol>
+    <li>Imagine a small perturbation: a blob of slightly-hotter-than-average plasma displaced outward (toward the cold side).</li>
+    <li>Hot ions have larger gyroradii than cold ones, so they drift differently in the curved magnetic field. (This is a "curvature drift," a kinetic effect.)</li>
+    <li>The drift carries the hot blob further outward, and pulls cold plasma inward to fill the gap.</li>
+    <li>The displacement has grown. So has the temperature contrast. Loop.</li>
+  </ol>
+
+  <p>This is a positive-feedback loop: the gradient drives a flow that strengthens the gradient. It <em>grows</em>. Exponentially. With a growth rate $\gamma_{\mathrm{ITG}}$ that depends on the steepness of the temperature gradient, the field geometry, and the ion physics:</p>
+
+  <div class="eq">$$\delta T(t) \;\sim\; \delta T(0)\,e^{\gamma_{\mathrm{ITG}}\, t}$$</div>
+
+  <p>The growth saturates when nonlinear effects kick in, and what's left over is a turbulent steady state that carries heat outward 100× faster than collisions would. That outward heat flux is what limits how good a fusion reactor you can build.</p>
+
+  <div class="demo">
+    <div class="demo-title">Demo · 05</div>
+    <div class="demo-cap">A 2D slice of plasma. Crank the temperature gradient. Watch the ITG eddies grow, saturate, and form a turbulent steady state.</div>
+    <canvas id="itg-canvas" width="900" height="420"></canvas>
+    <div class="controls">
+      <label>temperature gradient $\nabla T$ <input id="itg-grad" type="range" min="0.0" max="2.5" step="0.05" value="1.5"><span class="val" id="itg-grad-val">1.50</span></label>
+      <label>viscosity (saturation) <input id="itg-visc" type="range" min="0.05" max="0.6" step="0.01" value="0.18"><span class="val" id="itg-visc-val">0.18</span></label>
+      <button id="itg-reset">Reset</button>
+    </div>
+  </div>
+
+  <p>A gyrokinetic code's headline number, in the linear regime, is the ITG growth rate $\gamma_{\mathrm{ITG}}$ as a function of wavenumber $k$. There are decades of cross-code comparison studies (the CYCLONE base case, the Cyclone-DIII-D benchmark) where different codes agree on $\gamma(k)$ to a few percent. When the new code reaches milestone M1, this is one of the curves it has to reproduce.</p>
+
+  <div class="aside"><b>Why velocity-space matters here.</b> The drift mechanism in step 2 above depends on the <em>distribution of ion velocities</em>. ITG is fundamentally a kinetic instability — fluid models get it qualitatively wrong. That's why fusion needs gyrokinetic codes at all.</div>
+</section>
+
+<!-- =================== § 06 ROSENBLUTH-HINTON =================== -->
+<section id="rh">
+  <div class="sec-num">§ 06</div>
+  <h2>Rosenbluth–Hinton: <em>the flow that survives.</em></h2>
+  <div class="tag">The number every code must hit</div>
+
+  <p>One more concept. In §05 the ITG instability grew exponentially — left to its own devices it would eat the plasma. In reality, it doesn't. The turbulence <em>saturates</em>: the eddies generate large-scale flows that shear them apart. These are <strong>zonal flows</strong> — flows around the device, in the toroidal direction, with no variation in the poloidal direction (the "short way around"). They're the plasma's immune response to its own turbulence.</p>
+
+  <p>Zonal flows are not free, though. If you perturb the plasma with a sudden zonal flow, what happens? Marshall Rosenbluth and Fred Hinton answered this in 1998 with a beautiful calculation. The flow undergoes a damped oscillation called a <span class="glossary" data-def="A high-frequency oscillation of the zonal flow, driven by the ion's parallel motion along magnetic field lines. It's the transient part — it rings, then dies.">geodesic acoustic mode</span> (GAM), and then settles to a <em>finite</em> residual level — not zero.</p>
+
+  <div class="eq">$$\frac{\phi_\mathrm{zonal}(t\to\infty)}{\phi_\mathrm{zonal}(t=0)} \;=\; \frac{1}{1 + 1.6\,q^2/\sqrt{\epsilon}}$$</div>
+
+  <p>where $q$ is the safety factor (a geometric property of the magnetic field) and $\epsilon$ is the inverse aspect ratio of the torus. This ratio — the <strong>Rosenbluth–Hinton residual</strong> — is an exact analytic answer.</p>
+
+  <div class="demo">
+    <div class="demo-title">Demo · 06</div>
+    <div class="demo-cap">Initial zonal flow at $\phi_0$. Watch it oscillate (the GAM) and settle to a non-zero residual. The dashed line is the Rosenbluth–Hinton prediction.</div>
+    <canvas id="rh-canvas" width="900" height="380"></canvas>
+    <div class="controls">
+      <label>safety factor $q$ <input id="rh-q" type="range" min="1.0" max="4.0" step="0.1" value="1.4"><span class="val" id="rh-q-val">1.4</span></label>
+      <label>inverse aspect ratio $\epsilon$ <input id="rh-eps" type="range" min="0.05" max="0.5" step="0.01" value="0.18"><span class="val" id="rh-eps-val">0.18</span></label>
+      <button id="rh-restart">Restart</button>
+    </div>
+    <div id="rh-readout" style="margin-top:16px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-dim);"></div>
+  </div>
+
+  <p>This is the gold standard test for a gyrokinetic code. The residual depends on:</p>
+  <ul style="color:var(--ink-dim);font-size:15px;">
+    <li>Getting the <em>parallel dynamics</em> of ions right (for the GAM oscillation to have the correct frequency).</li>
+    <li>Getting the <em>polarization response</em> right (for the residual level to be correct).</li>
+    <li>Getting the <em>flux-surface average</em> right (because zonal flows are constants on a flux surface).</li>
+    <li>And the <em>velocity-space integrals</em> have to be accurate, because they appear in both numerator and denominator of the formula above.</li>
+  </ul>
+
+  <p>Hit Rosenbluth–Hinton to a few percent and you've simultaneously verified four independent parts of your code. Miss it by 20% and something is wrong — but you don't know what. This is exactly the kind of high-information test that the project's "tripwire" philosophy is built around.</p>
+
+  <div class="aside"><b>The throughline.</b> Each of these six ideas is, in its own way, an attempt to make wrong code <em>fail loudly</em>. Kokkos / JAX so portability doesn't bite you. Spectral methods so smooth distributions compress. Semi-Lagrangian so big timesteps don't blow up. Landau, ITG, Rosenbluth–Hinton — exact answers a wrong code cannot fake. Building the safety net before the physics, so when the physics goes in, you know whether it's right.</div>
+
+</section>
+
+<footer>
+  <span>Made for one reader</span>
+  <span>2026</span>
+</footer>
+
+</div>
+
+<!-- =================== SCRIPTS =================== -->
+<script>
+/* =====================================================
+   Utility: device-pixel-ratio-aware canvas setup
+===================================================== */
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+/* =====================================================
+   § 01 — KOKKOS BACKEND SWITCHER
+===================================================== */
+(function() {
+  const canvas = document.getElementById('kokkos-canvas');
+  let backend = 'serial';
+  let N = 1024;
+  let cells = [];
+  let running = false;
+  let frame = 0;
+
+  function init() {
+    cells = [];
+    for (let i = 0; i < N; i++) {
+      cells.push({ x: i, done: 0 });
+    }
+    frame = 0;
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#0a0d1a';
+    ctx.fillRect(0, 0, w, h);
+
+    // grid of cells representing the iteration space
+    const cols = Math.ceil(Math.sqrt(N * w / h));
+    const rows = Math.ceil(N / cols);
+    const cellW = (w - 40) / cols;
+    const cellH = Math.min(cellW, (h - 80) / rows);
+    const ox = 20;
+    const oy = 50;
+
+    // header text
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillStyle = '#9aa0b8';
+    let label = '';
+    if (backend === 'serial') label = 'CPU SERIAL · 1 worker · 1 iteration at a time';
+    else if (backend === 'openmp') label = 'CPU + OPENMP · 8 workers in parallel';
+    else label = 'GPU · ~2048 lanes in lockstep · ALL iterations at once';
+    ctx.fillText(label, ox, 26);
+
+    for (let i = 0; i < N; i++) {
+      const c = i % cols;
+      const r = Math.floor(i / cols);
+      const x = ox + c * cellW;
+      const y = oy + r * cellH;
+      const cw = cellW - 2;
+      const ch = cellH - 2;
+
+      const done = cells[i].done;
+      if (done >= 1) {
+        ctx.fillStyle = '#5dffbe';
+      } else if (done > 0) {
+        ctx.fillStyle = '#ffb84d';
+      } else {
+        ctx.fillStyle = '#161c33';
+      }
+      ctx.fillRect(x, y, cw, ch);
+    }
+
+    // footer status
+    const doneCount = cells.filter(c => c.done >= 1).length;
+    ctx.fillStyle = '#4ddfff';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText(`progress: ${doneCount} / ${N}`, ox, h - 12);
+  }
+
+  function step() {
+    if (!running) return;
+    let workers;
+    if (backend === 'serial') workers = 1;
+    else if (backend === 'openmp') workers = 8;
+    else workers = 2048;
+
+    // pick `workers` undone cells per frame
+    let advanced = 0;
+    for (let i = 0; i < N && advanced < workers; i++) {
+      if (cells[i].done < 1) {
+        cells[i].done = Math.min(1, cells[i].done + 0.25);
+        advanced++;
+      }
+    }
+    if (cells.every(c => c.done >= 1)) {
+      running = false;
+    }
+    draw();
+    requestAnimationFrame(step);
+  }
+
+  // bindings
+  document.querySelectorAll('#kokkos [data-backend], .demo .btngroup button[data-backend]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('button[data-backend]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      backend = b.dataset.backend;
+    });
+  });
+  document.getElementById('kokkos-n').addEventListener('input', e => {
+    N = +e.target.value;
+    document.getElementById('kokkos-n-val').textContent = N;
+    init();
+    draw();
+  });
+  document.getElementById('kokkos-go').addEventListener('click', () => {
+    init();
+    running = true;
+    step();
+  });
+
+  init();
+  draw();
+})();
+
+/* =====================================================
+   § 02 — SPECTRAL VS GRID
+===================================================== */
+(function() {
+  const canvas = document.getElementById('spec-canvas');
+  let mode = 'spectral';
+  let N = 6;
+  let shape = 'maxwellian';
+
+  // Hermite probabilist's polynomials, recurrence
+  function hermiteValues(n, x) {
+    // returns [H_0, H_1, ..., H_n] at point x (probabilist's: H_0=1, H_1=x, H_{k+1}=x H_k - k H_{k-1})
+    const H = [1, x];
+    for (let k = 1; k < n; k++) H.push(x * H[k] - k * H[k-1]);
+    return H;
+  }
+  function hermiteFunction(k, x) {
+    // psi_k(x) = H_k(x) * exp(-x^2/4) / sqrt(k! * sqrt(2 pi))   (a normalized form)
+    const Hs = hermiteValues(k, x);
+    let fact = 1;
+    for (let i = 1; i <= k; i++) fact *= i;
+    return Hs[k] * Math.exp(-x*x/4) / Math.sqrt(fact * Math.sqrt(2*Math.PI));
+  }
+
+  function trueF(v) {
+    if (shape === 'maxwellian') {
+      return Math.exp(-v*v/2) / Math.sqrt(2*Math.PI);
+    }
+    if (shape === 'bumponTail') {
+      return 0.8 * Math.exp(-v*v/2) / Math.sqrt(2*Math.PI)
+           + 0.2 * Math.exp(-(v-2.5)*(v-2.5)/0.4) / Math.sqrt(0.4*2*Math.PI);
+    }
+    if (shape === 'ring') {
+      // localized "ring" feature at +-2
+      return 0.6 * (Math.exp(-(v-2)*(v-2)/0.15) + Math.exp(-(v+2)*(v+2)/0.15))
+             / Math.sqrt(0.15*2*Math.PI) + 0.05 * Math.exp(-v*v/2);
+    }
+  }
+
+  // project f onto first N Hermite functions using simple quadrature
+  function spectralReconstruct(N) {
+    const Q = 400;
+    const vmin = -6, vmax = 6, dv = (vmax-vmin)/Q;
+    // numerical inner product: c_k = ∫ f(v) psi_k(v) dv (using psi shape with exp(-v^2/4) weight)
+    // For simplicity here we use orthonormal-ish Hermite functions and approximate the integral.
+    const coeffs = [];
+    for (let k = 0; k < N; k++) {
+      let s = 0;
+      for (let i = 0; i < Q; i++) {
+        const v = vmin + (i+0.5)*dv;
+        s += trueF(v) * hermiteFunction(k, v);
+      }
+      coeffs.push(s * dv);
+    }
+    return function(v) {
+      let s = 0;
+      for (let k = 0; k < N; k++) s += coeffs[k] * hermiteFunction(k, v);
+      return s;
+    };
+  }
+
+  // grid reconstruct: piecewise constant from samples at v_1, ..., v_N
+  function gridReconstruct(N) {
+    const vmin = -6, vmax = 6;
+    const dv = (vmax-vmin)/N;
+    const samples = [];
+    for (let i = 0; i < N; i++) {
+      samples.push(trueF(vmin + (i+0.5)*dv));
+    }
+    return function(v) {
+      const i = Math.floor((v - vmin) / dv);
+      if (i < 0 || i >= N) return 0;
+      return samples[i];
+    };
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#0a0d1a';
+    ctx.fillRect(0, 0, w, h);
+
+    const padL = 60, padR = 30, padT = 30, padB = 40;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+
+    const vmin = -6, vmax = 6;
+    const ymax = 0.6;
+
+    function X(v) { return padL + (v - vmin)/(vmax - vmin) * plotW; }
+    function Y(y) { return padT + plotH - (y / ymax) * plotH; }
+
+    // axes
+    ctx.strokeStyle = '#1f2640';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(w - padR, padT + plotH);
+    ctx.stroke();
+    // gridlines
+    ctx.strokeStyle = '#161c33';
+    for (let v = -6; v <= 6; v += 2) {
+      ctx.beginPath(); ctx.moveTo(X(v), padT); ctx.lineTo(X(v), padT + plotH); ctx.stroke();
+    }
+    // labels
+    ctx.fillStyle = '#5a6080';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+    for (let v = -6; v <= 6; v += 2) {
+      ctx.fillText(v, X(v), padT + plotH + 18);
+    }
+    ctx.textAlign = 'left';
+    ctx.save();
+    ctx.translate(18, padT + plotH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign = 'center';
+    ctx.fillText('f(v)', 0, 0);
+    ctx.restore();
+    ctx.textAlign = 'center';
+    ctx.fillText('velocity v', padL + plotW/2, h - 8);
+
+    // true f
+    ctx.strokeStyle = '#5a6080';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i <= 400; i++) {
+      const v = vmin + (i/400)*(vmax-vmin);
+      const y = trueF(v);
+      if (!started) { ctx.moveTo(X(v), Y(y)); started = true; }
+      else ctx.lineTo(X(v), Y(y));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // reconstruction
+    if (mode === 'spectral') {
+      const recon = spectralReconstruct(N);
+      ctx.strokeStyle = '#ff3d8b';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      let st = false;
+      for (let i = 0; i <= 400; i++) {
+        const v = vmin + (i/400)*(vmax-vmin);
+        const y = recon(v);
+        if (!st) { ctx.moveTo(X(v), Y(y)); st = true; }
+        else ctx.lineTo(X(v), Y(y));
+      }
+      ctx.stroke();
+
+      // coefficient bars (inset)
+      const insetX = w - padR - 200, insetY = padT + 10, insetW = 180, insetH = 80;
+      ctx.fillStyle = '#11162a';
+      ctx.fillRect(insetX, insetY, insetW, insetH);
+      ctx.strokeStyle = '#1f2640';
+      ctx.strokeRect(insetX, insetY, insetW, insetH);
+      ctx.fillStyle = '#9aa0b8';
+      ctx.font = "10px 'JetBrains Mono', monospace";
+      ctx.textAlign = 'left';
+      ctx.fillText('coefficients c_k', insetX + 6, insetY + 14);
+
+      // compute coeffs again for display
+      const Q = 400;
+      const dv = (vmax-vmin)/Q;
+      const coeffs = [];
+      let maxC = 0;
+      for (let k = 0; k < N; k++) {
+        let s = 0;
+        for (let i = 0; i < Q; i++) {
+          const v = vmin + (i+0.5)*dv;
+          s += trueF(v) * hermiteFunction(k, v);
+        }
+        coeffs.push(s * dv);
+        if (Math.abs(s*dv) > maxC) maxC = Math.abs(s*dv);
+      }
+      const barW = (insetW - 12) / N;
+      const baseY = insetY + insetH - 10;
+      for (let k = 0; k < N; k++) {
+        const norm = maxC > 0 ? coeffs[k]/maxC : 0;
+        const barH = norm * 50;
+        ctx.fillStyle = norm >= 0 ? '#ff3d8b' : '#4ddfff';
+        ctx.fillRect(insetX + 6 + k*barW, baseY - Math.max(0, barH), Math.max(barW - 1, 1), Math.abs(barH));
+      }
+
+    } else {
+      // grid reconstruction
+      const recon = gridReconstruct(N);
+      ctx.strokeStyle = '#4ddfff';
+      ctx.lineWidth = 2.2;
+      const dv = (vmax-vmin)/N;
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const vL = vmin + i*dv;
+        const vR = vmin + (i+1)*dv;
+        const y = recon(vL + 0.001);
+        ctx.moveTo(X(vL), Y(y));
+        ctx.lineTo(X(vR), Y(y));
+      }
+      ctx.stroke();
+
+      // sample points
+      ctx.fillStyle = '#4ddfff';
+      for (let i = 0; i < N; i++) {
+        const v = vmin + (i+0.5)*dv;
+        const y = trueF(v);
+        ctx.beginPath();
+        ctx.arc(X(v), Y(y), 3, 0, 2*Math.PI);
+        ctx.fill();
+      }
+    }
+
+    // legend
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillStyle = '#5a6080';
+    ctx.textAlign = 'left';
+    ctx.fillText('— true f(v)', padL + 8, padT + 14);
+    ctx.fillStyle = mode === 'spectral' ? '#ff3d8b' : '#4ddfff';
+    ctx.fillText(`— reconstructed (${mode}, ${mode==='spectral'?'N=':'N='}${N})`, padL + 8, padT + 30);
+  }
+
+  // bindings
+  document.querySelectorAll('#spec-canvas').forEach(()=>{});
+  document.querySelectorAll('button[data-mode]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('button[data-mode]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      mode = b.dataset.mode;
+      draw();
+    });
+  });
+  document.querySelectorAll('button[data-shape]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('button[data-shape]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      shape = b.dataset.shape;
+      draw();
+    });
+  });
+  document.getElementById('spec-n').addEventListener('input', e => {
+    N = +e.target.value;
+    document.getElementById('spec-n-val').textContent = N;
+    draw();
+  });
+
+  draw();
+})();
+
+/* =====================================================
+   § 03 — EULERIAN vs SEMI-LAGRANGIAN
+===================================================== */
+(function() {
+  const canvas = document.getElementById('adv-canvas');
+  let scheme = 'eulerian';
+  let dt = 0.04;
+  let playing = true;
+  let t = 0;
+  let grid;
+  const NG = 60;
+
+  // swirling velocity field: u(x,y) = (-(y-0.5), x-0.5) * omega
+  function vel(x, y) {
+    return { vx: -(y - 0.5) * 1.2, vy: (x - 0.5) * 1.2 };
+  }
+
+  function initGrid() {
+    grid = new Float32Array(NG * NG);
+    // initial blob
+    for (let j = 0; j < NG; j++) {
+      for (let i = 0; i < NG; i++) {
+        const x = i / NG, y = j / NG;
+        const dx = x - 0.7, dy = y - 0.5;
+        grid[j*NG + i] = Math.exp(-(dx*dx + dy*dy) * 200);
+      }
+    }
+    t = 0;
+  }
+
+  function bilinear(g, x, y) {
+    // sample grid at fractional coords (in [0,1])
+    const xi = x * NG - 0.5, yj = y * NG - 0.5;
+    const i0 = Math.floor(xi), j0 = Math.floor(yj);
+    const fx = xi - i0, fy = yj - j0;
+    function get(i, j) {
+      if (i < 0 || i >= NG || j < 0 || j >= NG) return 0;
+      return g[j*NG + i];
+    }
+    return (1-fx)*(1-fy)*get(i0,j0)
+         + fx*(1-fy)*get(i0+1,j0)
+         + (1-fx)*fy*get(i0,j0+1)
+         + fx*fy*get(i0+1,j0+1);
+  }
+
+  function stepEulerian() {
+    // upwind finite-difference: df/dt = -v · grad f
+    const newg = new Float32Array(NG*NG);
+    const h = 1.0/NG;
+    for (let j = 0; j < NG; j++) {
+      for (let i = 0; i < NG; i++) {
+        const x = i/NG, y = j/NG;
+        const { vx, vy } = vel(x, y);
+        // upwind picks
+        const ip = (vx > 0) ? Math.max(i-1,0) : Math.min(i+1,NG-1);
+        const jp = (vy > 0) ? Math.max(j-1,0) : Math.min(j+1,NG-1);
+        const dfdx = (grid[j*NG+i] - grid[j*NG+ip]) / (h * (vx>0?1:-1));
+        const dfdy = (grid[j*NG+i] - grid[jp*NG+i]) / (h * (vy>0?1:-1));
+        newg[j*NG+i] = grid[j*NG+i] - dt * (vx*dfdx + vy*dfdy);
+        // clamp at boundary
+        if (i===0 || i===NG-1 || j===0 || j===NG-1) newg[j*NG+i] = 0;
+      }
+    }
+    grid = newg;
+  }
+
+  function stepSemiLag() {
+    const newg = new Float32Array(NG*NG);
+    for (let j = 0; j < NG; j++) {
+      for (let i = 0; i < NG; i++) {
+        const x = i/NG, y = j/NG;
+        const { vx, vy } = vel(x, y);
+        // trace backward
+        const xd = x - dt*vx;
+        const yd = y - dt*vy;
+        newg[j*NG+i] = bilinear(grid, xd, yd);
+      }
+    }
+    grid = newg;
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#0a0d1a';
+    ctx.fillRect(0, 0, w, h);
+
+    const size = Math.min(w * 0.5, h - 60);
+    const ox = (w - 2*size - 30) / 2;
+    const oy = 30;
+
+    function drawField(panelX, panelY, gridArr, title, color) {
+      ctx.fillStyle = '#11162a';
+      ctx.fillRect(panelX, panelY, size, size);
+      const cell = size / NG;
+      for (let j = 0; j < NG; j++) {
+        for (let i = 0; i < NG; i++) {
+          const v = Math.max(0, Math.min(1, gridArr[j*NG+i]));
+          if (v < 0.02) continue;
+          // color from cyan (low) to magenta (high)
+          const r = Math.round(77 + (255-77)*v);
+          const g = Math.round(223*(1-v) + 61*v);
+          const b = Math.round(255*(1-v) + 139*v);
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.2 + 0.8*v})`;
+          ctx.fillRect(panelX + i*cell, panelY + (NG-1-j)*cell, cell+0.5, cell+0.5);
+        }
+      }
+      // velocity field arrows
+      ctx.strokeStyle = 'rgba(154,160,184,0.3)';
+      ctx.lineWidth = 1;
+      const Ng = 8;
+      for (let jj = 0; jj <= Ng; jj++) {
+        for (let ii = 0; ii <= Ng; ii++) {
+          const x = ii/Ng, y = jj/Ng;
+          const { vx, vy } = vel(x, y);
+          const px = panelX + x*size;
+          const py = panelY + (1-y)*size;
+          const len = 12;
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + vx*len, py - vy*len);
+          ctx.stroke();
+        }
+      }
+      // border
+      ctx.strokeStyle = '#1f2640';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(panelX, panelY, size, size);
+      // title
+      ctx.fillStyle = color;
+      ctx.font = "11px 'JetBrains Mono', monospace";
+      ctx.fillText(title, panelX, panelY - 8);
+    }
+
+    const label = scheme === 'eulerian' ? 'EULERIAN · upwind finite-difference' : 'SEMI-LAGRANGIAN · backward trace';
+    const col = scheme === 'eulerian' ? '#4ddfff' : '#ff3d8b';
+    drawField(ox, oy, grid, label, col);
+
+    // info panel on the right
+    const ix = ox + size + 30;
+    const iy = oy;
+    ctx.fillStyle = '#11162a';
+    ctx.fillRect(ix, iy, size, size);
+    ctx.strokeStyle = '#1f2640';
+    ctx.strokeRect(ix, iy, size, size);
+
+    ctx.fillStyle = '#9aa0b8';
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.fillText('t = ' + t.toFixed(2), ix + 12, iy + 24);
+    ctx.fillText('Δt = ' + dt.toFixed(2), ix + 12, iy + 42);
+    ctx.fillStyle = col;
+    ctx.fillText(scheme.toUpperCase(), ix + 12, iy + 70);
+
+    ctx.fillStyle = '#5a6080';
+    ctx.font = "11px 'Inter', sans-serif";
+    const lines = scheme === 'eulerian' ? [
+      "Sit at each cell.",
+      "Compute df/dt from",
+      "neighbors. Step forward.",
+      "",
+      "Hard speed limit:",
+      "Δt < cell_size / max_vel",
+      "",
+      "(CFL condition)"
+    ] : [
+      "For each cell, ask:",
+      "where did this come",
+      "from one Δt ago?",
+      "",
+      "Trace velocity backward.",
+      "Interpolate from grid.",
+      "",
+      "No CFL limit on Δt."
+    ];
+    let yy = iy + 100;
+    for (const line of lines) {
+      ctx.fillText(line, ix + 12, yy);
+      yy += 16;
+    }
+  }
+
+  function loop() {
+    if (playing) {
+      if (scheme === 'eulerian') {
+        // CFL warning: if dt > 1/NG, blow up
+        if (dt > 1.4/NG / 1.2) {
+          // blow up gracefully — multiply
+          for (let i = 0; i < grid.length; i++) grid[i] *= 1.04;
+        } else {
+          stepEulerian();
+        }
+      } else {
+        stepSemiLag();
+      }
+      t += dt;
+      if (t > 6) initGrid();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.querySelectorAll('button[data-scheme]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('button[data-scheme]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      scheme = b.dataset.scheme;
+      initGrid();
+    });
+  });
+  document.getElementById('adv-dt').addEventListener('input', e => {
+    dt = +e.target.value;
+    document.getElementById('adv-dt-val').textContent = dt.toFixed(2);
+  });
+  document.getElementById('adv-reset').addEventListener('click', initGrid);
+  document.getElementById('adv-play').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ Pause' : '▶ Play';
+  });
+
+  initGrid();
+  loop();
+})();
+
+/* =====================================================
+   § 04 — LANDAU DAMPING
+===================================================== */
+(function() {
+  const canvas = document.getElementById('landau-canvas');
+  let vphi = 1.5;
+  let amp = 0.4;
+  let playing = true;
+  let t = 0;
+
+  // particles distributed by Maxwellian
+  let particles = [];
+  function init() {
+    particles = [];
+    // sample 250 particles from Maxwellian via Box-Muller
+    for (let i = 0; i < 250; i++) {
+      const u1 = Math.random(), u2 = Math.random();
+      const v = Math.sqrt(-2*Math.log(u1)) * Math.cos(2*Math.PI*u2);
+      particles.push({
+        x: Math.random() * 6 - 3, // initial x
+        v: v,
+        v0: v
+      });
+    }
+    t = 0;
+  }
+
+  function step() {
+    const dt = 0.02;
+    const k = 2; // wavenumber
+    const omega = vphi * k;
+    for (const p of particles) {
+      // electric field accel from wave
+      const E = amp * Math.sin(k * p.x - omega * t);
+      p.v += E * dt;
+      p.x += p.v * dt;
+      // periodic boundary in x
+      if (p.x > 3) p.x -= 6;
+      if (p.x < -3) p.x += 6;
+    }
+    t += dt;
+    if (t > 30) init();
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#0a0d1a';
+    ctx.fillRect(0, 0, w, h);
+
+    // top panel: phase-space (x, v)
+    const padL = 60, padR = 220, padT = 30, padB = 50;
+    const topH = (h - padT - padB) * 0.6;
+    const botH = (h - padT - padB) * 0.35;
+    const plotW = w - padL - padR;
+
+    function X(x) { return padL + (x + 3) / 6 * plotW; }
+    function Yv(v) { return padT + topH * (1 - (v + 4) / 8); }
+
+    // axes
+    ctx.strokeStyle = '#1f2640';
+    ctx.strokeRect(padL, padT, plotW, topH);
+    // gridlines
+    for (let v = -3; v <= 3; v++) {
+      ctx.strokeStyle = '#161c33';
+      ctx.beginPath();
+      ctx.moveTo(padL, Yv(v)); ctx.lineTo(padL + plotW, Yv(v));
+      ctx.stroke();
+    }
+
+    // wave indicator: shade where E-field is positive
+    for (let i = 0; i < 60; i++) {
+      const x = -3 + i/60 * 6;
+      const E = Math.sin(2 * x - vphi*2*t);
+      const xx = X(x);
+      const ww = plotW/60;
+      ctx.fillStyle = E > 0 ? `rgba(255,184,77,${Math.abs(E)*0.18})` : `rgba(77,223,255,${Math.abs(E)*0.18})`;
+      ctx.fillRect(xx, padT, ww + 1, topH);
+    }
+
+    // phase velocity line
+    ctx.strokeStyle = '#ff3d8b';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, Yv(vphi)); ctx.lineTo(padL + plotW, Yv(vphi));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // particles, colored by whether they gained or lost energy
+    for (const p of particles) {
+      const denergy = p.v*p.v - p.v0*p.v0;
+      // close to vphi → highlight
+      const closeness = 1 - Math.min(1, Math.abs(p.v - vphi));
+      ctx.fillStyle = denergy > 0
+        ? `rgba(255,184,77,${0.4 + 0.5*closeness})`
+        : `rgba(77,223,255,${0.4 + 0.5*closeness})`;
+      ctx.beginPath();
+      ctx.arc(X(p.x), Yv(p.v), 1.5 + closeness*1.5, 0, 2*Math.PI);
+      ctx.fill();
+    }
+
+    // axis labels
+    ctx.fillStyle = '#5a6080';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText('position x', padL + plotW/2, padT + topH + 16);
+    ctx.save();
+    ctx.translate(20, padT + topH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('velocity v', 0, 0);
+    ctx.restore();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ff3d8b';
+    ctx.fillText(`v_phase = ${vphi.toFixed(2)}`, padL + plotW - 100, Yv(vphi) - 6);
+
+    // bottom panel: histogram of velocities + Maxwellian
+    const yHist = padT + topH + 35;
+    function Yh(c) { return yHist + botH * (1 - c/40); }
+
+    ctx.strokeStyle = '#1f2640';
+    ctx.strokeRect(padL, yHist, plotW, botH);
+
+    // histogram
+    const bins = 40, vmin = -4, vmax = 4;
+    const counts = new Array(bins).fill(0);
+    for (const p of particles) {
+      const idx = Math.floor((p.v - vmin)/(vmax-vmin) * bins);
+      if (idx >= 0 && idx < bins) counts[idx]++;
+    }
+    const binW = plotW/bins;
+    for (let i = 0; i < bins; i++) {
+      const v = vmin + (i+0.5)*(vmax-vmin)/bins;
+      const closeToPhi = 1 - Math.min(1, Math.abs(v - vphi));
+      ctx.fillStyle = closeToPhi > 0.8 ? '#ff3d8b' : '#2d3559';
+      ctx.fillRect(padL + i*binW, Yh(counts[i]), binW - 1, yHist + botH - Yh(counts[i]));
+    }
+    // Maxwellian overlay
+    ctx.strokeStyle = '#5a6080';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const v = vmin + (i/200)*(vmax-vmin);
+      const y = 250 * Math.exp(-v*v/2) / Math.sqrt(2*Math.PI) / bins * (vmax-vmin);
+      const px = padL + (v - vmin)/(vmax-vmin)*plotW;
+      if (i === 0) ctx.moveTo(px, Yh(y));
+      else ctx.lineTo(px, Yh(y));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // slope arrow at vphi
+    const vL = vphi - 0.3, vR = vphi + 0.3;
+    const fL = 250 * Math.exp(-vL*vL/2) / Math.sqrt(2*Math.PI) / bins * (vmax-vmin);
+    const fR = 250 * Math.exp(-vR*vR/2) / Math.sqrt(2*Math.PI) / bins * (vmax-vmin);
+    ctx.strokeStyle = '#ff3d8b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padL + (vL-vmin)/(vmax-vmin)*plotW, Yh(fL));
+    ctx.lineTo(padL + (vR-vmin)/(vmax-vmin)*plotW, Yh(fR));
+    ctx.stroke();
+    // arrowhead
+    const ax_ = padL + (vR-vmin)/(vmax-vmin)*plotW;
+    const ay_ = Yh(fR);
+    const angle = Math.atan2(Yh(fR)-Yh(fL), (vR-vL)/(vmax-vmin)*plotW);
+    ctx.beginPath();
+    ctx.moveTo(ax_, ay_);
+    ctx.lineTo(ax_ - 8*Math.cos(angle - 0.4), ay_ - 8*Math.sin(angle - 0.4));
+    ctx.moveTo(ax_, ay_);
+    ctx.lineTo(ax_ - 8*Math.cos(angle + 0.4), ay_ - 8*Math.sin(angle + 0.4));
+    ctx.stroke();
+
+    // side panel: the rate formula
+    const sx = padL + plotW + 20;
+    ctx.fillStyle = '#11162a';
+    ctx.fillRect(sx, padT, padR - 30, topH + botH + 35);
+    ctx.strokeStyle = '#1f2640';
+    ctx.strokeRect(sx, padT, padR - 30, topH + botH + 35);
+
+    ctx.fillStyle = '#ff3d8b';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText('LANDAU RATE', sx + 12, padT + 20);
+
+    // ∂f/∂v at vphi (analytic Maxwellian)
+    const slope = -vphi * Math.exp(-vphi*vphi/2) / Math.sqrt(2*Math.PI);
+    ctx.fillStyle = slope < 0 ? '#5dffbe' : '#ff6b6b';
+    ctx.font = "20px 'Fraunces', serif";
+    ctx.fillText('γ_L ' + (slope < 0 ? '< 0' : '> 0'), sx + 12, padT + 50);
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.fillStyle = '#9aa0b8';
+    ctx.fillText('∂f/∂v|_vphi = ' + slope.toFixed(3), sx + 12, padT + 72);
+    ctx.fillStyle = '#5a6080';
+    ctx.font = "11px 'Inter', sans-serif";
+    const msg = slope < 0 ? [
+      'Slope is negative.',
+      'More slow surfers',
+      'than fast surfers.',
+      'Wave loses energy.',
+      '',
+      'WAVE DAMPS.'
+    ] : slope > 0 ? [
+      'Slope is positive.',
+      'More fast surfers',
+      'than slow surfers.',
+      'Wave gains energy.',
+      '',
+      'WAVE GROWS.'
+    ] : ['Slope = 0', 'Neutral.'];
+    let yy = padT + 92;
+    for (const m of msg) {
+      ctx.fillStyle = m === 'WAVE DAMPS.' ? '#5dffbe' : m === 'WAVE GROWS.' ? '#ff6b6b' : '#5a6080';
+      ctx.fillText(m, sx + 12, yy);
+      yy += 14;
+    }
+
+    ctx.textAlign = 'left';
+  }
+
+  function loop() {
+    if (playing) step();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('landau-vphi').addEventListener('input', e => {
+    vphi = +e.target.value;
+    document.getElementById('landau-vphi-val').textContent = vphi.toFixed(2);
+  });
+  document.getElementById('landau-amp').addEventListener('input', e => {
+    amp = +e.target.value;
+    document.getElementById('landau-amp-val').textContent = amp.toFixed(2);
+  });
+  document.getElementById('landau-play').addEventListener('click', e => {
+    playing = !playing;
+    e.target.textContent = playing ? '⏸ Pause' : '▶ Play';
+  });
+
+  init();
+  loop();
+})();
+
+/* =====================================================
+   § 05 — ITG INSTABILITY (2D pseudo-turbulence)
+===================================================== */
+(function() {
+  const canvas = document.getElementById('itg-canvas');
+  const N = 80;
+  let T;       // temperature perturbation
+  let psi;     // streamfunction (potential)
+  let grad = 1.5;
+  let visc = 0.18;
+  let t = 0;
+  let amplitudeHistory = [];
+
+  function init() {
+    T = new Float32Array(N*N);
+    psi = new Float32Array(N*N);
+    // initial noise
+    for (let i = 0; i < N*N; i++) {
+      T[i] = (Math.random() - 0.5) * 0.01;
+    }
+    amplitudeHistory = [];
+    t = 0;
+  }
+
+  function lap(a, i, j) {
+    const ip = (i+1)%N, im = (i-1+N)%N, jp = (j+1)%N, jm = (j-1+N)%N;
+    return a[j*N+ip] + a[j*N+im] + a[jp*N+i] + a[jm*N+i] - 4*a[j*N+i];
+  }
+
+  function step() {
+    const dt = 0.06;
+    // psi follows -laplacian → temperature gradient driving via Hasegawa-Wakatani-ish toy
+    // Here we use simplified equations: T_t = -grad * dpsi/dy - visc * T + small mixing
+    // and psi solves laplacian psi = -T (so psi tracks T smoothed)
+    // Solve psi by simple Jacobi
+    for (let iter = 0; iter < 6; iter++) {
+      const newp = new Float32Array(N*N);
+      for (let j = 0; j < N; j++) {
+        for (let i = 0; i < N; i++) {
+          const ip = (i+1)%N, im = (i-1+N)%N, jp = (j+1)%N, jm = (j-1+N)%N;
+          newp[j*N+i] = 0.25*(psi[j*N+ip]+psi[j*N+im]+psi[jp*N+i]+psi[jm*N+i] + T[j*N+i]);
+        }
+      }
+      psi = newp;
+    }
+
+    // dT/dt = -grad * dpsi/dy + visc * lap(T) (linear ITG-like)
+    //       plus nonlinear advection v×grad T  for saturation
+    const newT = new Float32Array(N*N);
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const ip = (i+1)%N, im = (i-1+N)%N, jp = (j+1)%N, jm = (j-1+N)%N;
+        // velocities from streamfunction
+        const vx = -(psi[jp*N+i] - psi[jm*N+i]) * 0.5;
+        const vy =  (psi[j*N+ip] - psi[j*N+im]) * 0.5;
+        // dpsi/dy drives T
+        const dpsidy = (psi[jp*N+i] - psi[jm*N+i]) * 0.5;
+        // nonlinear advection of T
+        const dTdx = (T[j*N+ip] - T[j*N+im]) * 0.5;
+        const dTdy = (T[jp*N+i] - T[jm*N+i]) * 0.5;
+        const nonlin = -(vx*dTdx + vy*dTdy);
+
+        newT[j*N+i] = T[j*N+i] + dt*(grad * dpsidy + visc * lap(T,i,j) + 1.5 * nonlin);
+        // clamp
+        if (newT[j*N+i] > 4) newT[j*N+i] = 4;
+        if (newT[j*N+i] < -4) newT[j*N+i] = -4;
+      }
+    }
+    T = newT;
+
+    // amplitude
+    let amp = 0;
+    for (let i = 0; i < T.length; i++) amp += T[i]*T[i];
+    amp = Math.sqrt(amp / T.length);
+    amplitudeHistory.push(amp);
+    if (amplitudeHistory.length > 300) amplitudeHistory.shift();
+
+    t += dt;
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#0a0d1a';
+    ctx.fillRect(0, 0, w, h);
+
+    const size = Math.min(w * 0.5, h - 60);
+    const ox = 30;
+    const oy = 30;
+
+    // field
+    const cell = size / N;
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const v = T[j*N+i];
+        const norm = Math.max(-1, Math.min(1, v/2));
+        let r, g, b;
+        if (norm > 0) {
+          r = Math.round(255 * norm + 26 * (1-norm));
+          g = Math.round(61 * norm + 35 * (1-norm));
+          b = Math.round(139 * norm + 71 * (1-norm));
+        } else {
+          const m = -norm;
+          r = Math.round(77 * m + 26 * (1-m));
+          g = Math.round(223 * m + 35 * (1-m));
+          b = Math.round(255 * m + 71 * (1-m));
+        }
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(ox + i*cell, oy + (N-1-j)*cell, cell+0.5, cell+0.5);
+      }
+    }
+    // border
+    ctx.strokeStyle = '#1f2640';
+    ctx.strokeRect(ox, oy, size, size);
+    // label
+    ctx.fillStyle = '#9aa0b8';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText('temperature perturbation δT(x,y,t)', ox, oy - 8);
+
+    // amplitude plot
+    const px = ox + size + 30;
+    const pw = w - px - 30;
+    const ph = size;
+    ctx.fillStyle = '#11162a';
+    ctx.fillRect(px, oy, pw, ph);
+    ctx.strokeStyle = '#1f2640';
+    ctx.strokeRect(px, oy, pw, ph);
+
+    ctx.fillStyle = '#9aa0b8';
+    ctx.fillText('amplitude over time · log scale', px, oy - 8);
+
+    if (amplitudeHistory.length > 2) {
+      const logs = amplitudeHistory.map(a => Math.log10(Math.max(a, 1e-6)));
+      const ymin = -4, ymax = 1;
+      function X(i) { return px + (i / (amplitudeHistory.length - 1)) * pw; }
+      function Y(l) { return oy + ph * (1 - (l - ymin)/(ymax - ymin)); }
+
+      // grid
+      ctx.strokeStyle = '#161c33';
+      for (let l = ymin; l <= ymax; l++) {
+        ctx.beginPath();
+        ctx.moveTo(px, Y(l)); ctx.lineTo(px+pw, Y(l));
+        ctx.stroke();
+        ctx.fillStyle = '#5a6080';
+        ctx.font = "10px 'JetBrains Mono', monospace";
+        ctx.fillText('10^' + l, px + 4, Y(l) - 2);
+      }
+
+      ctx.strokeStyle = '#ff3d8b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < logs.length; i++) {
+        if (i === 0) ctx.moveTo(X(i), Y(logs[i]));
+        else ctx.lineTo(X(i), Y(logs[i]));
+      }
+      ctx.stroke();
+
+      // measured growth from a short window
+      if (logs.length >= 30) {
+        const w_ = 20;
+        const last = logs.length - 1;
+        const slope = (logs[last] - logs[last - w_]) / (w_ * 0.06);
+        // slope is in units of natural log per time per dt
+        // but we used log10, so γ ≈ slope * ln(10)
+        const gamma = slope * Math.log(10);
+        ctx.fillStyle = '#ff3d8b';
+        ctx.font = "12px 'JetBrains Mono', monospace";
+        ctx.fillText('γ ≈ ' + gamma.toFixed(3) + ' (growth rate)', px + 8, oy + ph - 12);
+      }
+    }
+  }
+
+  function loop() {
+    step();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('itg-grad').addEventListener('input', e => {
+    grad = +e.target.value;
+    document.getElementById('itg-grad-val').textContent = grad.toFixed(2);
+  });
+  document.getElementById('itg-visc').addEventListener('input', e => {
+    visc = +e.target.value;
+    document.getElementById('itg-visc-val').textContent = visc.toFixed(2);
+  });
+  document.getElementById('itg-reset').addEventListener('click', init);
+
+  init();
+  loop();
+})();
+
+/* =====================================================
+   § 06 — ROSENBLUTH–HINTON
+===================================================== */
+(function() {
+  const canvas = document.getElementById('rh-canvas');
+  let q = 1.4;
+  let eps = 0.18;
+  let t = 0;
+  let phi = 1.0;
+  let phidot = 0;
+  let history = [];
+
+  function predictResidual() {
+    return 1 / (1 + 1.6 * q*q / Math.sqrt(eps));
+  }
+
+  function restart() {
+    t = 0;
+    phi = 1.0;
+    phidot = 0;
+    history = [];
+  }
+
+  function step() {
+    const dt = 0.05;
+    // Simple model: damped harmonic oscillator toward residual level
+    // d²phi/dt² + 2β dphi/dt + ω² (phi - phi_res) = 0
+    const omega = 2.5 / q;       // GAM frequency scales ~ 1/q
+    const beta = 0.4;            // damping
+    const phi_res = predictResidual();
+    const accel = -omega*omega * (phi - phi_res) - 2*beta * phidot;
+    phidot += accel * dt;
+    phi += phidot * dt;
+    t += dt;
+    history.push({ t, phi });
+    if (history.length > 600) history.shift();
+  }
+
+  function draw() {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#0a0d1a';
+    ctx.fillRect(0, 0, w, h);
+
+    const padL = 70, padR = 40, padT = 30, padB = 50;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    const tmax = 30;
+    function X(tt) { return padL + tt/tmax * plotW; }
+    function Y(p) { return padT + plotH * (1 - (p + 0.5)/1.7); }
+
+    // axes
+    ctx.strokeStyle = '#1f2640';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(padL, padT, plotW, plotH);
+
+    // gridlines
+    for (let l = -0.5; l <= 1.2; l += 0.25) {
+      ctx.strokeStyle = '#161c33';
+      ctx.beginPath();
+      ctx.moveTo(padL, Y(l));
+      ctx.lineTo(padL + plotW, Y(l));
+      ctx.stroke();
+      ctx.fillStyle = '#5a6080';
+      ctx.font = "10px 'JetBrains Mono', monospace";
+      ctx.textAlign = 'right';
+      ctx.fillText(l.toFixed(2), padL - 6, Y(l) + 3);
+    }
+    ctx.textAlign = 'center';
+    for (let tt = 0; tt <= 30; tt += 5) {
+      ctx.fillStyle = '#5a6080';
+      ctx.fillText(tt, X(tt), padT + plotH + 16);
+    }
+
+    // axis labels
+    ctx.fillStyle = '#9aa0b8';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText('time', padL + plotW/2, h - 10);
+    ctx.save();
+    ctx.translate(20, padT + plotH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('φ_zonal(t) / φ_zonal(0)', 0, 0);
+    ctx.restore();
+
+    // residual prediction line
+    const res = predictResidual();
+    ctx.strokeStyle = '#5dffbe';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(padL, Y(res));
+    ctx.lineTo(padL + plotW, Y(res));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // label
+    ctx.fillStyle = '#5dffbe';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'left';
+    ctx.fillText('R–H residual = 1 / (1 + 1.6 q²/√ε) = ' + res.toFixed(3), padL + plotW - 280, Y(res) - 8);
+
+    // zero line
+    ctx.strokeStyle = '#2d3559';
+    ctx.beginPath();
+    ctx.moveTo(padL, Y(0)); ctx.lineTo(padL + plotW, Y(0));
+    ctx.stroke();
+
+    // signal
+    ctx.strokeStyle = '#ff3d8b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let first = true;
+    for (const pt of history) {
+      const x = X(pt.t);
+      const y = Y(pt.phi);
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // dot at current value
+    if (history.length > 0) {
+      const last = history[history.length-1];
+      ctx.fillStyle = '#ff3d8b';
+      ctx.beginPath();
+      ctx.arc(X(Math.min(last.t, tmax)), Y(last.phi), 4, 0, 2*Math.PI);
+      ctx.fill();
+    }
+
+    // legend
+    ctx.fillStyle = '#ff3d8b';
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText('— φ_zonal(t) · damped GAM oscillation', padL + 10, padT + 18);
+
+    document.getElementById('rh-readout').textContent =
+      `predicted residual: ${res.toFixed(4)}    ·    current φ: ${phi.toFixed(4)}    ·    t = ${t.toFixed(2)}`;
+  }
+
+  function loop() {
+    if (t < 30) step();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('rh-q').addEventListener('input', e => {
+    q = +e.target.value;
+    document.getElementById('rh-q-val').textContent = q.toFixed(1);
+    restart();
+  });
+  document.getElementById('rh-eps').addEventListener('input', e => {
+    eps = +e.target.value;
+    document.getElementById('rh-eps-val').textContent = eps.toFixed(2);
+    restart();
+  });
+  document.getElementById('rh-restart').addEventListener('click', restart);
+
+  restart();
+  loop();
+})();
+
+/* re-render on resize */
+window.addEventListener('resize', () => {
+  // force redraws by triggering an input event on each slider — cheaper than refactoring
+  document.querySelectorAll('input[type=range]').forEach(s => s.dispatchEvent(new Event('input')));
+});
+
+</script>
+</body>
+</html>

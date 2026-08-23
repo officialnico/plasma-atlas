@@ -1,0 +1,466 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gradient descent llm</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function GradientDescentLLM() {
+  const canvasRef = useRef(null);
+  const [phase, setPhase] = useState(0); // 0: intro, 1: loss surface, 2: training
+  const [isTraining, setIsTraining] = useState(false);
+  const [step, setStep] = useState(0);
+  const [weights, setWeights] = useState({ w1: -2.5, w2: 2.5 });
+  const [history, setHistory] = useState([]);
+  const [learningRate, setLearningRate] = useState(0.15);
+  const [speed, setSpeed] = useState(100);
+  
+  // Simple "language model": predicts next word given context
+  // Context: "The cat sat on the ___"
+  // Possible words: mat, dog, sky, fish
+  // We pretend we only have 2 weights to tune (for visualization)
+  
+  const words = ['mat', 'dog', 'sky', 'fish'];
+  const correctWord = 'mat';
+  const correctIndex = 0;
+  
+  // Fake "scores" based on our 2 weights
+  // In reality there are billions of weights, but let's pretend
+  const getScores = (w1, w2) => {
+    return [
+      w1 * 1.2 + w2 * 0.3 + 1.0,   // mat
+      w1 * -0.5 + w2 * 0.8 + 0.5,  // dog  
+      w1 * 0.2 + w2 * -1.1 + 0.3,  // sky
+      w1 * -0.8 + w2 * 0.4 + 0.2,  // fish
+    ];
+  };
+  
+  // Softmax to get probabilities
+  const softmax = (scores) => {
+    const maxScore = Math.max(...scores);
+    const exps = scores.map(s => Math.exp(s - maxScore));
+    const sum = exps.reduce((a, b) => a + b, 0);
+    return exps.map(e => e / sum);
+  };
+  
+  // Cross-entropy loss (negative log probability of correct answer)
+  const getLoss = (w1, w2) => {
+    const scores = getScores(w1, w2);
+    const probs = softmax(scores);
+    return -Math.log(probs[correctIndex] + 1e-10);
+  };
+  
+  // Numerical gradient
+  const getGradient = (w1, w2) => {
+    const eps = 0.001;
+    const dw1 = (getLoss(w1 + eps, w2) - getLoss(w1 - eps, w2)) / (2 * eps);
+    const dw2 = (getLoss(w1, w2 + eps) - getLoss(w1, w2 - eps)) / (2 * eps);
+    return { dw1, dw2 };
+  };
+  
+  const currentLoss = getLoss(weights.w1, weights.w2);
+  const currentScores = getScores(weights.w1, weights.w2);
+  const currentProbs = softmax(currentScores);
+  const currentGradient = getGradient(weights.w1, weights.w2);
+  
+  // Training step
+  const trainStep = useCallback(() => {
+    setWeights(prev => {
+      const grad = getGradient(prev.w1, prev.w2);
+      const newW1 = prev.w1 - learningRate * grad.dw1;
+      const newW2 = prev.w2 - learningRate * grad.dw2;
+      
+      // Clamp to visible area
+      const clampedW1 = Math.max(-3, Math.min(3, newW1));
+      const clampedW2 = Math.max(-3, Math.min(3, newW2));
+      
+      setHistory(h => [...h, { w1: prev.w1, w2: prev.w2, loss: getLoss(prev.w1, prev.w2) }]);
+      setStep(s => s + 1);
+      
+      return { w1: clampedW1, w2: clampedW2 };
+    });
+  }, [learningRate]);
+  
+  // Auto-training loop
+  useEffect(() => {
+    if (!isTraining) return;
+    if (currentLoss < 0.05 || step > 200) {
+      setIsTraining(false);
+      return;
+    }
+    
+    const timer = setTimeout(trainStep, speed);
+    return () => clearTimeout(timer);
+  }, [isTraining, trainStep, currentLoss, step, speed]);
+  
+  // Draw loss surface
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    // Background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+    
+    const range = 3;
+    const toCanvasX = (w1) => (w1 + range) / (2 * range) * width;
+    const toCanvasY = (w2) => (range - w2) / (2 * range) * height;
+    
+    // Draw loss landscape as heatmap
+    const resolution = 4;
+    for (let px = 0; px < width; px += resolution) {
+      for (let py = 0; py < height; py += resolution) {
+        const w1 = (px / width) * 2 * range - range;
+        const w2 = range - (py / height) * 2 * range;
+        const loss = getLoss(w1, w2);
+        
+        // Color based on loss (lower = greener, higher = redder)
+        const normalized = Math.min(loss / 4, 1);
+        const hue = (1 - normalized) * 120; // 120 = green, 0 = red
+        const lightness = 25 + (1 - normalized) * 20;
+        
+        ctx.fillStyle = `hsl(${hue}, 70%, ${lightness}%)`;
+        ctx.fillRect(px, py, resolution, resolution);
+      }
+    }
+    
+    // Contour lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    const contourLevels = [0.5, 1, 1.5, 2, 2.5, 3];
+    
+    for (const level of contourLevels) {
+      ctx.beginPath();
+      let started = false;
+      
+      for (let angle = 0; angle <= Math.PI * 2; angle += 0.05) {
+        // Search outward from minimum for this contour level
+        for (let r = 0.1; r < 4; r += 0.1) {
+          const w1 = 1.5 + r * Math.cos(angle); // Approximate minimum location
+          const w2 = -0.5 + r * Math.sin(angle);
+          const loss = getLoss(w1, w2);
+          
+          if (Math.abs(loss - level) < 0.15) {
+            const px = toCanvasX(w1);
+            const py = toCanvasY(w2);
+            if (!started) {
+              ctx.moveTo(px, py);
+              started = true;
+            } else {
+              ctx.lineTo(px, py);
+            }
+            break;
+          }
+        }
+      }
+      ctx.stroke();
+    }
+    
+    // Draw history path
+    if (history.length > 1) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(toCanvasX(history[0].w1), toCanvasY(history[0].w2));
+      for (let i = 1; i < history.length; i++) {
+        ctx.lineTo(toCanvasX(history[i].w1), toCanvasY(history[i].w2));
+      }
+      ctx.lineTo(toCanvasX(weights.w1), toCanvasY(weights.w2));
+      ctx.stroke();
+      
+      // Draw dots at each step
+      for (let i = 0; i < history.length; i++) {
+        const alpha = 0.3 + 0.7 * (i / history.length);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(toCanvasX(history[i].w1), toCanvasY(history[i].w2), 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // Draw gradient arrow at current position
+    const arrowScale = 0.5;
+    const gradLen = Math.sqrt(currentGradient.dw1 ** 2 + currentGradient.dw2 ** 2);
+    if (gradLen > 0.01) {
+      const normDw1 = currentGradient.dw1 / gradLen;
+      const normDw2 = currentGradient.dw2 / gradLen;
+      
+      const startX = toCanvasX(weights.w1);
+      const startY = toCanvasY(weights.w2);
+      // Arrow points OPPOSITE to gradient (downhill)
+      const endX = toCanvasX(weights.w1 - normDw1 * arrowScale);
+      const endY = toCanvasY(weights.w2 - normDw2 * arrowScale);
+      
+      ctx.strokeStyle = '#3498db';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      
+      // Arrowhead
+      const angle = Math.atan2(endY - startY, endX - startX);
+      ctx.fillStyle = '#3498db';
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - 10 * Math.cos(angle - 0.4), endY - 10 * Math.sin(angle - 0.4));
+      ctx.lineTo(endX - 10 * Math.cos(angle + 0.4), endY - 10 * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    // Current position (ball)
+    ctx.shadowColor = '#f39c12';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#f39c12';
+    ctx.beginPath();
+    ctx.arc(toCanvasX(weights.w1), toCanvasY(weights.w2), 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Axes labels
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '14px Arial';
+    ctx.fillText('weight₁', width - 60, height - 10);
+    ctx.save();
+    ctx.translate(15, 60);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('weight₂', 0, 0);
+    ctx.restore();
+    
+    // Loss scale
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '11px Arial';
+    ctx.fillText('green = low loss (good)', 10, height - 25);
+    ctx.fillText('red = high loss (bad)', 10, height - 10);
+    
+  }, [weights, history, currentGradient]);
+  
+  const reset = () => {
+    setWeights({ w1: -2.5, w2: 2.5 });
+    setHistory([]);
+    setStep(0);
+    setIsTraining(false);
+  };
+  
+  const maxProbIndex = currentProbs.indexOf(Math.max(...currentProbs));
+  
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      <h1 className="text-2xl font-bold mb-2 text-center">Gradient Descent → Word Prediction</h1>
+      <p className="text-center text-gray-400 mb-4 text-sm">How neural networks learn to predict the next word</p>
+      
+      <div className="flex flex-col lg:flex-row gap-4 max-w-7xl mx-auto">
+        
+        {/* Loss Surface */}
+        <div className="flex-1">
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">Loss Landscape</h2>
+            <p className="text-xs text-gray-400 mb-3">The "terrain" of how wrong the model is. We're trying to reach the green valley (lowest loss).</p>
+            <canvas
+              ref={canvasRef}
+              width={450}
+              height={400}
+              className="rounded-lg w-full"
+            />
+            <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
+              <div className="w-4 h-4 rounded-full bg-orange-500"></div>
+              <span>Current position</span>
+              <div className="w-4 h-1 bg-blue-500 ml-2"></div>
+              <span>Gradient (direction to move)</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Right panel */}
+        <div className="lg:w-96 space-y-3">
+          
+          {/* The prediction task */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">The Task</h2>
+            <div className="bg-gray-900 rounded-lg p-3 font-mono text-sm">
+              <span className="text-gray-400">"The cat sat on the </span>
+              <span className="text-yellow-400 font-bold">___</span>
+              <span className="text-gray-400">"</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Model must predict: <span className="text-green-400 font-bold">mat</span></p>
+          </div>
+          
+          {/* Current predictions */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-3 text-sm">Model's Predictions</h2>
+            <div className="space-y-2">
+              {words.map((word, i) => (
+                <div key={word} className="flex items-center gap-2">
+                  <span className={`font-mono text-sm w-12 ${i === correctIndex ? 'text-green-400' : 'text-gray-400'}`}>
+                    {word}
+                  </span>
+                  <div className="flex-1 bg-gray-700 rounded-full h-6 overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-200 ${
+                        i === correctIndex ? 'bg-green-500' : 
+                        i === maxProbIndex ? 'bg-red-500' : 'bg-gray-500'
+                      }`}
+                      style={{ width: `${currentProbs[i] * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-xs w-14 text-right">
+                    {(currentProbs[i] * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-700 flex justify-between items-center">
+              <span className="text-xs text-gray-500">Model says:</span>
+              <span className={`font-bold ${maxProbIndex === correctIndex ? 'text-green-400' : 'text-red-400'}`}>
+                "{words[maxProbIndex]}"
+                {maxProbIndex === correctIndex ? ' ✓' : ' ✗'}
+              </span>
+            </div>
+          </div>
+          
+          {/* Loss */}
+          <div className={`rounded-xl p-4 ${currentLoss < 0.5 ? 'bg-green-900/40 border border-green-600' : 'bg-red-900/40 border border-red-600'}`}>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="font-semibold text-sm">Loss</h2>
+                <p className="text-xs text-gray-400">How wrong is the model?</p>
+              </div>
+              <span className="font-mono text-3xl">{currentLoss.toFixed(3)}</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Loss = −log(P(correct word)) → lower is better
+            </p>
+          </div>
+          
+          {/* Gradient info */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">Gradient (∇Loss)</h2>
+            <div className="font-mono text-sm">
+              <span className="text-gray-500">∂Loss/∂w₁ = </span>
+              <span className="text-blue-400">{currentGradient.dw1.toFixed(3)}</span>
+            </div>
+            <div className="font-mono text-sm">
+              <span className="text-gray-500">∂Loss/∂w₂ = </span>
+              <span className="text-blue-400">{currentGradient.dw2.toFixed(3)}</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              We move opposite to gradient → downhill
+            </p>
+          </div>
+          
+          {/* Controls */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setIsTraining(!isTraining)}
+                className={`flex-1 py-2 rounded-lg font-semibold transition-all ${
+                  isTraining 
+                    ? 'bg-red-600 hover:bg-red-700' 
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {isTraining ? 'Pause' : 'Train'}
+              </button>
+              <button
+                onClick={trainStep}
+                disabled={isTraining}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold disabled:opacity-50"
+              >
+                Step
+              </button>
+              <button
+                onClick={reset}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-semibold"
+              >
+                Reset
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              <div>
+                <label className="flex justify-between text-xs mb-1">
+                  <span>Learning Rate</span>
+                  <span className="font-mono">{learningRate.toFixed(2)}</span>
+                </label>
+                <input
+                  type="range" min="0.01" max="0.5" step="0.01" value={learningRate}
+                  onChange={(e) => setLearningRate(parseFloat(e.target.value))}
+                  className="w-full accent-green-500 h-1"
+                />
+              </div>
+              <div>
+                <label className="flex justify-between text-xs mb-1">
+                  <span>Speed</span>
+                  <span className="font-mono">{speed}ms</span>
+                </label>
+                <input
+                  type="range" min="20" max="500" step="20" value={speed}
+                  onChange={(e) => setSpeed(parseInt(e.target.value))}
+                  className="w-full accent-blue-500 h-1"
+                />
+              </div>
+            </div>
+            
+            <div className="mt-3 pt-3 border-t border-gray-700 text-center">
+              <span className="text-gray-500 text-xs">Steps: </span>
+              <span className="font-mono">{step}</span>
+            </div>
+          </div>
+          
+          {/* Current weights */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="font-semibold mb-2 text-sm">Current Weights</h2>
+            <div className="grid grid-cols-2 gap-2 font-mono text-sm">
+              <div className="bg-gray-900 p-2 rounded">
+                <span className="text-gray-500">w₁ = </span>
+                <span className="text-orange-400">{weights.w1.toFixed(3)}</span>
+              </div>
+              <div className="bg-gray-900 p-2 rounded">
+                <span className="text-gray-500">w₂ = </span>
+                <span className="text-orange-400">{weights.w2.toFixed(3)}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Explanation */}
+          <div className="bg-blue-900/20 border border-blue-700/50 p-4 rounded-xl text-xs">
+            <p className="text-gray-300 mb-2">
+              <strong className="text-blue-400">What's happening:</strong>
+            </p>
+            <ol className="list-decimal list-inside space-y-1 text-gray-400">
+              <li>Model makes a prediction (probabilities)</li>
+              <li>We measure how wrong it is (loss)</li>
+              <li>Compute gradient: which way is "uphill"?</li>
+              <li>Step opposite to gradient (downhill)</li>
+              <li>Repeat until loss is low</li>
+            </ol>
+            <p className="text-gray-500 mt-2">
+              Real LLMs do this with billions of weights and trillions of words.
+            </p>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(GradientDescentLLM));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

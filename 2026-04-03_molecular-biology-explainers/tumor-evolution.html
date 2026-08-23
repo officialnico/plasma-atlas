@@ -1,0 +1,608 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tumor evolution</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const SECTIONS = [
+  {
+    id: "evolution",
+    title: "Tumors Aren't Smart. They're Evolutionary.",
+    icon: "🧫",
+    color: "#ef4444",
+    body: `When we say tumors are "sneaky," we mean the same thing as when we say bacteria are "sneaky" for developing antibiotic resistance. Nobody thinks bacteria are scheming. They're just dividing fast, mutating randomly, and the ones that happen to survive... survive.
+
+A tumor is the same thing. It's YOUR cells, dividing way too fast because their growth-control code is broken. And every time a cell divides, it copies its DNA — and sometimes makes mistakes.
+
+So you end up with millions of slightly different tumor cells, each with their own random mutations. Most mutations do nothing. But some, purely by accident, help that cell survive better.
+
+This is natural selection running inside your body, on a timescale of weeks instead of millions of years.`,
+  },
+  {
+    id: "simulation",
+    title: "Watch It Happen: Tumor Evolution Simulator",
+    icon: "⚡",
+    color: "#f59e0b",
+    body: `This simulator shows how a tumor evolves immune evasion WITHOUT any intelligence. Each cell is just randomly mutating. The immune system kills cells it can see. The ones it can't see (by random luck) survive and multiply.
+
+Press Start and watch. Nobody is "deciding" anything.`,
+    hasSimulation: true,
+  },
+  {
+    id: "tricks",
+    title: "The \"Tricks\" Are Just Survivor Bias",
+    icon: "🎭",
+    color: "#a855f7",
+    body: `Here's every "sneaky" thing tumors do, and why none of it requires a brain:`,
+    hasTricks: true,
+  },
+  {
+    id: "analogy",
+    title: "The CS Analogy: It's a Fuzzer",
+    icon: "💻",
+    color: "#3b82f6",
+    body: `If you're a CS person, here's the most accurate mental model:
+
+A tumor is like a fuzzer running against your immune system.
+
+Your immune system is the security software — it has rules for detecting threats (pattern matching on surface proteins). The tumor is generating millions of random variants per day. Most variants get caught and killed. But occasionally, a variant randomly generates a payload that bypasses a detection rule.
+
+That variant survives, replicates, and now ALL its children carry that bypass. Then THOSE children start fuzzing again, and some of them find a second bypass. And a third.
+
+Given enough generations (and tumors divide FAST — sometimes every 24-48 hours), you inevitably end up with cells that have accumulated multiple immune evasion "exploits," not because anyone designed them, but because that's what happens when you run billions of random trials against a finite set of detection rules.
+
+The mRNA vaccine works by essentially UPDATING the security signatures. You're giving the immune system new detection rules that the tumor hasn't had a chance to fuzz against yet — and you're deploying them to so many nodes (T-cells) at once that the tumor's local suppression tricks get overwhelmed.`,
+  },
+  {
+    id: "timeline",
+    title: "How Fast This Happens",
+    icon: "⏱️",
+    color: "#06b6d4",
+    body: ``,
+    hasTimeline: true,
+  }
+];
+
+// ==================== SIMULATION ====================
+
+function TumorSimulation() {
+  const [cells, setCells] = useState([]);
+  const [generation, setGeneration] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [log, setLog] = useState([]);
+  const [immuneKills, setImmuneKills] = useState(0);
+  const [stats, setStats] = useState({ visible: 0, hidden: 0, suppressing: 0, mhcDown: 0, total: 0 });
+  const intervalRef = useRef(null);
+
+  const GRID = 20;
+
+  const initCells = () => {
+    const initial = [];
+    for (let i = 0; i < 12; i++) {
+      initial.push({
+        id: Math.random(),
+        x: Math.floor(Math.random() * GRID),
+        y: Math.floor(Math.random() * GRID),
+        hidesMHC: false,
+        suppressesImmune: false,
+        decoySignal: false,
+        mutations: 0,
+        age: 0,
+      });
+    }
+    return initial;
+  };
+
+  const reset = () => {
+    setRunning(false);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setCells(initCells());
+    setGeneration(0);
+    setLog([{ gen: 0, text: "Tumor starts: 12 cells, all visible to immune system", color: "#94a3b8" }]);
+    setImmuneKills(0);
+  };
+
+  useEffect(() => { reset(); return () => { if (intervalRef.current) clearInterval(intervalRef.current); }; }, []);
+
+  const step = () => {
+    setCells(prev => {
+      let newCells = [...prev];
+      let killed = 0;
+      const newLogs = [];
+      const gen = generation + 1;
+
+      // Immune system tries to kill visible cells
+      newCells = newCells.filter(c => {
+        const canSee = !c.hidesMHC;
+        const suppressed = newCells.some(other =>
+          other.suppressesImmune && other.id !== c.id &&
+          Math.abs(other.x - c.x) <= 2 && Math.abs(other.y - c.y) <= 2
+        );
+
+        if (canSee && !suppressed && Math.random() < 0.35) {
+          killed++;
+          return false;
+        }
+        return true;
+      });
+
+      if (killed > 0) {
+        setImmuneKills(k => k + killed);
+      }
+
+      // Surviving cells divide
+      const offspring = [];
+      newCells.forEach(c => {
+        if (newCells.length + offspring.length > 180) return;
+        if (Math.random() < 0.45) {
+          const child = {
+            ...c,
+            id: Math.random(),
+            x: Math.min(GRID - 1, Math.max(0, c.x + Math.floor(Math.random() * 3) - 1)),
+            y: Math.min(GRID - 1, Math.max(0, c.y + Math.floor(Math.random() * 3) - 1)),
+            age: 0,
+            mutations: c.mutations,
+          };
+
+          // Random mutations during division
+          if (Math.random() < 0.08 && !child.hidesMHC) {
+            child.hidesMHC = true;
+            child.mutations++;
+            newLogs.push({ gen, text: `Gen ${gen}: A cell randomly mutated to hide its MHC display — immune system can't see it now`, color: "#ef4444" });
+          }
+          if (Math.random() < 0.06 && !child.suppressesImmune) {
+            child.suppressesImmune = true;
+            child.mutations++;
+            newLogs.push({ gen, text: `Gen ${gen}: A cell randomly started producing immune-suppressing signals — nearby cells now protected`, color: "#a855f7" });
+          }
+          if (Math.random() < 0.05 && !child.decoySignal) {
+            child.decoySignal = true;
+            child.mutations++;
+            newLogs.push({ gen, text: `Gen ${gen}: A cell randomly gained a "don't eat me" surface protein — tells immune cells to ignore it`, color: "#f59e0b" });
+          }
+
+          offspring.push(child);
+        }
+        c.age++;
+      });
+
+      const result = [...newCells, ...offspring];
+
+      // Update stats
+      const visible = result.filter(c => !c.hidesMHC && !c.suppressesImmune && !c.decoySignal).length;
+      const hidden = result.filter(c => c.hidesMHC).length;
+      const suppressing = result.filter(c => c.suppressesImmune).length;
+      const decoy = result.filter(c => c.decoySignal).length;
+      setStats({ visible, hidden, suppressing, mhcDown: hidden, decoy, total: result.length });
+
+      if (newLogs.length > 0) {
+        setLog(prev => [...prev, ...newLogs].slice(-15));
+      }
+
+      return result;
+    });
+    setGeneration(g => g + 1);
+  };
+
+  useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(step, 600);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [running, generation]);
+
+  const getCellColor = (c) => {
+    if (c.suppressesImmune) return "#a855f7";
+    if (c.hidesMHC) return "#ef4444";
+    if (c.decoySignal) return "#f59e0b";
+    return "#4ade80";
+  };
+
+  const getCellOpacity = (c) => {
+    if (c.hidesMHC) return 0.9;
+    return 0.7;
+  };
+
+  return (
+    <div style={{ padding: "16px 0" }}>
+      {/* Controls */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={() => setRunning(!running)} style={{
+          padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer",
+          background: running ? "#ef444422" : "#22c55e22",
+          color: running ? "#ef4444" : "#22c55e", fontWeight: 700, fontSize: 13
+        }}>
+          {running ? "⏸ Pause" : "▶ Start"}
+        </button>
+        <button onClick={reset} style={{
+          padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+          background: "rgba(255,255,255,0.05)", color: "#94a3b8", fontWeight: 600, fontSize: 12
+        }}>
+          Reset
+        </button>
+        <span style={{ fontSize: 11, color: "#475569", marginLeft: 4 }}>
+          Gen: <strong style={{ color: "#94a3b8" }}>{generation}</strong>
+          &nbsp;&nbsp;Cells: <strong style={{ color: "#94a3b8" }}>{stats.total}</strong>
+          &nbsp;&nbsp;Immune kills: <strong style={{ color: "#22c55e" }}>{immuneKills}</strong>
+        </span>
+      </div>
+
+      {/* Grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${GRID}, 1fr)`,
+        gap: 1, background: "#0a0e18", borderRadius: 12, padding: 4,
+        border: "1px solid rgba(255,255,255,0.06)", aspectRatio: "1/1", maxWidth: 400
+      }}>
+        {Array.from({ length: GRID * GRID }).map((_, idx) => {
+          const x = idx % GRID;
+          const y = Math.floor(idx / GRID);
+          const cellsHere = cells.filter(c => c.x === x && c.y === y);
+          const topCell = cellsHere[cellsHere.length - 1];
+
+          return (
+            <div key={idx} style={{
+              aspectRatio: "1/1", borderRadius: 2,
+              background: topCell ? getCellColor(topCell) : "rgba(255,255,255,0.015)",
+              opacity: topCell ? getCellOpacity(topCell) : 1,
+              transition: "all 0.3s",
+              boxShadow: topCell?.suppressesImmune ? `0 0 6px ${getCellColor(topCell)}66` : "none",
+              position: "relative",
+            }}>
+              {cellsHere.length > 1 && (
+                <div style={{
+                  position: "absolute", top: 0, right: 1, fontSize: 6,
+                  color: "#fff", fontWeight: 700
+                }}>
+                  {cellsHere.length}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+        {[
+          { color: "#4ade80", label: "Visible to immune system", desc: "can be killed" },
+          { color: "#ef4444", label: "MHC hidden", desc: "invisible to T-cells" },
+          { color: "#a855f7", label: "Immune suppressor", desc: "protects nearby cells" },
+          { color: "#f59e0b", label: "Decoy signal", desc: "\"don't eat me\" protein" },
+        ].map((item, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: item.color, flexShrink: 0 }} />
+            <span style={{ color: "#94a3b8" }}><strong style={{ color: item.color }}>{item.label}</strong> — {item.desc}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Stat bars */}
+      <div style={{ marginTop: 14, display: "flex", gap: 4, height: 16, borderRadius: 8, overflow: "hidden", background: "rgba(255,255,255,0.03)" }}>
+        {stats.total > 0 && (
+          <>
+            <div style={{ width: `${(stats.visible / stats.total) * 100}%`, background: "#4ade80", transition: "width 0.3s", minWidth: stats.visible > 0 ? 2 : 0 }} />
+            <div style={{ width: `${(stats.hidden / stats.total) * 100}%`, background: "#ef4444", transition: "width 0.3s", minWidth: stats.hidden > 0 ? 2 : 0 }} />
+            <div style={{ width: `${(stats.suppressing / stats.total) * 100}%`, background: "#a855f7", transition: "width 0.3s", minWidth: stats.suppressing > 0 ? 2 : 0 }} />
+            <div style={{ width: `${(stats.decoy / stats.total) * 100}%`, background: "#f59e0b", transition: "width 0.3s", minWidth: stats.decoy > 0 ? 2 : 0 }} />
+          </>
+        )}
+      </div>
+      <div style={{ fontSize: 9, color: "#475569", marginTop: 4 }}>
+        Composition — watch how resistant (red/purple/yellow) cells take over as the immune system kills the visible (green) ones
+      </div>
+
+      {/* Event log */}
+      <div style={{
+        marginTop: 14, background: "#0a0e18", borderRadius: 10, padding: "10px 12px",
+        border: "1px solid rgba(255,255,255,0.05)", maxHeight: 160, overflowY: "auto",
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 10
+      }}>
+        <div style={{ fontSize: 9, color: "#334155", marginBottom: 6, fontFamily: "'Inter', sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          Mutation Event Log
+        </div>
+        {log.map((entry, i) => (
+          <div key={i} style={{ color: entry.color, padding: "2px 0", lineHeight: 1.5 }}>
+            {entry.text}
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        marginTop: 12, padding: "10px 14px", borderRadius: 10,
+        background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)",
+        fontSize: 12, color: "#fca5a5", lineHeight: 1.6
+      }}>
+        <strong>Key observation:</strong> Nobody told the red/purple/yellow cells to evolve evasion. The immune system killed the easy targets (green), and what was LEFT was whatever randomly happened to have a mutation that helped it survive. Run it a few times — you'll see different "strategies" win each time, purely by chance.
+      </div>
+    </div>
+  );
+}
+
+// ==================== TRICKS LIST ====================
+
+function TricksList() {
+  const [expanded, setExpanded] = useState(null);
+
+  const tricks = [
+    {
+      name: "Hide the display shelf (MHC downregulation)",
+      mechIcon: "🪟",
+      color: "#ef4444",
+      bad: "The tumor cell \"turns off\" its MHC display, so T-cells can't see what proteins it's making.",
+      real: "A random mutation broke the gene that builds MHC molecules. The cell didn't choose this — the MHC gene just happened to get corrupted during one of thousands of sloppy DNA copies. But cells without MHC survive longer because T-cells can't inspect them. So those cells outcompete the ones with working MHC. Pure selection.",
+      csAnalogy: "It's like a process that crashes its own logging module due to a bug. The security scanner can't audit it anymore. Not intentional — but it survives the next security sweep, so it proliferates."
+    },
+    {
+      name: "Broadcast \"stand down\" signals (immune suppression)",
+      mechIcon: "📡",
+      color: "#a855f7",
+      bad: "The tumor releases chemicals (like TGF-β and IL-10) that tell nearby immune cells to deactivate.",
+      real: "These are normal signaling molecules that healthy cells use for legitimate purposes (like calming inflammation after a wound heals). A mutation caused the tumor cell to overproduce them. It's like a buffer overflow — the cell is blasting a normal signal at abnormal volume. Nearby immune cells receive so much \"stand down\" signal that they go dormant. Again, the cell didn't plan this. It's a broken feedback loop that accidentally creates a protective zone.",
+      csAnalogy: "A process accidentally floods the IPC channel with SIGSTOP signals. Every monitoring daemon in the vicinity halts. The rogue process didn't hack anything — it just has a bug that happens to produce a denial-of-service on local security."
+    },
+    {
+      name: "Flash a fake badge (PD-L1 / \"don't kill me\" signal)",
+      mechIcon: "🪪",
+      color: "#f59e0b",
+      bad: "Tumor cells display a protein called PD-L1 on their surface that binds to PD-1 receptors on T-cells, which sends a \"don't kill this cell\" message.",
+      real: "PD-L1 is a legitimate protein. Your healthy cells use it to prevent the immune system from attacking your own tissues (autoimmunity). Some tumor cells, through random mutation, start overproducing PD-L1. They're exploiting a built-in safety mechanism — not because they \"know\" about it, but because cells that randomly overexpress PD-L1 don't get killed, so they survive and multiply.",
+      csAnalogy: "Your firewall has an allowlist for signed system processes. A malware variant randomly generates a valid-looking signature through mutation. It's not reverse-engineering your signing scheme — it's brute-forcing through sheer volume of random variants. One eventually hits."
+    },
+    {
+      name: "Build a fortress (tumor microenvironment)",
+      mechIcon: "🏰",
+      color: "#06b6d4",
+      bad: "The tumor creates a surrounding zone of abnormal blood vessels, low oxygen, acidic pH, and recruited \"traitor\" immune cells (regulatory T-cells and M2 macrophages) that protect it.",
+      real: "As the tumor grows, its high metabolic rate naturally depletes oxygen and creates acidic waste (lactic acid). This harsh environment happens to be hostile to killer T-cells but tolerable for the tumor. The tumor also secretes growth factors (again, through broken signaling genes) that cause blood vessels to grow toward it — but these vessels are malformed and leaky, creating a chaotic environment that's hard for immune cells to navigate. Some immune cells that enter this zone get reprogrammed by the chemical soup into regulatory cells that suppress other immune cells. None of this is orchestrated. It's emergent behavior from broken cells in a confined space.",
+      csAnalogy: "A cryptocurrency miner accidentally creates so much heat and electromagnetic noise in a server rack that the monitoring hardware in adjacent slots starts malfunctioning. The miner didn't attack the monitors — the environment it created as a side effect of its own resource consumption happens to degrade the monitoring infrastructure."
+    },
+    {
+      name: "Mutate faster to stay ahead (genomic instability)",
+      mechIcon: "🎰",
+      color: "#10b981",
+      bad: "Some tumors disable their own DNA repair mechanisms, causing them to mutate at an accelerated rate — making it harder for the immune system to keep up.",
+      real: "DNA repair genes are just genes — they can get mutated too. When a cell loses its DNA repair machinery, it starts accumulating mutations 10-100x faster than normal. Most of these mutations are harmful and kill the cell. But the few cells that get lucky mutations (immune evasion, growth advantages) now have a massive evolutionary advantage. It's like cranking up the mutation rate in a genetic algorithm — more failures, but faster convergence on fit solutions.",
+      csAnalogy: "A fuzzer that disables its own input validation. 99% of its outputs crash immediately. But the 1% that survive are more diverse and more likely to find exploits, because the search space is so much wider."
+    }
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 0" }}>
+      {tricks.map((trick, i) => (
+        <div key={i} style={{
+          borderRadius: 12, overflow: "hidden",
+          border: `1px solid ${expanded === i ? trick.color + "44" : "rgba(255,255,255,0.05)"}`,
+          background: expanded === i ? trick.color + "08" : "rgba(255,255,255,0.02)",
+          transition: "all 0.2s"
+        }}>
+          <button
+            onClick={() => setExpanded(expanded === i ? null : i)}
+            style={{
+              width: "100%", padding: "12px 14px", border: "none", cursor: "pointer",
+              background: "transparent", display: "flex", alignItems: "center", gap: 10,
+              textAlign: "left"
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{trick.mechIcon}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: trick.color }}>{trick.name}</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{trick.bad}</div>
+            </div>
+            <span style={{
+              color: "#475569", fontSize: 14, transition: "transform 0.2s",
+              transform: expanded === i ? "rotate(180deg)" : "none"
+            }}>▼</span>
+          </button>
+
+          {expanded === i && (
+            <div style={{ padding: "0 14px 14px" }}>
+              <div style={{
+                padding: "10px 12px", borderRadius: 8, marginBottom: 8,
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)"
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+                  What's actually happening (no consciousness required)
+                </div>
+                <div style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.7 }}>{trick.real}</div>
+              </div>
+              <div style={{
+                padding: "10px 12px", borderRadius: 8,
+                background: "#3b82f60d", border: "1px solid #3b82f622"
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+                  💻 CS Analogy
+                </div>
+                <div style={{ fontSize: 12, color: "#93c5fd", lineHeight: 1.7 }}>{trick.csAnalogy}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ==================== TIMELINE ====================
+
+function Timeline() {
+  const events = [
+    { time: "Day 1", label: "One cell's growth-control gene breaks", detail: "Just one typo in the DNA. Cell starts dividing when it shouldn't.", color: "#64748b" },
+    { time: "Weeks 1-4", label: "Clump of ~1000 cells", detail: "Too small to detect. All look the same. Immune system kills some, but they're dividing faster than they're dying.", color: "#94a3b8" },
+    { time: "Month 2-3", label: "First immune evasion mutant appears", detail: "With thousands of cells dividing daily, one randomly loses its MHC display. It survives while others get killed.", color: "#ef4444" },
+    { time: "Month 3-6", label: "Evasion mutants dominate", detail: "Visible cells keep getting killed. Invisible ones multiply. The tumor is now mostly composed of immune-resistant cells. Selection, not planning.", color: "#a855f7" },
+    { time: "Month 6+", label: "Multiple evasion strategies stack", detail: "Some cells now have 2-3 different evasion tricks layered. The tumor creates a suppressive microenvironment. Clinically detectable.", color: "#f59e0b" },
+    { time: "Detection", label: "Tennis ball-sized tumor on Rosie's leg", detail: "By now, billions of cells with multiple evasion mutations. The immune system has been effectively neutralized locally.", color: "#ef4444" },
+    { time: "Vaccine", label: "mRNA vaccine injected far from tumor", detail: "Neoantigens displayed on cells OUTSIDE the suppressive zone. Immune system sees them clearly, activates millions of T-cells, overwhelms tumor defenses.", color: "#22c55e" },
+  ];
+
+  return (
+    <div style={{ padding: "16px 0" }}>
+      <div style={{ position: "relative", paddingLeft: 20 }}>
+        {/* Vertical line */}
+        <div style={{
+          position: "absolute", left: 6, top: 8, bottom: 8, width: 2,
+          background: "linear-gradient(180deg, #475569, #ef4444, #a855f7, #22c55e)"
+        }} />
+
+        {events.map((evt, i) => (
+          <div key={i} style={{ position: "relative", marginBottom: 20 }}>
+            {/* Dot */}
+            <div style={{
+              position: "absolute", left: -17, top: 6, width: 12, height: 12,
+              borderRadius: "50%", background: evt.color, border: "2px solid #0a0e1a",
+              boxShadow: `0 0 8px ${evt.color}44`
+            }} />
+
+            <div style={{
+              padding: "10px 14px", borderRadius: 10,
+              background: evt.color + "0a", borderLeft: `2px solid ${evt.color}33`
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: evt.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {evt.time}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", marginTop: 2 }}>
+                {evt.label}
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, lineHeight: 1.6 }}>
+                {evt.detail}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ==================== MAIN ====================
+
+function TumorEvolutionExplainer() {
+  const [activeSection, setActiveSection] = useState(0);
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: "#0a0e1a",
+      fontFamily: "'Inter', 'Helvetica Neue', sans-serif", color: "#e2e8f0"
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 6 }}>
+            No consciousness required
+          </div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, lineHeight: 1.2, color: "#f1f5f9" }}>
+            How Tumors "Outsmart" the Immune System
+          </h1>
+          <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
+            It's not intelligence. It's evolution on fast-forward.
+          </p>
+        </div>
+
+        {/* Section tabs */}
+        <div style={{
+          display: "flex", gap: 4, overflowX: "auto", padding: "4px 0 16px",
+          WebkitOverflowScrolling: "touch"
+        }}>
+          {SECTIONS.map((s, i) => (
+            <button key={s.id} onClick={() => setActiveSection(i)} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+              background: activeSection === i ? s.color + "1a" : "rgba(255,255,255,0.03)",
+              outline: activeSection === i ? `1px solid ${s.color}44` : "none",
+              flexShrink: 0, transition: "all 0.2s"
+            }}>
+              <span style={{ fontSize: 16 }}>{s.icon}</span>
+              <span style={{
+                fontSize: 10, fontWeight: 600,
+                color: activeSection === i ? s.color : "#475569",
+                whiteSpace: "nowrap"
+              }}>
+                {s.title.length > 25 ? s.title.slice(0, 25) + "…" : s.title}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Progress */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 20 }}>
+          {SECTIONS.map((s, i) => (
+            <div key={i} style={{
+              flex: 1, height: 3, borderRadius: 2,
+              background: i <= activeSection ? s.color : "rgba(255,255,255,0.06)",
+              transition: "background 0.3s"
+            }} />
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{
+          background: "rgba(255,255,255,0.02)", borderRadius: 16,
+          border: `1px solid ${SECTIONS[activeSection].color}22`, overflow: "hidden"
+        }}>
+          <div style={{
+            padding: "14px 18px", borderBottom: `1px solid ${SECTIONS[activeSection].color}15`,
+            display: "flex", alignItems: "center", gap: 10
+          }}>
+            <span style={{ fontSize: 24 }}>{SECTIONS[activeSection].icon}</span>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9" }}>
+              {SECTIONS[activeSection].title}
+            </div>
+          </div>
+
+          <div style={{ padding: "16px 18px" }}>
+            {SECTIONS[activeSection].body && (
+              <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.75, whiteSpace: "pre-wrap", marginBottom: SECTIONS[activeSection].hasSimulation || SECTIONS[activeSection].hasTricks || SECTIONS[activeSection].hasTimeline ? 8 : 0 }}>
+                {SECTIONS[activeSection].body}
+              </div>
+            )}
+
+            {SECTIONS[activeSection].hasSimulation && <TumorSimulation />}
+            {SECTIONS[activeSection].hasTricks && <TricksList />}
+            {SECTIONS[activeSection].hasTimeline && <Timeline />}
+          </div>
+
+          {/* Navigation */}
+          <div style={{
+            padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.04)",
+            display: "flex", justifyContent: "space-between"
+          }}>
+            <button
+              onClick={() => setActiveSection(Math.max(0, activeSection - 1))}
+              disabled={activeSection === 0}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "none",
+                background: activeSection === 0 ? "transparent" : "rgba(255,255,255,0.05)",
+                color: activeSection === 0 ? "#1e293b" : "#94a3b8",
+                cursor: activeSection === 0 ? "default" : "pointer", fontSize: 12, fontWeight: 600
+              }}>← Previous</button>
+            <button
+              onClick={() => setActiveSection(Math.min(SECTIONS.length - 1, activeSection + 1))}
+              disabled={activeSection === SECTIONS.length - 1}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "none",
+                background: activeSection === SECTIONS.length - 1 ? "transparent" : SECTIONS[activeSection].color + "22",
+                color: activeSection === SECTIONS.length - 1 ? "#1e293b" : SECTIONS[activeSection].color,
+                cursor: activeSection === SECTIONS.length - 1 ? "default" : "pointer", fontSize: 12, fontWeight: 700
+              }}>Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TumorEvolutionExplainer));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

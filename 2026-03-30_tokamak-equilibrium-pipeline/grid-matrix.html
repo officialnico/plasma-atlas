@@ -1,0 +1,371 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>grid matrix</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function GridMatrix() {
+  const [hoveredCell, setHoveredCell] = useState(null);
+  const [dataLayer, setDataLayer] = useState("psi");
+
+  // Small grid for clarity
+  const nR = 11, nZ = 13;
+  const Rmin = 0.60, Rmax = 1.80;
+  const Zmin = -1.0, Zmax = 1.0;
+  const dR = (Rmax - Rmin) / (nR - 1);
+  const dZ = (Zmax - Zmin) / (nZ - 1);
+
+  const R0 = 1.18, a = 0.42, kappa = 1.75, delta = 0.40;
+  const bcentr = 12.2, rcentr = 1.15;
+  const constant = bcentr * rcentr;
+
+  // Compute psi at each grid point
+  function getPsi(R, Z) {
+    const dRn = (R - R0) / a;
+    const dZn = Z / (a * kappa);
+    const triShift = -delta * dZn * dZn;
+    const rhoSq = (dRn - triShift) ** 2 + dZn ** 2;
+    const rho = Math.sqrt(rhoSq);
+    return Math.min(rho + 0.08 * (R - R0) / a * rhoSq, 2.5);
+  }
+
+  // Profiles as function of psiN
+  function getPressure(psiN) {
+    if (psiN > 1) return 0;
+    return 2.63e6 * Math.pow(1 - psiN * psiN, 2);
+  }
+  function getFpol(psiN) {
+    return constant - 0.4 * Math.min(psiN, 1) * Math.min(psiN, 1);
+  }
+  function getQ(psiN) {
+    const p = Math.min(psiN, 1);
+    return 0.95 + 0.05 * p + 0.5 * p * p + 2.7 * Math.pow(p, 4);
+  }
+
+  // Build grid data
+  const grid = [];
+  for (let j = 0; j < nZ; j++) {
+    const row = [];
+    for (let i = 0; i < nR; i++) {
+      const R = Rmin + i * dR;
+      const Z = Zmax - j * dZ; // top to bottom
+      const psi = getPsi(R, Z);
+      const psiN = Math.min(psi, 1.5);
+      const fpol = getFpol(psiN);
+      const Btor = fpol / R;
+      const pressure = getPressure(psiN);
+      const q = getQ(psiN);
+      const inside = psi <= 1.0;
+      row.push({ R, Z, psi, psiN, fpol, Btor, pressure, q, inside, i, j });
+    }
+    grid.push(row);
+  }
+
+  const cellW = 42, cellH = 34;
+  const gridLeft = 50, gridTop = 50;
+  const totalW = gridLeft + nR * cellW + 20;
+  const totalH = gridTop + nZ * cellH + 30;
+
+  // Color functions
+  function cellColor(cell) {
+    if (dataLayer === "psi") {
+      if (cell.psi > 1.0) {
+        const t = Math.min(1, (cell.psi - 1) / 1.5);
+        return `rgb(${Math.round(15 + t * 5)},${Math.round(18 + t * 5)},${Math.round(30 + t * 10)})`;
+      }
+      const t = cell.psi;
+      return `rgb(${Math.round(10 + t * 15)},${Math.round(200 - t * 160)},${Math.round(200 - t * 80)})`;
+    }
+    if (dataLayer === "Btor") {
+      if (!cell.inside) return "#0d1117";
+      const minB = 8, maxB = 19;
+      const t = (cell.Btor - minB) / (maxB - minB);
+      return `rgb(${Math.round(40 + t * 200)},${Math.round(60 + (1 - t) * 120)},${Math.round(180 - t * 80)})`;
+    }
+    if (dataLayer === "fpol") {
+      if (!cell.inside) return "#0d1117";
+      const minF = 13.5, maxF = 14.1;
+      const t = (cell.fpol - minF) / (maxF - minF);
+      return `rgb(${Math.round(100 + t * 100)},${Math.round(80 + t * 60)},${Math.round(180 + t * 40)})`;
+    }
+    if (dataLayer === "pressure") {
+      if (!cell.inside) return "#0d1117";
+      const t = cell.pressure / 2.63e6;
+      return `rgb(${Math.round(30 + t * 225)},${Math.round(40 + (1 - t) * 60)},${Math.round(40 + (1 - t) * 60)})`;
+    }
+    if (dataLayer === "q") {
+      if (!cell.inside) return "#0d1117";
+      const t = (cell.q - 0.95) / (4.2 - 0.95);
+      return `rgb(${Math.round(30 + t * 50)},${Math.round(180 - t * 100)},${Math.round(160 + t * 40)})`;
+    }
+    return "#0d1117";
+  }
+
+  function cellText(cell) {
+    if (dataLayer === "psi") return cell.psi.toFixed(2);
+    if (dataLayer === "Btor") return cell.inside ? cell.Btor.toFixed(1) : "";
+    if (dataLayer === "fpol") return cell.inside ? cell.fpol.toFixed(2) : "";
+    if (dataLayer === "pressure") {
+      if (!cell.inside) return "";
+      if (cell.pressure >= 1e6) return (cell.pressure / 1e6).toFixed(1) + "M";
+      if (cell.pressure >= 1e3) return (cell.pressure / 1e3).toFixed(0) + "k";
+      return cell.pressure.toFixed(0);
+    }
+    if (dataLayer === "q") return cell.inside ? cell.q.toFixed(2) : "";
+    return "";
+  }
+
+  const layers = [
+    { id: "psi", label: "ψ (stored in file)", desc: "The 2D poloidal flux grid. 4,225 numbers. This is what's actually in the EQDSK file.", stored: "2D grid", color: "#4ecdc4" },
+    { id: "fpol", label: "fpol = R×Btor (stored)", desc: "Stored as 65 numbers (1D). Same value everywhere on the same flux surface. Look — each colored band is one value.", stored: "1D profile", color: "#c9a3f5" },
+    { id: "Btor", label: "B toroidal (derived)", desc: "NOT stored. Calculated by dividing fpol by R. Different at every point — stronger on the left (low R), weaker on the right (high R).", stored: "NOT stored — computed as fpol/R", color: "#8ab4f8" },
+    { id: "pressure", label: "Pressure (stored)", desc: "Stored as 65 numbers (1D). Same value everywhere on the same flux surface. Hot in the center, zero at the edge.", stored: "1D profile", color: "#ff6b6b" },
+    { id: "q", label: "Safety factor q (stored)", desc: "Stored as 65 numbers (1D). Same value on each surface. Low in center (~1), high at edge (~4).", stored: "1D profile", color: "#4ecdc4" },
+  ];
+
+  const activeLayer = layers.find(l => l.id === dataLayer);
+  const hc = hoveredCell ? grid[hoveredCell.j][hoveredCell.i] : null;
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          THE EQDSK GRID — WHAT'S STORED VS WHAT'S COMPUTED
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          EACH CELL IS ONE GRID POINT — TAP TO INSPECT
+        </p>
+
+        {/* Layer selector */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 12, flexWrap: "wrap" }}>
+          {layers.map(l => (
+            <button
+              key={l.id}
+              onClick={() => setDataLayer(l.id)}
+              style={{
+                padding: "8px 12px",
+                background: dataLayer === l.id ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${dataLayer === l.id ? l.color : "#1e2630"}`,
+                borderRadius: 4,
+                color: dataLayer === l.id ? l.color : "#5c6a7a",
+                fontSize: 10, fontFamily: "inherit", cursor: "pointer",
+                fontWeight: dataLayer === l.id ? 700 : 400,
+              }}
+            >
+              {l.label.split(" (")[0]}
+            </button>
+          ))}
+        </div>
+
+        {/* Layer info bar */}
+        <div style={{
+          padding: "10px 16px",
+          background: "#1a2a3a",
+          borderRadius: "6px 6px 0 0",
+          borderLeft: `3px solid ${activeLayer.color}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+        }}>
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: activeLayer.color }}>{activeLayer.label}</span>
+            <span style={{ fontSize: 11, color: "#5c6a7a", marginLeft: 10 }}>{activeLayer.stored}</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#8a95a5" }}>{activeLayer.desc}</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
+          {/* Grid */}
+          <div style={{
+            background: "#0d1117",
+            border: "1px solid #1e2630",
+            borderTop: "none",
+            borderRadius: "0 0 0 6px",
+            padding: 10,
+            overflowX: "auto",
+          }}>
+            <svg width={totalW} height={totalH} style={{ display: "block" }}>
+              {/* R axis labels */}
+              {Array.from({ length: nR }, (_, i) => {
+                const R = Rmin + i * dR;
+                return (
+                  <text key={`r${i}`} x={gridLeft + i * cellW + cellW / 2} y={gridTop - 8}
+                    textAnchor="middle" fill="#5c6a7a" fontSize={8}>
+                    R={R.toFixed(2)}
+                  </text>
+                );
+              })}
+              <text x={gridLeft + nR * cellW / 2} y={gridTop - 22}
+                textAnchor="middle" fill="#7a8a9a" fontSize={10}>
+                R (meters) →
+              </text>
+
+              {/* Z axis labels */}
+              {Array.from({ length: nZ }, (_, j) => {
+                const Z = Zmax - j * dZ;
+                return (
+                  <text key={`z${j}`} x={gridLeft - 5} y={gridTop + j * cellH + cellH / 2 + 3}
+                    textAnchor="end" fill="#5c6a7a" fontSize={8}>
+                    {Z.toFixed(1)}
+                  </text>
+                );
+              })}
+              <text x={15} y={gridTop + nZ * cellH / 2}
+                textAnchor="middle" fill="#7a8a9a" fontSize={10}
+                transform={`rotate(-90, 15, ${gridTop + nZ * cellH / 2})`}>
+                ↑ Z (meters)
+              </text>
+
+              {/* Grid cells */}
+              {grid.map((row, j) =>
+                row.map((cell, i) => {
+                  const x = gridLeft + i * cellW;
+                  const y = gridTop + j * cellH;
+                  const isHovered = hoveredCell && hoveredCell.i === i && hoveredCell.j === j;
+                  const text = cellText(cell);
+                  const textColor = cell.inside || dataLayer === "psi" ? "#e6ecf2" : "#2a3040";
+
+                  return (
+                    <g key={`${i}-${j}`}
+                      onClick={() => setHoveredCell(isHovered ? null : { i, j })}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <rect x={x} y={y} width={cellW - 1} height={cellH - 1}
+                        fill={cellColor(cell)}
+                        stroke={isHovered ? "#ffffff" : "#1a2030"}
+                        strokeWidth={isHovered ? 2 : 0.5}
+                        rx={2}
+                      />
+                      <text x={x + cellW / 2} y={y + cellH / 2 + 3}
+                        textAnchor="middle" fill={textColor}
+                        fontSize={text.length > 5 ? 7 : 8}
+                        opacity={isHovered ? 1 : 0.7}
+                      >
+                        {text}
+                      </text>
+                    </g>
+                  );
+                })
+              )}
+            </svg>
+          </div>
+
+          {/* Inspection panel */}
+          <div style={{
+            flex: 1,
+            minWidth: 220,
+            background: "#12171f",
+            borderRadius: "0 0 6px 0",
+            border: "1px solid #1e2630",
+            borderTop: "none",
+            borderLeft: "none",
+            padding: 16,
+          }}>
+            {hc ? (
+              <div>
+                <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+                  Grid point [{hc.i}, {hc.j}]
+                </div>
+
+                {/* Location */}
+                <div style={{
+                  padding: 10, background: "#0a0e14", borderRadius: 4, marginBottom: 10,
+                }}>
+                  <div style={{ fontSize: 10, color: "#5c6a7a", marginBottom: 4 }}>LOCATION</div>
+                  <div style={{ fontSize: 12, color: "#e6ecf2" }}>R = {hc.R.toFixed(3)} m</div>
+                  <div style={{ fontSize: 12, color: "#e6ecf2" }}>Z = {hc.Z.toFixed(3)} m</div>
+                  <div style={{
+                    fontSize: 10, marginTop: 4,
+                    color: hc.inside ? "#4ecdc4" : "#ff6b6b",
+                  }}>
+                    {hc.inside ? "Inside plasma" : "Outside plasma"}
+                  </div>
+                </div>
+
+                {/* Stored values */}
+                <div style={{
+                  padding: 10, background: "#0a0e14", borderRadius: 4, marginBottom: 10,
+                  borderLeft: "2px solid #4ecdc4",
+                }}>
+                  <div style={{ fontSize: 10, color: "#4ecdc4", marginBottom: 6 }}>STORED IN FILE</div>
+                  <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 2 }}>
+                    <span style={{ color: "#5c6a7a" }}>ψ = </span>
+                    <span style={{ color: "#e6ecf2", fontWeight: 700 }}>{hc.psi.toFixed(4)}</span>
+                    <span style={{ color: "#3a4a5a" }}> (2D grid)</span>
+                    <br />
+                    {hc.inside && <>
+                      <span style={{ color: "#5c6a7a" }}>fpol = </span>
+                      <span style={{ color: "#c9a3f5", fontWeight: 700 }}>{hc.fpol.toFixed(3)}</span>
+                      <span style={{ color: "#3a4a5a" }}> T·m (1D profile)</span>
+                      <br />
+                      <span style={{ color: "#5c6a7a" }}>P = </span>
+                      <span style={{ color: "#ff6b6b", fontWeight: 700 }}>{(hc.pressure / 1e6).toFixed(3)}</span>
+                      <span style={{ color: "#3a4a5a" }}> MPa (1D profile)</span>
+                      <br />
+                      <span style={{ color: "#5c6a7a" }}>q = </span>
+                      <span style={{ color: "#4ecdc4", fontWeight: 700 }}>{hc.q.toFixed(3)}</span>
+                      <span style={{ color: "#3a4a5a" }}> (1D profile)</span>
+                    </>}
+                  </div>
+                </div>
+
+                {/* Derived values */}
+                {hc.inside && (
+                  <div style={{
+                    padding: 10, background: "#0a0e14", borderRadius: 4,
+                    borderLeft: "2px solid #8ab4f8",
+                  }}>
+                    <div style={{ fontSize: 10, color: "#8ab4f8", marginBottom: 6 }}>COMPUTED (not stored)</div>
+                    <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 2 }}>
+                      <span style={{ color: "#5c6a7a" }}>B_toroidal = fpol / R</span>
+                      <br />
+                      <span style={{ color: "#5c6a7a" }}>= </span>
+                      <span style={{ color: "#c9a3f5" }}>{hc.fpol.toFixed(3)}</span>
+                      <span style={{ color: "#5c6a7a" }}> / </span>
+                      <span style={{ color: "#e6ecf2" }}>{hc.R.toFixed(3)}</span>
+                      <br />
+                      <span style={{ color: "#5c6a7a" }}>= </span>
+                      <span style={{ color: "#8ab4f8", fontWeight: 700, fontSize: 14 }}>{hc.Btor.toFixed(2)} T</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12, color: "#5c6a7a", lineHeight: 1.8 }}>
+                  Tap any cell to inspect it.
+                  <br /><br />
+                  You'll see what's stored in the file (ψ, fpol, P, q) versus what's computed on the fly (B_toroidal).
+                  <br /><br />
+                  Switch between layers at the top to see different quantities across the grid.
+                  <br /><br />
+                  Notice: fpol, P, and q show colored bands (same value on each surface). B_toroidal shows a left-to-right gradient (varies with R even on the same surface).
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(GridMatrix));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

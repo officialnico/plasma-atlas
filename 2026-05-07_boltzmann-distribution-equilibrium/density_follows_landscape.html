@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Density Follows the Landscape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f1e8;
+  --bg-2: #ebe4d2;
+  --paper: #fdfaf2;
+  --ink: #1a1410;
+  --ink-soft: #4a3f33;
+  --ink-dim: #8a7a66;
+  --rule: #1a1410;
+  --rule-soft: rgba(26, 20, 16, 0.18);
+  --U-color: #2e6f9c;
+  --n-color: #c8482e;
+  --highlight: #d4a017;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1000;
+  mix-blend-mode: multiply;
+}
+
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 28px 60px;
+}
+
+header {
+  border-bottom: 2px solid var(--rule);
+  padding-bottom: 22px;
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--n-color);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '◆';
+  color: var(--n-color);
+  font-size: 8px;
+}
+.eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  max-width: 60px;
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(30px, 4.5vw, 46px);
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  margin-bottom: 12px;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--n-color);
+}
+
+.deck {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 64ch;
+  font-style: italic;
+}
+.deck strong { color: var(--ink); font-style: normal; font-weight: 400; }
+
+.scene {
+  background: var(--paper);
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: 6px 6px 0 var(--rule);
+  overflow: hidden;
+}
+
+#mainCanvas {
+  width: 100%;
+  height: 580px;
+  display: block;
+  cursor: ns-resize;
+}
+
+.controls {
+  background: var(--bg-2);
+  padding: 18px 24px;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 22px;
+  align-items: center;
+}
+
+.control-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.control-value {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--highlight);
+  margin-bottom: 6px;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--highlight);
+  border: 2px solid var(--rule);
+  cursor: pointer;
+  transform: rotate(45deg);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--highlight);
+  border: 2px solid var(--rule);
+  cursor: pointer;
+}
+
+.btn-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  padding: 8px 11px;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.active { background: var(--ink); color: var(--paper); }
+
+.hint {
+  margin-top: 16px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.insight {
+  margin-top: 28px;
+  padding: 22px 26px;
+  border-left: 4px solid var(--n-color);
+  background: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.insight strong { color: var(--ink); font-weight: 400; }
+.insight em { color: var(--n-color); font-style: italic; }
+.insight .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--n-color);
+  margin-bottom: 10px;
+  display: block;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header>
+    <div class="eyebrow">density follows u, wherever u goes</div>
+    <h1>The peak of n(x) lives <em>wherever U is lowest</em>.</h1>
+    <p class="deck">
+      <strong>Drag the landscape up and down</strong> by clicking and dragging on the U(x) curve at the top.
+      Watch n(x) at the bottom track every move. The density isn't peaked at any fixed point —
+      it just <em>follows the lowest U</em>, wherever you put it.
+    </p>
+  </header>
+
+  <div class="scene">
+    <canvas id="mainCanvas"></canvas>
+    <div class="controls">
+      <div>
+        <div class="control-label">shape</div>
+        <div class="btn-row">
+          <button class="btn active" data-shape="single">single</button>
+          <button class="btn" data-shape="double">double</button>
+          <button class="btn" data-shape="ramp">ramp</button>
+          <button class="btn" data-shape="hill">hill</button>
+        </div>
+      </div>
+      <div>
+        <div class="control-label">slide left/right</div>
+        <div class="control-value"><span id="shiftVal">0%</span></div>
+        <input type="range" id="shiftSlider" min="-50" max="50" step="1" value="0">
+      </div>
+      <div>
+        <div class="control-label">depth (intensity)</div>
+        <div class="control-value"><span id="depthVal">2.0</span></div>
+        <input type="range" id="depthSlider" min="0.2" max="6" step="0.1" value="2">
+      </div>
+      <div>
+        <div class="control-label">k<sub>B</sub>T (shaking)</div>
+        <div class="control-value"><span id="kbtVal">1.0</span></div>
+        <input type="range" id="kbtSlider" min="0.2" max="4" step="0.1" value="1">
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">↕ click anywhere on the U curve and drag to move the landscape</div>
+
+  <div class="insight">
+    <span class="label">— what to watch</span>
+    The vertical dashed line marks <strong>where U is lowest</strong> in the landscape. Notice how the density peak
+    (the tallest red bar at the bottom) <em>always sits exactly under that dashed line</em> — not at x = 0,
+    not at the center, not at any fixed location. It tracks U wherever U goes. <strong>Try the "ramp" shape</strong>
+    — U decreases monotonically from right to left, so density peaks at the far left and decays exponentially toward
+    the right. Same formula, totally different shape, because the landscape is different. <strong>Try "hill"</strong> —
+    the highest U is in the middle, so density is <em>lowest</em> in the middle and piles up at both edges.
+    The formula doesn't care about geometry. It just says: be where U is small.
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+let dim = { w: 0, h: 0 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  dim.w = rect.width;
+  dim.h = rect.height;
+  canvas.width = dim.w * dpr;
+  canvas.height = dim.h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ============ STATE ============
+let shape = 'single';
+let shift = 0;       // -50 to 50 (percent of width)
+let depth = 2.0;
+let kBT = 1.0;
+
+// Layout
+function uBounds() { return { top: 30, bottom: dim.h * 0.5 }; }
+function nBounds() { return { top: dim.h * 0.55, bottom: dim.h - 24 }; }
+
+// ============ U(x) FUNCTIONS ============
+// xNorm in 0..1
+function U(xNorm) {
+  // Apply shift
+  const x = xNorm - 0.5 - (shift / 100);
+  if (shape === 'single') {
+    return depth * (4 * x * x - 0.5);
+  }
+  if (shape === 'double') {
+    return depth * Math.min(8 * Math.pow(x + 0.2, 2) - 0.5, 7 * Math.pow(x - 0.2, 2) - 0.4);
+  }
+  if (shape === 'ramp') {
+    return depth * 1.5 * x;
+  }
+  if (shape === 'hill') {
+    return depth * (-4 * x * x + 0.5);
+  }
+  return 0;
+}
+
+// Find argmin of U for the dashed line
+function argmin() {
+  let best = 0, bestU = U(0);
+  for (let i = 0; i <= 1000; i++) {
+    const xNorm = i / 1000;
+    const u = U(xNorm);
+    if (u < bestU) { bestU = u; best = xNorm; }
+  }
+  return best;
+}
+
+function drawScene() {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+
+  const ub = uBounds();
+  const nb = nBounds();
+  const padX = 30;
+
+  // ============ U(x) PLOT ============
+  // Background
+  ctx.fillStyle = 'rgba(46, 111, 156, 0.03)';
+  ctx.fillRect(0, ub.top, dim.w, ub.bottom - ub.top);
+
+  // U axis range
+  let uMin = Infinity, uMax = -Infinity;
+  for (let i = 0; i <= 200; i++) {
+    const u = U(i / 200);
+    if (u < uMin) uMin = u;
+    if (u > uMax) uMax = u;
+  }
+  const uRange = uMax - uMin;
+  const uPad = uRange * 0.15 + 0.5;
+  uMin -= uPad;
+  uMax += uPad;
+
+  function uToY(u) {
+    return ub.bottom - ((u - uMin) / (uMax - uMin)) * (ub.bottom - ub.top - 20) - 10;
+  }
+  function xNormToPx(xn) {
+    return padX + xn * (dim.w - 2 * padX);
+  }
+
+  // Zero line
+  if (uMin < 0 && uMax > 0) {
+    const zeroY = uToY(0);
+    ctx.strokeStyle = 'rgba(26, 20, 16, 0.18)';
+    ctx.setLineDash([2, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padX, zeroY);
+    ctx.lineTo(dim.w - padX, zeroY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(26, 20, 16, 0.4)';
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'left';
+    ctx.fillText('U = 0', padX + 4, zeroY - 4);
+  }
+
+  // Find argmin
+  const aminX = argmin();
+  const aminPx = xNormToPx(aminX);
+
+  // Vertical dashed line at argmin
+  ctx.strokeStyle = 'rgba(212, 160, 23, 0.7)';
+  ctx.setLineDash([5, 4]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(aminPx, ub.top);
+  ctx.lineTo(aminPx, nb.bottom);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // U(x) curve
+  // Filled area below (where U < 0)
+  ctx.fillStyle = 'rgba(46, 111, 156, 0.12)';
+  ctx.beginPath();
+  let started = false;
+  if (uMin < 0 && uMax > 0) {
+    const zeroY = uToY(0);
+    ctx.moveTo(padX, zeroY);
+    for (let i = 0; i <= 200; i++) {
+      const xn = i / 200;
+      const x = xNormToPx(xn);
+      const y = uToY(U(xn));
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(dim.w - padX, zeroY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // U(x) curve line
+  ctx.strokeStyle = 'rgba(46, 111, 156, 0.95)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const xn = i / 200;
+    const x = xNormToPx(xn);
+    const y = uToY(U(xn));
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Marker at argmin
+  const aminY = uToY(U(aminX));
+  ctx.fillStyle = '#d4a017';
+  ctx.beginPath();
+  ctx.arc(aminPx, aminY, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a1410';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(212, 160, 23, 0.95)';
+  ctx.font = "italic 11px 'Fraunces', serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('U is lowest here', aminPx, aminY - 14);
+
+  // Labels
+  ctx.fillStyle = 'rgba(46, 111, 156, 0.95)';
+  ctx.font = "italic 13px 'Fraunces', serif";
+  ctx.textAlign = 'left';
+  ctx.fillText('U(x) — the landscape', 12, ub.top + 4);
+
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.4)';
+  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.textAlign = 'right';
+  ctx.fillText('drag me ↕', dim.w - 12, ub.top + 14);
+
+  // ============ SEPARATOR ============
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.15)';
+  ctx.setLineDash([2, 6]);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, dim.h * 0.525);
+  ctx.lineTo(dim.w, dim.h * 0.525);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ============ n(x) PLOT ============
+  ctx.fillStyle = 'rgba(200, 72, 46, 0.03)';
+  ctx.fillRect(0, nb.top, dim.w, nb.bottom - nb.top);
+
+  // Compute n(x) on grid
+  const nBins = 80;
+  const ns = new Array(nBins);
+  let nTotal = 0;
+  for (let i = 0; i < nBins; i++) {
+    const xn = (i + 0.5) / nBins;
+    const u = U(xn);
+    const w = Math.exp(-u / kBT);
+    ns[i] = w;
+    nTotal += w;
+  }
+  // Normalize
+  const nAvg = nTotal / nBins;
+  let nMax = 0;
+  for (const v of ns) if (v > nMax) nMax = v;
+
+  function nToY(nVal) {
+    return nb.bottom - (nVal / (nMax * 1.1)) * (nb.bottom - nb.top - 20) - 10;
+  }
+
+  // n_avg reference line
+  const avgY = nToY(nAvg);
+  ctx.strokeStyle = 'rgba(26, 20, 16, 0.2)';
+  ctx.setLineDash([2, 4]);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padX, avgY);
+  ctx.lineTo(dim.w - padX, avgY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.4)';
+  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.textAlign = 'left';
+  ctx.fillText('n₀ (bulk avg)', padX + 4, avgY - 4);
+
+  // Bars
+  const barWidth = (dim.w - 2 * padX) / nBins;
+  for (let i = 0; i < nBins; i++) {
+    const x = padX + i * barWidth;
+    const y = nToY(ns[i]);
+    const h = nb.bottom - y;
+    const grad = ctx.createLinearGradient(0, y, 0, nb.bottom);
+    grad.addColorStop(0, 'rgba(200, 72, 46, 0.9)');
+    grad.addColorStop(1, 'rgba(200, 72, 46, 0.4)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + 1, y, barWidth - 1, h);
+  }
+
+  // Smooth curve overlay
+  ctx.strokeStyle = 'rgba(200, 72, 46, 1)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < nBins; i++) {
+    const xn = (i + 0.5) / nBins;
+    const x = xNormToPx(xn);
+    const y = nToY(ns[i]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Marker at argmin (peak of density)
+  const peakY = nToY(ns[Math.min(nBins - 1, Math.floor(aminX * nBins))]);
+  ctx.fillStyle = '#d4a017';
+  ctx.beginPath();
+  ctx.arc(aminPx, peakY, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a1410';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(212, 160, 23, 0.95)';
+  ctx.font = "italic 11px 'Fraunces', serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('density peaks here', aminPx, peakY + 22);
+
+  // n label
+  ctx.fillStyle = 'rgba(200, 72, 46, 0.95)';
+  ctx.font = "italic 13px 'Fraunces', serif";
+  ctx.textAlign = 'left';
+  ctx.fillText('n(x) = n₀ · exp(−U/k_BT)', 12, nb.top + 4);
+
+  // x axis label
+  ctx.fillStyle = 'rgba(26, 20, 16, 0.4)';
+  ctx.font = "italic 10px 'Fraunces', serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('position x →', dim.w / 2, dim.h - 6);
+}
+
+function loop() {
+  drawScene();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ============ INTERACTION ============
+let dragging = false;
+let dragStartShift = 0;
+let dragStartX = 0;
+
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  if (y < dim.h * 0.5) {
+    dragging = true;
+    dragStartX = e.clientX - rect.left;
+    dragStartShift = shift;
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const dx = x - dragStartX;
+  const newShift = Math.max(-50, Math.min(50, dragStartShift + (dx / dim.w) * 100));
+  shift = newShift;
+  document.getElementById('shiftSlider').value = shift;
+  document.getElementById('shiftVal').textContent = shift.toFixed(0) + '%';
+});
+canvas.addEventListener('mouseup', () => dragging = false);
+canvas.addEventListener('mouseleave', () => dragging = false);
+
+canvas.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const y = t.clientY - rect.top;
+  if (y < dim.h * 0.5) {
+    dragging = true;
+    dragStartX = t.clientX - rect.left;
+    dragStartShift = shift;
+    e.preventDefault();
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (!dragging) return;
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = t.clientX - rect.left;
+  const dx = x - dragStartX;
+  const newShift = Math.max(-50, Math.min(50, dragStartShift + (dx / dim.w) * 100));
+  shift = newShift;
+  document.getElementById('shiftSlider').value = shift;
+  document.getElementById('shiftVal').textContent = shift.toFixed(0) + '%';
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', () => dragging = false);
+
+// ============ CONTROLS ============
+document.getElementById('shiftSlider').addEventListener('input', e => {
+  shift = parseFloat(e.target.value);
+  document.getElementById('shiftVal').textContent = shift.toFixed(0) + '%';
+});
+document.getElementById('depthSlider').addEventListener('input', e => {
+  depth = parseFloat(e.target.value);
+  document.getElementById('depthVal').textContent = depth.toFixed(1);
+});
+document.getElementById('kbtSlider').addEventListener('input', e => {
+  kBT = parseFloat(e.target.value);
+  document.getElementById('kbtVal').textContent = kBT.toFixed(1);
+});
+document.querySelectorAll('.btn[data-shape]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.btn[data-shape]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    shape = b.dataset.shape;
+  });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Wave That Has to Meet Itself</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07080f;--ink:#eef0fb;--muted:#8a90b4;--line:rgba(255,255,255,.09);
+    --fit:#5fe0d6;--miss:#ffb454;--gold:#ffd166;--hot:#ff4d6d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 700px at 85% -10%, rgba(95,224,214,.13), transparent 60%),
+      radial-gradient(900px 600px at -10% 25%, rgba(255,180,84,.09), transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .tag{font-family:"Space Mono",monospace;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  header{padding:66px 0 30px}
+  .kicker{color:var(--fit);border:1px solid var(--line);border-radius:100px;padding:6px 14px;display:inline-block;margin-bottom:22px;background:rgba(95,224,214,.07)}
+  h1{font-family:"Fraunces",serif;font-weight:900;font-size:clamp(2.1rem,7.2vw,3.7rem);line-height:1.02;letter-spacing:-.02em;margin-bottom:18px}
+  h1 em{font-style:italic;font-weight:400;background:linear-gradient(90deg,var(--fit),var(--gold),var(--miss));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:1.14rem;color:#c7cbe6;max-width:58ch}.lede b{color:var(--ink);font-weight:700}
+  section{padding:38px 0;border-top:1px solid var(--line)}
+  .sub{color:var(--muted);margin-bottom:18px;max-width:60ch}
+  .body{color:#c7cbe6}.body b{color:var(--ink)}
+  .stage{background:radial-gradient(120% 120% at 50% 30%,rgba(95,224,214,.07),rgba(0,0,0,0));border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  canvas{display:block;width:100%}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0 2px}
+  button.toggle{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--line);padding:9px 15px;border-radius:100px;cursor:pointer;transition:.16s}
+  button.toggle:hover{background:rgba(255,255,255,.1)}
+  button.toggle.fit{border-color:var(--fit)}
+  button.toggle.miss{border-color:var(--miss)}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.15);outline:none;margin:14px 0 4px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--fit);box-shadow:0 0 12px rgba(95,224,214,.55)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid var(--fit)}
+  .verdict{font-family:"Fraunces",serif;font-size:1.35rem;font-weight:600;margin-top:10px;transition:.2s;min-height:1.5em}
+  .cap{font-family:"Space Mono",monospace;font-size:.76rem;color:var(--muted);margin-top:6px;min-height:2.6em}
+  .readout{font-family:"Space Mono",monospace;font-size:.8rem;color:var(--muted)}
+  .callout{margin-top:18px;border-left:3px solid var(--fit);background:rgba(95,224,214,.06);padding:14px 17px;border-radius:0 12px 12px 0;color:#c7cbe6}
+  .callout b{color:var(--fit)}
+  footer{padding:38px 0 80px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer .mono{color:#a6abce;font-family:"Space Mono",monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker tag">Animated · no probability, just the wave</span>
+  <h1>The wave that has to <em>meet itself.</em></h1>
+  <p class="lede">An electron bound to an atom is a wave wrapped into a loop. For it to keep existing, it has to <b>join up smoothly with itself</b> where it comes back around. Only a <b>whole number</b> of wavelengths can do that — a fraction comes back out of step and erases itself on every lap. Drag the dial and watch which waves survive.</p>
+</header>
+
+<section>
+  <p class="sub body">Below: the loop is the electron's path around the nucleus (a cartoon of a real 3-D orbital, but the logic is exact). The dial sets how many wavelengths you try to fit around it. Land on a whole number and the wave locks into a bright, steady standing wave. Land in between and watch every trip around land in a new place — the laps pile up out of phase and blur into nothing.</p>
+
+  <div class="controls">
+    <button class="toggle fit" id="preFit">snap to n = 3 · fits</button>
+    <button class="toggle miss" id="preMiss">try n = 2½ · cancels</button>
+  </div>
+  <div class="stage"><canvas id="loopCanvas"></canvas></div>
+  <input type="range" id="nSlider" min="1" max="5" value="3" step="0.01">
+  <div class="readout">wavelengths around the loop: <b id="nVal" style="color:var(--ink)">3.00</b></div>
+  <div class="verdict" id="verdict"></div>
+  <div class="cap" id="cap"></div>
+
+  <div class="callout"><b>That's the whole reason energy is discrete.</b> The surviving waves carry whole numbers of wavelengths — 1, 2, 3, 4 — never 2½. And a wave's wavelength sets its energy, so the allowed energies are a discrete list too, with gaps where no wave survives. Discreteness isn't a rule blocking certain energies; it's what's <i>left over</i> after every non-fitting wave cancels itself away. (Same logic as the nuclear gamma ladder — confined wave, whole-number fits, discrete rungs.)</div>
+</section>
+
+<footer>
+  <p class="mono">THE WAVE THAT HAS TO MEET ITSELF</p>
+  <p style="margin-top:8px">No probabilities here — just a wave that either closes on itself and lasts, or comes back out of step and wipes itself out. The whole-number survivors are the energy levels; the gaps between them are the energies whose waves couldn't hold together.</p>
+</footer>
+</div>
+
+<script>
+function setup(canvas,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=canvas.clientWidth;
+  canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.height=h+"px";
+  const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+(function(){
+  const c=document.getElementById("loopCanvas");let S,t=0,survive=1,glow=1;
+  function size(){S=setup(c,Math.min(420,Math.max(330,c.clientWidth*0.82)));}
+  size();
+  const slider=document.getElementById("nSlider"),nVal=document.getElementById("nVal"),verdict=document.getElementById("verdict"),cap=document.getElementById("cap");
+  document.getElementById("preFit").onclick=()=>{slider.value="3";};
+  document.getElementById("preMiss").onclick=()=>{slider.value="2.5";};
+  function draw(){const {ctx,w,h}=S;ctx.clearRect(0,0,w,h);t++;
+    const n=parseFloat(slider.value);nVal.textContent=n.toFixed(2);
+    const frac=n-Math.round(n);
+    const coherent=Math.abs(frac)<0.05;
+    survive+=((coherent?1:0)-survive)*0.07;
+    glow+=((coherent?1:0.18)-glow)*0.07;
+    const cx=w*0.40,cy=h/2,R=Math.min(w*0.24,h*0.30),amp=R*0.55;
+    const breath=Math.cos(t*0.055);
+    // nucleus
+    dot(ctx,cx,cy,7,"#ffd166",14);
+    // base loop (faint guide)
+    ctx.strokeStyle="rgba(255,255,255,.10)";ctx.lineWidth=1;ctx.setLineDash([3,5]);
+    ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.stroke();ctx.setLineDash([]);
+    const steps=260;
+    // forbidden: draw several laps, each phase-shifted, to show them smear/cancel
+    const laps = coherent?1:7;
+    for(let k=0;k<laps;k++){
+      const phase=2*Math.PI*frac*k;
+      const a = coherent? 1 : 0.34;
+      const col = coherent? "94,224,214" : "255,180,84";
+      ctx.strokeStyle=`rgba(${col},${a})`;ctx.lineWidth=coherent?3:1.6;
+      if(coherent){ctx.shadowColor="#5fe0d6";ctx.shadowBlur=14*glow;}
+      ctx.beginPath();
+      for(let i=0;i<=steps;i++){const th=2*Math.PI*i/steps;
+        const d=amp*Math.sin(n*th+phase)*breath;
+        const r=R+d;const x=cx+Math.cos(th)*r,y=cy+Math.sin(th)*r;
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+      ctx.stroke();ctx.shadowBlur=0;
+    }
+    // seam markers (start vs where it returns) — only meaningful when not coherent
+    if(!coherent){
+      const dStart=0; const rStart=R+amp*0*breath;
+      const xs=cx+R, ys=cy; // theta=0, sin0=0 -> r=R
+      const dEnd=amp*Math.sin(n*2*Math.PI)*breath; const rEnd=R+dEnd;
+      const xe=cx+rEnd, ye=cy;
+      dot(ctx,xs,ys,5,"#5fe0d6",8);
+      dot(ctx,xe,ye,5,"#ff4d6d",8);
+      ctx.strokeStyle="rgba(255,77,109,.5)";ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(xs,ys);ctx.lineTo(xe,ye);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle="rgba(255,77,109,.85)";ctx.font='10px "Space Mono"';ctx.textAlign="left";
+      ctx.fillText("end ≠ start",cx+R+10,cy+4);
+    } else {
+      dot(ctx,cx+R,cy,5,"#5fe0d6",10);
+      ctx.fillStyle="rgba(95,224,214,.85)";ctx.font='10px "Space Mono"';ctx.textAlign="left";
+      ctx.fillText("end meets start ✓",cx+R+10,cy+4);
+    }
+    // ENERGY LADDER on the right
+    const lx=w*0.80,lw=w-16-lx,topY=28,botY=h-28,Emax=25;
+    ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lx,topY);ctx.lineTo(lx,botY);ctx.stroke();
+    ctx.fillStyle="rgba(238,240,251,.45)";ctx.font='9px "Space Mono"';ctx.textAlign="left";ctx.fillText("energy",lx-2,topY-10);ctx.fillText("(∝ n²)",lx-2,topY-0);
+    for(let nn=1;nn<=5;nn++){const E=nn*nn,y=botY-(E/Emax)*(botY-topY);
+      const cur=coherent&&Math.round(n)===nn;
+      ctx.strokeStyle=cur?"#5fe0d6":"rgba(255,255,255,.2)";ctx.lineWidth=cur?3:1.4;
+      ctx.beginPath();ctx.moveTo(lx,y);ctx.lineTo(lx+lw,y);ctx.stroke();
+      ctx.fillStyle=cur?"#5fe0d6":"rgba(238,240,251,.4)";ctx.font='9px "Space Mono"';ctx.fillText("n="+nn,lx+lw+2,y+3);}
+    if(!coherent){const E=n*n,y=botY-(Math.min(Emax,E)/Emax)*(botY-topY);
+      ctx.strokeStyle="rgba(255,180,84,.6)";ctx.setLineDash([4,3]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(lx,y);ctx.lineTo(lx+lw,y);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle="rgba(255,180,84,.8)";ctx.font='9px "Space Mono"';ctx.fillText("✗",lx+lw+2,y+3);}
+    // verdict
+    if(coherent){verdict.textContent="✓ "+Math.round(n)+" whole wavelengths — it closes on itself and survives";verdict.style.color="var(--fit)";
+      cap.textContent="Every trip around the loop retraces the same curve, so the wave reinforces itself into one steady, lasting standing wave. This is an allowed energy level.";}
+    else{verdict.textContent="✗ "+n.toFixed(2)+" wavelengths — it comes back out of step";verdict.style.color="var(--miss)";
+      cap.textContent="Each lap returns shifted from the last (see the faint stacked copies). Crests land on troughs, the laps blur together and add up to nothing — so no wave can live here. No energy level exists at this value.";}
+    requestAnimationFrame(draw);
+  }
+  function dot(ctx,x,y,r,col,g){ctx.fillStyle=col;if(g){ctx.shadowColor=col;ctx.shadowBlur=g;}ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowBlur=0;}
+  draw();window.addEventListener("resize",size);
+})();
+</script>
+</body>
+</html>

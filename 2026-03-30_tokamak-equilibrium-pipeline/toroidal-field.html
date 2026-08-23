@@ -1,0 +1,393 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>toroidal field</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function ToroidalFieldViz() {
+  const [view, setView] = useState("topdown"); // "topdown", "cross", "3d"
+  const [hoveredR, setHoveredR] = useState(null);
+
+  const svgW = 650, svgH = 550;
+  const cx = svgW / 2, cy = svgH / 2;
+
+  const bcentr = 12.2;
+  const rcentr = 1.15;
+  const bAtR = (R) => bcentr * rcentr / R;
+
+  // Cross section view
+  const crossPad = { l: 70, r: 30, t: 40, b: 50 };
+  const crossW = svgW - crossPad.l - crossPad.r;
+  const crossH = svgH - crossPad.t - crossPad.b;
+  const Rmin = 0.4, Rmax = 2.0, Zmin = -1.2, Zmax = 1.2;
+  const toX = (R) => crossPad.l + ((R - Rmin) / (Rmax - Rmin)) * crossW;
+  const toY = (Z) => crossPad.t + ((Zmax - Z) / (Zmax - Zmin)) * crossH;
+
+  // Color based on field strength
+  const fieldColor = (B) => {
+    const maxB = 20, minB = 5;
+    const t = Math.max(0, Math.min(1, (B - minB) / (maxB - minB)));
+    const r = Math.round(20 + t * 200);
+    const g = Math.round(60 + (1 - t) * 140);
+    const b = Math.round(200 - t * 100);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 18, color: "#e6ecf2", margin: "0 0 4px" }}>
+          THE TOROIDAL MAGNETIC FIELD
+        </h1>
+        <p style={{ fontSize: 11, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          HOW bcentr WORKS — THE FIELD ONLY DEPENDS ON R, NOT Z
+        </p>
+
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+          {[
+            { id: "topdown", label: "Top-down view (looking down at the donut)" },
+            { id: "cross", label: "Cross-section (the EQDSK view)" },
+          ].map(v => (
+            <button
+              key={v.id}
+              onClick={() => setView(v.id)}
+              style={{
+                padding: "8px 14px",
+                background: view === v.id ? "#1a2a3a" : "#12171f",
+                border: view === v.id ? "1px solid #4ecdc4" : "1px solid #1e2630",
+                borderRadius: 4,
+                color: view === v.id ? "#4ecdc4" : "#5c6a7a",
+                fontSize: 11, fontFamily: "inherit", cursor: "pointer",
+                fontWeight: view === v.id ? 700 : 400,
+              }}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <div style={{
+            background: "#0d1117",
+            borderRadius: 6,
+            border: "1px solid #1e2630",
+            padding: 10,
+          }}>
+            <svg width={svgW} height={svgH} style={{ display: "block" }}>
+              {view === "topdown" && (
+                <>
+                  {/* Top-down view of the torus */}
+                  <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" />
+
+                  {/* Concentric rings showing field strength */}
+                  {Array.from({ length: 30 }, (_, i) => {
+                    const R = 0.5 + i * 0.06;
+                    const radius = R * 150;
+                    const B = bAtR(R);
+                    return (
+                      <circle
+                        key={i}
+                        cx={cx} cy={cy}
+                        r={radius}
+                        fill="none"
+                        stroke={fieldColor(B)}
+                        strokeWidth={8}
+                        opacity={0.5}
+                      />
+                    );
+                  })}
+
+                  {/* Central axis */}
+                  <circle cx={cx} cy={cy} r={4} fill="#ff6b6b" />
+                  <text x={cx} y={cy - 12} textAnchor="middle" fill="#ff6b6b" fontSize={10} fontWeight={700}>R = 0</text>
+
+                  {/* TF coils (12 of them) */}
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const angle = (i / 12) * Math.PI * 2;
+                    const innerR = 0.5 * 150;
+                    const outerR = 1.8 * 150;
+                    const x1 = cx + Math.cos(angle) * innerR;
+                    const y1 = cy + Math.sin(angle) * innerR;
+                    const x2 = cx + Math.cos(angle) * outerR;
+                    const y2 = cy + Math.sin(angle) * outerR;
+                    return (
+                      <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+                        stroke="#c9b87c" strokeWidth={3} opacity={0.6} />
+                    );
+                  })}
+
+                  {/* Plasma ring */}
+                  <circle cx={cx} cy={cy} r={1.15 * 150} fill="none" stroke="rgba(78,205,196,0.3)" strokeWidth={0.42 * 2 * 150} />
+                  <circle cx={cx} cy={cy} r={1.15 * 150} fill="none" stroke="rgba(78,205,196,0.5)" strokeWidth={1} strokeDasharray="4,4" />
+
+                  {/* Field direction arrows around the torus */}
+                  {Array.from({ length: 16 }, (_, i) => {
+                    const angle = (i / 16) * Math.PI * 2;
+                    const R = 1.15;
+                    const px = cx + Math.cos(angle) * R * 150;
+                    const py = cy + Math.sin(angle) * R * 150;
+                    // Arrow tangent to circle (toroidal direction)
+                    const tx = -Math.sin(angle) * 15;
+                    const ty = Math.cos(angle) * 15;
+                    return (
+                      <g key={i}>
+                        <line x1={px - tx} y1={py - ty} x2={px + tx} y2={py + ty}
+                          stroke="#4ecdc4" strokeWidth={2} />
+                        <polygon
+                          points={`${px + tx},${py + ty} ${px + tx - ty * 0.3 - tx * 0.3},${py + ty + tx * 0.3 - ty * 0.3} ${px + tx + ty * 0.3 - tx * 0.3},${py + ty - tx * 0.3 - ty * 0.3}`}
+                          fill="#4ecdc4"
+                        />
+                      </g>
+                    );
+                  })}
+
+                  {/* rcentr marker */}
+                  <circle cx={cx + rcentr * 150} cy={cy} r={5} fill="none" stroke="#8ab4f8" strokeWidth={2} />
+                  <text x={cx + rcentr * 150 + 10} y={cy - 8} fill="#8ab4f8" fontSize={10}>
+                    rcentr = {rcentr}m
+                  </text>
+                  <text x={cx + rcentr * 150 + 10} y={cy + 6} fill="#8ab4f8" fontSize={10}>
+                    B = {bcentr}T here
+                  </text>
+
+                  {/* Labels */}
+                  <text x={cx} y={45} textAnchor="middle" fill="#e6ecf2" fontSize={13} fontWeight={700}>
+                    Looking down at the donut from above
+                  </text>
+                  <text x={cx} y={62} textAnchor="middle" fill="#5c6a7a" fontSize={11}>
+                    Red/warm = strong field (near center) · Blue/cool = weak field (far out)
+                  </text>
+                  <text x={cx} y={svgH - 15} textAnchor="middle" fill="#5c6a7a" fontSize={11}>
+                    Arrows show field direction — it goes AROUND the donut (toroidal)
+                  </text>
+                  <text x={cx - 160} y={cy + 8} fill="#c9b87c" fontSize={10}>TF coils (12)</text>
+                </>
+              )}
+
+              {view === "cross" && (
+                <>
+                  <rect x={crossPad.l} y={crossPad.t} width={crossW} height={crossH} fill="#060a0e" stroke="#1e2630" />
+
+                  {/* Heatmap of field strength */}
+                  {Array.from({ length: 40 }, (_, i) => {
+                    const R = Rmin + (i + 0.5) * (Rmax - Rmin) / 40;
+                    const B = bAtR(R);
+                    const cellW = crossW / 40;
+                    return (
+                      <rect
+                        key={i}
+                        x={crossPad.l + i * cellW}
+                        y={crossPad.t}
+                        width={cellW + 1}
+                        height={crossH}
+                        fill={fieldColor(B)}
+                        opacity={0.4}
+                        onMouseEnter={() => setHoveredR(R)}
+                        onMouseLeave={() => setHoveredR(null)}
+                      />
+                    );
+                  })}
+
+                  {/* Vertical lines showing B is constant along Z */}
+                  {[0.6, 0.8, 1.0, 1.15, 1.4, 1.6, 1.8].map(R => (
+                    <g key={R}>
+                      <line
+                        x1={toX(R)} y1={toY(Zmax) + 5}
+                        x2={toX(R)} y2={toY(Zmin) - 5}
+                        stroke={R === rcentr ? "#8ab4f8" : "rgba(255,255,255,0.1)"}
+                        strokeWidth={R === rcentr ? 2 : 1}
+                        strokeDasharray={R === rcentr ? "none" : "3,3"}
+                      />
+                      <text
+                        x={toX(R)}
+                        y={toY(Zmax) - 5}
+                        textAnchor="middle"
+                        fill={R === rcentr ? "#8ab4f8" : "#5c6a7a"}
+                        fontSize={9}
+                        fontWeight={R === rcentr ? 700 : 400}
+                      >
+                        {bAtR(R).toFixed(1)}T
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Field direction indicators (dots = going into screen) */}
+                  {Array.from({ length: 8 }, (_, i) => {
+                    const R = 0.6 + i * 0.17;
+                    return Array.from({ length: 6 }, (_, j) => {
+                      const Z = -0.8 + j * 0.32;
+                      const dotSize = Math.min(4, 2 + bAtR(R) / 10);
+                      return (
+                        <g key={`${i}-${j}`}>
+                          <circle cx={toX(R)} cy={toY(Z)} r={dotSize + 2} fill="none" stroke="rgba(78,205,196,0.3)" strokeWidth={1} />
+                          <circle cx={toX(R)} cy={toY(Z)} r={1.5} fill="rgba(78,205,196,0.6)" />
+                        </g>
+                      );
+                    });
+                  })}
+
+                  {/* Plasma boundary */}
+                  {(() => {
+                    const a = 0.42, kappa = 1.75, delta = 0.40, R0 = 1.18;
+                    const asin_d = Math.asin(delta);
+                    const pts = [];
+                    for (let t = 0; t <= 200; t++) {
+                      const theta = (2 * Math.PI * t) / 200;
+                      const R = R0 + a * Math.cos(theta + asin_d * Math.sin(theta));
+                      const Z = kappa * a * Math.sin(theta);
+                      pts.push(`${toX(R)},${toY(Z)}`);
+                    }
+                    return <polygon points={pts.join(" ")} fill="none" stroke="#ff6b6b" strokeWidth={1.5} opacity={0.5} />;
+                  })()}
+
+                  {/* rcentr marker */}
+                  <circle cx={toX(rcentr)} cy={toY(0)} r={6} fill="none" stroke="#8ab4f8" strokeWidth={2} />
+                  <text x={toX(rcentr) + 10} y={toY(0) + 4} fill="#8ab4f8" fontSize={11} fontWeight={700}>
+                    bcentr = {bcentr}T at rcentr
+                  </text>
+
+                  {/* Central axis */}
+                  <line x1={toX(0)} y1={crossPad.t} x2={toX(0)} y2={crossPad.t + crossH} stroke="#ff6b6b" strokeWidth={2} strokeDasharray="6,4" />
+                  <text x={toX(0)} y={crossPad.t - 8} textAnchor="middle" fill="#ff6b6b" fontSize={10}>R = 0</text>
+
+                  {/* Hover readout */}
+                  {hoveredR && (
+                    <g>
+                      <line x1={toX(hoveredR)} y1={crossPad.t} x2={toX(hoveredR)} y2={crossPad.t + crossH} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
+                      <rect x={toX(hoveredR) - 50} y={toY(0) - 35} width={100} height={30} fill="#1a2a3a" stroke="#4ecdc4" rx={4} />
+                      <text x={toX(hoveredR)} y={toY(0) - 22} textAnchor="middle" fill="#4ecdc4" fontSize={10}>R = {hoveredR.toFixed(2)}m</text>
+                      <text x={toX(hoveredR)} y={toY(0) - 10} textAnchor="middle" fill="#e6ecf2" fontSize={11} fontWeight={700}>B = {bAtR(hoveredR).toFixed(1)} T</text>
+                    </g>
+                  )}
+
+                  {/* R axis labels */}
+                  {[0, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0].map(R => (
+                    <text key={R} x={toX(R)} y={svgH - 12} textAnchor="middle" fill="#5c6a7a" fontSize={9}>{R.toFixed(1)}</text>
+                  ))}
+                  <text x={svgW / 2} y={svgH - 0} textAnchor="middle" fill="#7a8a9a" fontSize={11}>R (meters)</text>
+
+                  {/* Z axis labels */}
+                  {[-1.0, -0.5, 0.0, 0.5, 1.0].map(Z => (
+                    <text key={Z} x={crossPad.l - 10} y={toY(Z) + 4} textAnchor="end" fill="#5c6a7a" fontSize={9}>{Z.toFixed(1)}</text>
+                  ))}
+                  <text x={15} y={svgH / 2} textAnchor="middle" fill="#7a8a9a" fontSize={11} transform={`rotate(-90, 15, ${svgH / 2})`}>Z (meters)</text>
+
+                  {/* Explanation annotations */}
+                  <text x={toX(0.5)} y={crossPad.t + 25} textAnchor="middle" fill="#ff6b6b" fontSize={10} opacity={0.7}>STRONG</text>
+                  <text x={toX(0.5)} y={crossPad.t + 38} textAnchor="middle" fill="#ff6b6b" fontSize={9} opacity={0.5}>field here</text>
+                  <text x={toX(1.9)} y={crossPad.t + 25} textAnchor="end" fill="#6a8ab4" fontSize={10} opacity={0.7}>WEAK</text>
+                  <text x={toX(1.9)} y={crossPad.t + 38} textAnchor="end" fill="#6a8ab4" fontSize={9} opacity={0.5}>field here</text>
+
+                  <text x={svgW / 2} y={crossPad.t + 25} textAnchor="middle" fill="#5c6a7a" fontSize={10}>
+                    Each vertical line = same B everywhere along it
+                  </text>
+
+                  <text x={toX(1.4)} y={toY(-1.05)} fill="#4ecdc4" fontSize={9} opacity={0.6}>
+                    ⊙ = field going INTO screen (toroidal direction)
+                  </text>
+                  <text x={toX(1.4)} y={toY(-1.15)} fill="#4ecdc4" fontSize={9} opacity={0.6}>
+                    bigger dot = stronger field
+                  </text>
+                </>
+              )}
+            </svg>
+          </div>
+
+          {/* Info panel */}
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                {view === "topdown" ? "Top-down view" : "Cross-section view"}
+              </div>
+              <div style={{ fontSize: 12, color: "#8a95a5", lineHeight: 1.8 }}>
+                {view === "topdown" ? (
+                  <>
+                    You're looking straight down at the tokamak donut from above. The central axis (R=0) is the red dot in the middle.
+                    <br /><br />
+                    The colored rings show field strength — red/warm near the center (strong), blue/cool far out (weak). The field gets weaker as 1/R.
+                    <br /><br />
+                    The teal arrows show the field direction — it goes AROUND the donut. Not inward, not outward. Around. That's what "toroidal" means.
+                    <br /><br />
+                    The yellow lines are the 12 toroidal field coils. Current flows up through one side of each coil and down the other, creating the field that wraps around between them.
+                  </>
+                ) : (
+                  <>
+                    This is the same cross-section view as the EQDSK grid. Hover over the plot to see the field strength at any R.
+                    <br /><br />
+                    Key thing: the color is purely vertical stripes. No variation up and down, only left to right. The field at R=1.0 is 14.0T whether Z is -1.0 or 0.0 or +1.0. Always the same.
+                    <br /><br />
+                    The small circles with dots are the field going INTO the screen — that's the toroidal direction in this cross-section view.
+                    <br /><br />
+                    That's why bcentr only needs an R value, not a Z value. Z doesn't matter for this field.
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{
+              padding: 16,
+              background: "#12171f",
+              borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 10, color: "#4ecdc4", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                The formula
+              </div>
+              <div style={{
+                padding: "12px 16px",
+                background: "#060a0e",
+                borderRadius: 4,
+                fontSize: 15,
+                color: "#e6ecf2",
+                textAlign: "center",
+                fontWeight: 700,
+                marginBottom: 12,
+              }}>
+                B(R) = {bcentr} × {rcentr} / R
+              </div>
+              <div style={{ fontSize: 12, color: "#7a8a9a", lineHeight: 1.8 }}>
+                {[0.6, 0.8, 1.0, rcentr, 1.4, 1.6, 1.8].map(R => (
+                  <div key={R} style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "2px 0",
+                    borderBottom: "1px solid #1a2030",
+                    color: R === rcentr ? "#8ab4f8" : "#7a8a9a",
+                    fontWeight: R === rcentr ? 700 : 400,
+                  }}>
+                    <span>R = {R.toFixed(2)}m</span>
+                    <span>B = {bAtR(R).toFixed(1)} T{R === rcentr ? " ← bcentr" : ""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ToroidalFieldViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

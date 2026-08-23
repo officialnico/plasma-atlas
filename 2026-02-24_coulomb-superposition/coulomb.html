@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Coulomb Superposition</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --text: #e0dfe6;
+    --text-dim: #6b6b80;
+    --positive: #ff4466;
+    --negative: #44aaff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  header {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    z-index: 10;
+  }
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+
+  .eq-small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .eq-small em { font-style: normal; color: #00ff88; }
+
+  .controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  button {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button.positive { border-color: rgba(255,68,102,0.4); color: var(--positive); }
+  button.negative { border-color: rgba(68,170,255,0.4); color: var(--negative); }
+  button.danger { border-color: rgba(255,68,68,0.3); color: #ff6666; }
+
+  .toggle-group { display: flex; gap: 4px; margin-left: auto; }
+
+  button.toggle { font-size: 11px; padding: 6px 9px; opacity: 0.45; }
+  button.toggle.active { opacity: 1; background: rgba(255,255,255,0.05); border-color: #3a3a50; }
+
+  .canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .legend {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    background: rgba(18,18,26,0.85);
+    backdrop-filter: blur(8px);
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    pointer-events: none;
+    line-height: 1.8;
+  }
+  .legend .dot { display: inline-block; width: 8px; height: 3px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  .info-panel {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    background: rgba(18,18,26,0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  .info-panel .label { color: var(--text); font-weight: 500; }
+  .info-panel .pos { color: var(--positive); }
+  .info-panel .neg { color: var(--negative); }
+  .info-panel .net { color: #00ff88; }
+  .info-panel .pw { color: #ffcc33; }
+
+  .hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-dim);
+    font-size: 14px;
+    pointer-events: none;
+    opacity: 0.6;
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-row">
+    <h1>Coulomb Superposition</h1>
+    <span class="eq-small"><em>F⃗ᵢ</em> = Σ kqᵢqⱼ/r² · r̂</span>
+  </div>
+  <div class="controls">
+    <button class="positive" id="bP">+ Pos</button>
+    <button class="negative" id="bN">+ Neg</button>
+    <button class="danger" id="bC">Clear</button>
+    <div class="toggle-group">
+      <button class="toggle active" id="btnPW">Each</button>
+      <button class="toggle active" id="btnNF">Net</button>
+      <button class="toggle" id="btnFL">Field</button>
+    </div>
+  </div>
+</header>
+
+<div class="canvas-wrap">
+  <canvas id="c"></canvas>
+  <div class="legend" id="legend" style="display:none;">
+    <div><span class="dot" style="background:#ffcc33"></span> pairwise F⃗</div>
+    <div><span class="dot" style="background:#00ff88"></span> net F⃗</div>
+  </div>
+  <div class="info-panel" id="info" style="display:none;"></div>
+  <div class="hint" id="hint">Add charges above, then drag them<br><small>Tap to select · Long-press to flip sign</small></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const infoEl = document.getElementById('info');
+const hintEl = document.getElementById('hint');
+const legendEl = document.getElementById('legend');
+
+let W, H, dpr;
+const KE = 8.99e9, QU = 1e-6, SC = 100, FS = 0.0008;
+let R = 24;
+
+let charges = [];
+let dragIdx = -1, selectedIdx = -1;
+let showPW = true, showNF = true, showFL = false;
+let longTimer = null, didDrag = false, startPos = null;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  R = Math.max(20, Math.min(28, W * 0.04));
+}
+window.addEventListener('resize', () => { resize(); draw(); });
+resize();
+
+// Button handlers
+document.getElementById('bP').addEventListener('click', () => addQ(1));
+document.getElementById('bN').addEventListener('click', () => addQ(-1));
+document.getElementById('bC').addEventListener('click', clearAll);
+document.getElementById('btnPW').addEventListener('click', () => tog('pw'));
+document.getElementById('btnNF').addEventListener('click', () => tog('nf'));
+document.getElementById('btnFL').addEventListener('click', () => tog('fl'));
+
+function addQ(sign) {
+  const m = R * 3;
+  charges.push({ x: m + Math.random() * (W - m * 2), y: m + Math.random() * (H - m * 2), q: sign * (1 + Math.floor(Math.random() * 3)) });
+  hintEl.style.display = 'none';
+  legendEl.style.display = 'block';
+  draw();
+}
+
+function clearAll() {
+  charges = []; selectedIdx = -1;
+  hintEl.style.display = 'block';
+  infoEl.style.display = 'none';
+  legendEl.style.display = 'none';
+  draw();
+}
+
+function tog(v) {
+  if (v === 'pw') showPW = !showPW;
+  if (v === 'nf') showNF = !showNF;
+  if (v === 'fl') showFL = !showFL;
+  document.getElementById('btnPW').classList.toggle('active', showPW);
+  document.getElementById('btnNF').classList.toggle('active', showNF);
+  document.getElementById('btnFL').classList.toggle('active', showFL);
+  draw();
+}
+
+function preload() {
+  const cx = W / 2, cy = H / 2, s = Math.min(W, H) * 0.2;
+  charges = [
+    { x: cx - s, y: cy - s * 0.3, q: 2 },
+    { x: cx + s, y: cy - s * 0.3, q: -1 },
+    { x: cx, y: cy + s * 0.7, q: 3 },
+  ];
+  hintEl.style.display = 'none';
+  legendEl.style.display = 'block';
+}
+
+function forces() {
+  const F = charges.map(() => ({ fx: 0, fy: 0, comp: [] }));
+  for (let i = 0; i < charges.length; i++) {
+    for (let j = 0; j < charges.length; j++) {
+      if (i === j) continue;
+      const dx = charges[i].x - charges[j].x, dy = charges[i].y - charges[j].y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 5) continue;
+      const Fp = KE * (charges[i].q * QU) * (charges[j].q * QU) / ((d / SC) ** 2) * FS;
+      const fx = Fp * dx / d, fy = Fp * dy / d;
+      F[i].fx += fx; F[i].fy += fy;
+      F[i].comp.push({ from: j, fx, fy, mag: Math.abs(Fp) });
+    }
+  }
+  return F;
+}
+
+function arrow(x1, y1, x2, y2, col, w, a) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 4) return;
+  const hl = Math.min(12, len * 0.3), ang = Math.atan2(dy, dx);
+  ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = w; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hl * Math.cos(ang - 0.35), y2 - hl * Math.sin(ang - 0.35));
+  ctx.lineTo(x2 - hl * Math.cos(ang + 0.35), y2 - hl * Math.sin(ang + 0.35));
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+function drawField() {
+  if (!charges.length) return;
+  ctx.save(); ctx.globalAlpha = 0.15;
+  for (let ci = 0; ci < charges.length; ci++) {
+    if (charges[ci].q <= 0) continue;
+    const n = Math.abs(charges[ci].q) * 6;
+    for (let l = 0; l < n; l++) {
+      const a = (2 * Math.PI * l) / n;
+      let px = charges[ci].x + R * 1.5 * Math.cos(a), py = charges[ci].y + R * 1.5 * Math.sin(a);
+      ctx.beginPath(); ctx.moveTo(px, py);
+      ctx.strokeStyle = '#ffcc33'; ctx.lineWidth = 1;
+      for (let s = 0; s < 180; s++) {
+        let ex = 0, ey = 0;
+        for (let j = 0; j < charges.length; j++) {
+          const ddx = px - charges[j].x, ddy = py - charges[j].y;
+          const d2 = ddx * ddx + ddy * ddy, d = Math.sqrt(d2);
+          if (d < R) { s = 999; break; }
+          const E = charges[j].q / d2; ex += E * ddx / d; ey += E * ddy / d;
+        }
+        const em = Math.sqrt(ex * ex + ey * ey);
+        if (em < 1e-10) break;
+        px += 4 * ex / em; py += 4 * ey / em;
+        if (px < 0 || px > W || py < 0 || py > H) break;
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawCharge(c, i, sel) {
+  const pos = c.q > 0, rc = pos ? '#ff4466' : '#44aaff', gc = pos ? 'rgba(255,68,102,' : 'rgba(68,170,255,';
+  const gr = R * (sel ? 3.5 : 2.5);
+  const g = ctx.createRadialGradient(c.x, c.y, R * 0.5, c.x, c.y, gr);
+  g.addColorStop(0, gc + (sel ? '0.3)' : '0.15)')); g.addColorStop(1, gc + '0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, gr, 0, Math.PI * 2); ctx.fill();
+
+  const bg = ctx.createRadialGradient(c.x - 3, c.y - 3, 2, c.x, c.y, R);
+  bg.addColorStop(0, pos ? '#ff7799' : '#77ccff'); bg.addColorStop(1, rc);
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, Math.PI * 2); ctx.fill();
+
+  if (sel) {
+    ctx.strokeStyle = rc; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(c.x, c.y, R + 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `600 ${Math.round(R * 0.55)}px "JetBrains Mono"`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText((pos ? '+' : '') + c.q + 'μC', c.x, c.y);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  // grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 1;
+  for (let x = 50; x < W; x += 50) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 50; y < H; y += 50) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  if (!charges.length) return;
+  if (showFL) drawField();
+
+  const F = forces();
+  const maxL = Math.min(W, H) * 0.25;
+
+  if (showPW) {
+    for (let i = 0; i < charges.length; i++) {
+      for (const cp of F[i].comp) {
+        const l = Math.sqrt(cp.fx ** 2 + cp.fy ** 2);
+        const s = l > maxL ? maxL / l : 1;
+        const isSel = i === selectedIdx;
+        arrow(charges[i].x, charges[i].y, charges[i].x + cp.fx * s, charges[i].y + cp.fy * s, '#ffcc33', isSel ? 2 : 1.2, isSel ? 0.6 : 0.25);
+      }
+    }
+  }
+
+  if (showNF) {
+    for (let i = 0; i < charges.length; i++) {
+      const l = Math.sqrt(F[i].fx ** 2 + F[i].fy ** 2);
+      if (l < 1) continue;
+      const mL = maxL * 1.2;
+      const s = l > mL ? mL / l : 1;
+      const isSel = i === selectedIdx;
+      arrow(charges[i].x, charges[i].y, charges[i].x + F[i].fx * s, charges[i].y + F[i].fy * s, '#00ff88', isSel ? 3 : 2, isSel ? 0.9 : 0.6);
+    }
+  }
+
+  for (let i = 0; i < charges.length; i++) drawCharge(charges[i], i, i === selectedIdx);
+
+  if (selectedIdx >= 0 && selectedIdx < charges.length) {
+    const c = charges[selectedIdx], f = F[selectedIdx];
+    const nm = Math.sqrt(f.fx ** 2 + f.fy ** 2) / FS;
+    let html = `<span class="label">q${selectedIdx + 1}</span> = <span class="${c.q > 0 ? 'pos' : 'neg'}">${c.q > 0 ? '+' : ''}${c.q} μC</span> · <span class="net">|F⃗_net|</span> = ${nm.toExponential(2)} N`;
+    if (f.comp.length) {
+      html += '<br>' + f.comp.map(cp => {
+        const o = charges[cp.from];
+        return `<span class="pw">q${cp.from + 1}(${o.q > 0 ? '+' : ''}${o.q})</span>→${(cp.mag / FS).toExponential(1)}N`;
+      }).join(' · ');
+    }
+    infoEl.innerHTML = html; infoEl.style.display = 'block';
+  } else { infoEl.style.display = 'none'; }
+}
+
+function hitTest(mx, my) {
+  const hr = R + 16;
+  for (let i = charges.length - 1; i >= 0; i--) {
+    const dx = mx - charges[i].x, dy = my - charges[i].y;
+    if (dx * dx + dy * dy < hr * hr) return i;
+  }
+  return -1;
+}
+
+function gp(e) {
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] || e.changedTouches[0] : e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+}
+
+// Touch
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const p = gp(e); startPos = p; didDrag = false;
+  dragIdx = hitTest(p.x, p.y);
+  clearTimeout(longTimer);
+  if (dragIdx >= 0) {
+    longTimer = setTimeout(() => {
+      if (!didDrag && dragIdx >= 0) {
+        charges[dragIdx].q = -charges[dragIdx].q;
+        try { navigator.vibrate(30); } catch(e) {}
+        draw();
+      }
+    }, 500);
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (dragIdx >= 0) {
+    const p = gp(e);
+    if (!didDrag) {
+      const dx = p.x - startPos.x, dy = p.y - startPos.y;
+      if (dx * dx + dy * dy > 64) { didDrag = true; clearTimeout(longTimer); }
+    }
+    if (didDrag) {
+      charges[dragIdx].x = Math.max(R, Math.min(W - R, p.x));
+      charges[dragIdx].y = Math.max(R, Math.min(H - R, p.y));
+      draw();
+    }
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  clearTimeout(longTimer);
+  if (dragIdx >= 0 && !didDrag) {
+    selectedIdx = selectedIdx === dragIdx ? -1 : dragIdx;
+    draw();
+  }
+  dragIdx = -1; didDrag = false; startPos = null;
+}, { passive: false });
+
+// Mouse
+canvas.addEventListener('mousedown', e => {
+  const p = gp(e); startPos = p; didDrag = false;
+  dragIdx = hitTest(p.x, p.y);
+  if (dragIdx >= 0) canvas.style.cursor = 'grabbing';
+});
+canvas.addEventListener('mousemove', e => {
+  const p = gp(e);
+  if (dragIdx >= 0) {
+    didDrag = true;
+    charges[dragIdx].x = Math.max(R, Math.min(W - R, p.x));
+    charges[dragIdx].y = Math.max(R, Math.min(H - R, p.y));
+    draw();
+  } else {
+    canvas.style.cursor = hitTest(p.x, p.y) >= 0 ? 'grab' : 'default';
+  }
+});
+canvas.addEventListener('mouseup', () => {
+  if (dragIdx >= 0 && !didDrag) {
+    selectedIdx = selectedIdx === dragIdx ? -1 : dragIdx;
+    draw();
+  }
+  dragIdx = -1; canvas.style.cursor = 'default';
+});
+canvas.addEventListener('dblclick', e => {
+  const p = gp(e), i = hitTest(p.x, p.y);
+  if (i >= 0) { charges[i].q = -charges[i].q; draw(); }
+});
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const p = gp(e), i = hitTest(p.x, p.y);
+  if (i >= 0) {
+    charges.splice(i, 1);
+    if (selectedIdx === i) selectedIdx = -1; else if (selectedIdx > i) selectedIdx--;
+    if (!charges.length) { hintEl.style.display = 'block'; legendEl.style.display = 'none'; }
+    draw();
+  }
+});
+
+preload();
+draw();
+</script>
+</body>
+</html>

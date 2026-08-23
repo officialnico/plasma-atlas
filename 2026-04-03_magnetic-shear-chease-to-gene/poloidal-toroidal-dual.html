@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>q — Poloidal + Toroidal Views</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #05080e;
+  --surface: #0a1020;
+  --border: #162040;
+  --text: #e2e8f0;
+  --dim: #64748b;
+  --muted: #2d3f65;
+  --cyan: #22d3ee;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #f87171;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;overflow-x:hidden;}
+.wrap{max-width:960px;margin:0 auto;padding:24px 14px 70px;}
+.head{text-align:center;margin-bottom:24px;}
+.head h1{font-size:clamp(22px,5vw,34px);font-weight:800;letter-spacing:-1px;margin-bottom:6px;}
+.head h1 span{color:var(--amber);}
+.head p{color:var(--dim);font-size:13px;font-weight:300;max-width:540px;margin:0 auto;line-height:1.5;}
+
+/* Dual canvas layout */
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+@media(max-width:680px){.dual{grid-template-columns:1fr;}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative;}
+.panel-label{position:absolute;top:10px;left:14px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;pointer-events:none;z-index:2;}
+.panel-sub{position:absolute;top:24px;left:14px;font-size:10px;color:var(--muted);font-weight:300;pointer-events:none;z-index:2;}
+canvas{display:block;width:100%;height:420px;}
+
+/* 3D panel spans full width */
+.full{grid-column:1/-1;}
+.full canvas{height:360px;cursor:grab;}
+.full canvas:active{cursor:grabbing;}
+
+/* Controls */
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.cg{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.cg-l{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.cg-r{display:flex;align-items:center;gap:8px;}
+.cg-v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;min-width:32px;text-align:right;color:var(--amber);}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 8px rgba(251,191,36,.35);}
+.btn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:var(--amber);font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;padding:8px 14px;border-radius:7px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn:hover{background:rgba(251,191,36,.15);}
+.btn2{border-color:rgba(34,211,238,.2);color:var(--cyan);background:rgba(34,211,238,.06);}
+.btn2:hover{background:rgba(34,211,238,.12);}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:16px;}
+.lg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 9px;}
+.ld{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* Explainer */
+.expl{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:16px;}
+.expl h3{font-size:14px;font-weight:700;margin-bottom:8px;color:var(--amber);}
+.expl p{font-size:12px;color:var(--dim);font-weight:300;line-height:1.7;}
+.expl p+p{margin-top:8px;}
+.expl b{color:var(--text);font-weight:600;}
+.ha{color:var(--amber)!important;font-weight:600!important;}
+.hc{color:var(--cyan)!important;font-weight:600!important;}
+.hg{color:var(--green)!important;font-weight:600!important;}
+.hr{color:var(--red)!important;font-weight:600!important;}
+
+/* Sync indicator */
+.sync-line{position:absolute;z-index:3;pointer-events:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>Poloidal × Toroidal <span>Side by Side</span></h1>
+    <p>Left: slice across the donut (poloidal). Right: slice along the donut (toroidal). Bottom: 3D reference. All synchronized.</p>
+  </div>
+
+  <div class="ctrls">
+    <div class="cg">
+      <div class="cg-l">Safety Factor q</div>
+      <div class="cg-r"><input type="range" id="sQ" min="1" max="5" step="0.1" value="2"><span class="cg-v" id="vQ">2.0</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Shear ŝ</div>
+      <div class="cg-r"><input type="range" id="sShear" min="0" max="3" step="0.1" value="1.2"><span class="cg-v" id="vShear" style="color:var(--cyan)">1.2</span></div>
+    </div>
+    <div class="cg">
+      <div class="cg-l">Speed</div>
+      <div class="cg-r"><input type="range" id="sSpd" min="0.2" max="3" step="0.1" value="1"><span class="cg-v" id="vSpd" style="color:var(--dim)">1.0</span></div>
+    </div>
+    <div class="cg" style="flex:0;display:flex;align-items:flex-end;gap:5px;">
+      <button class="btn" id="bPlay">⏸</button>
+      <button class="btn btn2" id="bReset">↺</button>
+    </div>
+  </div>
+
+  <div class="dual">
+    <!-- Poloidal cross-section -->
+    <div class="panel">
+      <div class="panel-label">Poloidal Cross-Section</div>
+      <div class="panel-sub">slice across the donut</div>
+      <canvas id="cPol"></canvas>
+    </div>
+    <!-- Toroidal cross-section -->
+    <div class="panel">
+      <div class="panel-label">Toroidal Top-Down View</div>
+      <div class="panel-sub">looking down at the donut</div>
+      <canvas id="cTor"></canvas>
+    </div>
+    <!-- 3D reference (full width) -->
+    <div class="panel full">
+      <div class="panel-label">3D Reference — drag to rotate</div>
+      <canvas id="c3D"></canvas>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="lg"><div class="ld" style="background:var(--green);box-shadow:0 0 5px rgba(74,222,128,.4)"></div> Inner (q=1.2)</div>
+    <div class="lg"><div class="ld" style="background:var(--amber);box-shadow:0 0 5px rgba(251,191,36,.4)"></div> Selected q</div>
+    <div class="lg"><div class="ld" style="background:var(--red);box-shadow:0 0 5px rgba(248,113,113,.4)"></div> Outer (q=3.5)</div>
+    <div class="lg"><div class="ld" style="background:var(--cyan);opacity:.3"></div> Flux surfaces</div>
+    <div class="lg" style="color:var(--muted)">All three views are synchronized</div>
+  </div>
+
+  <div class="expl">
+    <h3>What you're seeing</h3>
+    <p><b>Left (Poloidal):</b> You sliced the donut open and are looking at the D-shaped cross-section. Each dot traces its poloidal path — the <span class="hg">inner</span> one zips around fast (low q), the <span class="hr">outer</span> one crawls (high q). This is where you see the differential rotation that creates shear.</p>
+    <p><b>Right (Toroidal):</b> You're looking down at the donut from above. The concentric circles are flux surfaces. The dots spiral around toroidally — they all move at the same toroidal rate, but their radial position oscillates because of the poloidal component. At <span class="ha">high shear</span>, the inner and outer dots drift apart in phase.</p>
+    <p><b>Bottom (3D):</b> The full picture. Drag to rotate. The colored lines are actual field line helices on the torus surface.</p>
+  </div>
+
+  <div class="expl">
+    <h3>Connecting to shear</h3>
+    <p>Crank the <span class="hc">ŝ slider</span> and watch: it changes how much the q values differ between surfaces. At <b>ŝ = 0</b>, all three dots move in sync (same q everywhere). At <b>ŝ = 3</b>, the outer surface has a much higher q and visibly lags behind the inner one on the poloidal view. That growing phase difference is magnetic shear — the thing GENE needs to compute turbulent transport.</p>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let qMid = 2, shat = 1.2, spd = 1, playing = true;
+let phi = 0; // global toroidal angle (animation clock)
+let camRx = 0.5, camRy = 0.35;
+let dragging = false, dX=0, dY=0, dRx=0, dRy=0;
+
+function getQ(rFrac) {
+  // q(r) = qMid adjusted by shear: inner is lower, outer is higher
+  // Simple model: q = qMid * exp(shat * (rFrac - 0.5))
+  return qMid * Math.exp(shat * (rFrac - 0.5));
+}
+
+const surfaces = [
+  { rFrac: 0.25, color: [74,222,128], name: 'Inner' },
+  { rFrac: 0.50, color: [251,191,36], name: 'Mid' },
+  { rFrac: 0.80, color: [248,113,113], name: 'Outer' },
+];
+
+// ============ CANVAS SETUP ============
+const cPol = document.getElementById('cPol');
+const cTor = document.getElementById('cTor');
+const c3D = document.getElementById('c3D');
+const ctxP = cPol.getContext('2d');
+const ctxT = cTor.getContext('2d');
+const ctx3 = c3D.getContext('2d');
+let pW, pH, tW, tH, dW, dH, dpr;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  [cPol, cTor, c3D].forEach(c => {
+    const r = c.getBoundingClientRect();
+    c.width = r.width * dpr;
+    c.height = r.height * dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  });
+  const rp = cPol.getBoundingClientRect();
+  pW = rp.width; pH = rp.height;
+  const rt = cTor.getBoundingClientRect();
+  tW = rt.width; tH = rt.height;
+  const rd = c3D.getBoundingClientRect();
+  dW = rd.width; dH = rd.height;
+}
+
+// ============ POLOIDAL VIEW ============
+function drawPoloidal() {
+  ctxP.clearRect(0, 0, pW, pH);
+
+  const cx = pW / 2, cy = pH / 2;
+  const maxR = Math.min(pW, pH) * 0.36;
+  const elong = 1.35;
+
+  // Bg glow
+  const bg = ctxP.createRadialGradient(cx, cy, 0, cx, cy, maxR * 1.3);
+  bg.addColorStop(0, 'rgba(34,211,238,0.025)');
+  bg.addColorStop(1, 'transparent');
+  ctxP.fillStyle = bg;
+  ctxP.fillRect(0, 0, pW, pH);
+
+  // Ghost flux surfaces
+  for (let i = 1; i <= 7; i++) {
+    const f = i / 7;
+    const rr = maxR * f;
+    const sh = 8 * (1 - f);
+    ctxP.beginPath();
+    ctxP.ellipse(cx + sh, cy, rr, rr * elong, 0, 0, Math.PI * 2);
+    ctxP.strokeStyle = `rgba(34,211,238,${0.035 + 0.015 * f})`;
+    ctxP.lineWidth = 0.7;
+    ctxP.stroke();
+  }
+
+  // Poloidal angle labels
+  ctxP.font = '300 9px "JetBrains Mono", monospace';
+  ctxP.fillStyle = 'rgba(100,116,139,0.3)';
+  ctxP.textAlign = 'center';
+  ctxP.textBaseline = 'middle';
+  const labelR = maxR * 1.05 * elong;
+  ['0° (outboard)', '90° (top)', '180° (inboard)', '270° (bottom)'].forEach((lbl, i) => {
+    const th = -Math.PI/2 + i * Math.PI/2;
+    const lx = cx + (maxR * 1.12) * Math.cos(th);
+    const ly = cy + labelR * Math.sin(th);
+    ctxP.fillText(lbl, lx, ly);
+  });
+
+  // Field line trails + heads
+  surfaces.forEach(s => {
+    const rr = maxR * s.rFrac;
+    const sh = 8 * (1 - s.rFrac);
+    const qv = getQ(s.rFrac);
+    const thetaNow = phi / qv;
+
+    // Trail: last ~3 poloidal loops
+    const trailTheta = Math.min(thetaNow, Math.PI * 6);
+    const steps = 200;
+
+    // Faded trail
+    for (let seg = 0; seg < steps - 1; seg++) {
+      const f0 = seg / steps;
+      const f1 = (seg + 1) / steps;
+      const th0 = thetaNow - trailTheta * (1 - f0);
+      const th1 = thetaNow - trailTheta * (1 - f1);
+      if (th0 < 0) continue;
+
+      const x0 = cx + sh + rr * Math.cos(th0 - Math.PI/2);
+      const y0 = cy + rr * elong * Math.sin(th0 - Math.PI/2);
+      const x1 = cx + sh + rr * Math.cos(th1 - Math.PI/2);
+      const y1 = cy + rr * elong * Math.sin(th1 - Math.PI/2);
+
+      const alpha = f1 * 0.5;
+      ctxP.beginPath();
+      ctxP.moveTo(x0, y0);
+      ctxP.lineTo(x1, y1);
+      ctxP.strokeStyle = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${alpha})`;
+      ctxP.lineWidth = 2.5;
+      ctxP.stroke();
+    }
+
+    // Head
+    const hx = cx + sh + rr * Math.cos(thetaNow - Math.PI/2);
+    const hy = cy + rr * elong * Math.sin(thetaNow - Math.PI/2);
+
+    const gr = ctxP.createRadialGradient(hx, hy, 0, hx, hy, 18);
+    gr.addColorStop(0, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0.6)`);
+    gr.addColorStop(1, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0)`);
+    ctxP.beginPath();
+    ctxP.arc(hx, hy, 18, 0, Math.PI * 2);
+    ctxP.fillStyle = gr;
+    ctxP.fill();
+
+    ctxP.beginPath();
+    ctxP.arc(hx, hy, 4.5, 0, Math.PI * 2);
+    ctxP.fillStyle = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
+    ctxP.fill();
+
+    // q label
+    ctxP.font = '600 10px "JetBrains Mono", monospace';
+    ctxP.fillStyle = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0.7)`;
+    ctxP.textAlign = 'left';
+    ctxP.textBaseline = 'middle';
+    ctxP.fillText(`q=${qv.toFixed(1)}`, cx + sh + rr + 10, cy + (s.rFrac - 0.5) * 50);
+  });
+
+  // Center
+  ctxP.font = '500 9px "JetBrains Mono", monospace';
+  ctxP.fillStyle = 'rgba(100,116,139,0.35)';
+  ctxP.textAlign = 'center';
+  ctxP.fillText('AXIS', cx + 8, cy);
+}
+
+// ============ TOROIDAL VIEW ============
+function drawToroidal() {
+  ctxT.clearRect(0, 0, tW, tH);
+
+  const cx = tW / 2, cy = tH / 2;
+  // Top-down view of torus: major radius R, surfaces at R ± r
+  const R = Math.min(tW, tH) * 0.3; // major radius in pixels
+  const rMax = R * 0.35; // max minor radius in pixels
+
+  // Bg glow
+  const bg = ctxT.createRadialGradient(cx, cy, R - rMax, cx, cy, R + rMax * 1.5);
+  bg.addColorStop(0, 'rgba(34,211,238,0.02)');
+  bg.addColorStop(1, 'transparent');
+  ctxT.fillStyle = bg;
+  ctxT.fillRect(0, 0, tW, tH);
+
+  // Draw torus outline (top-down: two concentric circles for inner/outer wall)
+  ctxT.beginPath();
+  ctxT.arc(cx, cy, R + rMax, 0, Math.PI * 2);
+  ctxT.strokeStyle = 'rgba(34,211,238,0.08)';
+  ctxT.lineWidth = 1;
+  ctxT.stroke();
+
+  ctxT.beginPath();
+  ctxT.arc(cx, cy, R - rMax, 0, Math.PI * 2);
+  ctxT.strokeStyle = 'rgba(34,211,238,0.08)';
+  ctxT.lineWidth = 1;
+  ctxT.stroke();
+
+  // Center ring (magnetic axis)
+  ctxT.beginPath();
+  ctxT.arc(cx, cy, R, 0, Math.PI * 2);
+  ctxT.strokeStyle = 'rgba(34,211,238,0.04)';
+  ctxT.lineWidth = 0.5;
+  ctxT.setLineDash([4,6]);
+  ctxT.stroke();
+  ctxT.setLineDash([]);
+
+  // Label
+  ctxT.font = '300 9px "JetBrains Mono", monospace';
+  ctxT.fillStyle = 'rgba(100,116,139,0.3)';
+  ctxT.textAlign = 'center';
+  ctxT.fillText('R₀', cx, cy - 6);
+  ctxT.fillText('(axis)', cx, cy + 6);
+
+  // Toroidal angle markers
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const x1 = cx + (R - rMax - 4) * Math.cos(angle);
+    const y1 = cy + (R - rMax - 4) * Math.sin(angle);
+    const x2 = cx + (R + rMax + 4) * Math.cos(angle);
+    const y2 = cy + (R + rMax + 4) * Math.sin(angle);
+    ctxT.beginPath();
+    ctxT.moveTo(x1, y1);
+    ctxT.lineTo(x2, y2);
+    ctxT.strokeStyle = 'rgba(34,211,238,0.04)';
+    ctxT.lineWidth = 0.5;
+    ctxT.stroke();
+  }
+
+  // Draw the "slice plane" indicator
+  const sliceAngle = 0;
+  ctxT.beginPath();
+  ctxT.moveTo(cx + (R - rMax - 10) * Math.cos(sliceAngle), cy + (R - rMax - 10) * Math.sin(sliceAngle));
+  ctxT.lineTo(cx + (R + rMax + 10) * Math.cos(sliceAngle), cy + (R + rMax + 10) * Math.sin(sliceAngle));
+  ctxT.strokeStyle = 'rgba(34,211,238,0.15)';
+  ctxT.lineWidth = 1.5;
+  ctxT.setLineDash([6,4]);
+  ctxT.stroke();
+  ctxT.setLineDash([]);
+  ctxT.font = '300 8px "JetBrains Mono", monospace';
+  ctxT.fillStyle = 'rgba(34,211,238,0.3)';
+  ctxT.textAlign = 'left';
+  ctxT.fillText('← poloidal slice', cx + R + rMax + 14, cy + 3);
+
+  // Field line positions on top-down view
+  // In top-down, a field line on surface at minor radius r oscillates:
+  // its distance from the axis = R + r*cos(theta), where theta = phi_toroidal / q
+  surfaces.forEach(s => {
+    const rr = rMax * s.rFrac;
+    const qv = getQ(s.rFrac);
+
+    // Trail
+    const trailPhi = Math.min(phi, Math.PI * 8);
+    const steps = 300;
+
+    for (let seg = 0; seg < steps - 1; seg++) {
+      const f0 = seg / steps;
+      const f1 = (seg + 1) / steps;
+      const ph0 = phi - trailPhi * (1 - f0);
+      const ph1 = phi - trailPhi * (1 - f1);
+      if (ph0 < 0) continue;
+
+      const th0 = ph0 / qv;
+      const th1 = ph1 / qv;
+      const dist0 = R + rr * Math.cos(th0);
+      const dist1 = R + rr * Math.cos(th1);
+
+      const x0 = cx + dist0 * Math.cos(ph0);
+      const y0 = cy + dist0 * Math.sin(ph0);
+      const x1 = cx + dist1 * Math.cos(ph1);
+      const y1 = cy + dist1 * Math.sin(ph1);
+
+      const alpha = f1 * 0.45;
+      ctxT.beginPath();
+      ctxT.moveTo(x0, y0);
+      ctxT.lineTo(x1, y1);
+      ctxT.strokeStyle = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${alpha})`;
+      ctxT.lineWidth = 2;
+      ctxT.stroke();
+    }
+
+    // Head
+    const thetaH = phi / qv;
+    const distH = R + rr * Math.cos(thetaH);
+    const hx = cx + distH * Math.cos(phi);
+    const hy = cy + distH * Math.sin(phi);
+
+    const gr = ctxT.createRadialGradient(hx, hy, 0, hx, hy, 16);
+    gr.addColorStop(0, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0.6)`);
+    gr.addColorStop(1, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0)`);
+    ctxT.beginPath();
+    ctxT.arc(hx, hy, 16, 0, Math.PI * 2);
+    ctxT.fillStyle = gr;
+    ctxT.fill();
+
+    ctxT.beginPath();
+    ctxT.arc(hx, hy, 4, 0, Math.PI * 2);
+    ctxT.fillStyle = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
+    ctxT.fill();
+  });
+
+  // Toroidal direction arrow
+  ctxT.font = '300 9px Outfit';
+  ctxT.fillStyle = 'rgba(100,116,139,0.4)';
+  ctxT.textAlign = 'center';
+  ctxT.fillText('φ →', cx + R + rMax + 5, cy - rMax - 8);
+}
+
+// ============ 3D VIEW ============
+function proj(x, y, z) {
+  let x1 = x*Math.cos(camRy) - z*Math.sin(camRy);
+  let z1 = x*Math.sin(camRy) + z*Math.cos(camRy);
+  let y1 = y*Math.cos(camRx) - z1*Math.sin(camRx);
+  let z2 = y*Math.sin(camRx) + z1*Math.cos(camRx);
+  const fov = 500;
+  const d = fov / (fov + z2 + 250);
+  return { x: dW/2 + x1*d, y: dH/2 + y1*d, z: z2, d };
+}
+
+function torusP(R, r, ph, th) {
+  return {
+    x: (R + r*Math.cos(th)) * Math.cos(ph),
+    y: r * Math.sin(th),
+    z: (R + r*Math.cos(th)) * Math.sin(ph)
+  };
+}
+
+function draw3D() {
+  ctx3.clearRect(0, 0, dW, dH);
+
+  const R = 120, rMax = 42;
+
+  // Wireframe torus
+  for (let i = 0; i < 28; i++) {
+    const ph = (i/28) * Math.PI*2;
+    const pts = [];
+    for (let j = 0; j <= 20; j++) {
+      const th = (j/20)*Math.PI*2;
+      const p = torusP(R, rMax, ph, th);
+      pts.push(proj(p.x, p.y, p.z));
+    }
+    ctx3.beginPath();
+    pts.forEach((p,k) => k===0 ? ctx3.moveTo(p.x,p.y) : ctx3.lineTo(p.x,p.y));
+    ctx3.closePath();
+    ctx3.strokeStyle = 'rgba(34,211,238,0.04)';
+    ctx3.lineWidth = 0.5;
+    ctx3.stroke();
+  }
+
+  // Field lines
+  surfaces.forEach(s => {
+    const lr = rMax * s.rFrac;
+    const qv = getQ(s.rFrac);
+    const totalPhi = phi;
+    const steps = Math.min(Math.floor(totalPhi * 30), 1500);
+
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const ph = i / 30;
+      if (ph > totalPhi) break;
+      const th = ph / qv;
+      const p3 = torusP(R, lr, ph, th);
+      pts.push(proj(p3.x, p3.y, p3.z));
+    }
+
+    if (pts.length < 2) return;
+
+    for (let i = 1; i < pts.length; i++) {
+      const p0 = pts[i-1], p1 = pts[i];
+      const age = 1 - i / pts.length;
+      const depthA = 0.25 + 0.75 * Math.max(0, Math.min(1, (p1.d - 0.3)/0.6));
+      const fadeA = 1 - age * 0.5;
+      const a = Math.max(0.04, depthA * fadeA);
+
+      ctx3.beginPath();
+      ctx3.moveTo(p0.x, p0.y);
+      ctx3.lineTo(p1.x, p1.y);
+      ctx3.strokeStyle = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${a})`;
+      ctx3.lineWidth = 2 * p1.d;
+      ctx3.stroke();
+    }
+
+    // Head
+    if (pts.length > 0) {
+      const h = pts[pts.length-1];
+      const gr = ctx3.createRadialGradient(h.x, h.y, 0, h.x, h.y, 12*h.d);
+      gr.addColorStop(0, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0.6)`);
+      gr.addColorStop(1, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},0)`);
+      ctx3.beginPath();
+      ctx3.arc(h.x, h.y, 12*h.d, 0, Math.PI*2);
+      ctx3.fillStyle = gr;
+      ctx3.fill();
+
+      ctx3.beginPath();
+      ctx3.arc(h.x, h.y, 3.5*h.d, 0, Math.PI*2);
+      ctx3.fillStyle = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
+      ctx3.fill();
+    }
+  });
+}
+
+// ============ ANIMATION ============
+let lastT = 0;
+function frame(ts) {
+  if (!lastT) lastT = ts;
+  const dt = (ts - lastT) / 1000;
+  lastT = ts;
+  if (playing) phi += dt * spd * 1.2;
+
+  drawPoloidal();
+  drawToroidal();
+  draw3D();
+  requestAnimationFrame(frame);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sQ').addEventListener('input', e => {
+  qMid = parseFloat(e.target.value);
+  document.getElementById('vQ').textContent = qMid.toFixed(1);
+});
+document.getElementById('sShear').addEventListener('input', e => {
+  shat = parseFloat(e.target.value);
+  document.getElementById('vShear').textContent = shat.toFixed(1);
+});
+document.getElementById('sSpd').addEventListener('input', e => {
+  spd = parseFloat(e.target.value);
+  document.getElementById('vSpd').textContent = spd.toFixed(1);
+});
+document.getElementById('bPlay').addEventListener('click', () => {
+  playing = !playing;
+  document.getElementById('bPlay').textContent = playing ? '⏸' : '▶';
+});
+document.getElementById('bReset').addEventListener('click', () => { phi = 0; });
+
+// 3D drag
+c3D.addEventListener('mousedown', e => { dragging=true; dX=e.clientX; dY=e.clientY; dRx=camRx; dRy=camRy; });
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  camRy = dRy + (e.clientX-dX)*0.005;
+  camRx = Math.max(-1.2, Math.min(1.2, dRx + (e.clientY-dY)*0.005));
+});
+window.addEventListener('mouseup', () => { dragging=false; });
+c3D.addEventListener('touchstart', e => { dragging=true; dX=e.touches[0].clientX; dY=e.touches[0].clientY; dRx=camRx; dRy=camRy; }, {passive:true});
+c3D.addEventListener('touchmove', e => {
+  if (!dragging) return;
+  e.preventDefault();
+  camRy = dRy + (e.touches[0].clientX-dX)*0.005;
+  camRx = Math.max(-1.2, Math.min(1.2, dRx + (e.touches[0].clientY-dY)*0.005));
+}, {passive:false});
+c3D.addEventListener('touchend', () => { dragging=false; });
+
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

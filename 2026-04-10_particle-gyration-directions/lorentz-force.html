@@ -1,0 +1,509 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lorentz force</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+const TAU = Math.PI * 2;
+
+// 3D vector math
+const vec3 = {
+  cross: (a, b) => [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ],
+  scale: (v, s) => [v[0] * s, v[1] * s, v[2] * s],
+  mag: (v) => Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]),
+  normalize: (v) => {
+    const m = vec3.mag(v);
+    return m > 0 ? [v[0] / m, v[1] / m, v[2] / m] : [0, 0, 0];
+  },
+  add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+};
+
+// Project 3D -> 2D with rotation
+function project(point, rotY, rotX, cx, cy, scale) {
+  let [x, y, z] = point;
+  // Rotate around Y
+  const cosY = Math.cos(rotY);
+  const sinY = Math.sin(rotY);
+  const x1 = x * cosY - z * sinY;
+  const z1 = x * sinY + z * cosY;
+  // Rotate around X
+  const cosX = Math.cos(rotX);
+  const sinX = Math.sin(rotX);
+  const y1 = y * cosX - z1 * sinX;
+  const z2 = y * sinX + z1 * cosX;
+
+  const perspective = 600;
+  const s = perspective / (perspective + z2);
+  return {
+    x: cx + x1 * scale * s,
+    y: cy - y1 * scale * s,
+    z: z2,
+    s,
+  };
+}
+
+function drawArrow3D(ctx, origin, dir, length, color, label, rotY, rotX, cx, cy, scale, lineWidth = 2.5, dashed = false) {
+  const tip = vec3.add(origin, vec3.scale(vec3.normalize(dir), length));
+  const p0 = project(origin, rotY, rotX, cx, cy, scale);
+  const p1 = project(tip, rotY, rotX, cx, cy, scale);
+
+  ctx.beginPath();
+  if (dashed) ctx.setLineDash([6, 4]);
+  else ctx.setLineDash([]);
+  ctx.moveTo(p0.x, p0.y);
+  ctx.lineTo(p1.x, p1.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Arrowhead
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const angle = Math.atan2(dy, dx);
+  const headLen = 10;
+
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(
+    p1.x - headLen * Math.cos(angle - 0.35),
+    p1.y - headLen * Math.sin(angle - 0.35)
+  );
+  ctx.lineTo(
+    p1.x - headLen * Math.cos(angle + 0.35),
+    p1.y - headLen * Math.sin(angle + 0.35)
+  );
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Label
+  if (label) {
+    const labelOffset = 16;
+    ctx.font = "bold 16px 'IBM Plex Sans', 'Segoe UI', sans-serif";
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      label,
+      p1.x + labelOffset * Math.cos(angle),
+      p1.y + labelOffset * Math.sin(angle)
+    );
+  }
+}
+
+function drawPlane(ctx, v1Dir, v2Dir, size, color, rotY, rotX, cx, cy, scale) {
+  const n1 = vec3.normalize(v1Dir);
+  const n2 = vec3.normalize(v2Dir);
+  const corners = [
+    vec3.add(vec3.scale(n1, size), vec3.scale(n2, size)),
+    vec3.add(vec3.scale(n1, size), vec3.scale(n2, -size)),
+    vec3.add(vec3.scale(n1, -size), vec3.scale(n2, -size)),
+    vec3.add(vec3.scale(n1, -size), vec3.scale(n2, size)),
+  ];
+
+  const projected = corners.map((c) => project(c, rotY, rotX, cx, cy, scale));
+
+  ctx.beginPath();
+  ctx.moveTo(projected[0].x, projected[0].y);
+  for (let i = 1; i < projected.length; i++) {
+    ctx.lineTo(projected[i].x, projected[i].y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawGyrationArc(ctx, origin, F_dir, v_dir, radius, charge, rotY, rotX, cx, cy, scale) {
+  const steps = 30;
+  const arcAngle = Math.PI * 1.2;
+  const n_F = vec3.normalize(F_dir);
+  const n_v = vec3.normalize(v_dir);
+
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * arcAngle - arcAngle * 0.1;
+    const angle = charge > 0 ? t : -t;
+    const pt = vec3.add(
+      origin,
+      vec3.add(
+        vec3.scale(n_F, Math.cos(angle) * radius),
+        vec3.scale(n_v, Math.sin(angle) * radius)
+      )
+    );
+    const p = project(pt, rotY, rotX, cx, cy, scale);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.strokeStyle = charge > 0 ? "rgba(255,140,60,0.35)" : "rgba(80,200,255,0.35)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function CrossProductViz() {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const [charge, setCharge] = useState(1); // +1 ion, -1 electron
+  const [rotY, setRotY] = useState(0.5);
+  const [rotX, setRotX] = useState(0.35);
+  const [autoRotate, setAutoRotate] = useState(true);
+  const [vAngle, setVAngle] = useState(0.8); // angle of v in the xz plane
+  const dragRef = useRef({ active: false, lastX: 0, lastY: 0 });
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const scale = 90;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.55);
+    bg.addColorStop(0, "#0d1220");
+    bg.addColorStop(1, "#050810");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    let currentRotY = rotY;
+    if (autoRotate) {
+      currentRotY += performance.now() * 0.0002;
+    }
+
+    // Define vectors
+    // B points in +Y direction (upward)
+    const B = [0, 1, 0];
+    // v is in the xz plane at vAngle, plus a component along B
+    const v = [Math.cos(vAngle), 0.3, Math.sin(vAngle)];
+    const v_norm = vec3.normalize(v);
+
+    // F = q(v × B)
+    const vCrossB = vec3.cross(v_norm, B);
+    const F = vec3.scale(vCrossB, charge);
+    const F_norm = vec3.normalize(F);
+
+    // Draw the plane spanned by v and F (perpendicular to B)
+    drawPlane(ctx, [1, 0, 0], [0, 0, 1], 1.8, "rgba(40, 70, 130, 0.08)", currentRotY, rotX, cx, cy, scale);
+
+    // Draw subtle grid on the plane
+    for (let i = -4; i <= 4; i++) {
+      const t = i * 0.45;
+      const p1 = project([t, 0, -1.8], currentRotY, rotX, cx, cy, scale);
+      const p2 = project([t, 0, 1.8], currentRotY, rotX, cx, cy, scale);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.strokeStyle = "rgba(50, 80, 140, 0.08)";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+
+      const p3 = project([-1.8, 0, t], currentRotY, rotX, cx, cy, scale);
+      const p4 = project([1.8, 0, t], currentRotY, rotX, cx, cy, scale);
+      ctx.beginPath();
+      ctx.moveTo(p3.x, p3.y);
+      ctx.lineTo(p4.x, p4.y);
+      ctx.stroke();
+    }
+
+    // Gyration arc
+    drawGyrationArc(ctx, [0, 0, 0], F_norm, v_norm, 0.7, charge, currentRotY, rotX, cx, cy, scale);
+
+    // Origin dot
+    const o = project([0, 0, 0], currentRotY, rotX, cx, cy, scale);
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, 5, 0, TAU);
+    ctx.fillStyle = charge > 0 ? "#ff9050" : "#50c8ff";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, 8, 0, TAU);
+    ctx.strokeStyle = charge > 0 ? "rgba(255,144,80,0.3)" : "rgba(80,200,255,0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Label the particle
+    ctx.font = "bold 11px 'IBM Plex Sans', sans-serif";
+    ctx.fillStyle = charge > 0 ? "#ff9050" : "#50c8ff";
+    ctx.textAlign = "center";
+    ctx.fillText(charge > 0 ? "q = +" : "q = −", o.x, o.y + 22);
+
+    // Draw vectors
+    // B (yellow-green, up)
+    drawArrow3D(ctx, [0, 0, 0], B, 1.6, "#a0d840", "B", currentRotY, rotX, cx, cy, scale, 3);
+
+    // v (white-blue)
+    drawArrow3D(ctx, [0, 0, 0], v_norm, 1.3, "#e0e8f0", "v", currentRotY, rotX, cx, cy, scale, 2.5);
+
+    // F = q(v×B) (magenta/orange depending on charge)
+    const fColor = charge > 0 ? "#ff6040" : "#40aaff";
+    const fLabel = charge > 0 ? "F" : "F";
+    drawArrow3D(ctx, [0, 0, 0], F_norm, 1.1, fColor, fLabel, currentRotY, rotX, cx, cy, scale, 3);
+
+    // v∥ component along B (dashed)
+    const vParComponent = [0, v_norm[1], 0];
+    if (vec3.mag(vParComponent) > 0.05) {
+      drawArrow3D(ctx, [0, 0, 0], vParComponent, vec3.mag(vParComponent) * 1.3, "rgba(160,216,64,0.4)", "v∥", currentRotY, rotX, cx, cy, scale, 1.5, true);
+    }
+
+    // v⊥ component in the plane
+    const vPerpComponent = [v_norm[0], 0, v_norm[2]];
+    if (vec3.mag(vPerpComponent) > 0.05) {
+      drawArrow3D(ctx, [0, 0, 0], vPerpComponent, vec3.mag(vPerpComponent) * 1.3, "rgba(200,210,230,0.35)", "v⊥", currentRotY, rotX, cx, cy, scale, 1.5, true);
+    }
+
+    // Right angle indicator between F and v⊥
+    const rSize = 0.15;
+    const rF = vec3.scale(F_norm, rSize);
+    const rV = vec3.scale(vec3.normalize(vPerpComponent), rSize);
+    const rCorner = vec3.add(rF, rV);
+    const pr1 = project(rF, currentRotY, rotX, cx, cy, scale);
+    const pr2 = project(rCorner, currentRotY, rotX, cx, cy, scale);
+    const pr3 = project(rV, currentRotY, rotX, cx, cy, scale);
+    ctx.beginPath();
+    ctx.moveTo(pr1.x, pr1.y);
+    ctx.lineTo(pr2.x, pr2.y);
+    ctx.lineTo(pr3.x, pr3.y);
+    ctx.strokeStyle = "rgba(200, 210, 230, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Right angle between F and B
+    const rB = vec3.scale(vec3.normalize(B), rSize);
+    const rCorner2 = vec3.add(rF, rB);
+    const pb1 = project(rF, currentRotY, rotX, cx, cy, scale);
+    const pb2 = project(rCorner2, currentRotY, rotX, cx, cy, scale);
+    const pb3 = project(rB, currentRotY, rotX, cx, cy, scale);
+    ctx.beginPath();
+    ctx.moveTo(pb1.x, pb1.y);
+    ctx.lineTo(pb2.x, pb2.y);
+    ctx.lineTo(pb3.x, pb3.y);
+    ctx.strokeStyle = "rgba(200, 210, 230, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Equation display
+    ctx.font = "bold 18px 'IBM Plex Sans', sans-serif";
+    ctx.textAlign = "center";
+
+    const eqY = H - 50;
+    const parts = [
+      { text: "F", color: fColor },
+      { text: " = ", color: "rgba(180,195,220,0.7)" },
+      { text: charge > 0 ? "q" : "q", color: charge > 0 ? "#ff9050" : "#50c8ff" },
+      { text: "(", color: "rgba(180,195,220,0.7)" },
+      { text: "v", color: "#e0e8f0" },
+      { text: " × ", color: "rgba(180,195,220,0.7)" },
+      { text: "B", color: "#a0d840" },
+      { text: ")", color: "rgba(180,195,220,0.7)" },
+    ];
+
+    let totalW = 0;
+    parts.forEach((p) => {
+      totalW += ctx.measureText(p.text).width;
+    });
+    let drawX = cx - totalW / 2;
+    parts.forEach((p) => {
+      ctx.fillStyle = p.color;
+      ctx.textAlign = "left";
+      ctx.fillText(p.text, drawX, eqY);
+      drawX += ctx.measureText(p.text).width;
+    });
+
+    // Perpendicularity note
+    ctx.font = "11px 'IBM Plex Sans', sans-serif";
+    ctx.fillStyle = "rgba(150, 170, 200, 0.5)";
+    ctx.textAlign = "center";
+    ctx.fillText("F is always ⊥ to both v and B", cx, eqY + 20);
+
+    animRef.current = requestAnimationFrame(draw);
+  }, [charge, rotY, rotX, autoRotate, vAngle]);
+
+  useEffect(() => {
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [draw]);
+
+  const handlePointerDown = (e) => {
+    dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+    setAutoRotate(false);
+  };
+  const handlePointerMove = (e) => {
+    if (!dragRef.current.active) return;
+    const dx = e.clientX - dragRef.current.lastX;
+    const dy = e.clientY - dragRef.current.lastY;
+    dragRef.current.lastX = e.clientX;
+    dragRef.current.lastY = e.clientY;
+    setRotY((r) => r + dx * 0.006);
+    setRotX((r) => Math.max(-1.2, Math.min(1.2, r + dy * 0.006)));
+  };
+  const handlePointerUp = () => {
+    dragRef.current.active = false;
+  };
+
+  const isIon = charge > 0;
+
+  return (
+    <div
+      style={{
+        background: "#050810",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+        color: "#c0d0e0",
+        padding: 12,
+        userSelect: "none",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: 15,
+          fontWeight: 700,
+          letterSpacing: 2.5,
+          textTransform: "uppercase",
+          color: "rgba(190, 210, 240, 0.85)",
+          margin: "8px 0 2px",
+        }}
+      >
+        The Lorentz Force
+      </h1>
+      <p style={{ fontSize: 10, color: "rgba(130,155,200,0.45)", margin: "0 0 10px", letterSpacing: 1 }}>
+        drag to rotate · adjust velocity angle below
+      </p>
+
+      <canvas
+        ref={canvasRef}
+        width={600}
+        height={440}
+        style={{
+          width: "100%",
+          maxWidth: 600,
+          borderRadius: 8,
+          border: "1px solid rgba(60,100,160,0.15)",
+          cursor: "grab",
+          touchAction: "none",
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      />
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", justifyContent: "center" }}>
+        <button
+          onClick={() => setCharge(1)}
+          style={{
+            background: isIon ? "rgba(255,144,80,0.15)" : "rgba(20,30,50,0.6)",
+            border: `1px solid ${isIon ? "rgba(255,144,80,0.5)" : "rgba(60,80,120,0.25)"}`,
+            color: isIon ? "#ff9050" : "rgba(130,150,180,0.5)",
+            padding: "7px 18px",
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontWeight: isIon ? 600 : 400,
+          }}
+        >
+          Ion (q +)
+        </button>
+        <button
+          onClick={() => setCharge(-1)}
+          style={{
+            background: !isIon ? "rgba(80,200,255,0.12)" : "rgba(20,30,50,0.6)",
+            border: `1px solid ${!isIon ? "rgba(80,200,255,0.45)" : "rgba(60,80,120,0.25)"}`,
+            color: !isIon ? "#50c8ff" : "rgba(130,150,180,0.5)",
+            padding: "7px 18px",
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontWeight: !isIon ? 600 : 400,
+          }}
+        >
+          Electron (q −)
+        </button>
+        <button
+          onClick={() => setAutoRotate((v) => !v)}
+          style={{
+            background: autoRotate ? "rgba(100,140,200,0.12)" : "rgba(20,30,50,0.6)",
+            border: `1px solid ${autoRotate ? "rgba(100,140,200,0.4)" : "rgba(60,80,120,0.25)"}`,
+            color: autoRotate ? "#8ab4e0" : "rgba(130,150,180,0.5)",
+            padding: "7px 14px",
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          {autoRotate ? "Auto-rotate ●" : "Auto-rotate ○"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, fontSize: 11 }}>
+        <span style={{ color: "rgba(130,160,200,0.6)" }}>v angle</span>
+        <input
+          type="range"
+          min={0}
+          max={Math.PI * 2}
+          step={0.05}
+          value={vAngle}
+          onChange={(e) => setVAngle(parseFloat(e.target.value))}
+          style={{ width: 160, accentColor: "#6688bb" }}
+        />
+      </div>
+
+      <div
+        style={{
+          maxWidth: 580,
+          marginTop: 14,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+        }}
+      >
+        {[
+          { vec: "B", color: "#a0d840", desc: "Magnetic field (Tesla) — points up. This is the \"railing\"." },
+          { vec: "v", color: "#e0e8f0", desc: "Particle velocity (m/s). Decomposed into v∥ (along B) and v⊥ (perpendicular)." },
+          { vec: "F", color: isIon ? "#ff6040" : "#40aaff", desc: "Lorentz force (Newtons). Always ⊥ to both v and B — this is what bends the path into a circle." },
+          { vec: "q", color: isIon ? "#ff9050" : "#50c8ff", desc: `Charge (Coulombs). Flipping the sign flips F, which reverses the gyration direction.` },
+        ].map((item) => (
+          <div
+            key={item.vec}
+            style={{
+              background: "rgba(10,20,40,0.7)",
+              border: "1px solid rgba(60,100,160,0.12)",
+              borderRadius: 6,
+              padding: "10px 12px",
+            }}
+          >
+            <span style={{ color: item.color, fontWeight: 700, fontSize: 15 }}>{item.vec}</span>
+            <p style={{ fontSize: 10, lineHeight: 1.6, color: "rgba(160,180,210,0.75)", margin: "4px 0 0" }}>
+              {item.desc}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(CrossProductViz));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>

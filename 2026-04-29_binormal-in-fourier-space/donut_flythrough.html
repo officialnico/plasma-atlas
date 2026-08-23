@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flying through δT — in the donut</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #050508; color: #e8e6e0; font-family: 'Fraunces', serif; }
+#c { position: fixed; inset: 0; cursor: grab; }
+#c:active { cursor: grabbing; }
+.panel {
+  position: fixed; background: rgba(12, 12, 18, 0.88);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+  padding: 14px 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;
+  z-index: 10;
+}
+#title { top: 16px; left: 16px; max-width: 360px; }
+#title h1 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; margin-bottom: 6px; color: #fff; }
+#title p { font-size: 11px; color: #a8a59c; line-height: 1.55; }
+#hud { top: 16px; right: 16px; min-width: 220px; }
+.hud-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.hud-row .k { color: #888; }
+.hud-row .v { color: #d4a04a; font-weight: 600; }
+#controls { bottom: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; max-width: 220px; }
+.toggle {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  color: #e8e6e0; padding: 6px 12px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  cursor: pointer; transition: all 0.15s; text-align: left;
+}
+.toggle:hover { background: rgba(255,255,255,0.12); }
+.toggle.on { background: #d4a04a; color: #1a1408; border-color: #d4a04a; }
+.row { display: flex; gap: 6px; }
+#help { bottom: 16px; right: 16px; max-width: 280px; }
+#help h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; color: #fff; margin-bottom: 6px; }
+#help .key { display: inline-block; padding: 1px 6px; background: rgba(255,255,255,0.1); border-radius: 3px; color: #d4a04a; font-weight: 600; margin: 0 1px; }
+#help p { color: #a8a59c; font-size: 10.5px; }
+.tag-x { color: #ff6b6b; font-weight: 600; }
+.tag-y { color: #5fc28e; font-weight: 600; }
+.tag-z { color: #7badd6; font-weight: 600; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="title" class="panel">
+  <h1>Flying through δT — in the donut</h1>
+  <p>The flux tube wraps around the torus, hugging one D-shaped flux surface. Eddies live <em>inside</em> the tube — long along the field, narrow across. Drag to rotate, scroll to zoom, press <strong>space</strong> + <strong>WASD</strong> to fly along the tube.</p>
+</div>
+
+<div id="hud" class="panel">
+  <div class="hud-row"><span class="k">camera mode</span><span class="v" id="modeHud">orbit</span></div>
+  <div class="hud-row"><span class="k">eddy aspect</span><span class="v">long along z, thin in x,y</span></div>
+  <div class="hud-row"><span class="k">tube wraps</span><span class="v">~1× poloidally, q=3</span></div>
+</div>
+
+<div id="controls">
+  <button class="toggle on" id="rotBtn">auto-rotate</button>
+  <button class="toggle on" id="donutBtn">show donut surface</button>
+  <button class="toggle on" id="tubeBtn">show flux tube</button>
+  <button class="toggle on" id="eddyBtn">show eddies (δT)</button>
+  <button class="toggle" id="ribbonBtn">show eddies as ribbons</button>
+  <button class="toggle" id="cutBtn">show poloidal cut plane</button>
+  <button class="toggle" id="flyAlongBtn">auto-fly along tube</button>
+</div>
+
+<div id="help" class="panel">
+  <h3>fly through it</h3>
+  <p><span class="key">drag</span> rotate · <span class="key">scroll</span> zoom · <span class="key">space</span> toggle fly · <span class="key">W A S D</span> move · <span class="key">Q E</span> up/down</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============ Scene ============
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x050508, 0.012);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.05, 200);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x050508, 1);
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(8, 10, 6); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xff8866, 0.25); dl2.position.set(-5, -3, -5); scene.add(dl2);
+
+// ============ Torus geometry params ============
+const R0 = 6;        // major radius
+const a  = 2.2;      // minor radius
+const Q  = 3;        // safety factor: q field-line wraps toroidally per poloidal wrap
+const KAPPA = 1.4;   // elongation
+const DELTA = 0.25;  // triangularity
+
+// D-shaped flux surface: parametrized by toroidal phi and poloidal theta, at minor radius r=1 (edge)
+// (R, Z) of cross-section: R = R0 + r*a*cos(theta + delta*sin(theta)), Z = r*a*kappa*sin(theta)
+// Then rotate around the Z-axis by phi.
+function surfacePoint(r, theta, phi) {
+  const Rrel = r * a * Math.cos(theta + DELTA * Math.sin(theta));
+  const Zrel = r * a * KAPPA * Math.sin(theta);
+  const R = R0 + Rrel;
+  return new THREE.Vector3(R * Math.cos(phi), Zrel, R * Math.sin(phi));
+}
+
+// ============ Donut surface (one flux surface, r=1) ============
+// Build a torus mesh from D-shape parametrization
+function buildDTorus(r, segPhi, segTheta, color, opacity) {
+  const positions = [];
+  const indices = [];
+  for (let i = 0; i <= segPhi; i++) {
+    const phi = (i / segPhi) * Math.PI * 2;
+    for (let j = 0; j <= segTheta; j++) {
+      const th = (j / segTheta) * Math.PI * 2;
+      const p = surfacePoint(r, th, phi);
+      positions.push(p.x, p.y, p.z);
+    }
+  }
+  for (let i = 0; i < segPhi; i++) {
+    for (let j = 0; j < segTheta; j++) {
+      const a1 = i * (segTheta + 1) + j;
+      const b1 = a1 + 1;
+      const c1 = (i + 1) * (segTheta + 1) + j;
+      const d1 = c1 + 1;
+      indices.push(a1, b1, d1);
+      indices.push(a1, d1, c1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    color, transparent: true, opacity,
+    side: THREE.DoubleSide, roughness: 0.7, metalness: 0.05,
+    wireframe: false
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+const donut = buildDTorus(1.0, 80, 48, 0x4a5868, 0.06);
+scene.add(donut);
+
+// Wireframe overlay
+const donutWire = buildDTorus(1.0, 30, 18, 0x6b7d8f, 0.10);
+donutWire.material.wireframe = true;
+donutWire.material.opacity = 0.10;
+scene.add(donutWire);
+
+// ============ Field line (the spine of the flux tube) ============
+// Field line: phi(theta) = phi0 + Q * theta  (Q toroidal wraps per poloidal wrap)
+// We trace ONE poloidal wrap: theta from -pi to +pi
+function fieldLinePoint(theta, phi0) {
+  return surfacePoint(1.0, theta, phi0 + Q * theta);
+}
+
+const PHI0 = 0;
+const FIELD_THETA_MIN = -Math.PI * 0.95;
+const FIELD_THETA_MAX =  Math.PI * 0.95;
+
+const flineSpinePts = [];
+for (let t = FIELD_THETA_MIN; t <= FIELD_THETA_MAX; t += 0.02) {
+  flineSpinePts.push(fieldLinePoint(t, PHI0));
+}
+const fline = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(flineSpinePts),
+  new THREE.LineBasicMaterial({ color: 0xffd17a, transparent: true, opacity: 0.85, linewidth: 2 })
+);
+scene.add(fline);
+
+// ============ Local frame along the field line ============
+// At each theta along the field line, define:
+//   tangent = derivative wrt arc length (call this "z" in the flux-tube)
+//   radial = outward perpendicular to surface (call this "x")
+//   binormal = perpendicular to both, lying in the surface (call this "y")
+function fieldLineFrame(theta, phi0) {
+  const eps = 0.002;
+  const center = fieldLinePoint(theta, phi0);
+  const next = fieldLinePoint(theta + eps, phi0);
+  const tangent = next.clone().sub(center).normalize();
+
+  // Outward normal of the flux surface at this point.
+  // For D-shape torus: the surface normal is roughly the gradient of r (minor radius coordinate).
+  // Approximate by finite differencing in r.
+  const eps_r = 0.01;
+  const phi_here = phi0 + Q * theta;
+  const p_inner = surfacePoint(1.0 - eps_r, theta, phi_here);
+  const p_outer = surfacePoint(1.0 + eps_r, theta, phi_here);
+  const radial = p_outer.clone().sub(p_inner).normalize();
+
+  // Re-orthogonalize: project radial onto plane perp to tangent
+  const radialProj = radial.clone().sub(tangent.clone().multiplyScalar(radial.dot(tangent))).normalize();
+  // Binormal: tangent × radial
+  const binormal = new THREE.Vector3().crossVectors(tangent, radialProj).normalize();
+
+  return { center, tangent, radial: radialProj, binormal };
+}
+
+// ============ Flux tube walls (a thin box wrapped around the field line) ============
+const dx = 0.18; // radial half-width
+const dy = 0.28; // binormal half-width
+
+function buildTubeWalls() {
+  const N = 200;
+  const corners = [
+    { sx: -1, sy: -1 }, { sx: +1, sy: -1 },
+    { sx: +1, sy: +1 }, { sx: -1, sy: +1 }
+  ];
+  const ringPts = []; // ringPts[i] = array of 4 corner points
+  for (let i = 0; i <= N; i++) {
+    const t = FIELD_THETA_MIN + (i / N) * (FIELD_THETA_MAX - FIELD_THETA_MIN);
+    const f = fieldLineFrame(t, PHI0);
+    const ring = corners.map(c => {
+      return f.center.clone()
+        .add(f.radial.clone().multiplyScalar(c.sx * dx))
+        .add(f.binormal.clone().multiplyScalar(c.sy * dy));
+    });
+    ringPts.push(ring);
+  }
+  // Build mesh: 4 quad strips
+  const positions = [];
+  const indices = [];
+  for (let c = 0; c < 4; c++) {
+    const cNext = (c + 1) % 4;
+    for (let i = 0; i <= N; i++) {
+      const p1 = ringPts[i][c];
+      const p2 = ringPts[i][cNext];
+      positions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    }
+    for (let i = 0; i < N; i++) {
+      const base = c * (N + 1) * 2 + i * 2;
+      indices.push(base, base + 1, base + 3);
+      indices.push(base, base + 3, base + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xd4a04a, transparent: true, opacity: 0.10,
+    side: THREE.DoubleSide, roughness: 0.6
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+
+  // edges
+  const edgePts = [];
+  for (let c = 0; c < 4; c++) {
+    for (let i = 0; i < N; i++) {
+      edgePts.push(ringPts[i][c], ringPts[i+1][c]);
+    }
+  }
+  const edges = new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints(edgePts),
+    new THREE.LineBasicMaterial({ color: 0xd4a04a, transparent: true, opacity: 0.55 })
+  );
+
+  const group = new THREE.Group();
+  group.add(mesh);
+  group.add(edges);
+  return group;
+}
+
+const tubeWalls = buildTubeWalls();
+scene.add(tubeWalls);
+
+// ============ δT eddies inside the tube ============
+// Build the fluctuation field as a 3D point cloud filling the tube volume.
+// Use field-line-aligned coordinates (xLocal, yLocal, zLocal):
+//   xLocal in [-dx, dx] (radial)
+//   yLocal in [-dy, dy] (binormal)
+//   zLocal = position along field line (parametrized by theta)
+// Eddies: long along zLocal, narrow in xLocal and yLocal.
+
+const NY = 16;
+const AMPS = new Array(NY).fill(0).map((_, k) => {
+  if (k === 0) return 0;
+  return Math.exp(-Math.pow((k - 4) / 3, 2)) * (0.5 + 0.8 * Math.sin(k * 1.7));
+});
+const PHASES = new Array(NY).fill(0).map((_, k) => k * 1.31 + 0.7);
+
+function deltaT_local(xL, yL, theta) {
+  // y dependence: sum of Fourier modes
+  const yNorm = (yL / dy) * Math.PI;
+  let v = 0;
+  for (let k = 1; k < NY; k++) {
+    v += AMPS[k] * Math.cos(k * yNorm + PHASES[k] + theta * 0.3);
+  }
+  // Radial envelope
+  const xEnv = Math.exp(-Math.pow(xL / (dx * 0.7), 2));
+  // Slow theta modulation (eddies have envelope along the field, but extend far)
+  const zEnv = 0.6 + 0.4 * Math.cos(theta * 0.7 + 1.0);
+  return xEnv * zEnv * v / 4;
+}
+
+// Sample a 3D grid in local coords and place colored points in world space
+const eddyPositions = [];
+const eddyColors = [];
+const NXL = 6, NYL = 18, NZL = 90;
+for (let i = 0; i < NXL; i++) {
+  for (let j = 0; j < NYL; j++) {
+    for (let k = 0; k < NZL; k++) {
+      const xL = -dx + (i + 0.5) * (2 * dx) / NXL;
+      const yL = -dy + (j + 0.5) * (2 * dy) / NYL;
+      const theta = FIELD_THETA_MIN + (k + 0.5) * (FIELD_THETA_MAX - FIELD_THETA_MIN) / NZL;
+      const v = deltaT_local(xL, yL, theta);
+      if (Math.abs(v) > 0.04) {
+        const f = fieldLineFrame(theta, PHI0);
+        const p = f.center.clone()
+          .add(f.radial.clone().multiplyScalar(xL))
+          .add(f.binormal.clone().multiplyScalar(yL));
+        eddyPositions.push(p.x, p.y, p.z);
+        // Vivid diverging colormap: saturated red for positive, saturated blue for negative
+        const t = Math.max(-1, Math.min(1, v * 4));
+        let r, g, b;
+        if (t >= 0) {
+          // bright red/orange
+          r = 255; g = 100 - 80 * t; b = 80 - 70 * t;
+        } else {
+          // bright cyan/blue
+          r = 80 + 80 * t; g = 150 + 50 * t; b = 255;
+        }
+        eddyColors.push(r/255, g/255, b/255);
+      }
+    }
+  }
+}
+const eddyGeo = new THREE.BufferGeometry();
+eddyGeo.setAttribute('position', new THREE.Float32BufferAttribute(eddyPositions, 3));
+eddyGeo.setAttribute('color', new THREE.Float32BufferAttribute(eddyColors, 3));
+const eddyMat = new THREE.PointsMaterial({
+  size: 0.32, vertexColors: true, transparent: true, opacity: 0.85,
+  sizeAttenuation: true, depthWrite: false
+});
+const eddies = new THREE.Points(eddyGeo, eddyMat);
+scene.add(eddies);
+
+// ============ Eddies as ribbons (alternative view) ============
+// For each peak in y at some xL, extrude along the full theta range as a ribbon
+function buildEddyRibbons() {
+  const group = new THREE.Group();
+  const samplesY = 12;
+  const xL = 0; // ribbons at the center radial slice
+  for (let j = 0; j < samplesY; j++) {
+    const yL = -dy * 0.85 + (j / (samplesY - 1)) * dy * 1.7;
+    const N = 100;
+    const positions = [];
+    const colors = [];
+    for (let k = 0; k <= N; k++) {
+      const theta = FIELD_THETA_MIN + (k / N) * (FIELD_THETA_MAX - FIELD_THETA_MIN);
+      const f = fieldLineFrame(theta, PHI0);
+      const p = f.center.clone()
+        .add(f.radial.clone().multiplyScalar(xL))
+        .add(f.binormal.clone().multiplyScalar(yL));
+      positions.push(p.x, p.y, p.z);
+      const v = deltaT_local(xL, yL, theta);
+      const t = Math.max(-1, Math.min(1, v * 4));
+      let r, g, b;
+      if (t >= 0) { r = 255; g = 100 - 80 * t; b = 80 - 70 * t; }
+      else        { r = 80 + 80 * t; g = 150 + 50 * t; b = 255; }
+      colors.push(r/255, g/255, b/255);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, linewidth: 3 });
+    group.add(new THREE.Line(geo, mat));
+  }
+  return group;
+}
+const ribbons = buildEddyRibbons();
+ribbons.visible = false;
+scene.add(ribbons);
+
+// ============ Poloidal cut plane (a transparent vertical plane at phi=0) ============
+const cutPlane = (() => {
+  const geo = new THREE.PlaneGeometry(a * 5, a * 5);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x4a9d6e, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+  const m = new THREE.Mesh(geo, mat);
+  // The plane should cut through the torus at phi=0, which is the y-z plane at x>0... actually
+  // we want a vertical plane that goes through the donut axis (which is the y-axis).
+  // A plane normal to the world x-axis, passing through origin? That cuts at phi=0 and phi=pi.
+  // Let's use that.
+  m.rotation.y = Math.PI / 2; // plane normal becomes x-axis
+  m.position.set(R0, 0, 0); // center it on the outboard side
+  return m;
+})();
+cutPlane.visible = false;
+scene.add(cutPlane);
+
+// ============ Camera control ============
+let camMode = 'orbit';
+let orbitYaw = 0.7, orbitPitch = 0.45, orbitDist = 32;
+let autoRotate = true;
+const flyPos = new THREE.Vector3();
+const flyYaw = { v: 0 };
+const flyPitch = { v: 0 };
+const keys = {};
+let autoFly = false;
+let autoFlyTheta = FIELD_THETA_MIN;
+
+function setOrbit() {
+  camera.position.set(
+    orbitDist * Math.cos(orbitPitch) * Math.sin(orbitYaw),
+    orbitDist * Math.sin(orbitPitch),
+    orbitDist * Math.cos(orbitPitch) * Math.cos(orbitYaw)
+  );
+  camera.lookAt(0, 0, 0);
+}
+setOrbit();
+
+function setFly() {
+  camera.position.copy(flyPos);
+  const tgt = new THREE.Vector3(
+    Math.cos(flyPitch.v) * Math.sin(flyYaw.v),
+    Math.sin(flyPitch.v),
+    Math.cos(flyPitch.v) * Math.cos(flyYaw.v)
+  ).add(flyPos);
+  camera.lookAt(tgt);
+}
+
+const cv = document.getElementById('c');
+let dragging = false, prevX = 0, prevY = 0;
+cv.addEventListener('mousedown', e => { dragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => dragging = false);
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - prevX, dy = e.clientY - prevY;
+  prevX = e.clientX; prevY = e.clientY;
+  if (camMode === 'orbit') {
+    orbitYaw += dx * 0.005;
+    orbitPitch = Math.max(-1.4, Math.min(1.4, orbitPitch + dy * 0.005));
+  } else {
+    flyYaw.v -= dx * 0.005;
+    flyPitch.v = Math.max(-1.4, Math.min(1.4, flyPitch.v - dy * 0.005));
+  }
+});
+window.addEventListener('wheel', e => {
+  if (camMode === 'orbit') {
+    orbitDist = Math.max(2, Math.min(60, orbitDist * (1 + e.deltaY * 0.001)));
+  }
+});
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (autoFly) {
+      autoFly = false;
+      document.getElementById('flyAlongBtn').classList.remove('on');
+    }
+    camMode = camMode === 'orbit' ? 'fly' : 'orbit';
+    document.getElementById('modeHud').textContent = camMode;
+    if (camMode === 'fly') {
+      flyPos.copy(camera.position);
+      const dir = new THREE.Vector3().subVectors(new THREE.Vector3(0,0,0), flyPos).normalize();
+      flyYaw.v = Math.atan2(dir.x, dir.z);
+      flyPitch.v = Math.asin(dir.y);
+    }
+  }
+});
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============ UI ============
+document.getElementById('rotBtn').addEventListener('click', e => {
+  autoRotate = !autoRotate; e.target.classList.toggle('on', autoRotate);
+});
+document.getElementById('donutBtn').addEventListener('click', e => {
+  donut.visible = !donut.visible; donutWire.visible = donut.visible;
+  e.target.classList.toggle('on', donut.visible);
+});
+document.getElementById('tubeBtn').addEventListener('click', e => {
+  tubeWalls.visible = !tubeWalls.visible; fline.visible = tubeWalls.visible;
+  e.target.classList.toggle('on', tubeWalls.visible);
+});
+document.getElementById('eddyBtn').addEventListener('click', e => {
+  eddies.visible = !eddies.visible; e.target.classList.toggle('on', eddies.visible);
+});
+document.getElementById('ribbonBtn').addEventListener('click', e => {
+  ribbons.visible = !ribbons.visible; e.target.classList.toggle('on', ribbons.visible);
+});
+document.getElementById('cutBtn').addEventListener('click', e => {
+  cutPlane.visible = !cutPlane.visible; e.target.classList.toggle('on', cutPlane.visible);
+});
+document.getElementById('flyAlongBtn').addEventListener('click', e => {
+  autoFly = !autoFly;
+  e.target.classList.toggle('on', autoFly);
+  if (autoFly) {
+    camMode = 'fly';
+    document.getElementById('modeHud').textContent = 'fly (auto)';
+    autoFlyTheta = FIELD_THETA_MIN;
+    autoRotate = false;
+    document.getElementById('rotBtn').classList.remove('on');
+  } else {
+    camMode = 'orbit';
+    document.getElementById('modeHud').textContent = 'orbit';
+  }
+});
+
+// ============ Animate ============
+const clock = new THREE.Clock();
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (autoFly) {
+    autoFlyTheta += dt * 0.4;
+    if (autoFlyTheta > FIELD_THETA_MAX) autoFlyTheta = FIELD_THETA_MIN;
+    const f = fieldLineFrame(autoFlyTheta, PHI0);
+    flyPos.copy(f.center);
+    // look forward along the tangent
+    const target = f.center.clone().add(f.tangent.clone().multiplyScalar(2));
+    camera.position.copy(flyPos);
+    camera.up.copy(f.binormal); // keep binormal as up
+    camera.lookAt(target);
+  } else if (camMode === 'orbit') {
+    if (autoRotate && !dragging) orbitYaw += dt * 0.13;
+    setOrbit();
+    camera.up.set(0, 1, 0);
+  } else {
+    const speed = 8 * dt;
+    const forward = new THREE.Vector3(
+      Math.cos(flyPitch.v) * Math.sin(flyYaw.v),
+      Math.sin(flyPitch.v),
+      Math.cos(flyPitch.v) * Math.cos(flyYaw.v)
+    );
+    const right = new THREE.Vector3(
+      Math.sin(flyYaw.v - Math.PI/2), 0, Math.cos(flyYaw.v - Math.PI/2)
+    );
+    if (keys['w'] || keys['arrowup'])    flyPos.addScaledVector(forward, speed);
+    if (keys['s'] || keys['arrowdown'])  flyPos.addScaledVector(forward, -speed);
+    if (keys['a'] || keys['arrowleft'])  flyPos.addScaledVector(right, -speed);
+    if (keys['d'] || keys['arrowright']) flyPos.addScaledVector(right, speed);
+    if (keys['q']) flyPos.y -= speed;
+    if (keys['e']) flyPos.y += speed;
+    setFly();
+    camera.up.set(0, 1, 0);
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>

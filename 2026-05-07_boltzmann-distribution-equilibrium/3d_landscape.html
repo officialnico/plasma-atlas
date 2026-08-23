@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Energy Landscape · Click to Reveal Density</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0d18;
+  --bg-2: #131826;
+  --paper: #f0eee4;
+  --ink: #e8eef8;
+  --ink-soft: #b8c4d8;
+  --ink-dim: #6a7390;
+  --rule: rgba(232, 238, 248, 0.12);
+  --attractive: #4ab8d8;
+  --repulsive: #ff6b35;
+  --neutral: #ffd54f;
+  --highlight: #ffd54f;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at top left, rgba(74, 184, 216, 0.08), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(255, 107, 53, 0.06), transparent 50%),
+    var(--bg);
+}
+
+/* ---------- HEADER ---------- */
+.header {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 10;
+  pointer-events: none;
+  max-width: 440px;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--neutral);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--neutral);
+}
+
+h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: clamp(26px, 3.6vw, 38px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--neutral);
+}
+
+.sub {
+  margin-top: 11px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.65;
+  font-style: italic;
+}
+.sub strong { color: var(--ink); font-weight: 400; font-style: normal; }
+
+/* ---------- TOOLBAR ---------- */
+.toolbar {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(19, 24, 38, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  flex-wrap: wrap;
+  max-width: calc(100vw - 32px);
+}
+
+.tool {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink);
+  border: none;
+  padding: 9px 13px;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+.tool:hover { background: rgba(232, 238, 248, 0.06); }
+.tool.active {
+  background: rgba(255, 213, 79, 0.15);
+  color: var(--neutral);
+}
+
+.divider {
+  width: 1px;
+  height: 22px;
+  background: var(--rule);
+  margin: 0 4px;
+}
+
+.slider-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.slider-mini label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.slider-mini .v {
+  font-family: 'Fraunces', serif;
+  font-size: 14px;
+  color: var(--neutral);
+  min-width: 24px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+input[type="range"].mini {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 2px;
+  background: var(--rule);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].mini::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  background: var(--neutral);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"].mini::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  background: var(--neutral);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ---------- INFO PANEL ---------- */
+.info {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 10;
+  background: rgba(19, 24, 38, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 16px 18px;
+  width: 280px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.info-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--neutral);
+  margin-bottom: 12px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  border-bottom: 1px dashed var(--rule);
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .label { letter-spacing: 0.08em; }
+.info-row .val {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+.info-row .val.attractive { color: var(--attractive); }
+.info-row .val.repulsive { color: var(--repulsive); }
+.info-row .val.bright { color: var(--neutral); }
+
+.info-note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+.info-note strong { color: var(--ink); font-style: normal; font-weight: 400; }
+.info-note em { color: var(--neutral); font-style: italic; }
+
+/* ---------- DENSITY WAVE PANEL ---------- */
+.wave-panel {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  width: min(700px, calc(100vw - 32px));
+  background: rgba(19, 24, 38, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  display: none;
+}
+.wave-panel.show { display: block; }
+.wave-header {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.wave-header .label { color: var(--neutral); font-weight: 600; }
+.wave-header .close {
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+}
+.wave-header .close:hover { color: var(--ink); border-color: var(--ink); }
+
+#waveCanvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+
+/* ---------- HINT ---------- */
+.hint {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0.8;
+  text-align: center;
+}
+.hint.fade {
+  animation: fadeOut 10s ease forwards;
+}
+@keyframes fadeOut {
+  0%, 60% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 900px) {
+  .header { top: 14px; left: 14px; max-width: 60%; }
+  .info { top: auto; bottom: 280px; right: 14px; left: 14px; width: auto; }
+  .wave-panel { bottom: 80px; }
+  h1 { font-size: 22px; }
+  .sub { font-size: 11px; }
+  .toolbar { padding: 4px; }
+  .tool { padding: 7px 9px; font-size: 9px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="sceneCanvas"></canvas>
+
+<div class="header">
+  <div class="eyebrow">3D energy landscape</div>
+  <h1>Click any point to see<br>the <em>density wave</em> from there.</h1>
+  <div class="sub">
+    The 3D terrain is U(x,y) — the energy landscape for an electron.
+    Valleys (down) are <strong>attractive</strong>, hills (up) are <strong>repulsive</strong>.
+    <strong>Click anywhere</strong> to see how density falls off as you walk outward from that spot.
+  </div>
+</div>
+
+<div class="info">
+  <div class="info-title">— landscape info</div>
+  <div class="info-row">
+    <span class="label">scene</span>
+    <span class="val" id="sceneName">single + ion</span>
+  </div>
+  <div class="info-row">
+    <span class="label">k<sub>B</sub>T</span>
+    <span class="val bright" id="kbtReadout">2.0</span>
+  </div>
+  <div class="info-row">
+    <span class="label">deepest valley</span>
+    <span class="val attractive" id="minU">—</span>
+  </div>
+  <div class="info-row">
+    <span class="label">tallest hill</span>
+    <span class="val repulsive" id="maxU">—</span>
+  </div>
+  <div class="info-row">
+    <span class="label">click point</span>
+    <span class="val" id="clickInfo">— click anywhere</span>
+  </div>
+  <div class="info-note" id="infoNote">
+    Drag to <strong>rotate</strong>. Scroll to <strong>zoom</strong>. Click to <em>plant a marker</em> and see density.
+  </div>
+</div>
+
+<div class="hint fade" id="hint">click anywhere on the surface to plant a marker</div>
+
+<div class="wave-panel" id="wavePanel">
+  <div class="wave-header">
+    <span><span class="label">density wave</span> &nbsp; · &nbsp; n(r) outward from your click</span>
+    <button class="close" id="closeWave">×</button>
+  </div>
+  <canvas id="waveCanvas"></canvas>
+</div>
+
+<div class="toolbar">
+  <button class="tool active" data-scene="single-pos">single +</button>
+  <button class="tool" data-scene="dipole">dipole</button>
+  <button class="tool" data-scene="ring">ring of +</button>
+  <button class="tool" data-scene="lattice">lattice</button>
+  <button class="tool" data-scene="hill">hill</button>
+  <button class="tool" data-scene="valley">deep valley</button>
+
+  <div class="divider"></div>
+
+  <div class="slider-mini">
+    <label>k<sub>B</sub>T</label>
+    <input type="range" class="mini" id="kbtSlider" min="0.3" max="6" step="0.1" value="2">
+    <span class="v" id="kbtVal">2.0</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="slider-mini">
+    <label>height</label>
+    <input type="range" class="mini" id="scaleSlider" min="20" max="200" step="5" value="100">
+    <span class="v" id="scaleVal">100</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <button class="tool" id="resetView">↻ reset view</button>
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('sceneCanvas');
+const ctx = canvas.getContext('2d');
+let dim = { w: 0, h: 0 };
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  dim.w = window.innerWidth;
+  dim.h = window.innerHeight;
+  canvas.width = dim.w * dpr;
+  canvas.height = dim.h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ============ STATE ============
+let currentScene = 'single-pos';
+let kBT = 2.0;
+let heightScale = 100;
+let clickPoint = null; // { gx, gy } in grid coordinates 0..1
+
+// View parameters
+let viewRotX = -Math.PI / 6; // tilt
+let viewRotZ = Math.PI / 4;  // rotate
+let viewZoom = 1.0;
+let isDragging = false;
+let dragStart = null;
+let lastView = null;
+
+// ============ SCENES ============
+const scenes = {
+  'single-pos': {
+    name: 'Single + ion',
+    charges: () => [{ x: 0.5, y: 0.5, q: +1 }]
+  },
+  'dipole': {
+    name: 'Dipole',
+    charges: () => [
+      { x: 0.32, y: 0.5, q: +1 },
+      { x: 0.68, y: 0.5, q: -1 }
+    ]
+  },
+  'ring': {
+    name: 'Ring of + ions',
+    charges: () => {
+      const arr = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        arr.push({
+          x: 0.5 + Math.cos(a) * 0.25,
+          y: 0.5 + Math.sin(a) * 0.25,
+          q: +1
+        });
+      }
+      return arr;
+    }
+  },
+  'lattice': {
+    name: 'Ionic lattice (alternating)',
+    charges: () => {
+      const arr = [];
+      const N = 4;
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+          arr.push({
+            x: 0.2 + (i / (N - 1)) * 0.6,
+            y: 0.2 + (j / (N - 1)) * 0.6,
+            q: ((i + j) % 2 === 0) ? +1 : -1
+          });
+        }
+      }
+      return arr;
+    }
+  },
+  'hill': {
+    name: 'Negative central bump',
+    charges: () => [{ x: 0.5, y: 0.5, q: -1 }]
+  },
+  'valley': {
+    name: 'Deep valley · 3 ions',
+    charges: () => [
+      { x: 0.45, y: 0.5, q: +1.5 },
+      { x: 0.55, y: 0.5, q: +1.5 },
+      { x: 0.5, y: 0.5, q: +1 }
+    ]
+  }
+};
+
+const COULOMB = 0.06;
+
+// Compute U at grid coords (gx, gy in 0..1) for an electron
+function computeU(gx, gy) {
+  const charges = scenes[currentScene].charges();
+  let phi = 0;
+  for (const c of charges) {
+    const dx = gx - c.x;
+    const dy = gy - c.y;
+    const r = Math.sqrt(dx * dx + dy * dy + 0.002);
+    phi += COULOMB * c.q / r;
+  }
+  // U for electron = -1 * phi
+  return -1 * phi;
+}
+
+// ============ 3D PROJECTION ============
+// World coordinates: x in [-1, 1], y in [-1, 1], z = -U (so valleys go down)
+// Project to screen using simple perspective + rotation
+
+function project(wx, wy, wz) {
+  // Apply rotation around z axis
+  let x1 = wx * Math.cos(viewRotZ) - wy * Math.sin(viewRotZ);
+  let y1 = wx * Math.sin(viewRotZ) + wy * Math.cos(viewRotZ);
+  let z1 = wz;
+
+  // Tilt around x axis
+  let y2 = y1 * Math.cos(viewRotX) - z1 * Math.sin(viewRotX);
+  let z2 = y1 * Math.sin(viewRotX) + z1 * Math.cos(viewRotX);
+
+  // Simple perspective
+  const dist = 4;
+  const persp = dist / (dist - z2 * 0.5);
+  const sx = dim.w / 2 + x1 * 250 * viewZoom * persp;
+  const sy = dim.h / 2 + y2 * 250 * viewZoom * persp - 80;
+  return { sx, sy, depth: z2 };
+}
+
+// ============ DRAW ============
+function getColorForU(u, uMin, uMax) {
+  // Negative U = blue (attractive), positive U = red (repulsive), zero = neutral
+  if (u < 0) {
+    const t = Math.min(1, Math.abs(u) / Math.max(0.01, Math.abs(uMin)));
+    const r = Math.round(46 + (74 - 46) * (1 - t));
+    const g = Math.round(70 + (184 - 70) * t * 0.7);
+    const b = Math.round(120 + (216 - 120) * t);
+    return `rgb(${r},${g},${b})`;
+  } else if (u > 0) {
+    const t = Math.min(1, u / Math.max(0.01, uMax));
+    const r = Math.round(180 + (255 - 180) * t);
+    const g = Math.round(80 + (107 - 80) * (1 - t));
+    const b = Math.round(70 + (53 - 70) * (1 - t));
+    return `rgb(${r},${g},${b})`;
+  } else {
+    return 'rgb(180, 160, 100)';
+  }
+}
+
+function drawScene() {
+  ctx.clearRect(0, 0, dim.w, dim.h);
+
+  // Sample grid
+  const N = 50;
+  const grid = [];
+  let uMin = Infinity, uMax = -Infinity;
+  for (let i = 0; i <= N; i++) {
+    const row = [];
+    for (let j = 0; j <= N; j++) {
+      const gx = i / N;
+      const gy = j / N;
+      const u = computeU(gx, gy);
+      row.push(u);
+      if (u < uMin && isFinite(u)) uMin = u;
+      if (u > uMax && isFinite(u)) uMax = u;
+    }
+    grid.push(row);
+  }
+
+  // Cap extreme values
+  uMin = Math.max(uMin, -10);
+  uMax = Math.min(uMax, 10);
+
+  // Update info readouts
+  document.getElementById('minU').textContent = uMin.toFixed(2);
+  document.getElementById('maxU').textContent = '+' + uMax.toFixed(2);
+
+  // Compute world z for each cell
+  // Map U to world z: invert sign so valleys go DOWN
+  // Scale by heightScale slider
+  const zRange = Math.max(Math.abs(uMin), Math.abs(uMax)) || 1;
+  const zScale = heightScale / 200;
+
+  function worldZ(u) {
+    const clamped = Math.max(-zRange, Math.min(zRange, u));
+    return -clamped / zRange * zScale;
+  }
+
+  // Build all quads with depth for sorting
+  const quads = [];
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      const wx0 = (i / N) * 2 - 1;
+      const wy0 = (j / N) * 2 - 1;
+      const wx1 = ((i + 1) / N) * 2 - 1;
+      const wy1 = ((j + 1) / N) * 2 - 1;
+
+      const u00 = grid[i][j];
+      const u01 = grid[i][j + 1];
+      const u10 = grid[i + 1][j];
+      const u11 = grid[i + 1][j + 1];
+      const uAvg = (u00 + u01 + u10 + u11) / 4;
+
+      const p00 = project(wx0, wy0, worldZ(u00));
+      const p01 = project(wx0, wy1, worldZ(u01));
+      const p10 = project(wx1, wy0, worldZ(u10));
+      const p11 = project(wx1, wy1, worldZ(u11));
+
+      const meanDepth = (p00.depth + p01.depth + p10.depth + p11.depth) / 4;
+
+      quads.push({
+        points: [p00, p10, p11, p01],
+        u: uAvg,
+        depth: meanDepth
+      });
+    }
+  }
+
+  // Sort back-to-front (paint farther things first)
+  quads.sort((a, b) => a.depth - b.depth);
+
+  // Draw quads
+  for (const q of quads) {
+    const color = getColorForU(q.u, uMin, uMax);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(q.points[0].sx, q.points[0].sy);
+    ctx.lineTo(q.points[1].sx, q.points[1].sy);
+    ctx.lineTo(q.points[2].sx, q.points[2].sy);
+    ctx.lineTo(q.points[3].sx, q.points[3].sy);
+    ctx.closePath();
+    ctx.fill();
+    // Subtle wireframe
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+  }
+
+  // Draw contour lines at fixed U levels
+  drawContours(grid, N, uMin, uMax, worldZ);
+
+  // Draw charges as little markers floating above the surface
+  const charges = scenes[currentScene].charges();
+  for (const c of charges) {
+    const wx = c.x * 2 - 1;
+    const wy = c.y * 2 - 1;
+    const surfU = computeU(c.x, c.y);
+    const wz = worldZ(Math.max(-zRange, Math.min(zRange, surfU)));
+    const p = project(wx, wy, wz);
+    // line from surface up
+    ctx.strokeStyle = c.q > 0 ? 'rgba(255, 107, 53, 0.7)' : 'rgba(74, 184, 216, 0.7)';
+    ctx.lineWidth = 1.5;
+    const top = project(wx, wy, wz + 0.15);
+    ctx.beginPath();
+    ctx.moveTo(p.sx, p.sy);
+    ctx.lineTo(top.sx, top.sy);
+    ctx.stroke();
+
+    ctx.fillStyle = c.q > 0 ? '#ff6b35' : '#4ab8d8';
+    ctx.beginPath();
+    ctx.arc(top.sx, top.sy, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 10px 'Fraunces', serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.q > 0 ? '+' : '−', top.sx, top.sy + 1);
+  }
+
+  // Draw click marker
+  if (clickPoint) {
+    const wx = clickPoint.gx * 2 - 1;
+    const wy = clickPoint.gy * 2 - 1;
+    const surfU = computeU(clickPoint.gx, clickPoint.gy);
+    const wz = worldZ(Math.max(-zRange, Math.min(zRange, surfU)));
+    const p = project(wx, wy, wz);
+
+    // Vertical pillar
+    const top = project(wx, wy, wz + 0.3);
+    ctx.strokeStyle = 'rgba(255, 213, 79, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p.sx, p.sy);
+    ctx.lineTo(top.sx, top.sy);
+    ctx.stroke();
+
+    // Pulse circle on the surface
+    const time = performance.now() / 1000;
+    for (let i = 0; i < 3; i++) {
+      const phase = (time + i / 3) % 1;
+      const pulseR = 8 + phase * 30;
+      const alpha = (1 - phase) * 0.6;
+      ctx.strokeStyle = `rgba(255, 213, 79, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, pulseR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Marker dot
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a1410';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(drawScene);
+}
+
+function drawContours(grid, N, uMin, uMax, worldZ) {
+  // Simple contour: at fixed U values, find cells where level crosses
+  const range = uMax - uMin;
+  if (range < 0.1) return;
+  const levels = [];
+  for (let i = -5; i <= 5; i++) {
+    levels.push(i * 0.5);
+  }
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+  ctx.lineWidth = 0.7;
+  for (const level of levels) {
+    if (level < uMin || level > uMax) continue;
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const u00 = grid[i][j];
+        const u01 = grid[i][j + 1];
+        const u10 = grid[i + 1][j];
+        const u11 = grid[i + 1][j + 1];
+        // Check if level crosses this cell
+        const min = Math.min(u00, u01, u10, u11);
+        const max = Math.max(u00, u01, u10, u11);
+        if (level < min || level > max) continue;
+
+        // Find approximate crossings on edges (rough marching squares)
+        const wx0 = (i / N) * 2 - 1;
+        const wy0 = (j / N) * 2 - 1;
+        const wx1 = ((i + 1) / N) * 2 - 1;
+        const wy1 = ((j + 1) / N) * 2 - 1;
+
+        const points = [];
+        function checkEdge(u_a, u_b, x_a, y_a, x_b, y_b) {
+          if ((u_a - level) * (u_b - level) > 0) return;
+          const t = (level - u_a) / (u_b - u_a);
+          const ex = x_a + t * (x_b - x_a);
+          const ey = y_a + t * (y_b - y_a);
+          points.push({ x: ex, y: ey, z: worldZ(level) });
+        }
+        checkEdge(u00, u10, wx0, wy0, wx1, wy0);
+        checkEdge(u10, u11, wx1, wy0, wx1, wy1);
+        checkEdge(u11, u01, wx1, wy1, wx0, wy1);
+        checkEdge(u01, u00, wx0, wy1, wx0, wy0);
+
+        if (points.length === 2) {
+          const p1 = project(points[0].x, points[0].y, points[0].z);
+          const p2 = project(points[1].x, points[1].y, points[1].z);
+          ctx.beginPath();
+          ctx.moveTo(p1.sx, p1.sy);
+          ctx.lineTo(p2.sx, p2.sy);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+}
+
+drawScene();
+
+// ============ DENSITY WAVE ============
+function drawDensityWave() {
+  const waveCanvas = document.getElementById('waveCanvas');
+  if (!clickPoint || !waveCanvas) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = waveCanvas.getBoundingClientRect();
+  waveCanvas.width = rect.width * dpr;
+  waveCanvas.height = rect.height * dpr;
+  const wctx = waveCanvas.getContext('2d');
+  wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const W = rect.width;
+  const H = rect.height;
+  const padL = 38, padR = 14, padT = 18, padB = 26;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  // Sample n_e along multiple radial directions; we'll plot the average
+  // Or just sample one specific outward direction (toward strongest pull)
+  // Let's plot n_e vs r for a "ring" — average of all directions at each radius
+  const maxR = 0.7;
+  const nSamples = 80;
+  const nDirs = 24;
+  const samples = [];
+  for (let i = 0; i < nSamples; i++) {
+    const r = (i / (nSamples - 1)) * maxR;
+    let avgRatio = 0;
+    for (let d = 0; d < nDirs; d++) {
+      const a = (d / nDirs) * Math.PI * 2;
+      const gx = clickPoint.gx + Math.cos(a) * r;
+      const gy = clickPoint.gy + Math.sin(a) * r;
+      if (gx < 0 || gx > 1 || gy < 0 || gy > 1) continue;
+      const u = computeU(gx, gy);
+      const expArg = Math.min(8, Math.max(-8, -u / kBT));
+      avgRatio += Math.exp(expArg);
+    }
+    avgRatio /= nDirs;
+    samples.push({ r, ratio: avgRatio });
+  }
+
+  // Background
+  wctx.fillStyle = 'rgba(232, 238, 248, 0.02)';
+  wctx.fillRect(padL, padT, plotW, plotH);
+
+  // Find y range
+  let yMax = 1;
+  let yMin = 1;
+  for (const s of samples) {
+    if (s.ratio > yMax) yMax = s.ratio;
+    if (s.ratio < yMin) yMin = s.ratio;
+  }
+  const range = yMax - yMin;
+  yMax += range * 0.1;
+  yMin = Math.max(0, yMin - range * 0.1);
+  if (yMax - yMin < 0.5) yMax = yMin + 0.5;
+
+  function xToPix(r) { return padL + (r / maxR) * plotW; }
+  function yToPix(v) { return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+  // Axes
+  wctx.strokeStyle = 'rgba(232, 238, 248, 0.25)';
+  wctx.lineWidth = 1;
+  wctx.beginPath();
+  wctx.moveTo(padL, padT);
+  wctx.lineTo(padL, padT + plotH);
+  wctx.lineTo(padL + plotW, padT + plotH);
+  wctx.stroke();
+
+  // n0 reference line at y=1
+  if (yMin <= 1 && yMax >= 1) {
+    const refY = yToPix(1);
+    wctx.strokeStyle = 'rgba(232, 238, 248, 0.3)';
+    wctx.setLineDash([3, 4]);
+    wctx.beginPath();
+    wctx.moveTo(padL, refY);
+    wctx.lineTo(padL + plotW, refY);
+    wctx.stroke();
+    wctx.setLineDash([]);
+    wctx.fillStyle = 'rgba(232, 238, 248, 0.6)';
+    wctx.font = "9px 'JetBrains Mono', monospace";
+    wctx.textAlign = 'right';
+    wctx.fillText('n₀', padL - 4, refY + 3);
+  }
+
+  // Filled wave
+  const grad = wctx.createLinearGradient(0, padT, 0, padT + plotH);
+  grad.addColorStop(0, 'rgba(255, 213, 79, 0.6)');
+  grad.addColorStop(1, 'rgba(255, 213, 79, 0.05)');
+  wctx.fillStyle = grad;
+  wctx.beginPath();
+  wctx.moveTo(xToPix(samples[0].r), yToPix(yMin));
+  for (const s of samples) {
+    wctx.lineTo(xToPix(s.r), yToPix(s.ratio));
+  }
+  wctx.lineTo(xToPix(samples[samples.length - 1].r), yToPix(yMin));
+  wctx.closePath();
+  wctx.fill();
+
+  // Wave curve
+  wctx.strokeStyle = '#ffd54f';
+  wctx.lineWidth = 2.5;
+  wctx.beginPath();
+  for (let i = 0; i < samples.length; i++) {
+    const x = xToPix(samples[i].r);
+    const y = yToPix(samples[i].ratio);
+    if (i === 0) wctx.moveTo(x, y);
+    else wctx.lineTo(x, y);
+  }
+  wctx.stroke();
+
+  // Marker at r=0
+  wctx.fillStyle = '#ffd54f';
+  wctx.beginPath();
+  wctx.arc(xToPix(0), yToPix(samples[0].ratio), 5, 0, Math.PI * 2);
+  wctx.fill();
+  wctx.strokeStyle = '#1a1410';
+  wctx.lineWidth = 1.5;
+  wctx.stroke();
+
+  // Labels
+  wctx.fillStyle = 'rgba(168, 178, 200, 0.7)';
+  wctx.font = "9px 'JetBrains Mono', monospace";
+  wctx.textAlign = 'center';
+  wctx.fillText('DISTANCE r FROM CLICK →', padL + plotW / 2, H - 8);
+  wctx.save();
+  wctx.translate(12, padT + plotH / 2);
+  wctx.rotate(-Math.PI / 2);
+  wctx.textAlign = 'center';
+  wctx.fillText('n / n₀', 0, 0);
+  wctx.restore();
+
+  wctx.fillStyle = 'rgba(232, 238, 248, 0.6)';
+  wctx.textAlign = 'right';
+  wctx.font = "9px 'JetBrains Mono', monospace";
+  wctx.fillText(yMax.toFixed(yMax >= 100 ? 0 : yMax >= 10 ? 1 : 2), padL - 4, padT + 8);
+  wctx.fillText(yMin.toFixed(yMin >= 100 ? 0 : yMin >= 10 ? 1 : 2), padL - 4, padT + plotH);
+
+  // Description in top right
+  const u0 = computeU(clickPoint.gx, clickPoint.gy);
+  wctx.fillStyle = u0 < -0.1 ? 'rgba(74, 184, 216, 0.95)' : u0 > 0.1 ? 'rgba(255, 107, 53, 0.95)' : 'rgba(255, 213, 79, 0.9)';
+  wctx.font = "italic 11px 'Fraunces', serif";
+  wctx.textAlign = 'right';
+  let label = u0 < -0.5 ? 'starting in a valley · density spikes' :
+              u0 > 0.5 ? 'starting on a hill · density depleted' :
+              'starting near bulk · density ≈ n₀';
+  wctx.fillText(label, padL + plotW - 4, padT + 12);
+}
+
+function updateDensityWave() {
+  if (clickPoint) {
+    document.getElementById('wavePanel').classList.add('show');
+    drawDensityWave();
+  }
+}
+
+// ============ INTERACTION ============
+canvas.addEventListener('mousedown', e => {
+  isDragging = false;
+  dragStart = { x: e.clientX, y: e.clientY };
+  lastView = { rx: viewRotX, rz: viewRotZ };
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragStart) return;
+  const dx = e.clientX - dragStart.x;
+  const dy = e.clientY - dragStart.y;
+  if (Math.hypot(dx, dy) > 5) {
+    isDragging = true;
+    viewRotZ = lastView.rz - dx * 0.005;
+    viewRotX = Math.max(-Math.PI / 2 + 0.1, Math.min(-0.05, lastView.rx - dy * 0.005));
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!isDragging && dragStart) {
+    // Treat as click — convert screen point to grid point
+    const gp = screenToGrid(e.clientX, e.clientY);
+    if (gp) {
+      clickPoint = gp;
+      const u = computeU(gp.gx, gp.gy);
+      document.getElementById('clickInfo').textContent =
+        `(${gp.gx.toFixed(2)}, ${gp.gy.toFixed(2)}) · U=${u.toFixed(2)}`;
+      const note = document.getElementById('infoNote');
+      if (u < -0.5) {
+        note.innerHTML = `<strong>You clicked in a <em>valley</em>.</strong> Density spikes here and falls off as you walk outward. Watch the wave below.`;
+      } else if (u > 0.5) {
+        note.innerHTML = `<strong>You clicked on a <em>hill</em>.</strong> Density is depleted here, rising back to n₀ as you walk away.`;
+      } else {
+        note.innerHTML = `<strong>You clicked near <em>bulk</em>.</strong> Density is close to n₀ here. Walking outward toward features will change density.`;
+      }
+      document.getElementById('hint').style.display = 'none';
+      updateDensityWave();
+    }
+  }
+  dragStart = null;
+  isDragging = false;
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  viewZoom *= e.deltaY > 0 ? 0.92 : 1.08;
+  viewZoom = Math.max(0.4, Math.min(3, viewZoom));
+}, { passive: false });
+
+// touch support
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    isDragging = false;
+    dragStart = { x: t.clientX, y: t.clientY };
+    lastView = { rx: viewRotX, rz: viewRotZ };
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 1 && dragStart) {
+    const t = e.touches[0];
+    const dx = t.clientX - dragStart.x;
+    const dy = t.clientY - dragStart.y;
+    if (Math.hypot(dx, dy) > 5) {
+      isDragging = true;
+      viewRotZ = lastView.rz - dx * 0.005;
+      viewRotX = Math.max(-Math.PI / 2 + 0.1, Math.min(-0.05, lastView.rx - dy * 0.005));
+    }
+    e.preventDefault();
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  if (!isDragging && dragStart) {
+    const t = e.changedTouches[0];
+    const gp = screenToGrid(t.clientX, t.clientY);
+    if (gp) {
+      clickPoint = gp;
+      updateDensityWave();
+      document.getElementById('hint').style.display = 'none';
+    }
+  }
+  dragStart = null;
+  isDragging = false;
+});
+
+// Convert screen coordinates to a grid point on the surface
+// We'll do this by sampling the surface and finding the closest point in screen space.
+function screenToGrid(sx, sy) {
+  const N = 60;
+  let best = null;
+  let bestDist = Infinity;
+
+  // Compute height scale
+  const charges = scenes[currentScene].charges();
+  // recompute uMin/uMax
+  let uMin = Infinity, uMax = -Infinity;
+  for (let i = 0; i <= 30; i++) {
+    for (let j = 0; j <= 30; j++) {
+      const u = computeU(i / 30, j / 30);
+      if (u < uMin && isFinite(u)) uMin = u;
+      if (u > uMax && isFinite(u)) uMax = u;
+    }
+  }
+  uMin = Math.max(uMin, -10);
+  uMax = Math.min(uMax, 10);
+  const zRange = Math.max(Math.abs(uMin), Math.abs(uMax)) || 1;
+  const zScale = heightScale / 200;
+  function worldZ(u) {
+    const clamped = Math.max(-zRange, Math.min(zRange, u));
+    return -clamped / zRange * zScale;
+  }
+
+  for (let i = 0; i <= N; i++) {
+    for (let j = 0; j <= N; j++) {
+      const gx = i / N;
+      const gy = j / N;
+      const u = computeU(gx, gy);
+      const wx = gx * 2 - 1;
+      const wy = gy * 2 - 1;
+      const wz = worldZ(u);
+      const p = project(wx, wy, wz);
+      const d = Math.hypot(p.sx - sx, p.sy - sy);
+      if (d < bestDist) { bestDist = d; best = { gx, gy }; }
+    }
+  }
+  return bestDist < 30 ? best : null;
+}
+
+// Periodically refresh wave panel
+setInterval(() => {
+  if (clickPoint) drawDensityWave();
+}, 200);
+
+// ============ TOOLBAR ============
+document.querySelectorAll('.tool[data-scene]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.tool[data-scene]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    currentScene = b.dataset.scene;
+    document.getElementById('sceneName').textContent = scenes[currentScene].name;
+    clickPoint = null;
+    document.getElementById('wavePanel').classList.remove('show');
+    document.getElementById('clickInfo').textContent = '— click anywhere';
+  });
+});
+
+document.getElementById('kbtSlider').addEventListener('input', e => {
+  kBT = parseFloat(e.target.value);
+  document.getElementById('kbtVal').textContent = kBT.toFixed(1);
+  document.getElementById('kbtReadout').textContent = kBT.toFixed(1);
+  if (clickPoint) drawDensityWave();
+});
+
+document.getElementById('scaleSlider').addEventListener('input', e => {
+  heightScale = parseFloat(e.target.value);
+  document.getElementById('scaleVal').textContent = heightScale.toFixed(0);
+});
+
+document.getElementById('resetView').addEventListener('click', () => {
+  viewRotX = -Math.PI / 6;
+  viewRotZ = Math.PI / 4;
+  viewZoom = 1.0;
+});
+
+document.getElementById('closeWave').addEventListener('click', () => {
+  document.getElementById('wavePanel').classList.remove('show');
+  clickPoint = null;
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,651 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>grad shafranov</title>
+<style>html,body{margin:0;background:#0c0d10;color:#e8eaf0;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,sans-serif}
+#root{min-height:100vh}#err{display:none;white-space:pre-wrap;padding:24px;color:#f0736a;font:13px/1.5 ui-monospace,Menlo,monospace}</style>
+<div id="root"></div><pre id="err"></pre>
+<script src="../_lib/react/libs-base.js"></script>
+<script src="../_lib/react/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback,useLayoutEffect,useReducer,useContext,createContext,forwardRef,memo,Fragment,Children,cloneElement} = React;
+
+
+
+function GradShafranov() {
+  const [step, setStep] = useState(0);
+  const [pressure, setPressure] = useState(50);
+  const [current, setCurrent] = useState(50);
+
+  // For the interactive equilibrium demo
+  const R0 = 1.18, a = 0.42;
+  const pScale = pressure / 50;
+  const cScale = current / 50;
+
+  // Simple psi-like function that responds to pressure and current
+  function psiDemo(R, Z) {
+    const dR = (R - R0) / (a * (0.7 + 0.3 * cScale));
+    const dZ = Z / (a * 1.7 * (0.7 + 0.3 * pScale));
+    return dR * dR + dZ * dZ;
+  }
+
+  const svgW = 340, svgH = 300;
+  const cx = svgW / 2, cy = svgH / 2;
+  const scale = 130;
+  const toX = (R) => cx + (R - R0) * scale;
+  const toY = (Z) => cy - Z * scale;
+
+  // Generate contour paths
+  function contourPath(level) {
+    const pts = [];
+    for (let t = 0; t <= 200; t++) {
+      const theta = (2 * Math.PI * t) / 200;
+      const r = Math.sqrt(level) * a * (0.7 + 0.3 * cScale);
+      const rZ = Math.sqrt(level) * a * 1.7 * (0.7 + 0.3 * pScale);
+      const R = R0 + r * Math.cos(theta + 0.35 * Math.sin(theta));
+      const Z = rZ * Math.sin(theta);
+      pts.push(`${t === 0 ? "M" : "L"} ${toX(R)} ${toY(Z)}`);
+    }
+    return pts.join(" ") + " Z";
+  }
+
+  const steps = [
+    {
+      title: "The physical situation",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          You have a hot plasma (millions of degrees) trapped inside a magnetic cage. Two forces are fighting:
+          <br /><br />
+          <span style={{ color: "#ff6b6b", fontWeight: 700 }}>Pressure gradient ∇P</span> — the plasma is hotter and denser in the center. It pushes outward in all directions, trying to expand.
+          <br /><br />
+          <span style={{ color: "#8ab4f8", fontWeight: 700 }}>Magnetic force J × B</span> — the plasma carries current (J) through a magnetic field (B). This creates a force that pushes inward, confining the plasma.
+          <br /><br />
+          <span style={{ color: "#4ecdc4", fontWeight: 700 }}>Equilibrium</span> means these two balance everywhere simultaneously: <span style={{ color: "#e6ecf2" }}>∇P = J × B</span>
+          <br /><br />
+          The Grad-Shafranov equation is what you get when you write out this balance in the specific geometry of a tokamak.
+        </div>
+      ),
+    },
+    {
+      title: "Why is it complicated?",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          In a straight cylinder, the equilibrium would be simple — pressure pushes out radially, field pushes in radially, they balance at each radius independently.
+          <br /><br />
+          But a tokamak is a <span style={{ color: "#4ecdc4" }}>torus</span> (a donut). The geometry is curved. The toroidal field is stronger on the inboard side (1/R). The current creates both toroidal and poloidal fields. The pressure pushes in all directions, not just radially.
+          <br /><br />
+          So the force balance becomes a 2D problem — you need to find ψ(R,Z) across the entire cross-section such that the forces balance at every single point simultaneously. That's what makes it an equation you need to solve, not just a formula you can evaluate.
+        </div>
+      ),
+    },
+    {
+      title: "The ψ map — what we're solving for",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          The unknown is <span style={{ color: "#4ecdc4", fontWeight: 700 }}>ψ(R,Z)</span> — the poloidal magnetic flux at every point in the cross-section.
+          <br /><br />
+          Why ψ? Because once you know ψ everywhere, you know everything:
+          <br />
+          — The flux surfaces (contour lines of constant ψ)
+          <br />
+          — The poloidal magnetic field (computed from derivatives of ψ)
+          <br />
+          — The plasma shape (the ψ = ψ_boundary contour)
+          <br />
+          — Where to look up the 1D profiles (pressure, fpol, q are all indexed by ψ)
+          <br /><br />
+          The contour lines of ψ on the interactive diagram are the flux surfaces. ψ = 0 at the center, increasing outward.
+        </div>
+      ),
+    },
+    {
+      title: "The equation — left side",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          <div style={{
+            padding: "10px 14px", background: "#060a0e", borderRadius: 4,
+            fontSize: 13, color: "#e6ecf2", textAlign: "center", marginBottom: 12,
+          }}>
+            <span style={{ color: "#4ecdc4" }}>R ∂/∂R(1/R · ∂ψ/∂R) + ∂²ψ/∂Z²</span>
+            <span style={{ color: "#5c6a7a" }}> = </span>
+            <span style={{ color: "#ff6b6b" }}>−μ₀R²P'(ψ)</span>
+            <span style={{ color: "#5c6a7a" }}> − </span>
+            <span style={{ color: "#c9a3f5" }}>ff'(ψ)</span>
+          </div>
+
+          The <span style={{ color: "#4ecdc4", fontWeight: 700 }}>left side</span> is about the shape of ψ — how it curves and bends across the (R,Z) plane.
+          <br /><br />
+          <span style={{ color: "#4ecdc4" }}>R ∂/∂R(1/R · ∂ψ/∂R)</span> — how ψ curves in the R direction, with a correction for the cylindrical geometry (the R and 1/R factors account for the donut shape)
+          <br /><br />
+          <span style={{ color: "#4ecdc4" }}>∂²ψ/∂Z²</span> — how ψ curves in the Z direction
+          <br /><br />
+          Together, this is like a modified Laplacian — it measures the total curvature of the ψ surface. If ψ were flat everywhere, this would be zero and there'd be no plasma.
+        </div>
+      ),
+    },
+    {
+      title: "The equation — right side",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          <div style={{
+            padding: "10px 14px", background: "#060a0e", borderRadius: 4,
+            fontSize: 13, color: "#e6ecf2", textAlign: "center", marginBottom: 12,
+          }}>
+            <span style={{ color: "#4ecdc4" }}>R ∂/∂R(1/R · ∂ψ/∂R) + ∂²ψ/∂Z²</span>
+            <span style={{ color: "#5c6a7a" }}> = </span>
+            <span style={{ color: "#ff6b6b" }}>−μ₀R²P'(ψ)</span>
+            <span style={{ color: "#5c6a7a" }}> − </span>
+            <span style={{ color: "#c9a3f5" }}>ff'(ψ)</span>
+          </div>
+
+          The <span style={{ color: "#ff6b6b", fontWeight: 700 }}>right side</span> is what drives the curvature — the sources.
+          <br /><br />
+          <span style={{ color: "#ff6b6b" }}>−μ₀R²P'(ψ)</span> — the pressure gradient term. P'(ψ) is how fast pressure drops per unit ψ. Steeper pressure drop → stronger outward push → more ψ curvature needed to balance it. The R² factor means this term is stronger on the outboard side.
+          <br /><br />
+          <span style={{ color: "#c9a3f5" }}>−ff'(ψ)</span> — the current term. f = R·B_toroidal, and ff' encodes how the plasma current is distributed. More current → stronger magnetic pinch → more ψ curvature.
+          <br /><br />
+          These are the two profiles you specify in predictive mode (or that EFIT fits to measurements). They're the inputs. The ψ map is the output.
+        </div>
+      ),
+    },
+    {
+      title: "Why it's hard to solve",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          The equation looks like it should be straightforward — given P' and ff', find ψ. But there's a catch:
+          <br /><br />
+          <span style={{ color: "#ff6b6b", fontWeight: 700 }}>The right side depends on ψ.</span>
+          <br /><br />
+          P'(<span style={{ color: "#4ecdc4" }}>ψ</span>) and ff'(<span style={{ color: "#4ecdc4" }}>ψ</span>) are functions OF ψ. You need to know ψ to evaluate the right side, but you need the right side to solve for ψ. It's circular.
+          <br /><br />
+          That's why it requires iteration:
+          <br />
+          1. Guess ψ
+          <br />
+          2. Evaluate P'(ψ) and ff'(ψ) using the guess
+          <br />
+          3. Solve for a new ψ from the left side = right side
+          <br />
+          4. Check if the new ψ matches the old one
+          <br />
+          5. If not, use the new ψ as the guess and repeat
+          <br />
+          6. When old and new ψ agree → converged → done
+          <br /><br />
+          EFIT and CHEASE both do this iteration. CHEASE just uses better math (Hermite elements) for step 3.
+        </div>
+      ),
+    },
+    {
+      title: "Play with it — see the balance",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          Drag the sliders below. The contour lines on the diagram are the flux surfaces — the solution ψ(R,Z).
+          <br /><br />
+          <span style={{ color: "#ff6b6b" }}>More pressure</span> → plasma expands vertically (pressure pushes outward harder, surfaces stretch)
+          <br /><br />
+          <span style={{ color: "#c9a3f5" }}>More current</span> → plasma expands radially (current creates a wider magnetic configuration)
+          <br /><br />
+          In reality, the shape change is more complex (Shafranov shift, triangularity changes, etc.). This is a simplified demo, but the principle is right: the source terms on the right side of the equation determine the shape of the ψ map on the left side.
+        </div>
+      ),
+    },
+    {
+      title: "What GENE actually needs — not ψ",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          Here's the twist. GENE doesn't use the ψ map directly. It doesn't read the EQDSK file and simulate on the (R,Z) grid.
+          <br /><br />
+          GENE works in <span style={{ color: "#4ecdc4", fontWeight: 700 }}>field-aligned coordinates</span> — a coordinate system that follows the magnetic field lines. To set up this coordinate system, it needs geometric quantities derived from ψ:
+          <br /><br />
+          <span style={{ color: "#c9b87c", fontWeight: 700 }}>Jacobian</span> — how much space is distorted at each point
+          <br />
+          <span style={{ color: "#ff6b6b", fontWeight: 700 }}>Curvature</span> — how much the field lines bend
+          <br />
+          <span style={{ color: "#c9a3f5", fontWeight: 700 }}>Local shear</span> — how much neighboring field lines twist relative to each other
+          <br />
+          <span style={{ color: "#8ab4f8", fontWeight: 700 }}>Metric coefficients</span> — gxx, gxy, gyy: how distances work in the curved coordinate system
+          <br /><br />
+          These are all computed from derivatives of ψ — first derivatives, second derivatives, combinations of derivatives. That's why smooth derivatives matter so much. That's why CHEASE exists.
+          <br /><br />
+          <span style={{ color: "#ff9f43", fontWeight: 700 }}>None of these are in the EQDSK file.</span> They're written to separate files by CHEASE in GENE's format.
+        </div>
+      ),
+    },
+    {
+      title: "The Jacobian — space distortion",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          <div style={{
+            padding: "8px 12px", background: "#060a0e", borderRadius: 4,
+            fontSize: 12, color: "#c9b87c", textAlign: "center", marginBottom: 10,
+          }}>
+            J = 1 / |∇ψ × ∇θ · ∇ϕ|
+          </div>
+          Imagine you're laying a grid over a curved surface — like putting graph paper on a globe. On a flat table, every grid square has the same area. On a globe, squares near the poles get squished and squares near the equator are normal.
+          <br /><br />
+          The <span style={{ color: "#c9b87c", fontWeight: 700 }}>Jacobian</span> tells you how much each grid cell is stretched or compressed compared to a flat grid. In the flux coordinate system (s, θ, ϕ), the cells are bigger on the outboard side (far from the central axis) and smaller on the inboard side.
+          <br /><br />
+          GENE needs this because when it integrates equations over a grid cell, it needs to know the actual volume of that cell — not just the coordinate spacing. Multiply by the Jacobian to convert coordinate volume → real volume.
+          <br /><br />
+          <span style={{ color: "#5c6a7a" }}>Computed from:</span> ∂ψ/∂R, ∂ψ/∂Z, and the coordinate transformation from (R,Z) to (s,θ). These are the derivatives CHEASE stores at each Hermite node.
+        </div>
+      ),
+    },
+    {
+      title: "Curvature — field line bending",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          <div style={{
+            padding: "8px 12px", background: "#060a0e", borderRadius: 4,
+            fontSize: 12, color: "#ff6b6b", textAlign: "center", marginBottom: 10,
+          }}>
+            κ = (b̂ · ∇)b̂   where b̂ = B/|B|
+          </div>
+          A field line in a tokamak isn't straight — it spirals around the torus. At every point along its path, it's curving. The <span style={{ color: "#ff6b6b", fontWeight: 700 }}>curvature vector</span> points toward the center of that curve.
+          <br /><br />
+          This matters enormously for turbulence because curvature drives instabilities. On the <span style={{ color: "#ff6b6b" }}>outboard side</span> (far from the central axis), the curvature and pressure gradient point in the same direction — this is "bad curvature" that drives ballooning instabilities and turbulence. On the <span style={{ color: "#4ecdc4" }}>inboard side</span>, they oppose each other — "good curvature" that stabilizes.
+          <br /><br />
+          This is why turbulence is strongest on the outboard side of the tokamak. The curvature profile is a key input to GENE.
+          <br /><br />
+          <span style={{ color: "#5c6a7a" }}>Computed from:</span> Second derivatives of ψ (∂²ψ/∂R², ∂²ψ/∂Z², ∂²ψ/∂R∂Z) plus the magnetic field direction. This is where EFIT's noise gets amplified worst — second derivatives of a noisy function.
+        </div>
+      ),
+    },
+    {
+      title: "Local shear — field line twisting",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          <div style={{
+            padding: "8px 12px", background: "#060a0e", borderRadius: 4,
+            fontSize: 12, color: "#c9a3f5", textAlign: "center", marginBottom: 10,
+          }}>
+            ŝ = (r/q)(dq/dr)   global shear
+            <br />
+            <span style={{ fontSize: 10 }}>local shear varies around each surface</span>
+          </div>
+          Neighboring flux surfaces have different q values — the field lines twist at different rates. <span style={{ color: "#c9a3f5", fontWeight: 700 }}>Shear</span> measures how much the twist rate changes from one surface to the next.
+          <br /><br />
+          Picture two adjacent spiral staircases with slightly different pitches. If you drew lines connecting corresponding steps, those lines would be tilted. That tilt is the shear.
+          <br /><br />
+          Shear is crucial for turbulence because it tears apart turbulent eddies. Strong shear shreds eddies before they can grow, reducing transport. Weak shear lets eddies persist and grow, increasing transport.
+          <br /><br />
+          The <span style={{ color: "#c9a3f5" }}>local shear</span> varies around each flux surface — it's different at the top vs bottom vs inboard vs outboard. GENE needs this full variation, not just the global average.
+          <br /><br />
+          <span style={{ color: "#5c6a7a" }}>Computed from:</span> Derivatives of q and the metric tensor. Again, second derivatives of ψ are involved, so smoothness matters.
+        </div>
+      ),
+    },
+    {
+      title: "Where these go — not EQDSK",
+      content: (
+        <div style={{ fontSize: 11, color: "#8a95a5", lineHeight: 1.9 }}>
+          The EQDSK file format was designed in the 1980s for MHD equilibrium reconstruction. It stores ψ, the 1D profiles, and the boundary. It has no place for Jacobian, curvature, shear, or metric coefficients.
+          <br /><br />
+          CHEASE writes these to <span style={{ color: "#4ecdc4", fontWeight: 700 }}>separate output files</span>:
+          <br /><br />
+          <span style={{ color: "#c9b87c" }}>For GENE:</span> A geometry file containing gxx, gxy, gyy, Jacobian, curvature, and other metric quantities evaluated along a field line in the flux tube
+          <br /><br />
+          <span style={{ color: "#c9b87c" }}>For MARS/PEST/NOVA:</span> Fourier decomposition of the equilibrium in flux coordinates for MHD stability codes
+          <br /><br />
+          <span style={{ color: "#c9b87c" }}>EQDSK also:</span> CHEASE still writes a polished EQDSK for codes that want the traditional format
+          <br /><br />
+          So the full output of CHEASE is: <span style={{ color: "#e6ecf2", fontWeight: 700 }}>polished EQDSK + geometry files for downstream codes</span>. The geometry files are actually the main product — the EQDSK is a bonus.
+          <br /><br />
+          <span style={{ color: "#4ecdc4", fontWeight: 700 }}>For your quantum project:</span> The geometry file feeds into GENE, which sets up the gyrokinetic equation in field-aligned coordinates. The collision operator (your quantum target) operates in velocity space at each point along the field line. The Jacobian tells it the real volume of each cell. The curvature tells it how trapped particles behave. The shear tells it how eddies are torn apart. All of these affect what the collision operator needs to compute.
+        </div>
+      ),
+    },
+  ];
+
+  const currentStepData = steps[step];
+
+  return (
+    <div style={{
+      fontFamily: "'IBM Plex Mono', monospace",
+      background: "#0a0e14",
+      color: "#c5cdd9",
+      minHeight: "100vh",
+      padding: "20px",
+      boxSizing: "border-box",
+    }}>
+      <div style={{ maxWidth: 750, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 16, color: "#e6ecf2", margin: "0 0 4px" }}>
+          THE GRAD-SHAFRANOV EQUATION
+        </h1>
+        <p style={{ fontSize: 10, color: "#5c6a7a", margin: "0 0 16px", letterSpacing: 1 }}>
+          THE ONE EQUATION THAT DEFINES THE PLASMA SHAPE
+        </p>
+
+        {/* Step navigation */}
+        <div style={{ display: "flex", gap: 2, marginBottom: 12, flexWrap: "wrap" }}>
+          {steps.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)}
+              style={{
+                padding: "6px 8px", fontSize: 9, fontFamily: "inherit",
+                background: step === i ? "#1a2a3a" : "#12171f",
+                border: `1px solid ${step === i ? "#4ecdc4" : "#1e2630"}`,
+                color: step === i ? "#4ecdc4" : "#5c6a7a",
+                borderRadius: 4, cursor: "pointer",
+                fontWeight: step === i ? 700 : 400,
+                flex: 1, minWidth: 40,
+              }}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Interactive diagram */}
+          <div>
+            <div style={{
+              background: "#0d1117", borderRadius: 6,
+              border: "1px solid #1e2630", padding: 6,
+            }}>
+              <svg width={svgW} height={svgH} style={{ display: "block" }}>
+                <rect x={0} y={0} width={svgW} height={svgH} fill="#060a0e" rx={4} />
+
+                {/* Flux surface contours */}
+                {[0.05, 0.15, 0.3, 0.5, 0.7, 0.9, 1.0].map((level, i) => (
+                  <path key={i} d={contourPath(level)}
+                    fill={i === 6 ? "none" : `rgba(78,205,196,${0.03 * (7 - i)})`}
+                    stroke={i === 6 ? "#4ecdc4" : `rgba(78,205,196,${0.2 + i * 0.05})`}
+                    strokeWidth={i === 6 ? 2 : 0.8}
+                  />
+                ))}
+
+                {/* Magnetic axis */}
+                <circle cx={toX(R0)} cy={toY(0)} r={4} fill="none" stroke="#ff6b6b" strokeWidth={2} />
+                <circle cx={toX(R0)} cy={toY(0)} r={1.5} fill="#ff6b6b" />
+                <text x={toX(R0)} y={toY(0) + 15} textAnchor="middle" fill="#ff6b6b" fontSize={8}>ψ=0</text>
+
+                {/* Boundary label */}
+                <text x={toX(R0 + a * (0.7 + 0.3 * cScale) + 0.05)} y={toY(0)} fill="#4ecdc4" fontSize={8}>ψ=1</text>
+
+                {/* Pressure arrows (outward) — show at step 0, 4, 6 */}
+                {(step === 0 || step === 4 || step === 6) && Array.from({ length: 10 }, (_, i) => {
+                  const theta = (2 * Math.PI * i) / 10;
+                  const r = 0.35 * a * (0.7 + 0.3 * cScale);
+                  const rZ = 0.35 * a * 1.7 * (0.7 + 0.3 * pScale);
+                  const px = R0 + r * Math.cos(theta);
+                  const pz = rZ * Math.sin(theta);
+                  const len = 8 + pScale * 8;
+                  const dx = Math.cos(theta) * len;
+                  const dy = -Math.sin(theta) * len;
+                  return (
+                    <line key={`p${i}`} x1={toX(px)} y1={toY(pz)} x2={toX(px) + dx} y2={toY(pz) + dy}
+                      stroke="#ff6b6b" strokeWidth={1.5} opacity={0.5}
+                      markerEnd="none"
+                    />
+                  );
+                })}
+
+                {/* Field arrows (inward) */}
+                {(step === 0 || step === 5 || step === 6) && Array.from({ length: 10 }, (_, i) => {
+                  const theta = (2 * Math.PI * i) / 10;
+                  const r = 0.8 * a * (0.7 + 0.3 * cScale);
+                  const rZ = 0.8 * a * 1.7 * (0.7 + 0.3 * pScale);
+                  const px = R0 + r * Math.cos(theta);
+                  const pz = rZ * Math.sin(theta);
+                  const len = 8 + cScale * 8;
+                  const dx = -Math.cos(theta) * len;
+                  const dy = Math.sin(theta) * len;
+                  return (
+                    <line key={`f${i}`} x1={toX(px)} y1={toY(pz)} x2={toX(px) + dx} y2={toY(pz) + dy}
+                      stroke="#8ab4f8" strokeWidth={1.5} opacity={0.5}
+                    />
+                  );
+                })}
+
+                {/* Labels */}
+                {step === 0 && (
+                  <>
+                    <text x={toX(R0 - 0.1)} y={toY(0.1)} fill="#ff6b6b" fontSize={9}>∇P →</text>
+                    <text x={toX(R0 + 0.35)} y={toY(0.3)} fill="#8ab4f8" fontSize={9}>← J×B</text>
+                  </>
+                )}
+
+                {/* The equation — show at relevant steps */}
+                {(step >= 3 && step <= 5) && (
+                  <g>
+                    <rect x={10} y={svgH - 35} width={svgW - 20} height={28} rx={4} fill="#1a2a3a" stroke="#1e2630" />
+                    <text x={svgW / 2} y={svgH - 16} textAnchor="middle" fontSize={10}>
+                      <tspan fill="#4ecdc4">∆*ψ</tspan>
+                      <tspan fill="#5c6a7a"> = </tspan>
+                      <tspan fill="#ff6b6b">−μ₀R²P'(ψ)</tspan>
+                      <tspan fill="#5c6a7a"> − </tspan>
+                      <tspan fill="#c9a3f5">ff'(ψ)</tspan>
+                    </text>
+                  </g>
+                )}
+
+                {/* Step 8: Jacobian — actual grid cells showing size variation */}
+                {step === 8 && (
+                  <g>
+                    {/* Draw actual grid cells in flux coordinates on the plasma */}
+                    {Array.from({ length: 6 }, (_, si) => {
+                      const s = 0.3 + si * 0.12;
+                      return Array.from({ length: 16 }, (_, ti) => {
+                        const theta = (2 * Math.PI * ti) / 16;
+                        const theta2 = (2 * Math.PI * (ti + 1)) / 16;
+                        const s2 = s + 0.12;
+                        const r1 = s * a, r2 = s2 * a;
+                        const rZ1 = s * a * 1.7, rZ2 = s2 * a * 1.7;
+                        // 4 corners of the grid cell
+                        const pts = [
+                          { R: R0 + r1 * Math.cos(theta + 0.35 * Math.sin(theta)), Z: rZ1 * Math.sin(theta) },
+                          { R: R0 + r1 * Math.cos(theta2 + 0.35 * Math.sin(theta2)), Z: rZ1 * Math.sin(theta2) },
+                          { R: R0 + r2 * Math.cos(theta2 + 0.35 * Math.sin(theta2)), Z: rZ2 * Math.sin(theta2) },
+                          { R: R0 + r2 * Math.cos(theta + 0.35 * Math.sin(theta)), Z: rZ2 * Math.sin(theta) },
+                        ];
+                        const polyPts = pts.map(p => `${toX(p.R)},${toY(p.Z)}`).join(" ");
+                        // Color by cell size (outboard = bigger = brighter)
+                        const avgR = pts.reduce((sum, p) => sum + p.R, 0) / 4;
+                        const brightness = (avgR - R0 + 0.5) / 1.0;
+                        return (
+                          <polygon key={`${si}-${ti}`}
+                            points={polyPts}
+                            fill={`rgba(201,184,124,${0.05 + brightness * 0.15})`}
+                            stroke="#c9b87c" strokeWidth={0.5} opacity={0.7}
+                          />
+                        );
+                      });
+                    })}
+                    <text x={toX(R0 + 0.38)} y={cy - 55} fill="#c9b87c" fontSize={9} fontWeight={700}>BIG cells</text>
+                    <text x={toX(R0 + 0.38)} y={cy - 43} fill="#c9b87c" fontSize={8}>J is large</text>
+                    <text x={toX(R0 - 0.48)} y={cy - 35} fill="#c9b87c" fontSize={9} fontWeight={700}>tiny cells</text>
+                    <text x={toX(R0 - 0.48)} y={cy - 23} fill="#c9b87c" fontSize={8}>J is small</text>
+                  </g>
+                )}
+
+                {/* Step 9: Curvature — actual curved field line with curvature vectors */}
+                {step === 9 && (
+                  <g>
+                    {/* A field line spiraling on a flux surface */}
+                    {(() => {
+                      const s = 0.65;
+                      const pts = [];
+                      for (let t = 0; t <= 100; t++) {
+                        const theta = (2 * Math.PI * t) / 100;
+                        const r = s * a;
+                        const rZ = s * a * 1.7;
+                        const R = R0 + r * Math.cos(theta + 0.35 * Math.sin(theta));
+                        const Z = rZ * Math.sin(theta);
+                        pts.push(`${t === 0 ? "M" : "L"} ${toX(R)} ${toY(Z)}`);
+                      }
+                      return <path d={pts.join(" ")} fill="none" stroke="#e6ecf2" strokeWidth={2} opacity={0.6} />;
+                    })()}
+                    {/* Curvature arrows at points along the field line */}
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const theta = (2 * Math.PI * i) / 12;
+                      const s = 0.65;
+                      const r = s * a;
+                      const rZ = s * a * 1.7;
+                      const R = R0 + r * Math.cos(theta + 0.35 * Math.sin(theta));
+                      const Z = rZ * Math.sin(theta);
+                      // Curvature points toward center — but stronger on outboard
+                      const dirR = R0 - R;
+                      const dirZ = -Z;
+                      const mag = Math.sqrt(dirR * dirR + dirZ * dirZ);
+                      // Scale by 1/R to show it's stronger on outboard (R further from axis)
+                      const strength = R > R0 ? 18 : 10;
+                      const isBad = R > R0;
+                      const arrowDx = (dirR / mag) * strength;
+                      const arrowDy = -(dirZ / mag) * strength;
+                      return (
+                        <g key={i}>
+                          <line x1={toX(R)} y1={toY(Z)} x2={toX(R) + arrowDx} y2={toY(Z) + arrowDy}
+                            stroke={isBad ? "#ff6b6b" : "#4ecdc4"} strokeWidth={2} opacity={0.7} />
+                          <circle cx={toX(R) + arrowDx} cy={toY(Z) + arrowDy} r={2}
+                            fill={isBad ? "#ff6b6b" : "#4ecdc4"} opacity={0.7} />
+                        </g>
+                      );
+                    })}
+                    <text x={toX(R0 + 0.42)} y={toY(0.15)} fill="#ff6b6b" fontSize={8} fontWeight={700}>Bad κ</text>
+                    <text x={toX(R0 + 0.42)} y={toY(0.05)} fill="#ff6b6b" fontSize={7}>long arrows</text>
+                    <text x={toX(R0 + 0.42)} y={toY(-0.05)} fill="#ff6b6b" fontSize={7}>= strong bend</text>
+                    <text x={toX(R0 - 0.52)} y={toY(0.05)} fill="#4ecdc4" fontSize={8} fontWeight={700}>Good κ</text>
+                    <text x={toX(R0 - 0.52)} y={toY(-0.05)} fill="#4ecdc4" fontSize={7}>short arrows</text>
+                    <text x={toX(R0 - 0.52)} y={toY(-0.15)} fill="#4ecdc4" fontSize={7}>= gentle bend</text>
+                  </g>
+                )}
+
+                {/* Step 10: Shear — two surfaces with field lines at different angles */}
+                {step === 10 && (
+                  <g>
+                    {/* Inner surface with field line markers at one angle */}
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const theta = (2 * Math.PI * i) / 12;
+                      const s = 0.5;
+                      const r = s * a, rZ = s * a * 1.7;
+                      const R = R0 + r * Math.cos(theta + 0.35 * Math.sin(theta));
+                      const Z = rZ * Math.sin(theta);
+                      // Field line tick mark — angle depends on q
+                      const q1 = 1.5; // inner surface q
+                      const tickAngle = theta + Math.PI / 2 + 0.3;
+                      const tLen = 8;
+                      return (
+                        <line key={`in${i}`}
+                          x1={toX(R) - Math.cos(tickAngle) * tLen}
+                          y1={toY(Z) + Math.sin(tickAngle) * tLen}
+                          x2={toX(R) + Math.cos(tickAngle) * tLen}
+                          y2={toY(Z) - Math.sin(tickAngle) * tLen}
+                          stroke="#4ecdc4" strokeWidth={2} opacity={0.6}
+                        />
+                      );
+                    })}
+                    {/* Outer surface with field line markers at different angle */}
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const theta = (2 * Math.PI * i) / 12;
+                      const s = 0.75;
+                      const r = s * a, rZ = s * a * 1.7;
+                      const R = R0 + r * Math.cos(theta + 0.35 * Math.sin(theta));
+                      const Z = rZ * Math.sin(theta);
+                      // Different q = different angle
+                      const tickAngle = theta + Math.PI / 2 + 0.6; // more twisted
+                      const tLen = 8;
+                      return (
+                        <line key={`out${i}`}
+                          x1={toX(R) - Math.cos(tickAngle) * tLen}
+                          y1={toY(Z) + Math.sin(tickAngle) * tLen}
+                          x2={toX(R) + Math.cos(tickAngle) * tLen}
+                          y2={toY(Z) - Math.sin(tickAngle) * tLen}
+                          stroke="#c9a3f5" strokeWidth={2} opacity={0.6}
+                        />
+                      );
+                    })}
+                    <text x={toX(R0 + 0.1)} y={toY(0.55)} fill="#4ecdc4" fontSize={8}>inner: q=1.5</text>
+                    <text x={toX(R0 + 0.1)} y={toY(0.47)} fill="#4ecdc4" fontSize={7}>less twisted</text>
+                    <text x={toX(R0 + 0.25)} y={toY(-0.45)} fill="#c9a3f5" fontSize={8}>outer: q=3.0</text>
+                    <text x={toX(R0 + 0.25)} y={toY(-0.53)} fill="#c9a3f5" fontSize={7}>more twisted</text>
+                    <text x={svgW / 2} y={svgH - 8} textAnchor="middle" fill="#5c6a7a" fontSize={8}>
+                      Tick marks show field line direction — different angle = different twist = shear
+                    </text>
+                  </g>
+                )}
+              </svg>
+            </div>
+
+            {/* Sliders — show at step 6 */}
+            {step === 6 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{
+                  padding: 8, background: "#12171f", borderRadius: 4,
+                  border: "1px solid #1e2630", marginBottom: 6,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                    <span style={{ color: "#ff6b6b", fontWeight: 700 }}>Pressure P'(ψ)</span>
+                    <span style={{ color: "#ff6b6b" }}>{pressure}%</span>
+                  </div>
+                  <input type="range" min={10} max={100} value={pressure}
+                    onChange={e => setPressure(Number(e.target.value))}
+                    style={{ width: "100%", accentColor: "#ff6b6b" }}
+                  />
+                </div>
+                <div style={{
+                  padding: 8, background: "#12171f", borderRadius: 4,
+                  border: "1px solid #1e2630",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                    <span style={{ color: "#c9a3f5", fontWeight: 700 }}>Current ff'(ψ)</span>
+                    <span style={{ color: "#c9a3f5" }}>{current}%</span>
+                  </div>
+                  <input type="range" min={10} max={100} value={current}
+                    onChange={e => setCurrent(Number(e.target.value))}
+                    style={{ width: "100%", accentColor: "#c9a3f5" }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Explanation panel */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div style={{
+              padding: 14, background: "#12171f", borderRadius: 6,
+              border: "1px solid #1e2630",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#4ecdc4", marginBottom: 8 }}>
+                {step + 1}. {currentStepData.title}
+              </div>
+              {currentStepData.content}
+            </div>
+
+            {/* Navigation */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+              <button
+                onClick={() => setStep(Math.max(0, step - 1))}
+                disabled={step === 0}
+                style={{
+                  padding: "6px 16px", background: step === 0 ? "#12171f" : "#1a2a3a",
+                  border: "1px solid #1e2630", borderRadius: 4,
+                  color: step === 0 ? "#3a4550" : "#4ecdc4",
+                  fontFamily: "inherit", fontSize: 11, cursor: step === 0 ? "default" : "pointer",
+                }}
+              >
+                ← Prev
+              </button>
+              <span style={{ fontSize: 10, color: "#3a4a5a", alignSelf: "center" }}>{step + 1}/{steps.length}</span>
+              <button
+                onClick={() => setStep(Math.min(steps.length - 1, step + 1))}
+                disabled={step === steps.length - 1}
+                style={{
+                  padding: "6px 16px", background: step === steps.length - 1 ? "#12171f" : "#1a2a3a",
+                  border: "1px solid #1e2630", borderRadius: 4,
+                  color: step === steps.length - 1 ? "#3a4550" : "#4ecdc4",
+                  fontFamily: "inherit", fontSize: 11, cursor: step === steps.length - 1 ? "default" : "pointer",
+                }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(GradShafranov));
+</script>
+<script>window.addEventListener('error',e=>{const d=document.getElementById('err');d.style.display='block';d.textContent+='\n'+e.message;});</script>
