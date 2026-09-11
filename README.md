@@ -1,6 +1,6 @@
 # Plasma Atlas
 
-An interactive map of **273 hand-built physics visualizers** — fusion, plasma, gyrokinetics,
+An interactive map of **274 hand-built physics visualizers** — fusion, plasma, gyrokinetics,
 electromagnetism, quantum, nuclear, relativity, vector calculus and a few life-science explainers —
 filed into one browsable constellation.
 
@@ -11,7 +11,7 @@ no build step, no server, no internet required beyond the page itself.
 
 | | |
 |---|---|
-| Visualizers | 273 (287 files including earlier versions) |
+| Visualizers | 274 (288 files including earlier versions) |
 | Fields | 13 |
 | Span | Dec 2025 → Aug 2026 |
 | Size | ~21 MB |
